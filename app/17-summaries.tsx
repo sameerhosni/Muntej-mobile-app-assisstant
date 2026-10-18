@@ -317,7 +317,7 @@ function Feature({ icon, label, bg }: { icon: ReactNode; label: string; bg: Colo
   return (
     <View style={{ flexBasis: '47%', flexGrow: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.tile, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, boxShadow: shadows.tile }}>
       <IconBadge size={36} bg={bg}>{icon}</IconBadge>
-      <AppText weight="bold" numberOfLines={1} style={{ flexShrink: 1 }}>
+      <AppText weight="bold" numberOfLines={2} style={{ flexShrink: 1, lineHeight: 18 }}>
         {label}
       </AppText>
     </View>

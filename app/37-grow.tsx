@@ -6,7 +6,7 @@ import { Pressable, ScrollView, Share, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { G, Path } from 'react-native-svg';
-import { ArrowLeft, Banknote, Building2, Check, Clock, Gift, MapPin, Plus, Receipt, Sparkles, UserPlus, Users, type LucideProps } from 'lucide-react-native';
+import { ChevronLeft, Banknote, Building2, Check, Clock, Gift, MapPin, Plus, Receipt, Sparkles, UserPlus, Users, type LucideProps } from 'lucide-react-native';
 import { AppText, Button, Card, Gradient, Hero, IconBadge, IconButton, StatTile } from '@/components/ui';
 import { colors, radius, shadows, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -45,7 +45,7 @@ export default function GrowScreen() {
         <Hero overlap={OVERLAP}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
             <IconButton variant="glass" label={t('back')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
-              <ArrowLeft color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
+              <ChevronLeft color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
             </IconButton>
             <View style={{ gap: 2, flexShrink: 1 }}>
               <AppText variant="titleLg" color="onDark" style={{ fontSize: 24 }}>

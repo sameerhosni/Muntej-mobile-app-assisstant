@@ -24,7 +24,7 @@ import {
   Zap,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Avatar, Card, Hero, IconBadge, StatTile } from '@/components/ui';
+import { AppText, Avatar, Card, Hero, IconBadge, ProgressBar, StatTile } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -61,6 +61,15 @@ function minutesFor(a: ActivityEntry) {
   if (a.action === 'followup_sent') return MIN_PER_FOLLOWUP;
   if (a.action === 'update_received' || a.action === 'submission_received') return MIN_PER_UPDATE;
   return 0;
+}
+
+/** First percentage in a summary ("… 70% done" / "٧٠٪"), clamped to 0..100; null if none. */
+function percentIn(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const latin = text.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+  const m = latin.match(/(\d{1,3})\s*[%٪]/);
+  if (!m) return null;
+  return Math.min(100, Math.max(0, Number(m[1])));
 }
 
 function dayBucket(iso: string): 'today' | 'yesterday' | 'earlier' {
@@ -178,6 +187,9 @@ export default function AutopilotScreen() {
                   const st = ACTION_STYLE[a.action] ?? { Icon: Zap, bg: 'orangeTint' as ColorToken, fg: 'orange' as ColorToken };
                   const last = i === g.items.length - 1;
                   const who = nameOf(a.subject_id);
+                  const summary = i18n.language === 'ar' && a.summary_ar ? a.summary_ar : a.summary;
+                  const pct = a.action === 'update_received' ? percentIn(summary) ?? percentIn(a.summary) : null;
+                  const isAuto = a.actor_type === 'muntej';
                   return (
                     <View key={a.id} style={{ flexDirection: 'row', gap: spacing.lg }}>
                       <View style={{ alignItems: 'center', width: 38 }}>
@@ -188,36 +200,38 @@ export default function AutopilotScreen() {
                       </View>
                       <View style={{ flex: 1, minWidth: 0, paddingBottom: last ? spacing.sm : spacing.xxl, gap: 6 }}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
-                          <AppText weight="bold" style={{ flex: 1, lineHeight: 18 }}>
-                            {i18n.language === 'ar' && a.summary_ar ? a.summary_ar : a.summary}
+                          <AppText weight="bold" numberOfLines={2} style={{ flex: 1, lineHeight: 18 }}>
+                            {summary}
                           </AppText>
                           <AppText variant="caption" color="textFaint">
                             {timeFmt(a.created_at)}
                           </AppText>
                         </View>
-                        {a.reason && (
-                          <AppText variant="caption" color="textMuted" numberOfLines={2}>
-                            {a.reason}
-                          </AppText>
-                        )}
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                          {who && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.bg, borderRadius: radius.pill, paddingVertical: 3, paddingStart: 3, paddingEnd: spacing.md }}>
-                              <Avatar name={who} size={18} />
-                              <AppText variant="caption" weight="semibold" color="textSoft" numberOfLines={1}>
-                                {who}
-                              </AppText>
+                        {/* ONE line under the title: progress for updates with a %, else person, else the auto chip */}
+                        {pct !== null ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                            <View style={{ flex: 1 }}>
+                              <ProgressBar value={pct / 100} gradient="avatarPurple" height={6} />
                             </View>
-                          )}
-                          {a.undoable && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.orangeTint, borderRadius: radius.pill, paddingVertical: 3, paddingHorizontal: spacing.md }}>
-                              <Zap color={colors.orangeText} size={12} strokeWidth={2.4} />
-                              <AppText variant="caption" weight="bold" color="orangeText">
-                                {t('auto')}
-                              </AppText>
-                            </View>
-                          )}
-                        </View>
+                            <AppText variant="caption" weight="bold" color="purple">
+                              {formatNumber(pct, lang)}%
+                            </AppText>
+                          </View>
+                        ) : who ? (
+                          <View style={{ alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.bg, borderRadius: radius.pill, paddingVertical: 3, paddingStart: 3, paddingEnd: spacing.md }}>
+                            <Avatar name={who} size={18} />
+                            <AppText variant="caption" weight="semibold" color="textSoft" numberOfLines={1} style={{ flexShrink: 1 }}>
+                              {who}
+                            </AppText>
+                          </View>
+                        ) : isAuto ? (
+                          <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.orangeTint, borderRadius: radius.pill, paddingVertical: 3, paddingHorizontal: spacing.md }}>
+                            <Zap color={colors.orangeText} size={12} strokeWidth={2.4} />
+                            <AppText variant="caption" weight="bold" color="orangeText">
+                              {t('auto')}
+                            </AppText>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                   );

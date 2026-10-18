@@ -8,13 +8,15 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, Share, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Banknote, Check, ChevronLeft, ChevronRight, Clock, Hand, User } from 'lucide-react-native';
-import { AppText, Avatar, BOTTOM_CTA_SPACE, BottomCTA, Card, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Banknote, Check, ChevronLeft, ChevronRight, Clock, Hand, Sparkles, Upload, User } from 'lucide-react-native';
+import { AppText, Avatar, BOTTOM_CTA_SPACE, Button, Card, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useTeam } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
+import { startOfWeek } from '@/features/dashboard/metrics';
 import { useWorkspaces } from '@/features/workspaces/useWorkspaces';
 import { useAchievements } from '@/features/achievements/useAchievements';
 import { buildDemo, buildLive, deltaLabel, type Dot, type Lane, type View as ViewBy, type Zoom } from '@/features/achievements/model';
@@ -28,6 +30,7 @@ const LABEL_W = 84;
 export default function AchievementsScreen() {
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ workspace?: string }>();
   const focusWs = typeof params.workspace === 'string' ? params.workspace : undefined;
 
@@ -56,8 +59,16 @@ export default function AchievementsScreen() {
     (focusWs && !isDemo ? latest(vm.dots.filter((d) => d.laneWs === focusWs)) : null) ??
     latest(vm.dots);
 
+  const demoLegend = useMemo(() => buildDemo('m', { t, lang }).legend, [t, lang]);
   const lanes: Lane[] = view === 'ws' ? vm.wsLanes : vm.personLanes;
-  const delta = deltaLabel(vm, zoom, t, lang, (n) => formatNumber(n, lang));
+  // Legend under the slider: one dot per workspace (source) in its lane colour; the design's three when nothing is live.
+  const legend = vm.legend.length > 0 ? vm.legend : demoLegend;
+  // Delta chip: period-over-period when derivable, else wins logged this week (live), else the sample's.
+  const weekFrom = startOfWeek().getTime();
+  const thisWeek = rows.filter((r) => new Date(r.achieved_at).getTime() >= weekFrom).length;
+  const delta =
+    deltaLabel(vm, zoom, t, lang, (n) => formatNumber(n, lang)) ??
+    (thisWeek > 0 ? t('deltaThisWeek', { n: formatNumber(thisWeek, lang) }) : null);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   const openDetail = () => {
@@ -206,9 +217,9 @@ export default function AchievementsScreen() {
                 ))}
               </View>
             </View>
-            {view === 'emp' && vm.legend.length > 0 && (
+            {legend.length > 0 && (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg, justifyContent: 'center', paddingTop: spacing.sm }}>
-                {vm.legend.map((g) => (
+                {legend.map((g) => (
                   <View key={g.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <View style={{ width: 9, height: 9, borderRadius: 5, borderWidth: 2, borderColor: colors[g.tone.solid] }} />
                     <AppText variant="micro" color="textSoft">{g.name}</AppText>
@@ -278,10 +289,27 @@ export default function AchievementsScreen() {
         </View>
       </ScrollView>
 
-      <BottomCTA
-        primary={{ label: t('report'), onPress: () => router.push('/17-summaries') }}
-        secondary={{ label: t('share'), onPress: share }}
-      />
+      {/* Sticky bottom actions (same layout as BottomCTA, with the design's icons) */}
+      <View
+        style={{
+          position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.screen, paddingTop: spacing.lg,
+          paddingBottom: Math.max(insets.bottom, spacing.xxl) + 14, backgroundColor: colors.bg, flexDirection: 'row', gap: spacing.md,
+        }}
+      >
+        <Button
+          label={t('report')}
+          onPress={() => router.push('/17-summaries')}
+          icon={<Sparkles color={colors.onDark} size={18} strokeWidth={1.9} />}
+          style={{ flex: 1 }}
+        />
+        <Button
+          label={t('share')}
+          onPress={share}
+          variant="outline"
+          icon={<Upload color={colors.primary} size={16} strokeWidth={2} />}
+          style={{ minWidth: 104 }}
+        />
+      </View>
     </View>
   );
 }

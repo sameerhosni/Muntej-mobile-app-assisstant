@@ -21,6 +21,7 @@ import { nextWorkspaceColor } from '@/features/workspaces/color';
 import { detectRoles, preselect, suggestDeadline, suggestName, suggestTeam, type Candidate } from '@/features/new-workspace/suggest';
 import { useCreateWorkspace } from '@/features/new-workspace/useCreateWorkspace';
 import { NS } from '@/features/new-workspace/strings';
+import { skillLabels } from '@/features/new-workspace/skills';
 
 const ROLE_LABEL_EN: Record<string, string> = {
   design: 'Design', mobile: 'Mobile', marketing: 'Marketing', sales: 'Sales', finance: 'Finance', product: 'Product',
@@ -63,7 +64,7 @@ export default function NewWorkspaceScreen() {
 
   const why = (c: Candidate) => {
     const parts: string[] = [];
-    if (c.skills.length) parts.push(c.skills.join(', '));
+    if (c.skills.length) parts.push(skillLabels(c.skills, t).join(lang === 'ar' ? '، ' : ', '));
     if (c.doneCount > 0) parts.push(t('why.done', { n: formatNumber(c.doneCount, lang) }));
     parts.push(c.loadPct > 100 ? t('why.overloaded', { n: formatNumber(c.loadPct, lang) }) : t('why.free', { h: formatNumber(c.freeHours, lang) }));
     return parts.join(' · ');

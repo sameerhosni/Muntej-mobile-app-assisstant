@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, CircleCheck, Clock, Hand, ShieldCheck, Target } from 'lucide-react-native';
+import { ChevronLeft, CircleCheck, Clock, Hand, ShieldCheck, Target } from 'lucide-react-native';
 import { AppText, Card, Gradient, Hero, IconButton, PointsCoin, ProgressBar, StatTile } from '@/components/ui';
 import { colors, radius, shadows, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -61,7 +61,7 @@ export default function BadgesScreen() {
               label={t('back')}
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/25-employee-home'))}
             >
-              <ArrowLeft color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
+              <ChevronLeft color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
             </IconButton>
             <View style={{ flexShrink: 1 }}>
               <AppText variant="titleLg" color="onDark" style={{ fontSize: 24 }}>

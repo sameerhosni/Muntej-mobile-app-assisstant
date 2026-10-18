@@ -246,7 +246,7 @@ function ValueTile({ bg, icon, value, label }: { bg: ColorToken; icon: ReactNode
         <AppText variant="cardTitle" weight="extrabold" numberOfLines={1}>
           {value}
         </AppText>
-        <AppText variant="micro" color="textMuted" numberOfLines={1}>
+        <AppText variant="micro" color="textMuted" numberOfLines={2} style={{ lineHeight: 14 }}>
           {label}
         </AppText>
       </View>

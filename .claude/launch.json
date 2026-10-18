@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["expo", "start", "--web", "--port", "8081", "--offline"],
       "port": 8081
+    },
+    {
+      "name": "design-v2",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve-design.js"],
+      "port": 8090
     }
   ]
 }

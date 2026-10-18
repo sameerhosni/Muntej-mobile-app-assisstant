@@ -306,13 +306,16 @@ export default function LoadRadarScreen() {
 
       {sel && !loading && (
         <BottomCTA
-          primary={
-            sentTo
-              ? { label: t('done'), onPress: back }
-              : sel.current
-                ? { label: t('already', { name: nameOf(sel) }), disabled: true }
-                : { label: t('send', { name: nameOf(sel) }), onPress: send, loading: assign.isPending }
-          }
+          primary={sentTo
+            ? { label: t('done'), onPress: back }
+            : sel.current
+              ? { label: t('already', { name: nameOf(sel) }), disabled: true }
+              : {
+                  label: t('send', { name: nameOf(sel) }),
+                  onPress: send,
+                  loading: assign.isPending,
+                  icon: <Send color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />,
+                }}
         />
       )}
     </View>

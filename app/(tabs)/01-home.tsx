@@ -10,6 +10,7 @@ import { useDirection } from '@/lib/i18n';
 import { useHomeStats, useMyProfile, usePendingDecisionCount } from '@/lib/api';
 import { formatNumber, hoursSaved, sarSaved } from '@/features/home/value';
 import { useProto } from '@/features/prototype/store';
+import { TeamEnergyCard } from '@/features/home/TeamEnergyCard';
 
 function greetingKey(date = new Date()) {
   const h = date.getHours();
@@ -120,6 +121,9 @@ export default function ManagerHome() {
               </IconBadge>
             </Card>
           )}
+
+          {/* The design always has a card overlapping the hero edge: decisions when pending, else this one. */}
+          <TeamEnergyCard raised={pending === 0} />
 
           <View style={{ gap: spacing.md }}>
             <SectionTitle title={t('home.askMuntej')} />

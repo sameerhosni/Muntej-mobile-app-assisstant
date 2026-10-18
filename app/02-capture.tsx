@@ -14,6 +14,7 @@ import { Waveform } from '@/features/capture/Waveform';
 import { TaskReview } from '@/features/capture/TaskReview';
 import { EditTask } from '@/features/capture/EditTask';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
+import { formatClock } from '@/features/capture/points';
 import { createTask, parseTask, rescalePlan, transcribeAudio, type ParsedTask } from '@/features/capture/api';
 
 type Step =
@@ -32,6 +33,8 @@ export default function CaptureScreen() {
   const [step, setStep] = useState<Step>(source === 'voice' ? { kind: 'recording' } : { kind: 'typing' });
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
+  // length of the voice note behind the current transcript; null for typed text
+  const [voiceMs, setVoiceMs] = useState<number | null>(null);
   const recorder = useVoiceRecorder();
   const team = useTeam();
   const me = useMyProfile();
@@ -73,6 +76,7 @@ export default function CaptureScreen() {
       setStep({ kind: 'error', message: t('capture.tooShort') });
       return;
     }
+    setVoiceMs(duration);
     setStep({ kind: 'working', label: 'transcribing' });
     try {
       const transcript = await transcribeAudio(uri);
@@ -175,7 +179,11 @@ export default function CaptureScreen() {
                 autoFocus
                 style={{ minHeight: 120, textAlignVertical: 'top' }}
               />
-              <Button label={t('capture.understand')} disabled={!text.trim()} onPress={() => understand(text.trim())} />
+              <Button label={t('capture.understand')} disabled={!text.trim()} onPress={() => {
+                  setVoiceMs(null);
+                  understand(text.trim());
+                }}
+              />
             </View>
           )}
 
@@ -188,7 +196,7 @@ export default function CaptureScreen() {
           )}
 
           {step.kind === 'review' && (
-            <TaskReview task={step.task} team={team.data ?? []} />
+            <TaskReview task={step.task} team={team.data ?? []} durationMs={voiceMs ?? undefined} />
           )}
 
           {step.kind === 'edit' && (
@@ -228,7 +236,12 @@ export default function CaptureScreen() {
 
         {step.kind === 'review' && (
           <BottomCTA
-            primary={{ label: t('capture.doneForget'), onPress: () => save(step.task), loading: saving }}
+            primary={{
+              label: t('capture.doneForget'),
+              onPress: () => save(step.task),
+              loading: saving,
+              icon: <Check color={colors.onDark} size={18} strokeWidth={2.4} />,
+            }}
             secondary={{ label: t('capture.edit'), onPress: () => setStep({ kind: 'edit', task: step.task, draft: step.task }) }}
           />
         )}
@@ -252,9 +265,4 @@ export default function CaptureScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-}
-
-function formatClock(ms: number) {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }

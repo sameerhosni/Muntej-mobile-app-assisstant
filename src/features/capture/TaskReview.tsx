@@ -17,7 +17,10 @@ import {
   Target,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Avatar, Card, Gradient, IconBadge, StatTile } from '@/components/ui';
+import { AppText, Avatar, Card, Gradient, IconBadge, PointsCoin, StatTile } from '@/components/ui';
+import { useScreenT } from '@/lib/i18n/register';
+import { formatClock, taskPointsReward } from './points';
+import { NS } from './strings';
 import { colors, radius, shadows, spacing, type ColorToken, type GradientToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import type { Profile } from '@/lib/api';
@@ -39,9 +42,11 @@ export function personName(p: Profile | undefined, lang: string) {
 }
 
 /** Transcript + savings + "Muntej understood" + auto plan (design/v2/html/Capture.dc.html). */
-export function TaskReview({ task, team }: { task: ParsedTask; team: Profile[] }) {
+export function TaskReview({ task, team, durationMs }: { task: ParsedTask; team: Profile[]; durationMs?: number }) {
   const { t } = useTranslation();
+  const { t: ts } = useScreenT(NS);
   const { lang } = useDirection();
+  const reward = taskPointsReward();
   const owner = team.find((p) => p.id === task.owner_id);
   const helper = team.find((p) => p.id === task.helper_id);
   const firstName = (p?: Profile) => personName(p, lang).split(' ')[0];
@@ -58,6 +63,17 @@ export function TaskReview({ task, team }: { task: ParsedTask; team: Profile[] }
               <Mic color={colors.onDark} size={16} strokeWidth={2} />
             </IconBadge>
             <Waveform onDark />
+            {durationMs !== undefined && (
+              <AppText
+                variant="caption"
+                weight="bold"
+                color="onDarkMuted"
+                style={{ marginStart: 'auto' }}
+                accessibilityLabel={ts('recordingLength', { time: formatClock(durationMs) })}
+              >
+                {formatClock(durationMs)}
+              </AppText>
+            )}
           </View>
           <AppText color="onDark" style={{ lineHeight: 21, writingDirection: contentDir }}>
             “{task.transcript}”
@@ -122,6 +138,18 @@ export function TaskReview({ task, team }: { task: ParsedTask; team: Profile[] }
               </AppText>
             </Field>
           )}
+          <Field
+            label={ts('pointsEarly', { n: formatNumber(reward.early, lang) })}
+            icon={
+              <IconBadge size={34} bg="orangeTint">
+                <PointsCoin size={20} />
+              </IconBadge>
+            }
+          >
+            <AppText weight="extrabold" color="orangeText" numberOfLines={1}>
+              {ts('pointsValue', { n: formatNumber(reward.total, lang) })}
+            </AppText>
+          </Field>
         </View>
       </Card>
 
@@ -213,7 +241,7 @@ function AutoPlan({ steps }: { steps: FollowupStep[] }) {
               <AppText variant="caption" weight="extrabold" color={i === 0 ? 'primary' : 'text'} align="center" numberOfLines={1}>
                 {formatStep(s.at, lang, t('capture.now'))}
               </AppText>
-              <AppText variant="micro" color="textMuted" align="center" numberOfLines={3} style={{ lineHeight: 14 }}>
+              <AppText variant="micro" color="textMuted" align="center" numberOfLines={2} style={{ lineHeight: 14 }}>
                 {s.summary}
               </AppText>
             </View>

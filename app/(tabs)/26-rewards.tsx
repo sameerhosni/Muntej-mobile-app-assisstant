@@ -3,7 +3,7 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { Pressable, ScrollView, View, type ViewStyle } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Banknote, Check, Clock, Heart, Paperclip, Sparkles, Star, Users, Zap, type LucideProps } from 'lucide-react-native';
+import { ChevronLeft, Banknote, Check, Clock, Heart, Paperclip, Sparkles, Star, Users, Zap, type LucideProps } from 'lucide-react-native';
 import { AppText, Card, Gradient, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -51,7 +51,7 @@ export default function RewardsScreen() {
               label={t('back')}
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/25-employee-home'))}
             >
-              <ArrowLeft color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
+              <ChevronLeft color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
             </IconButton>
             <AppText variant="titleLg" color="onDark" style={{ fontSize: 24 }}>
               {t('title')}
@@ -151,13 +151,16 @@ export default function RewardsScreen() {
                       {name}
                     </AppText>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <PointsCoin size={18} />
-                    <AppText weight="extrabold" color="orangeText" numberOfLines={1}>
-                      {t('costPts', { n: n(r.cost) })}
-                    </AppText>
+                  {/* Cost never truncates: the SAR chip wraps to the next line when the card is narrow. */}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <PointsCoin size={18} />
+                      <AppText weight="extrabold" color="orangeText">
+                        {t('costPts', { n: n(r.cost) })}
+                      </AppText>
+                    </View>
                     <View style={{ marginStart: 'auto', backgroundColor: colors.greenTint, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 }}>
-                      <AppText variant="micro" weight="extrabold" color="greenText" numberOfLines={1}>
+                      <AppText variant="micro" weight="extrabold" color="greenText">
                         {t('sar', { n: n(r.cost / PTS_PER_SAR) })}
                       </AppText>
                     </View>

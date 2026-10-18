@@ -5,7 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AlertTriangle, Check, ChevronLeft, Clock, Link2, Mic, MessageSquare, Plus, Sparkles } from 'lucide-react-native';
+import { AlertTriangle, Check, ChevronLeft, Clock, Link2, Mic, MessageSquare, Plus, Send, Sparkles } from 'lucide-react-native';
 import { AppText, Avatar, BottomCTA, BOTTOM_CTA_SPACE, Card, Gradient, IconBadge, IconButton, PointsCoin } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -371,6 +371,7 @@ export default function TaskDetailScreen() {
         primary={{
           label: t('submit'),
           onPress: () => router.push(id ? { pathname: '/15-review', params: { id } } : '/15-review'),
+          icon: <Send color={colors.onDark} size={18} strokeWidth={2.2} style={flip} />,
         }}
       />
     </View>

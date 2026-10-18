@@ -154,7 +154,7 @@ export default function PushbackScreen() {
               <AppText variant="small" color="onDarkMuted" numberOfLines={1}>
                 {t('role', { name: meName })}
               </AppText>
-              <AppText variant="titleLg" color="onDark" style={{ fontSize: 25, lineHeight: 30 }}>
+              <AppText variant="titleLg" color="onDark" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                 {t('title')}
               </AppText>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>

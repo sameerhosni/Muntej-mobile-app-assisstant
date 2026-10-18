@@ -5,12 +5,12 @@
 import { useMemo, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import { AlertTriangle, Banknote, Check, ChevronLeft, Clock, Hand, ListChecks, Sparkles, Users } from 'lucide-react-native';
+import { AlertTriangle, Banknote, Check, ChevronLeft, Clock, Hand, ListChecks, Plus, RotateCw, Sparkles, Users } from 'lucide-react-native';
 import {
   AppText,
   Avatar,
-  BOTTOM_CTA_SPACE,
   BottomCTA,
+  BOTTOM_CTA_SPACE,
   Card,
   Gradient,
   Hero,
@@ -131,8 +131,16 @@ export default function WorkspacesScreen() {
       </ScrollView>
 
       <BottomCTA
-        primary={{ label: t('newWorkspace'), onPress: () => router.push('/20-new-workspace') }}
-        secondary={{ label: t('agents'), onPress: () => router.push('/22-agents') }}
+        primary={{
+          label: t('newWorkspace'),
+          onPress: () => router.push('/20-new-workspace'),
+          icon: <Plus color={colors.onDark} size={20} strokeWidth={2} />,
+        }}
+        secondary={{
+          label: t('agents'),
+          onPress: () => router.push('/22-agents'),
+          icon: <RotateCw color={colors.primary} size={18} strokeWidth={2} />,
+        }}
       />
     </View>
   );

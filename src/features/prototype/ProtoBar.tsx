@@ -22,11 +22,16 @@ export function ProtoBar() {
   const pathname = usePathname();
   const s = useProto();
   const current = PROTO_SCREENS.find((x) => x.route === pathname);
-  const [open, setOpen] = useState(true);
+  const [open, setOpenState] = useState(s.tips);
+  // collapsing/expanding is remembered across screens (proto.tips)
+  const setOpen = (v: boolean) => {
+    setOpenState(v);
+    if (v !== s.tips) proto.toggleTips();
+  };
 
-  // show the tip each time a new screen opens
+  // show the tip each time a new screen opens, unless the user collapsed tips
   useEffect(() => {
-    if (current) setOpen(true);
+    if (current) setOpenState(s.tips);
   }, [current?.num]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!s.active || !current) return null;

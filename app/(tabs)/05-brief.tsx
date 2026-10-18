@@ -21,20 +21,22 @@ import { NS } from '@/features/brief/strings';
 const AUDIO_SEC = 60;
 const WAVE = [8, 14, 18, 10, 16, 12, 18, 8, 14, 10, 16, 6];
 const WAVE_ON: ColorToken[] = ['primary', 'primary', 'primaryLight', 'cyan'];
+/** Design shows the player paused part-way (0:18 / 1:00); keep that look until playback starts. */
+const WAVE_IDLE_ON = 4;
 
-const GRADIENT_TEXT: Record<string, ColorToken> = {
-  avatarBlue: 'primary',
-  avatarPurple: 'purple',
-  avatarGreen: 'green',
-  avatarOrange: 'orangeText',
-};
+/** Team pulse colour per level (design): ≥85% blue, 70–84% purple, <70% orange. */
+function pulseLevel(rate: number): { gradient: GradientToken; fg: ColorToken } {
+  if (rate >= 85) return { gradient: 'avatarBlue', fg: 'primary' };
+  if (rate >= 70) return { gradient: 'avatarPurple', fg: 'purple' };
+  return { gradient: 'warning', fg: 'amberText' };
+}
 
 type PulseRow = { id: string; name: string; rate: number; gradient: GradientToken };
 type Suggestion = { id: string; name: string; kind: 'up' | 'top'; n: number; gradient: GradientToken };
 
 export default function BriefScreen() {
   const { t } = useScreenT(NS);
-  const { lang } = useDirection();
+  const { lang, isRTL } = useDirection();
   const tasks = useTasks();
   const team = useTeam();
   const stats = useHomeStats();
@@ -154,7 +156,7 @@ export default function BriefScreen() {
     followups: formatNumber(v.followups, lang),
     calls: formatNumber(v.calls, lang),
   });
-  const waveOn = Math.round(audio.progress * WAVE.length);
+  const waveOn = audio.playing || audio.pos > 0 ? Math.round(audio.progress * WAVE.length) : WAVE_IDLE_ON;
   const refreshing = tasks.isRefetching || stats.isRefetching;
   const onRefresh = () => {
     tasks.refetch();
@@ -191,7 +193,7 @@ export default function BriefScreen() {
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <StatTile variant="glass" iconBg="primaryLight" icon={<Clock color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={t('hours', { h: formatNumber(v.hours, lang, 1) })} label={t('timeSaved')} />
+              value={formatNumber(v.hours, lang, 1)} label={t('timeSaved')} />
             <StatTile variant="glass" iconBg="green" icon={<Banknote color={colors.onDark} size={14} strokeWidth={2.2} />}
               value={formatNumber(v.sar, lang)} label={t('sarSaved')} />
             <StatTile variant="glass" iconBg="orange" icon={<Hand color={colors.onDark} size={14} strokeWidth={2.2} />}
@@ -201,7 +203,7 @@ export default function BriefScreen() {
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -24, gap: spacing.lg }}>
           {/* 1-minute audio brief (demo player) */}
-          <Card elevation="raised" padding={spacing.lg} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl }}>
+          <Card elevation="raised" padding={spacing.lg} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingHorizontal: spacing.xl }}>
             <Pressable
               onPress={audio.toggle}
               accessibilityRole="button"
@@ -227,13 +229,10 @@ export default function BriefScreen() {
                       width: 3,
                       height: h,
                       borderRadius: 2,
-                      backgroundColor: i < waveOn ? colors[WAVE_ON[Math.min(i, WAVE_ON.length - 1) % WAVE_ON.length]] : colors.track,
+                      backgroundColor: i < waveOn ? colors[WAVE_ON[Math.min(i, WAVE_ON.length - 1)]] : colors.borderBlue,
                     }}
                   />
                 ))}
-              </View>
-              <View style={{ height: 3, borderRadius: 2, backgroundColor: colors.track, overflow: 'hidden', flexDirection: 'row' }}>
-                <View style={{ width: `${audio.progress * 100}%`, backgroundColor: colors.primary }} />
               </View>
             </View>
             <AppText variant="caption" weight="bold" color="textMuted" style={{ writingDirection: 'ltr' }}>
@@ -267,8 +266,7 @@ export default function BriefScreen() {
               </AppText>
             )}
             {v.pulse.map((r) => {
-              const low = r.rate < 60;
-              const fg: ColorToken = low ? 'amberText' : GRADIENT_TEXT[r.gradient] ?? 'primary';
+              const level = pulseLevel(r.rate);
               return (
                 <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
                   <Avatar name={r.name} size={28} gradient={r.gradient} />
@@ -276,9 +274,13 @@ export default function BriefScreen() {
                     {r.name}
                   </AppText>
                   <View style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: colors.track, overflow: 'hidden', flexDirection: 'row' }}>
-                    <Gradient name={low ? 'warning' : r.gradient} direction="horizontal" style={{ width: `${r.rate}%`, borderRadius: 4 }} />
+                    <Gradient
+                      name={level.gradient}
+                      direction="horizontal"
+                      style={{ width: `${r.rate}%`, borderRadius: 4, transform: [{ scaleX: isRTL ? -1 : 1 }] }}
+                    />
                   </View>
-                  <AppText variant="caption" weight="extrabold" color={fg} align="end" style={{ width: 40 }}>
+                  <AppText variant="caption" weight="extrabold" color={level.fg} align="end" style={{ width: 40 }}>
                     {pctText(r.rate)}
                   </AppText>
                 </View>

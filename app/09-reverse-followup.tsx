@@ -285,7 +285,9 @@ function WaitCard({ item, done, onNudge }: { item: WaitItem; done: boolean; onNu
           accessibilityRole="button"
           accessibilityLabel={t('nudgeA11y', { name: item.who, what: item.what })}
           style={({ pressed }) => ({
+            alignSelf: 'flex-start',
             minHeight: sizes.touch,
+            paddingHorizontal: spacing.xxl + 2,
             borderRadius: radius.pill,
             borderWidth: 1,
             borderColor: colors.purpleBorder,

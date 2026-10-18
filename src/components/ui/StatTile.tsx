@@ -16,6 +16,9 @@ type Props = {
 
 export function StatTile({ value, label, icon, iconBg = 'primaryTint', variant = 'card' }: Props) {
   const glass = variant === 'glass';
+  // values must never ellipsize: step the size down for longer values ("2.5 ريال", "1,280")
+  const len = String(value).length;
+  const valueSize = len <= 5 ? undefined : len <= 7 ? 15 : 13;
   return (
     <View
       style={{
@@ -36,7 +39,11 @@ export function StatTile({ value, label, icon, iconBg = 'primaryTint', variant =
             {icon}
           </IconBadge>
         )}
-        <AppText variant="stat" color={glass ? 'onDark' : 'text'} numberOfLines={1} style={{ flexShrink: 1 }}>
+        <AppText variant="stat" color={glass ? 'onDark' : 'text'} numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+          style={{ flexShrink: 1, fontSize: valueSize, lineHeight: valueSize ? valueSize + 6 : undefined }}
+        >
           {value}
         </AppText>
       </View>

@@ -141,7 +141,7 @@ export default function NoteTakerScreen() {
               <AppText variant="lead" weight="bold" numberOfLines={1} style={{ flex: 1 }}>
                 {t('room')}
               </AppText>
-              <Svg width={54} height={22} viewBox="0 0 54 22" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <Svg width={54} height={22} viewBox="0 0 54 22" aria-hidden>
                 {WAVE.map((h0, i) => {
                   // shift the bar heights every second so the wave looks alive
                   const h = WAVE[(i + rec.tick) % WAVE.length] || h0;
@@ -183,8 +183,7 @@ export default function NoteTakerScreen() {
               height={40}
               viewBox="0 0 90 40"
               style={{ position: 'absolute', top: 10, end: 12 }}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
+              aria-hidden
             >
               <Path d="M10 6l4 4-4 4-4-4z" fill={colors.purple} />
               <Path d="M40 4l5 8h-10z" fill={colors.gold} />

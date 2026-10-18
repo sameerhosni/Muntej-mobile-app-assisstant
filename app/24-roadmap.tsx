@@ -5,7 +5,7 @@
 // logged to activity_log as 'roadmap_adjusted' (undoable, previous dates in undo_payload); "move it" opens Load Radar.
 // No dated tasks yet → the design's six sample projects (incl. "Qiwa integration"); Apply there is local state only.
 import { useMemo, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View, type ViewStyle } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CalendarDays, Check, ChevronLeft, Flag, PieChart, Sparkles, TrendingUp, UserRoundCog } from 'lucide-react-native';
@@ -78,7 +78,11 @@ export default function RoadmapScreen() {
   const w0 = windowStart();
   const todayFrac = frac(Date.now(), w0);
   const date = (ms: number) => fmtDate(ms, t('months'), (m, d) => t('dateFmt', { m, d: formatNumber(d, lang) }));
-  const ticks = [0, 1, 2, 3, 4].map((k) => date(startOfDay().getTime() + k * 14 * DAY_MS));
+  // Axis ticks are placed at their own fraction of the window (same scale as the bars), from the start edge.
+  const ticks = [0, 1, 2, 3, 4].map((k) => {
+    const ms = startOfDay().getTime() + k * 14 * DAY_MS;
+    return { label: date(ms), f: frac(ms, w0) };
+  }).filter((tk) => tk.f <= 0.85); // a tick near the end edge would collide with its neighbour
   const statusOf = (r: RoadRow) =>
     r.forecast === 'on_track'
       ? t('onTrack')
@@ -196,11 +200,13 @@ export default function RoadmapScreen() {
             </View>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <View style={{ width: LABEL_W }} />
-              <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-                {ticks.map((d, i) => (
-                  <AppText key={i} variant="micro" color="textFaint">
-                    {d}
-                  </AppText>
+              <View style={{ flex: 1, height: 20, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                {ticks.map((tk, i) => (
+                  <AtStart key={i} at={tk.f} anchor={tk.f >= 0.9 ? 'end' : 'start'} style={{ top: 0 }}>
+                    <AppText variant="micro" color="textFaint" numberOfLines={1}>
+                      {tk.label}
+                    </AppText>
+                  </AtStart>
                 ))}
               </View>
             </View>
@@ -357,45 +363,74 @@ function TimelineRow({ row, w0, todayFrac, isRTL, selected, startLabel, endLabel
         </AppText>
       </View>
       <View style={{ flex: 1, height: ROW_H }}>
+        {/* All marks are laid out from the start edge with flex rows (right in Arabic, left in English),
+            so they follow the same direction as the date axis. */}
         {/* today line */}
-        <View style={{ position: 'absolute', top: 0, bottom: 0, start: pct(todayFrac), width: 2, borderRadius: 1, backgroundColor: colors.purple, opacity: 0.7 }} />
-        {/* start date (above) */}
-        <View style={{ position: 'absolute', top: 1, start: pct(Math.min(s, 0.7)), flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-          <View style={{ width: 2, height: 9, borderRadius: 1, backgroundColor: colors.textFaint }} />
-          <AppText variant="micro" weight="semibold" color="textMuted" numberOfLines={1}>
-            {startLabel}
-          </AppText>
-        </View>
+        <AtStart at={todayFrac} style={{ top: 0, bottom: 0 }}>
+          <View style={{ width: 2, height: '100%', borderRadius: 1, backgroundColor: colors.purple, opacity: 0.7 }} />
+        </AtStart>
+        {/* start date (above the bar) */}
+        <AtStart at={Math.min(s, 0.7)} style={{ top: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <View style={{ width: 2, height: 9, borderRadius: 1, backgroundColor: colors.textFaint }} />
+            <AppText variant="micro" weight="semibold" color="textMuted" numberOfLines={1}>
+              {startLabel}
+            </AppText>
+          </View>
+        </AtStart>
         {/* planned bar with progress */}
-        <View style={{ position: 'absolute', top: 18, height: 16, start: pct(s), width: pct(e - s), borderRadius: 8, backgroundColor: colors.track, overflow: 'hidden', flexDirection: 'row' }}>
-          {row.forecast === 'on_track' ? (
-            <LinearGradient
-              colors={gradients.avatarBlue}
-              start={{ x: isRTL ? 1 : 0, y: 0 }}
-              end={{ x: isRTL ? 0 : 1, y: 0 }}
-              style={[{ width: `${fill}%` }, fillRadius]}
-            />
-          ) : (
-            <View style={[{ width: `${fill}%`, backgroundColor: colors[tone.bar] }, fillRadius]} />
-          )}
-        </View>
+        <AtStart at={s} style={{ top: 18, height: 16 }}>
+          <View style={{ width: pct(e - s), height: 16, borderRadius: 8, backgroundColor: colors.track, overflow: 'hidden', flexDirection: 'row' }}>
+            {row.forecast === 'on_track' ? (
+              <LinearGradient
+                colors={gradients.avatarBlue}
+                start={{ x: isRTL ? 1 : 0, y: 0 }}
+                end={{ x: isRTL ? 0 : 1, y: 0 }}
+                style={[{ width: `${fill}%` }, fillRadius]}
+              />
+            ) : (
+              <View style={[{ width: `${fill}%`, backgroundColor: colors[tone.bar] }, fillRadius]} />
+            )}
+          </View>
+        </AtStart>
         {/* likely delay (stripes) */}
         {delayW > 0 && (
-          <Stripes
-            a="red"
-            b="redTint"
-            style={{ position: 'absolute', top: 18, height: 16, start: pct(e), width: pct(delayW), borderTopEndRadius: 8, borderBottomEndRadius: 8 }}
-          />
+          <AtStart at={e} style={{ top: 18, height: 16 }}>
+            <Stripes a="red" b="redTint" style={{ width: pct(delayW), height: 16, borderTopEndRadius: 8, borderBottomEndRadius: 8 }} />
+          </AtStart>
         )}
-        {/* expected close (below) */}
-        <View style={{ position: 'absolute', bottom: 0, end: pct(1 - Math.max(endPos, 0.3)), flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-          <AppText variant="micro" weight="bold" color={endColor} numberOfLines={1}>
-            {endLabel}
-          </AppText>
-          <View style={{ width: 2, height: 9, borderRadius: 1, backgroundColor: colors[endColor] }} />
-        </View>
+        {/* expected close (below the bar), ends at the bar's end */}
+        <AtStart at={Math.max(endPos, 0.3)} anchor="end" style={{ bottom: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <AppText variant="micro" weight="bold" color={endColor} numberOfLines={1}>
+              {endLabel}
+            </AppText>
+            <View style={{ width: 2, height: 9, borderRadius: 1, backgroundColor: colors[endColor] }} />
+          </View>
+        </AtStart>
       </View>
     </Pressable>
+  );
+}
+
+/**
+ * Absolute full-width layer that places its child at fraction `at` of the track, measured from the start edge.
+ * Uses a flex row + percentage spacer instead of `start`/`left` insets, so it follows the layout direction exactly
+ * like the axis does (start-anchored: child begins at `at`; end-anchored: child ends at `at`).
+ */
+function AtStart({ at, anchor = 'start', style, children }: { at: number; anchor?: 'start' | 'end'; style?: ViewStyle; children: ReactNode }) {
+  const w: `${number}%` = `${Math.round(Math.max(0, Math.min(1, at)) * 1000) / 10}%`;
+  return (
+    <View pointerEvents="none" style={[{ position: 'absolute', left: 0, right: 0, flexDirection: 'row' }, style]}>
+      {anchor === 'start' ? (
+        <>
+          <View style={{ width: w }} />
+          {children}
+        </>
+      ) : (
+        <View style={{ width: w, flexDirection: 'row', justifyContent: 'flex-end' }}>{children}</View>
+      )}
+    </View>
   );
 }
 

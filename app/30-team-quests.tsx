@@ -6,7 +6,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Banknote, Bell, Check, ChartNoAxesColumn, Clock, Eye, Hand, Lock, Sparkles, Star, Trophy, Users, type LucideProps } from 'lucide-react-native';
+import { ChevronLeft, Banknote, Bell, Check, ChartNoAxesColumn, Clock, Eye, Hand, Lock, Sparkles, Star, Trophy, Users, type LucideProps } from 'lucide-react-native';
 import { AppText, Avatar, Card, Gradient, Hero, IconBadge, IconButton, PointsCoin, ProgressBar, StatTile } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -50,7 +50,7 @@ export default function TeamQuestsScreen() {
               label={t('back')}
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/25-employee-home'))}
             >
-              <ArrowLeft color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
+              <ChevronLeft color={colors.onDark} size={20} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
             </IconButton>
             <View style={{ gap: 2, flexShrink: 1 }}>
               <AppText variant="titleLg" color="onDark" style={{ fontSize: 24 }}>

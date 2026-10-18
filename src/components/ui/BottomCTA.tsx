@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing } from '@/theme/tokens';
 import { Button } from './Button';
 
-type Action = { label: string; onPress?: () => void; loading?: boolean; disabled?: boolean };
+type Action = { label: string; onPress?: () => void; loading?: boolean; disabled?: boolean; icon?: ReactNode };
 
 type Props = {
   primary: Action;
