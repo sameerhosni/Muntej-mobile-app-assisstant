@@ -146,15 +146,40 @@ export default function PushbackScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 32 + insets.bottom }} showsVerticalScrollIndicator={false}>
         <Hero variant="employee" overlap={40}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md }}>
             <IconButton variant="glass" label={t('back')} onPress={goBack}>
               <BackIcon color={colors.onDark} size={22} strokeWidth={2} />
             </IconButton>
+            <Pressable
+              onPress={() => router.push('/25-employee-home')}
+              accessibilityRole="button"
+              accessibilityLabel={t('pointsLabel', { lv: n(LEVEL), pts: n(balance) })}
+              hitSlop={{ top: 8, bottom: 8 }}
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: colors.surface,
+                borderRadius: radius.pill,
+                paddingVertical: 4,
+                paddingStart: 4,
+                paddingEnd: spacing.md,
+                boxShadow: shadows.purple,
+                opacity: pressed ? 0.85 : 1,
+              })}
+            >
+              <PointsCoin size={20} />
+              <AppText variant="caption" weight="bold" color="orangeText" numberOfLines={1}>
+                {`${t('level', { n: n(LEVEL) })}${n(balance)} ${t('pts')}`}
+              </AppText>
+            </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md }}>
             <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
               <AppText variant="small" color="onDarkMuted" numberOfLines={1}>
                 {t('role', { name: meName })}
               </AppText>
-              <AppText variant="titleLg" color="onDark" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              <AppText variant="titleLg" color="onDark" numberOfLines={1}>
                 {t('title')}
               </AppText>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
@@ -164,49 +189,24 @@ export default function PushbackScreen() {
                 </AppText>
               </View>
             </View>
-            <View style={{ alignItems: 'flex-end', gap: spacing.sm }}>
-              <Pressable
-                onPress={() => router.push('/25-employee-home')}
-                accessibilityRole="button"
-                accessibilityLabel={t('pointsLabel', { lv: n(LEVEL), pts: n(balance) })}
-                hitSlop={{ top: 8, bottom: 8 }}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  backgroundColor: colors.surface,
-                  borderRadius: radius.pill,
-                  paddingVertical: 4,
-                  paddingStart: 4,
-                  paddingEnd: spacing.md,
-                  boxShadow: shadows.purple,
-                  opacity: pressed ? 0.85 : 1,
-                })}
-              >
-                <PointsCoin size={20} />
-                <AppText variant="caption" weight="bold" color="orangeText" numberOfLines={1}>
-                  {`${t('level', { n: n(LEVEL) })}${n(balance)} ${t('pts')}`}
-                </AppText>
-              </Pressable>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  backgroundColor: colors.glass,
-                  borderWidth: 1,
-                  borderColor: colors.glassBorder,
-                  borderRadius: radius.pill,
-                  paddingVertical: 3,
-                  paddingStart: 3,
-                  paddingEnd: spacing.md,
-                }}
-              >
-                <Avatar name={managerName} size={20} gradient="heroManager" />
-                <AppText variant="caption" weight="semibold" color="onDark" numberOfLines={1}>
-                  {t('from', { name: managerName })}
-                </AppText>
-              </View>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: colors.glass,
+                borderWidth: 1,
+                borderColor: colors.glassBorder,
+                borderRadius: radius.pill,
+                paddingVertical: 3,
+                paddingStart: 3,
+                paddingEnd: spacing.md,
+              }}
+            >
+              <Avatar name={managerName} size={20} gradient="heroManager" />
+              <AppText variant="caption" weight="semibold" color="onDark" numberOfLines={1}>
+                {t('from', { name: managerName })}
+              </AppText>
             </View>
           </View>
         </Hero>

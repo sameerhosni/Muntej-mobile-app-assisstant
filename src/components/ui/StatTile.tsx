@@ -18,7 +18,7 @@ export function StatTile({ value, label, icon, iconBg = 'primaryTint', variant =
   const glass = variant === 'glass';
   // values must never ellipsize: step the size down for longer values ("2.5 ريال", "1,280")
   const len = String(value).length;
-  const valueSize = len <= 5 ? undefined : len <= 7 ? 15 : 13;
+  const valueSize = len <= 3 ? undefined : len <= 6 ? 15 : 13;
   return (
     <View
       style={{
