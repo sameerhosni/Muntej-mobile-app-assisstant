@@ -11,6 +11,7 @@ import { useDirection } from '@/lib/i18n';
 import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { DEMO_PERSONAS, type DemoPersona } from '@/features/auth/demoPersonas';
+import { setPendingLogin } from '@/features/auth/pending';
 import {
   emailSchema,
   normalizeSaudiPhone,
@@ -54,7 +55,8 @@ function PhoneSignIn() {
     const e164 = normalizeSaudiPhone(phone)!;
     const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
     if (error) return setServerError(errorText(t, error.status));
-    router.push({ pathname: '/verify', params: { phone: e164 } });
+    setPendingLogin({ phone: e164 });
+    router.push('/verify');
   });
 
   return (
@@ -96,7 +98,8 @@ function EmailSignIn() {
     setServerError(null);
     const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
     if (error) return setServerError(errorText(t, error.status));
-    router.push({ pathname: '/verify', params: { email } });
+    setPendingLogin({ email });
+    router.push('/verify');
   });
 
   return (
@@ -174,7 +177,8 @@ function DemoPersonas() {
     const { error: err } = await supabase.auth.signInWithOtp({ phone: p.phone });
     setBusy(null);
     if (err) return setError(errorText(t, err.status));
-    router.push({ pathname: '/verify', params: { phone: p.phone } });
+    setPendingLogin({ phone: p.phone });
+    router.push('/verify');
   };
 
   return (

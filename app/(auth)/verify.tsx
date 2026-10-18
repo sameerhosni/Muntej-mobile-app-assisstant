@@ -1,7 +1,7 @@
 // Screen · Verify code (OTP) — no mockup; dark style per design/TOKENS.md
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
@@ -11,11 +11,19 @@ import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { otpSchema, type OtpForm } from '@/features/auth/validation';
 import { DEMO_CODE, isDemoPhone } from '@/features/auth/demoPersonas';
+import { getPendingLogin } from '@/features/auth/pending';
 
 export default function VerifyScreen() {
   const { t } = useTranslation();
-  const { email = '', phone = '' } = useLocalSearchParams<{ email?: string; phone?: string }>();
+  const pending = getPendingLogin();
+  const phone = pending?.phone ?? '';
+  const email = pending?.email ?? '';
   const demo = __DEV__ && !!phone && isDemoPhone(phone);
+
+  // opened without a pending sign-in (e.g. app reloaded on this screen) → start over
+  useEffect(() => {
+    if (!phone && !email) router.replace('/sign-in');
+  }, [phone, email]);
   const [serverError, setServerError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { control, handleSubmit, formState } = useForm<OtpForm>({
