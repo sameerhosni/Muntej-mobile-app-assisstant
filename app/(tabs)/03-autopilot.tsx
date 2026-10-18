@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Send,
   TrendingUp,
+  XCircle,
   Zap,
   type LucideProps,
 } from 'lucide-react-native';
@@ -45,6 +46,7 @@ const ACTION_STYLE: Record<string, { Icon: ComponentType<LucideProps>; bg: Color
   task_closed: { Icon: CircleCheck, bg: 'greenTint', fg: 'green' },
   task_created: { Icon: FilePlus, bg: 'primaryTint', fg: 'primary' },
   decision_approved: { Icon: CircleCheck, bg: 'greenTint', fg: 'green' },
+  decision_declined: { Icon: XCircle, bg: 'redTint', fg: 'red' },
 };
 
 function minutesFor(a: ActivityEntry) {

@@ -1,0 +1,73 @@
+import { registerStrings } from '@/lib/i18n/register';
+
+const en = {
+  back: 'Back',
+  title: 'What Muntej did',
+  subtitleWeek: 'Receipt · {{range}}',
+  subtitleMonth: 'Receipt · {{month}}',
+  week: 'This week',
+  month: 'This month',
+  brand: 'Muntej',
+  team: "{{name}}'s team · {{n}}",
+  hoursCap: 'HOURS',
+  hoursLabel: 'time saved',
+  sarCap: 'SAR',
+  sarLabel: 'money saved',
+  chasesCap: 'CHASES',
+  chasesLabel: 'you had to do',
+  lines: {
+    followups: 'Follow-ups sent',
+    updates: 'Updates collected',
+    promises: 'Promises → tasks',
+    decisions: 'Decisions prepped',
+  },
+  rate: '@ SAR {{rate}} / hour · tap to change',
+  rateA11y: 'Hourly rate SAR {{rate}}. Tap to change',
+  rateOption: 'SAR {{rate}}',
+  rateTitle: 'Your hourly value',
+  demo: 'Sample numbers until Muntej has a full week of activity',
+  founding: 'Founding member',
+  foundingSub: 'Price locked forever',
+  share: 'Share receipt',
+  shared: 'Image ready to share',
+  shareHint: 'Image for your partner or CEO',
+  shareText:
+    'What Muntej did for {{team}} · {{period}}\n\n• {{followups}} follow-ups sent\n• {{updates}} updates collected\n• {{promises}} promises → tasks\n• {{decisions}} decisions prepped\n\nTime saved: {{hours}} h · SAR {{sar}} (@ SAR {{rate}}/h)\nChases I had to do: {{chases}}',
+};
+
+const ar: typeof en = {
+  back: 'رجوع',
+  title: 'وش سوّى لك منتج',
+  subtitleWeek: 'الفاتورة · {{range}}',
+  subtitleMonth: 'الفاتورة · {{month}}',
+  week: 'هالأسبوع',
+  month: 'هالشهر',
+  brand: 'منتج',
+  team: 'فريق {{name}} · {{n}}',
+  hoursCap: 'ساعة',
+  hoursLabel: 'وقت وفّرته',
+  sarCap: 'ريال',
+  sarLabel: 'فلوس وفّرتها',
+  chasesCap: 'ملاحقة',
+  chasesLabel: 'اضطريت لها',
+  lines: {
+    followups: 'متابعة أرسلها',
+    updates: 'تحديث جمعه',
+    promises: 'وعود صارت مهام',
+    decisions: 'قرار جهّزه',
+  },
+  rate: 'على أساس {{rate}} ريال/ساعة · اضغط للتعديل',
+  rateA11y: 'قيمة ساعتك {{rate}} ريال. اضغط للتعديل',
+  rateOption: '{{rate}} ريال',
+  rateTitle: 'كم تسوى ساعتك',
+  demo: 'أرقام تجريبية لين يكمل منتج أسبوع شغل كامل',
+  founding: 'عضو مؤسس',
+  foundingSub: 'سعرك ثابت للأبد',
+  share: 'شارك الفاتورة',
+  shared: 'الصورة جاهزة للمشاركة',
+  shareHint: 'صورة لشريكك أو المدير',
+  shareText:
+    'وش سوّى منتج لـ{{team}} · {{period}}\n\n• {{followups}} متابعة أرسلها\n• {{updates}} تحديث جمعه\n• {{promises}} وعود صارت مهام\n• {{decisions}} قرار جهّزه\n\nالوقت اللي توفّر: {{hours}} ساعة · {{sar}} ريال (على أساس {{rate}} ريال/ساعة)\nملاحقات اضطريت لها: {{chases}}',
+};
+
+export const NS = registerStrings('s32', { en, ar });

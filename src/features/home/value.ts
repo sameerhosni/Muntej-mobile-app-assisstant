@@ -5,8 +5,8 @@
 export const MIN_PER_FOLLOWUP = 10;
 /** Minutes per status update collected without a meeting/message. */
 export const MIN_PER_UPDATE = 5;
-/** Loaded hourly cost of a manager's time, SAR. */
-export const HOURLY_COST_SAR = 150;
+/** Loaded hourly cost of a manager's time, SAR (v2 designs: 6.2 h ≈ SAR 1,240 → 200/h). */
+export const HOURLY_COST_SAR = 200;
 
 export function hoursSaved(followups: number, updates: number) {
   return (followups * MIN_PER_FOLLOWUP + updates * MIN_PER_UPDATE) / 60;
