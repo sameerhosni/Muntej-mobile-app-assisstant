@@ -57,7 +57,8 @@
         {
           "microphonePermission": "Muntej uses the microphone so you can say a task out loud."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
