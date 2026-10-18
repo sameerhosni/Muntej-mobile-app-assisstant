@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { TaskPriority } from '@/lib/api';
@@ -39,21 +40,59 @@ async function toError(error: unknown): Promise<Error> {
       // fall through
     }
   }
+  // FunctionsFetchError keeps the underlying network error in `context`
+  const cause = (error as { context?: unknown })?.context;
+  if (cause) console.warn('[functions] request failed', String(cause));
   return error instanceof Error ? error : new Error(String(error));
 }
 
 export async function transcribeAudio(uri: string): Promise<string> {
-  const form = new FormData();
   if (Platform.OS === 'web') {
+    const form = new FormData();
     const blob = await (await fetch(uri)).blob();
     form.append('file', blob, blob.type.includes('webm') ? 'audio.webm' : 'audio.m4a');
-  } else {
-    // React Native FormData file shape
-    form.append('file', { uri, name: 'audio.m4a', type: 'audio/m4a' } as unknown as Blob);
+    const { data, error } = await supabase.functions.invoke<{ text: string }>('transcribe', { body: form });
+    if (error) throw await toError(error);
+    return data!.text;
   }
-  const { data, error } = await supabase.functions.invoke<{ text: string }>('transcribe', { body: form });
-  if (error) throw await toError(error);
-  return data!.text;
+
+  // Native: expo's fetch only accepts real Blob parts (not RN's {uri,name,type}), so attach an expo-file-system File.
+  const fileUri = uri.startsWith('file://') || uri.startsWith('content://') ? uri : `file://${uri}`;
+  const file = new File(fileUri);
+  const form = new FormData();
+  form.append('file', file, 'audio.m4a');
+
+  const { data: session } = await supabase.auth.getSession();
+  const token = session.session?.access_token;
+  if (!token) throw new Error('Not signed in');
+
+  let res: Response;
+  try {
+    res = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/transcribe`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
+      },
+      body: form,
+    });
+  } catch (e) {
+    console.warn('[transcribe] network error', { uri: fileUri, error: String(e) });
+    throw new Error(`Upload failed: ${String(e)}`);
+  } finally {
+    // the recording is only needed for this upload; never keep audio on the device
+    try {
+      file.delete();
+    } catch {
+      // already gone
+    }
+  }
+  const body = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+  if (!res.ok || !body.text) {
+    console.warn('[transcribe] server error', res.status, body);
+    throw new Error(body.error ?? `Transcription failed (${res.status})`);
+  }
+  return body.text;
 }
 
 export async function parseTask(text: string): Promise<ParsedTask> {
