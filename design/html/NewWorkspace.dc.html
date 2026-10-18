@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej New Workspace</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; align-items: center; gap: 12px">
+    <a href="Workspaces.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 50%; background: #121E36; display: flex; align-items: center; justify-content: center; color: #8FA3C4; flex: none">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+    </a>
+    <span style="font-size: 22px; font-weight: 800">New workspace</span>
+  </header>
+
+  <section style="margin: 16px 22px 0; background: #121E36; border-radius: 18px; padding: 14px; display: flex; gap: 10px; align-items: flex-start">
+    <span style="width: 36px; height: 36px; border-radius: 50%; background: #2DD4BF; color: #062420; display: flex; align-items: center; justify-content: center; flex: none">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/></svg>
+    </span>
+    <span style="font-size: 15px; line-height: 1.7; color: #D4E2F7">“New product: a customer loyalty app. We need a designer, a mobile dev, and someone from marketing. Launch in two months.”</span>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: flex; flex-direction: column; gap: 4px">
+    <span style="font-size: 13px; color: #8FA3C4">Got it:</span>
+    <div style="display: flex; flex-wrap: wrap; gap: 6px">
+      <span style="font-size: 13px; background: #121E36; padding: 6px 10px; border-radius: 10px">Name: <b>Loyalty</b></span>
+      <span style="font-size: 13px; background: #121E36; padding: 6px 10px; border-radius: 10px">Goal: launch Dec 15</span>
+      <span style="font-size: 13px; background: #121E36; padding: 6px 10px; border-radius: 10px">3 roles</span>
+    </div>
+  </section>
+
+  <section style="margin: 16px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: #2DD4BF">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+      Muntej picked the team
+    </span>
+    <sc-for list="{{people}}" as="p" hint-placeholder-count="4">
+      <button type="button" onClick="{{p.toggle}}" aria-pressed="{{p.pressed}}" style="background: #121E36; border: {{p.border}}; border-radius: 16px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; color: #EAF2FF; font-family: Inter, sans-serif; text-align: left; opacity: {{p.opacity}}">
+        <span style="width: 38px; height: 38px; border-radius: 50%; background: #1E4B5A; display: flex; align-items: center; justify-content: center; font-weight: 700; flex: none">{{p.initial}}</span>
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 14px; font-weight: 700">{{p.name}} <span style="font-weight: 400; color: #8FA3C4">· {{p.role}}</span></span>
+          <span style="font-size: 12px; color: #A9B9D6">{{p.why}}</span>
+        </span>
+        <span style="display: flex; flex-direction: column; align-items: center; flex: none">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; color: {{p.matchColor}}">{{p.match}}</span>
+          <span style="font-size: 10px; color: #6B7FA3">match</span>
+        </span>
+      </button>
+    </sc-for>
+  </section>
+
+  <sc-if value="{{open}}" hint-placeholder-val="{{ true }}">
+    <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; display: flex; flex-direction: column; gap: 8px">
+      <span style="text-align: center; font-size: 12px; color: #6B7FA3">Tap anyone to add or remove them</span>
+      <button type="button" onClick="{{create}}" style="height: 56px; border-radius: 18px; border: none; background: #2DD4BF; color: #062420; font-family: Inter, sans-serif; font-size: 17px; font-weight: 800">Create “Loyalty” with {{count}} members</button>
+    </div>
+  </sc-if>
+  <sc-if value="{{created}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; background: #10302F; border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 16px; font-weight: 800; color: #2DD4BF">All set</span>
+      <span style="font-size: 13px; color: #D4F5EF; line-height: 1.7">Team notified. Any task mentioning “Loyalty”, from any source, lands here automatically.</span>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { inc: { n: true, s: true, m: true, f: false }, created: false };
+  }
+  renderVals() {
+    const ppl = [
+      { id: 'n', initial: 'N', name: 'Noura', role: 'Design', why: 'Designed the Availo Points app · 12 free hours', match: 94 },
+      { id: 's', initial: 'S', name: 'Saad', role: 'Mobile', why: 'Flutter · shipped his last 3 tasks early', match: 88 },
+      { id: 'm', initial: 'M', name: 'Maha', role: 'Marketing', why: 'Launched the Nizamy campaign · knows the segment', match: 81 },
+      { id: 'f', initial: 'F', name: 'Faisal', role: 'Sales', why: 'Good fit, but at 115% load right now', match: 62 }
+    ];
+    const inc = this.state.inc;
+    const count = ppl.filter((p) => inc[p.id]).length;
+    return {
+      count: count,
+      open: !this.state.created,
+      created: this.state.created,
+      create: () => this.setState({ created: true }),
+      people: ppl.map((p) => {
+        const on = !!inc[p.id];
+        return Object.assign({}, p, {
+          match: p.match + '%',
+          matchColor: p.match >= 80 ? '#2DD4BF' : '#F5B547',
+          pressed: on ? 'true' : 'false',
+          border: on ? '1px solid #2DD4BF' : '1px dashed #2A3A5C',
+          opacity: on ? '1' : '0.6',
+          toggle: () => this.setState({ inc: Object.assign({}, inc, { [p.id]: !on }) })
+        });
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

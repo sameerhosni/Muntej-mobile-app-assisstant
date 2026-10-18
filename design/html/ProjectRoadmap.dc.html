@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Roadmap</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; flex-direction: column; gap: 4px">
+    <span style="font-size: 24px; font-weight: 800">Roadmap</span>
+    <span style="font-size: 13px; color: #8FA3C4">Muntej builds it from your tasks — nothing to draw or drag</span>
+  </header>
+
+  <div style="margin: 14px 22px 0; display: flex; gap: 8px; align-items: center">
+    <div role="tablist" style="flex: 1; background: #121E36; border-radius: 14px; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+      <sc-for list="{{levels}}" as="v" hint-placeholder-count="2">
+        <button type="button" role="tab" aria-selected="{{v.sel}}" onClick="{{v.pick}}" style="height: 38px; border-radius: 10px; border: none; background: {{v.bg}}; color: {{v.color}}; font-family: Inter, sans-serif; font-size: 14px; font-weight: 700">{{v.label}}</button>
+      </sc-for>
+    </div>
+    <span style="font-size: 12px; color: #8FA3C4; background: #121E36; height: 46px; padding: 0 12px; border-radius: 14px; display: flex; align-items: center">8 weeks</span>
+  </div>
+
+  <section style="margin: 14px 16px 0; background: #121E36; border-radius: 20px; padding: 14px 10px 10px; display: flex; flex-direction: column; gap: 4px">
+    <span style="font-size: 12px; color: #8FA3C4; padding: 0 4px 6px">{{scopeLabel}}</span>
+    <div style="display: flex; gap: 8px">
+      <span style="width: 92px; flex: none"></span>
+      <div style="flex: 1; display: flex; justify-content: space-between; font-size: 10px; color: #8FA3C4; padding-bottom: 4px; border-bottom: 1px solid #1A2846">
+        <span>Oct 18</span><span>Nov 1</span><span>Nov 15</span><span>Nov 29</span><span>Dec 13</span>
+      </div>
+    </div>
+    <div style="position: relative; display: flex; flex-direction: column">
+      <span style="position: absolute; top: 0; bottom: 0; left: calc(100px + (100% - 100px) * 0.02); width: 2px; background: #2DD4BF; opacity: 0.6"></span>
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+        <button type="button" onClick="{{r.pick}}" style="height: 52px; display: flex; align-items: center; gap: 8px; background: {{r.rowBg}}; border: none; border-radius: 10px; padding: 0; color: #EAF2FF; font-family: Inter, sans-serif; text-align: left">
+          <span style="width: 92px; flex: none; display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding-left: 4px; overflow: hidden; white-space: nowrap"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{r.ws}}; flex: none"></span>{{r.name}}</span>
+          <span style="flex: 1; height: 52px; position: relative; display: block">
+            <span style="position: absolute; top: 1px; left: {{r.start}}; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #8FA3C4; white-space: nowrap; display: flex; align-items: center; gap: 3px"><span style="width: 2px; height: 9px; background: #8FA3C4"></span>{{r.startDate}}</span>
+            <span style="position: absolute; top: 18px; height: 16px; left: {{r.start}}; width: {{r.width}}; border-radius: 6px; background: #1A2846; overflow: hidden; display: flex">
+              <span style="width: {{r.done}}; background: {{r.color}}"></span>
+            </span>
+            <span style="position: absolute; top: 18px; height: 16px; left: {{r.end}}; width: {{r.delay}}; border-radius: 0 6px 6px 0; background: repeating-linear-gradient(135deg, #FF9B93 0 4px, #5A2A2E 4px 8px)"></span>
+            <span style="position: absolute; bottom: 1px; right: {{r.endLeft}}; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; color: {{r.endColor}}; white-space: nowrap; display: flex; align-items: center; gap: 3px">{{r.endDate}}<span style="width: 2px; height: 9px; background: {{r.endColor}}"></span></span>
+          </span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: center; padding-top: 8px; font-size: 11px; color: #A9B9D6">
+      <span style="display: flex; align-items: center; gap: 4px"><span style="width: 10px; height: 8px; border-radius: 2px; background: #2DD4BF"></span>On track</span>
+      <span style="display: flex; align-items: center; gap: 4px"><span style="width: 10px; height: 8px; border-radius: 2px; background: #F5B547"></span>At risk</span>
+      <span style="display: flex; align-items: center; gap: 4px"><span style="width: 10px; height: 8px; border-radius: 2px; background: repeating-linear-gradient(135deg, #FF9B93 0 3px, #5A2A2E 3px 6px)"></span>Likely delay</span>
+      <span style="display: flex; align-items: center; gap: 4px"><span style="width: 2px; height: 10px; background: #2DD4BF"></span>Today</span>
+    </div>
+    <div style="text-align: center; font-size: 11px; color: #6B7FA3">Above bar: start date · Below bar: forecast finish</div>
+  </section>
+
+  <section style="margin: 12px 16px 0; background: #1C2C4A; border: 1px solid {{selColor}}; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="font-size: 16px; font-weight: 800">{{selName}}</span>
+      <span style="font-size: 12px; font-weight: 700; color: {{selColor}}">{{selStatus}}</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; font-size: 11px; color: #8FA3C4">
+      <span style="display: flex; flex-direction: column"><span>Start</span><span style="font-size: 13px; font-weight: 700; color: #EAF2FF">{{selStart}}</span></span>
+      <span style="display: flex; flex-direction: column"><span>Due</span><span style="font-size: 13px; font-weight: 700; color: #EAF2FF">{{selDue}}</span></span>
+      <span style="display: flex; flex-direction: column"><span>Forecast</span><span style="font-size: 13px; font-weight: 700; color: {{selColor}}">{{selForecast}}</span></span>
+      <span style="display: flex; flex-direction: column"><span>Progress</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600; color: #EAF2FF">{{selDone}}</span></span>
+    </div>
+    <sc-if value="{{hasTip}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; gap: 8px; align-items: center; background: #0B1426; border-radius: 12px; padding: 8px 10px">
+        <span style="flex: 1; font-size: 12px; line-height: 1.6; color: #D4E2F7">{{selTip}}</span>
+        <button type="button" onClick="{{apply}}" style="height: 36px; padding: 0 12px; border-radius: 10px; border: none; background: #2DD4BF; color: #062420; font-family: Inter, sans-serif; font-size: 13px; font-weight: 800; flex: none">Apply</button>
+      </div>
+    </sc-if>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { level: 'p', sel: 'qiwa', fixed: {} };
+  }
+  renderVals() {
+    const WS = { m: '#2DD4BF', n: '#5EB3E4', w: '#C79BF2', l: '#F5B547' };
+    const P = [
+      { id: 'spl', name: 'SPL pitch', ws: 'm', s: 0, e: 8, done: 70, delay: 0, due: 'Oct 22', tip: '' },
+      { id: 'nt', name: 'Notetaker 2', ws: 'm', s: 4, e: 46, done: 35, delay: 0, risk: true, due: 'Nov 25', tip: 'Saad has 3 parallel tasks. Move “Device testing” to Noura.' },
+      { id: 'beta', name: 'Nizamy beta launch', ws: 'n', s: 8, e: 60, done: 42, delay: 0, due: 'Dec 5', tip: '' },
+      { id: 'qiwa', name: 'Qiwa integration', ws: 'n', s: 22, e: 78, done: 18, delay: 14, due: 'Dec 10', tip: 'Blocked waiting on the test environment. Request access today and start contracts in parallel.' },
+      { id: 'woj', name: 'Wojood campaign', ws: 'w', s: 40, e: 92, done: 5, delay: 0, due: 'Dec 18', tip: '' },
+      { id: 'wal', name: 'Loyalty app', ws: 'l', s: 30, e: 100, done: 0, delay: 0, risk: true, due: 'Dec 15+', tip: 'New team, clarity at 61%. Ask what “done” means for launch.' }
+    ];
+    const st = this.state;
+    const sel = P.find((p) => p.id === st.sel) || P[0];
+    const fixed = !!st.fixed[sel.id];
+    const MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const dateAt = (pc) => {
+      const d = new Date(2026, 9, 18 + Math.round(pc * 0.56));
+      return MON[d.getMonth()].slice(0, 3) + ' ' + d.getDate();
+    };
+    const statusOf = (p) => {
+      if (st.fixed[p.id]) return ['On track', '#2DD4BF', 0];
+      if (p.delay) return [Math.round(p.delay * 0.56) + ' days late', '#FF9B93', p.delay];
+      if (p.risk) return ['At risk', '#F5B547', 0];
+      return ['On track', '#2DD4BF', 0];
+    };
+    const tasksOf = (p) => {
+      const names = p.id === 'qiwa' ? ['API analysis', 'Test environment', 'Contracts link', 'Acceptance test', 'Launch'] : ['Analysis', 'Build', 'Review', 'Launch'];
+      const span = (p.e - p.s) / names.length;
+      return names.map((n, i) => {
+        const s = p.s + span * i;
+        const d = p.id === 'qiwa' && i === 1 && !st.fixed[p.id] ? 10 : 0;
+        const doneT = i === 0 ? 100 : (i === 1 && p.done > 20 ? 50 : 0);
+        return { id: p.id + i, name: n, ws: p.ws, s: s, e: s + span, done: doneT, delay: d, risk: false };
+      });
+    };
+    const src = st.level === 'p' ? P : tasksOf(sel);
+    const pct = (v) => v.toFixed(1) + '%';
+    const rows = src.map((r) => {
+      const stt = st.level === 'p' ? statusOf(r) : [r.delay ? 'Late' : 'ok', r.delay ? '#FF9B93' : WS[r.ws], r.delay];
+      const isSel = st.level === 'p' && r.id === sel.id;
+      const dl = Math.min(stt[2], 100 - r.e);
+      const expEnd = r.e + dl;
+      return {
+        name: r.name, ws: WS[r.ws],
+        start: pct(r.s), width: pct(r.e - r.s), end: pct(r.e), delay: pct(dl),
+        startDate: dateAt(r.s),
+        endDate: dateAt(expEnd),
+        endLeft: pct(100 - expEnd),
+        endColor: dl > 0 ? '#FF9B93' : (stt[1] === '#F5B547' ? '#F5B547' : '#2DD4BF'),
+        done: r.done + '%', color: stt[1] === '#FF9B93' ? '#F5B547' : stt[1],
+        rowBg: isSel ? '#1C2C4A' : 'transparent',
+        pick: () => { if (st.level === 'p') this.setState({ sel: r.id }); }
+      };
+    });
+    const s = statusOf(sel);
+    return {
+      levels: [['p', 'Projects'], ['t', 'Tasks']].map((l) => ({
+        label: l[1], sel: st.level === l[0] ? 'true' : 'false',
+        bg: st.level === l[0] ? '#2DD4BF' : 'transparent', color: st.level === l[0] ? '#062420' : '#C9D6EC',
+        pick: () => this.setState({ level: l[0] })
+      })),
+      scopeLabel: st.level === 'p' ? 'All projects · tap one for details' : 'Tasks: ' + sel.name,
+      rows: rows,
+      selName: sel.name, selStatus: s[0], selColor: s[1], selDue: dateAt(sel.e), selStart: dateAt(sel.s),
+      selForecast: dateAt(sel.e + Math.min(s[2], 100 - sel.e)) + (sel.risk && !fixed ? ' ?' : ''),
+      selDone: sel.done + '%',
+      hasTip: !!sel.tip && !fixed,
+      selTip: sel.tip,
+      apply: () => this.setState({ fixed: Object.assign({}, st.fixed, { [sel.id]: true }) })
+    };
+  }
+}
+</script>
+</body>
+</html>

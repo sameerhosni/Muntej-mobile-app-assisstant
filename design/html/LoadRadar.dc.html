@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Load Radar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; flex-direction: column; gap: 6px">
+    <span style="font-size: 13px; color: #8FA3C4">Who should take it?</span>
+    <span style="font-size: 22px; font-weight: 800">Competitor report</span>
+    <span style="font-size: 13px; color: #8FA3C4">~8 hrs · Sun, Oct 25</span>
+  </header>
+
+  <section style="margin: 18px 22px 0; display: flex; flex-direction: column; gap: 10px">
+    <sc-for list="{{team}}" as="m" hint-placeholder-count="4">
+      <button type="button" onClick="{{m.pick}}" style="text-align: left; background: {{m.bg}}; border: {{m.border}}; border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; color: #EAF2FF; font-family: Inter, sans-serif">
+        <span style="display: flex; align-items: center; gap: 10px; width: 100%">
+          <span style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid {{m.ring}}; box-sizing: border-box; background: #1A2846; display: flex; align-items: center; justify-content: center; font-weight: 700; flex: none">{{m.initial}}</span>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-weight: 700; font-size: 15px">{{m.name}}</span>
+            <span style="font-size: 12px; color: #8FA3C4">{{m.note}}</span>
+          </span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; color: {{m.ring}}">{{m.load}}</span>
+        </span>
+        <span style="height: 6px; width: 100%; border-radius: 3px; background: #0B1426; display: flex; overflow: hidden">
+          <span style="width: {{m.barNow}}; background: {{m.ring}}"></span>
+          <span style="width: {{m.barAdd}}; background: #EAF2FF; opacity: 0.35"></span>
+        </span>
+      </button>
+    </sc-for>
+  </section>
+
+  <section style="margin: 14px 22px 0; border-radius: 18px; padding: 12px 14px; display: flex; gap: 10px; background: {{tipBg}}">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{tipColor}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+    <span style="font-size: 14px; line-height: 1.7; color: {{tipText}}">{{tip}}</span>
+  </section>
+
+  <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; display: flex; flex-direction: column; gap: 8px">
+    <a href="Main.dc.html" style="height: 56px; border-radius: 18px; background: #2DD4BF; color: #062420; font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center">Send to {{chosen}} and forget it</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { pick: 'n' };
+  }
+  renderVals() {
+    const team = [
+      { id: 'f', name: 'Faisal', initial: 'F', now: 115, note: 'Buried in the SPL proposal', tip: 'Faisal is 15% over capacity. Adding this takes him to 135% and delays the SPL proposal. Third week running as the most loaded.' },
+      { id: 'a', name: 'Abdullah', initial: 'A', now: 95, note: 'Near the limit', tip: 'Abdullah would hit 115%. Doable, but the Q3 numbers will slip.' },
+      { id: 'n', name: 'Noura', initial: 'N', now: 60, note: 'Muntej pick · did a similar report in May', tip: 'Noura has 12 free hours and delivered a similar competitor report early. A growth opportunity for her, too.' },
+      { id: 'k', name: 'Khalid', initial: 'K', now: 80, note: 'Has an overdue task', tip: 'Khalid has an overdue task. Best not to add to his plate this week.' }
+    ];
+    const add = 20;
+    const p = this.state.pick;
+    const sel = team.find((t) => t.id === p);
+    const col = (v) => (v > 100 ? '#FF9B93' : v > 85 ? '#F5B547' : '#2DD4BF');
+    const good = sel.now + add <= 100;
+    return {
+      team: team.map((t) => {
+        const total = t.now + add;
+        const isSel = t.id === p;
+        const scale = 140;
+        return Object.assign({}, t, {
+          ring: col(t.now),
+          load: isSel ? total + '%' : t.now + '%',
+          barNow: Math.round((Math.min(t.now, scale) / scale) * 100) + '%',
+          barAdd: isSel ? Math.round((add / scale) * 100) + '%' : '0%',
+          bg: isSel ? '#152A3F' : '#121E36',
+          border: isSel ? '1px solid #2DD4BF' : '1px solid #121E36',
+          pick: () => this.setState({ pick: t.id })
+        });
+      }),
+      tip: sel.tip,
+      tipBg: good ? '#10302F' : '#2A1A1C',
+      tipColor: good ? '#2DD4BF' : '#FF9B93',
+      tipText: good ? '#D4F5EF' : '#FFD9D6',
+      chosen: sel.name
+    };
+  }
+}
+</script>
+</body>
+</html>

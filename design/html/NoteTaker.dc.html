@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Note Taker</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; align-items: center; gap: 12px">
+    <a href="Sources.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 50%; background: #121E36; display: flex; align-items: center; justify-content: center; color: #8FA3C4; flex: none">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+    </a>
+    <div style="display: flex; flex-direction: column">
+      <span style="font-size: 22px; font-weight: 800">Meeting Note Taker</span>
+      <span style="font-size: 13px; color: #8FA3C4">Online or in person — every promise becomes a task</span>
+    </div>
+  </header>
+
+  <sc-if value="{{rec}}" hint-placeholder-val="{{ true }}">
+    <section style="margin: 18px 22px 0; background: #2A1A1C; border: 1px solid #5A2A2E; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <span style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #FFC2BC"><span style="width: 10px; height: 10px; border-radius: 50%; background: #FF6B61"></span>Recording · Muntej Pin</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 15px; color: #FFC2BC">23:14</span>
+      </div>
+      <span style="font-size: 16px; font-weight: 700">Weekly sales meeting · Room 3</span>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <span style="font-size: 13px; color: #C9D6EC; display: flex; gap: 8px"><span style="color: #2DD4BF">+ Task</span>Faisal: Al Rajhi quote · Wed</span>
+        <span style="font-size: 13px; color: #C9D6EC; display: flex; gap: 8px"><span style="color: #2DD4BF">+ Task</span>Abdullah: update Q3 numbers · Tomorrow</span>
+      </div>
+      <button type="button" onClick="{{stop}}" style="height: 48px; border-radius: 14px; border: none; background: #FF6B61; color: #2A0E0C; font-family: Inter, sans-serif; font-size: 16px; font-weight: 800">Stop &amp; extract tasks</button>
+    </section>
+  </sc-if>
+  <sc-if value="{{done}}" hint-placeholder-val="{{ false }}">
+    <section style="margin: 18px 22px 0; background: #10302F; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+      <span style="font-size: 14px; color: #2DD4BF; font-weight: 700">Done · 42 min</span>
+      <span style="font-size: 18px; font-weight: 800">Caught 4 promises + a meeting summary</span>
+      <a href="PromiseCatcher.dc.html" style="height: 48px; border-radius: 14px; background: #2DD4BF; color: #062420; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center">Review &amp; confirm</a>
+    </section>
+  </sc-if>
+
+  <section style="margin: 18px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 13px; color: #8FA3C4">Online note taker — joins automatically</span>
+    <sc-for list="{{bots}}" as="b" hint-placeholder-count="3">
+      <div style="height: 52px; background: #121E36; border-radius: 14px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between">
+        <span style="font-size: 15px; font-weight: 700">{{b.name}}</span>
+        <button type="button" onClick="{{b.toggle}}" aria-pressed="{{b.pressed}}" aria-label="{{b.name}}" style="width: 52px; height: 30px; border-radius: 15px; border: none; background: {{b.track}}; padding: 3px; display: flex; justify-content: {{b.justify}}">
+          <span style="width: 24px; height: 24px; border-radius: 50%; background: #EAF2FF"></span>
+        </button>
+      </div>
+    </sc-for>
+  </section>
+
+  <section style="margin: 18px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 13px; color: #8FA3C4">Recording devices — for in-person meetings</span>
+    <div style="background: #121E36; border-radius: 16px; padding: 12px 14px; display: flex; align-items: center; gap: 12px">
+      <span style="width: 40px; height: 40px; border-radius: 12px; background: #2DD4BF; color: #062420; display: flex; align-items: center; justify-content: center; flex: none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="10" height="18" rx="5"/><circle cx="12" cy="9" r="1.5"/></svg>
+      </span>
+      <span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 700; font-size: 15px">Muntej Pin</span><span style="font-size: 12px; color: #8FA3C4">Connected · Bluetooth</span></span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #2DD4BF">82%</span>
+    </div>
+    <div style="background: #121E36; border-radius: 16px; padding: 12px 14px; display: flex; align-items: center; gap: 12px">
+      <span style="width: 40px; height: 40px; border-radius: 12px; background: #1A2846; color: #8FA3C4; display: flex; align-items: center; justify-content: center; flex: none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="3"/><path d="M9 9h6M9 13h6"/></svg>
+      </span>
+      <span style="flex: 1; display: flex; flex-direction: column"><span style="font-weight: 700; font-size: 15px">External recorder</span><span style="font-size: 12px; color: #8FA3C4">Auto-import recordings</span></span>
+      <span style="font-size: 13px; color: #2DD4BF; font-weight: 700">+ Connect</span>
+    </div>
+  </section>
+
+  <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; display: flex; gap: 8px; align-items: center; justify-content: center; font-size: 12px; color: #6B7FA3">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    Attendees are notified · audio is deleted after task extraction
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { done: false, bots: { z: true, g: true, t: false } };
+  }
+  renderVals() {
+    const bs = this.state.bots;
+    const list = [{ id: 'z', name: 'Zoom' }, { id: 'g', name: 'Google Meet' }, { id: 't', name: 'Microsoft Teams' }];
+    return {
+      rec: !this.state.done,
+      done: this.state.done,
+      stop: () => this.setState({ done: true }),
+      bots: list.map((b) => {
+        const o = !!bs[b.id];
+        return Object.assign({}, b, {
+          pressed: o ? 'true' : 'false',
+          track: o ? '#2DD4BF' : '#2A3A5C',
+          justify: o ? 'flex-end' : 'flex-start',
+          toggle: () => this.setState({ bots: Object.assign({}, bs, { [b.id]: !o }) })
+        });
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

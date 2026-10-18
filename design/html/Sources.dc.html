@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Sources</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; flex-direction: column; gap: 6px">
+    <span style="font-size: 24px; font-weight: 800">Your task sources</span>
+    <span style="font-size: 14px; color: #8FA3C4; line-height: 1.6">Muntej catches tasks from everywhere and syncs updates right back.</span>
+  </header>
+
+  <section style="margin: 14px 22px 0; background: #121E36; border-radius: 18px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 13px; color: #8FA3C4">Caught today</span>
+      <span style="font-size: 16px; font-weight: 700"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 24px; color: #2DD4BF">{{captured}}</span> tasks from {{connectedCount}} sources</span>
+    </div>
+    <span style="font-size: 12px; color: #2DD4BF; background: #10302F; padding: 6px 10px; border-radius: 999px">0 duplicates</span>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px">
+    <sc-for list="{{sources}}" as="s" hint-placeholder-count="9">
+      <button type="button" onClick="{{s.toggle}}" aria-pressed="{{s.on}}" style="height: 100px; border-radius: 18px; background: #121E36; border: {{s.border}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #EAF2FF; font-family: Inter, sans-serif; padding: 0">
+        <span style="width: 36px; height: 36px; border-radius: 12px; background: {{s.chip}}; color: {{s.chipText}}; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 600">{{s.abbr}}</span>
+        <span style="font-size: 13px; font-weight: 700">{{s.name}}</span>
+        <span style="font-size: 11px; color: {{s.statusColor}}">{{s.status}}</span>
+      </button>
+    </sc-for>
+  </section>
+
+  <section style="margin: 14px 22px 0; background: #10302F; border-radius: 18px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg>
+    <span style="font-size: 13px; line-height: 1.7; color: #D4F5EF">Two-way sync: when Faisal closes a task in Muntej, Jira updates automatically and a reply lands in the Teams group.</span>
+  </section>
+
+  <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; display: flex; gap: 10px">
+    <button type="button" style="flex: 1; height: 56px; border-radius: 18px; border: none; background: #2DD4BF; color: #062420; font-family: Inter, sans-serif; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      Snap a sticky note
+    </button>
+    <a href="NoteTaker.dc.html" style="width: 120px; height: 56px; border-radius: 18px; border: 1px solid #23324F; color: #EAF2FF; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-sizing: border-box">Note taker</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { on: { wa: true, em: true, mt: true, te: true, sl: false, gc: false, ji: true, az: true, st: false } };
+  }
+  renderVals() {
+    const list = [
+      { id: 'wa', name: 'WhatsApp', abbr: 'WA', n: 5 },
+      { id: 'em', name: 'Email', abbr: '@', n: 3 },
+      { id: 'mt', name: 'Meetings', abbr: 'MT', n: 4 },
+      { id: 'te', name: 'Teams', abbr: 'TM', n: 2 },
+      { id: 'sl', name: 'Slack', abbr: 'SL', n: 2 },
+      { id: 'gc', name: 'Google Chat', abbr: 'GC', n: 1 },
+      { id: 'ji', name: 'Jira', abbr: 'JI', n: 2 },
+      { id: 'az', name: 'Azure DevOps', abbr: 'AZ', n: 1 },
+      { id: 'st', name: 'Sticky notes', abbr: 'NT', n: 1 }
+    ];
+    const on = this.state.on;
+    let captured = 0, count = 0;
+    list.forEach((s) => { if (on[s.id]) { captured += s.n; count += 1; } });
+    return {
+      captured: captured,
+      connectedCount: count,
+      sources: list.map((s) => {
+        const o = !!on[s.id];
+        return Object.assign({}, s, {
+          on: o ? 'true' : 'false',
+          border: o ? '1px solid #2DD4BF' : '1px dashed #2A3A5C',
+          chip: o ? '#2DD4BF' : '#1A2846',
+          chipText: o ? '#062420' : '#8FA3C4',
+          status: o ? s.n + ' tasks today' : '+ Connect',
+          statusColor: o ? '#2DD4BF' : '#8FA3C4',
+          toggle: () => this.setState({ on: Object.assign({}, on, { [s.id]: !o }) })
+        });
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Evidence Progress</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; align-items: center; gap: 12px">
+    <a href="Autopilot.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 50%; background: #121E36; display: flex; align-items: center; justify-content: center; color: #8FA3C4; flex: none">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+    </a>
+    <div style="display: flex; flex-direction: column">
+      <span style="font-size: 20px; font-weight: 800">Monthly attendance report</span>
+      <span style="font-size: 13px; color: #8FA3C4">Khalid · Due Thu</span>
+    </div>
+  </header>
+
+  <section style="margin: 20px 22px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <div style="background: #121E36; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+      <span style="font-size: 13px; color: #8FA3C4">Khalid says</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 40px; font-weight: 600; line-height: 1.1; color: #8FA3C4">90%</span>
+      <span style="font-size: 12px; color: #6B7FA3">for 6 days</span>
+    </div>
+    <div style="background: #2A1A1C; border: 1px solid #5A2A2E; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px">
+      <span style="font-size: 13px; color: #FFC2BC">Muntej sees</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 40px; font-weight: 600; line-height: 1.1; color: #FF9B93">~40%</span>
+      <span style="font-size: 12px; color: #FFC2BC">from actual evidence</span>
+    </div>
+  </section>
+
+  <section style="margin: 16px 22px 0; background: #121E36; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 12px">
+    <span style="font-size: 13px; color: #8FA3C4">Evidence</span>
+    <div style="display: flex; justify-content: space-between; font-size: 14px"><span>Last file edit</span><span style="font-family: 'IBM Plex Mono', monospace; color: #FF9B93">6d ago</span></div>
+    <div style="display: flex; justify-content: space-between; font-size: 14px"><span>Report sections done</span><span style="font-family: 'IBM Plex Mono', monospace">3 / 8</span></div>
+    <div style="display: flex; justify-content: space-between; font-size: 14px"><span>Attendance data pulled</span><span style="font-family: 'IBM Plex Mono', monospace; color: #F5B547">Sep only</span></div>
+    <div style="display: flex; justify-content: space-between; font-size: 14px"><span>Similar past tasks</span><span style="font-family: 'IBM Plex Mono', monospace">avg 2d late</span></div>
+  </section>
+
+  <section style="margin: 14px 22px 0; background: #10302F; border-radius: 18px; padding: 14px 16px; display: flex; gap: 10px">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+    <span style="font-size: 14px; line-height: 1.7; color: #D4F5EF">Khalid is likely stuck and hesitant to say so. October data never reached him from the attendance system.</span>
+  </section>
+
+  <sc-if value="{{open}}" hint-placeholder-val="{{ true }}">
+    <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; display: flex; flex-direction: column; gap: 8px">
+      <button type="button" onClick="{{help}}" style="height: 56px; border-radius: 18px; border: none; background: #2DD4BF; color: #062420; font-family: Inter, sans-serif; font-size: 17px; font-weight: 800">Offer help — no awkwardness</button>
+      <button type="button" style="height: 48px; border-radius: 16px; border: 1px solid #23324F; background: transparent; color: #C9D6EC; font-family: Inter, sans-serif; font-size: 15px">Leave it, I'll talk to him</button>
+    </div>
+  </sc-if>
+  <sc-if value="{{sent}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; background: #121E36; border: 1px solid #23546A; border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 12px; color: #2DD4BF; font-weight: 700">Muntej sent to Khalid:</span>
+      <span style="font-size: 14px; line-height: 1.7; color: #D4E2F7">"Noticed the October data hadn't arrived. I've requested it from the attendance system — you'll have it within the hour. Need anything else?"</span>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sent: false };
+  }
+  renderVals() {
+    const s = this.state.sent;
+    return { open: !s, sent: s, help: () => this.setState({ sent: true }) };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Polite Pushback</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; justify-content: space-between; align-items: center">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 13px; color: #8FA3C4">Faisal · Employee</span>
+      <span style="font-size: 22px; font-weight: 800">New task assigned</span>
+    </div>
+    <span style="font-size: 12px; color: #8FA3C4; background: #121E36; padding: 6px 10px; border-radius: 999px">From Ahmed</span>
+  </header>
+
+  <section style="margin: 16px 22px 0; background: #121E36; border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 18px; font-weight: 800">Prepare competitor report</span>
+    <span style="font-size: 13px; color: #8FA3C4">Sun, Oct 25 · Medium priority · ~8 hrs</span>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <span style="font-size: 14px; color: #8FA3C4">Your plate this week</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; color: #FF9B93">46 / 40h</span>
+    </div>
+    <div style="height: 14px; border-radius: 7px; background: #1A2846; display: flex; overflow: hidden">
+      <span style="width: 55%; background: #2DD4BF"></span>
+      <span style="width: 25%; background: #5EB3E4"></span>
+      <span style="width: 20%; background: #FF9B93"></span>
+    </div>
+    <div style="display: flex; gap: 14px; font-size: 12px; color: #A9B9D6">
+      <span style="display: flex; align-items: center; gap: 5px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #2DD4BF"></span>SPL proposal 22h</span>
+      <span style="display: flex; align-items: center; gap: 5px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #5EB3E4"></span>Clients 10h</span>
+      <span style="display: flex; align-items: center; gap: 5px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #FF9B93"></span>New 8h</span>
+    </div>
+  </section>
+
+  <sc-if value="{{s0}}" hint-placeholder-val="{{ true }}">
+    <section style="margin: 18px 22px 0; display: flex; flex-direction: column; gap: 10px">
+      <div style="background: #2A2312; border-radius: 16px; padding: 12px 14px; display: flex; gap: 10px; font-size: 14px; line-height: 1.6; color: #F2E3BF">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F5B547" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+        If you take this, the SPL proposal will likely slip 2 days. Want me to explain to Ahmed for you?
+      </div>
+      <button type="button" onClick="{{go1}}" style="height: 56px; border-radius: 18px; border: none; background: #F5B547; color: #2A2312; font-family: Inter, sans-serif; font-size: 17px; font-weight: 800">My plate is full — tell him</button>
+      <button type="button" style="height: 52px; border-radius: 18px; border: 1px solid #23324F; background: transparent; color: #EAF2FF; font-family: Inter, sans-serif; font-size: 16px; font-weight: 700">On it, I'll take it</button>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{s1}}" hint-placeholder-val="{{ false }}">
+    <section style="margin: 18px 22px 0; display: flex; flex-direction: column; gap: 10px">
+      <span style="font-size: 13px; color: #8FA3C4">Here's what Ahmed will get — from Muntej, not from you</span>
+      <div style="background: #121E36; border: 1px solid #23546A; border-radius: 18px; padding: 14px; font-size: 14px; line-height: 1.8; color: #D4E2F7">
+        Hi Ahmed, Faisal has 46 hours of work this week. The "Competitor report" would delay the SPL proposal by 2 days.
+        <br>Which matters more to you?
+      </div>
+      <div style="display: flex; gap: 8px">
+        <button type="button" onClick="{{go2}}" style="flex: 1; height: 52px; border-radius: 16px; border: none; background: #2DD4BF; color: #062420; font-family: Inter, sans-serif; font-size: 16px; font-weight: 800">Send</button>
+        <button type="button" onClick="{{back}}" style="width: 100px; height: 52px; border-radius: 16px; border: 1px solid #23324F; background: transparent; color: #EAF2FF; font-family: Inter, sans-serif; font-size: 15px">Cancel</button>
+      </div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{s2}}" hint-placeholder-val="{{ false }}">
+    <section style="margin: 18px 22px 0; display: flex; flex-direction: column; gap: 10px">
+      <div style="background: #10302F; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+        <span style="font-size: 13px; color: #2DD4BF; font-weight: 700">Ahmed replied · 1 min ago</span>
+        <span style="font-size: 15px; line-height: 1.7">"SPL first. Give the report to Noura."</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; background: #121E36; border-radius: 16px; padding: 12px 14px; font-size: 14px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>
+        Moved the task to Noura and let her know. Focus on SPL.
+      </div>
+      <button type="button" onClick="{{back}}" style="height: 48px; border-radius: 16px; border: 1px solid #23324F; background: transparent; color: #8FA3C4; font-family: Inter, sans-serif; font-size: 14px">Replay demo</button>
+    </section>
+  </sc-if>
+
+  <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; text-align: center; font-size: 12px; color: #5F7397; line-height: 1.6">Muntej saves face — pushback becomes a priority question, not a "no" to your manager</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { step: 0 };
+  }
+  renderVals() {
+    const st = this.state.step;
+    return {
+      s0: st === 0, s1: st === 1, s2: st === 2,
+      go1: () => this.setState({ step: 1 }),
+      go2: () => this.setState({ step: 2 }),
+      back: () => this.setState({ step: 0 })
+    };
+  }
+}
+</script>
+</body>
+</html>

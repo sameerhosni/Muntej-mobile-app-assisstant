@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Employee Chat</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 24px 22px 14px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #1C2A47">
+    <div style="width: 44px; height: 44px; border-radius: 14px; background: #2DD4BF; color: #062420; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+    </div>
+    <div style="display: flex; flex-direction: column">
+      <span style="font-weight: 800; font-size: 17px">Muntej</span>
+      <span style="font-size: 12px; color: #8FA3C4">Ahmed's team assistant · speaks for you both</span>
+    </div>
+    <span style="margin-left: auto; font-size: 12px; color: #8FA3C4; background: #121E36; padding: 6px 10px; border-radius: 999px">Faisal</span>
+  </header>
+
+  <section style="padding: 16px 22px 0; display: flex; flex-direction: column; gap: 12px">
+    <span style="align-self: center; font-size: 12px; color: #8FA3C4">Sun</span>
+
+    <div style="align-self: flex-start; max-width: 290px; background: #121E36; border-radius: 18px 18px 18px 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px">
+      <span style="font-size: 15px; line-height: 1.6">Hi Faisal, Ahmed assigned you this task:</span>
+      <div style="background: #0B1426; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 6px">
+        <span style="font-weight: 800; font-size: 15px">Prepare the SPL deck</span>
+        <span style="font-size: 13px; color: #8FA3C4">Thu, Oct 22 · 5 PM · High priority</span>
+        <span style="font-size: 13px; color: #C9D6EC">Abdullah has the numbers — I've looped him in</span>
+      </div>
+      <span style="font-size: 12px; color: #2DD4BF">Received · 09:01</span>
+    </div>
+
+    <span style="align-self: center; font-size: 12px; color: #8FA3C4">Tue</span>
+
+    <div style="align-self: flex-start; max-width: 290px; background: #121E36; border-radius: 18px 18px 18px 6px; padding: 12px 14px">
+      <span style="font-size: 15px; line-height: 1.6">Morning! Where's the deck at? One tap, no typing needed.</span>
+    </div>
+
+    <sc-if value="{{asking}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-wrap: wrap; gap: 8px">
+        <sc-for list="{{opts}}" as="o" hint-placeholder-count="4">
+          <button type="button" onClick="{{o.pick}}" style="height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid #2DD4BF; background: transparent; color: #2DD4BF; font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600">{{o.label}}</button>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{answered}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <div style="align-self: flex-end; background: #2DD4BF; color: #062420; border-radius: 18px 18px 6px 18px; padding: 10px 14px; font-weight: 700; font-family: 'IBM Plex Mono', monospace">{{picked}}</div>
+        <div style="align-self: flex-start; max-width: 290px; background: #121E36; border-radius: 18px 18px 18px 6px; padding: 12px 14px">
+          <span style="font-size: 15px; line-height: 1.6">{{reply}}</span>
+        </div>
+      </div>
+    </sc-if>
+  </section>
+
+  <div style="position: absolute; left: 16px; right: 16px; bottom: 24px; display: flex; gap: 10px; align-items: center">
+    <label for="msg" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message</label>
+    <input id="msg" type="text" placeholder="Type or send proof of done…" style="flex: 1; height: 52px; border-radius: 26px; border: 1px solid #23324F; background: #121E36; color: #EAF2FF; padding: 0 18px; font-family: Inter, sans-serif; font-size: 15px; box-sizing: border-box">
+    <button type="button" aria-label="Attach file" style="width: 52px; height: 52px; border-radius: 50%; border: 1px solid #23324F; background: #121E36; color: #C9D6EC; display: flex; align-items: center; justify-content: center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7"/></svg>
+    </button>
+    <button type="button" aria-label="Reply by voice" style="width: 52px; height: 52px; border-radius: 50%; border: none; background: #2DD4BF; color: #062420; display: flex; align-items: center; justify-content: center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: null };
+  }
+  renderVals() {
+    const replies = {
+      '25%': "Got it. I'll tell Ahmed you've started and check back tomorrow. Need anything from Abdullah?",
+      '50%': "Great, you're on track. I'll check back Wednesday.",
+      '75%': 'Almost there! Want me to book 15 min with Ahmed Wednesday to review the draft?',
+      'Done': "Drop the file here and I'll hand it to Ahmed and close the task. No need to message anyone."
+    };
+    const labels = ['25%', '50%', '75%', 'Done'];
+    const p = this.state.picked;
+    return {
+      asking: !p,
+      answered: !!p,
+      picked: p || '',
+      reply: p ? replies[p] : '',
+      opts: labels.map((l) => ({ label: l, pick: () => this.setState({ picked: l }) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Task Detail</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <a href="Main.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 50%; background: #121E36; display: flex; align-items: center; justify-content: center; color: #8FA3C4; flex: none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+      </a>
+      <div style="display: flex; flex-direction: column">
+        <span style="font-size: 20px; font-weight: 800">Prepare SPL pitch</span>
+        <span style="font-size: 13px; color: #8FA3C4">Faisal · Thu 5 PM · High</span>
+      </div>
+    </div>
+    <div style="display: flex; gap: 6px; flex-wrap: wrap">
+      <span style="font-size: 12px; color: #C9D6EC; background: #121E36; padding: 5px 10px; border-radius: 999px">Source: Teams meeting</span>
+      <span style="font-size: 12px; color: #2DD4BF; background: #10302F; padding: 5px 10px; border-radius: 999px">↔ Jira SPL-142</span>
+    </div>
+  </header>
+
+  <section style="margin: 14px 22px 0; background: #121E36; border-radius: 20px; padding: 14px; display: flex; gap: 14px; align-items: center">
+    <div style="position: relative; width: 72px; height: 72px; flex: none">
+      <svg width="72" height="72" viewBox="0 0 72 72" role="img" aria-label="Clarity rate">
+        <circle cx="36" cy="36" r="30" fill="none" stroke="#1A2846" stroke-width="7"/>
+        <circle cx="36" cy="36" r="30" fill="none" stroke="{{clarColor}}" stroke-width="7" stroke-linecap="round" stroke-dasharray="{{dash}}" transform="rotate(-90 36 36)"/>
+      </svg>
+      <span style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 600">{{clarity}}%</span>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 14px; font-weight: 700">Clarity rate</span>
+      <div style="display: flex; flex-wrap: wrap; gap: 4px; font-size: 11px">
+        <span style="color: #2DD4BF">✓ Owner</span><span style="color: #2DD4BF">✓ Due date</span><span style="color: #2DD4BF">✓ Definition of done</span>
+        <span style="color: {{budgetColor}}">{{budgetLabel}}</span>
+      </div>
+      <sc-if value="{{missing}}" hint-placeholder-val="{{ true }}">
+        <button type="button" onClick="{{ask}}" style="align-self: flex-start; height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid #F5B547; background: transparent; color: #F5B547; font-family: Inter, sans-serif; font-size: 12px; font-weight: 700">Ask Ahmed about budget</button>
+      </sc-if>
+    </div>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="font-size: 14px; font-weight: 700">Subtasks</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #8FA3C4">{{subProgress}}</span>
+    </div>
+    <sc-if value="{{notSplit}}" hint-placeholder-val="{{ false }}">
+      <div style="background: #121E36; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 13px; color: #C9D6EC">Big task (~22 hrs) — big tasks slip 3× more often.</span>
+        <button type="button" onClick="{{split}}" style="height: 44px; border-radius: 12px; border: none; background: #2DD4BF; color: #062420; font-family: Inter, sans-serif; font-size: 15px; font-weight: 800">Split with AI</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{isSplit}}" hint-placeholder-val="{{ true }}">
+      <div style="background: #121E36; border-radius: 16px; padding: 4px 12px; display: flex; flex-direction: column">
+        <sc-for list="{{subs}}" as="s" hint-placeholder-count="5">
+          <button type="button" onClick="{{s.toggle}}" aria-pressed="{{s.pressed}}" style="height: 40px; display: flex; align-items: center; gap: 10px; background: transparent; border: none; border-bottom: 1px solid #1A2846; color: {{s.color}}; font-family: Inter, sans-serif; font-size: 14px; text-align: left; padding: 0">
+            <span style="width: 20px; height: 20px; border-radius: 6px; border: 2px solid {{s.box}}; background: {{s.fill}}; box-sizing: border-box; flex: none; display: flex; align-items: center; justify-content: center; color: #062420; font-size: 12px">{{s.mark}}</span>
+            <span style="flex: 1">{{s.name}}</span>
+            <span style="font-size: 12px; color: #6B7FA3">{{s.who}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 14px; font-weight: 700">Evidence &amp; attachments</span>
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px">
+      <div style="height: 70px; border-radius: 14px; background: #121E36; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: #C9D6EC"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #FF9B93">PDF</span>Deck v2</div>
+      <div style="height: 70px; border-radius: 14px; background: #121E36; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: #C9D6EC"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5EB3E4">IMG</span>Whiteboard</div>
+      <div style="height: 70px; border-radius: 14px; background: #121E36; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: #C9D6EC"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #F5B547">XLS</span>Q3 numbers</div>
+      <div style="height: 70px; border-radius: 14px; background: #121E36; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: #C9D6EC"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #2DD4BF">0:42</span>Voice</div>
+      <button type="button" aria-label="Attach evidence" style="height: 70px; border-radius: 14px; background: transparent; border: 1px dashed #2DD4BF; color: #2DD4BF; display: flex; align-items: center; justify-content: center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <div style="position: absolute; left: 22px; right: 22px; bottom: 26px">
+    <a href="Review.dc.html" style="height: 56px; border-radius: 18px; background: #2DD4BF; color: #062420; font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center">Submit for review</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { asked: false, split: false, done: { a: true, b: true } };
+  }
+  renderVals() {
+    const st = this.state;
+    const clarity = st.asked ? 100 : 82;
+    const circ = 2 * Math.PI * 30;
+    const subs = [
+      { id: 'a', name: 'Gather SPL requirements', who: 'Faisal' },
+      { id: 'b', name: 'Q3 numbers from Abdullah', who: 'Abdullah' },
+      { id: 'c', name: 'Draft slides 1–10', who: 'Faisal' },
+      { id: 'd', name: 'Case study + pricing', who: 'Faisal' },
+      { id: 'e', name: 'Final review with Ahmed', who: 'Ahmed' }
+    ];
+    const n = subs.filter((s) => st.done[s.id]).length;
+    return {
+      clarity: clarity,
+      dash: (circ * clarity / 100).toFixed(1) + ' ' + circ.toFixed(1),
+      clarColor: clarity === 100 ? '#2DD4BF' : '#F5B547',
+      missing: !st.asked,
+      budgetLabel: st.asked ? '✓ Budget (Ahmed replied)' : '✗ Budget',
+      budgetColor: st.asked ? '#2DD4BF' : '#F5B547',
+      ask: () => this.setState({ asked: true }),
+      isSplit: st.split,
+      notSplit: !st.split,
+      split: () => this.setState({ split: true }),
+      subProgress: st.split ? n + ' / ' + subs.length : '—',
+      subs: subs.map((s) => {
+        const d = !!st.done[s.id];
+        return Object.assign({}, s, {
+          pressed: d ? 'true' : 'false',
+          color: d ? '#6B7FA3' : '#EAF2FF',
+          box: d ? '#2DD4BF' : '#3B4D70',
+          fill: d ? '#2DD4BF' : 'transparent',
+          mark: d ? '✓' : '',
+          toggle: () => this.setState({ done: Object.assign({}, st.done, { [s.id]: !d }) })
+        });
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

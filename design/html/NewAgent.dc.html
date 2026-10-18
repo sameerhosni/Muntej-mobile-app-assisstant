@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej New Agent</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; align-items: center; gap: 12px">
+    <a href="Agents.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 50%; background: #121E36; display: flex; align-items: center; justify-content: center; color: #8FA3C4; flex: none">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+    </a>
+    <span style="font-size: 22px; font-weight: 800">New agent</span>
+  </header>
+
+  <section style="margin: 16px 22px 0; background: #121E36; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 12px; color: #8FA3C4">Your request</span>
+    <span style="font-size: 15px; line-height: 1.7; color: #D4E2F7">“Every Sunday at 9, check who has overdue tasks in Nizamy, send them a WhatsApp reminder, and email me a summary.”</span>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: #2DD4BF">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+      Turned it into a recipe
+    </span>
+    <div style="background: #121E36; border-radius: 18px; padding: 4px 14px; display: flex; flex-direction: column">
+      <div style="min-height: 46px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #1A2846"><span style="width: 56px; font-size: 12px; color: #8FA3C4; flex: none">When</span><span style="font-size: 14px; font-weight: 700">Every Sun · 9:00 AM</span></div>
+      <div style="min-height: 46px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #1A2846"><span style="width: 56px; font-size: 12px; color: #8FA3C4; flex: none">Find</span><span style="font-size: 14px; font-weight: 700">Overdue tasks · Nizamy workspace</span></div>
+      <div style="min-height: 46px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #1A2846"><span style="width: 56px; font-size: 12px; color: #8FA3C4; flex: none">Do</span><span style="font-size: 14px; font-weight: 700">Remind each owner · WhatsApp</span></div>
+      <div style="min-height: 46px; display: flex; align-items: center; gap: 12px"><span style="width: 56px; font-size: 12px; color: #8FA3C4; flex: none">Tell me</span><span style="font-size: 14px; font-weight: 700">Summary · Email</span></div>
+    </div>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <span style="font-size: 13px; color: #8FA3C4">Autonomy level</span>
+    <div role="radiogroup" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{modes}}" as="m" hint-placeholder-count="2">
+        <button type="button" role="radio" aria-checked="{{m.sel}}" onClick="{{m.pick}}" style="height: 60px; border-radius: 14px; border: {{m.border}}; background: {{m.bg}}; color: #EAF2FF; font-family: Inter, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+          <span style="font-size: 14px; font-weight: 700">{{m.label}}</span>
+          <span style="font-size: 11px; color: #8FA3C4">{{m.sub}}</span>
+        </button>
+      </sc-for>
+    </div>
+  </section>
+
+  <sc-if value="{{s0}}" hint-placeholder-val="{{ true }}">
+    <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; display: flex; gap: 10px">
+      <button type="button" onClick="{{test}}" style="flex: 1; height: 56px; border-radius: 18px; border: 1px solid #2DD4BF; background: transparent; color: #2DD4BF; font-family: Inter, sans-serif; font-size: 16px; font-weight: 800">Test it now</button>
+      <button type="button" onClick="{{activate}}" style="flex: 1; height: 56px; border-radius: 18px; border: none; background: #2DD4BF; color: #062420; font-family: Inter, sans-serif; font-size: 16px; font-weight: 800">Turn it on</button>
+    </div>
+  </sc-if>
+  <sc-if value="{{s1}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 16px; right: 16px; bottom: 20px; background: #121E36; border: 1px solid #23546A; border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+      <span style="font-size: 12px; color: #2DD4BF; font-weight: 700">Test run · found 3 overdue tasks</span>
+      <span style="font-size: 13px; line-height: 1.7; color: #C9D6EC">To Khalid: “Morning Khalid, ‘Attendance integration’ is 2 days overdue. What’s blocking you?”</span>
+      <button type="button" onClick="{{activate}}" style="height: 48px; border-radius: 14px; border: none; background: #2DD4BF; color: #062420; font-family: Inter, sans-serif; font-size: 16px; font-weight: 800">Great, turn it on</button>
+    </div>
+  </sc-if>
+  <sc-if value="{{s2}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 16px; right: 16px; bottom: 20px; background: #10302F; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 6px">
+      <span style="font-size: 17px; font-weight: 800; color: #2DD4BF">Agent is live</span>
+      <span style="font-size: 13px; color: #D4F5EF; line-height: 1.7">First run Sunday 9:00 AM. {{modeNote}}</span>
+      <a href="Agents.dc.html" style="font-size: 14px; font-weight: 700">See all agents</a>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { step: 0, mode: 'first' };
+  }
+  renderVals() {
+    const st = this.state;
+    const modes = [['first', 'Ask me first time', 'Then it runs solo'], ['auto', 'Always run', 'No questions asked']];
+    return {
+      s0: st.step === 0, s1: st.step === 1, s2: st.step === 2,
+      test: () => this.setState({ step: 1 }),
+      activate: () => this.setState({ step: 2 }),
+      modeNote: st.mode === 'first' ? 'I’ll send the first result for your OK, then never ask again.' : 'I’ll never ask — you can pause it anytime.',
+      modes: modes.map((m) => ({
+        label: m[1], sub: m[2], sel: st.mode === m[0] ? 'true' : 'false',
+        border: st.mode === m[0] ? '1px solid #2DD4BF' : '1px solid #23324F',
+        bg: st.mode === m[0] ? '#10302F' : '#121E36',
+        pick: () => this.setState({ mode: m[0] })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Agents</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; flex-direction: column; gap: 4px">
+    <span style="font-size: 24px; font-weight: 800">Your agents</span>
+    <span style="font-size: 14px; color: #8FA3C4">Say it once — it repeats every time, without you</span>
+  </header>
+
+  <section style="margin: 14px 22px 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+    <div style="background: #121E36; border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600">{{active}}</span><span style="font-size: 11px; color: #8FA3C4">agents running</span></div>
+    <div style="background: #121E36; border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600">142</span><span style="font-size: 11px; color: #8FA3C4">runs this month</span></div>
+    <div style="background: #121E36; border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 600; color: #2DD4BF">0</span><span style="font-size: 11px; color: #8FA3C4">nudges from you</span></div>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: flex; flex-direction: column; gap: 8px">
+    <sc-for list="{{agents}}" as="a" hint-placeholder-count="5">
+      <div style="background: #121E36; border-radius: 16px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; opacity: {{a.opacity}}">
+        <span style="width: 38px; height: 38px; border-radius: 12px; background: {{a.chip}}; color: {{a.chipText}}; display: flex; align-items: center; justify-content: center; flex: none">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        </span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 14px; font-weight: 700; line-height: 1.5">{{a.name}}</span>
+          <span style="font-size: 11px; color: #8FA3C4">{{a.when}} · {{a.last}}</span>
+        </span>
+        <button type="button" onClick="{{a.toggle}}" aria-pressed="{{a.pressed}}" aria-label="{{a.name}}" style="width: 48px; height: 28px; border-radius: 14px; border: none; background: {{a.track}}; padding: 3px; display: flex; justify-content: {{a.justify}}; flex: none">
+          <span style="width: 22px; height: 22px; border-radius: 50%; background: #EAF2FF"></span>
+        </button>
+      </div>
+    </sc-for>
+  </section>
+
+  <div style="position: absolute; left: 22px; right: 22px; bottom: 26px">
+    <a href="NewAgent.dc.html" style="height: 56px; border-radius: 18px; background: #2DD4BF; color: #062420; font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+      New agent
+    </a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { on: { a: true, b: true, c: true, d: true, e: false } };
+  }
+  renderVals() {
+    const list = [
+      { id: 'a', name: 'Post yesterday’s task recap to the team group', when: 'Daily 8:00 AM', last: 'Ran today ✓' },
+      { id: 'b', name: 'Weekly performance report for the CEO', when: 'Thu 2 PM', last: 'Ran Thursday ✓' },
+      { id: 'c', name: 'Task a day late: remind the owner, alert their manager', when: 'On event', last: '9 times this week' },
+      { id: 'd', name: 'Client email with “quote” → task for Faisal', when: 'On event', last: '4 times this week' },
+      { id: 'e', name: 'Draft a monthly review for every employee', when: '1st of each month', last: 'Paused' }
+    ];
+    const on = this.state.on;
+    return {
+      active: list.filter((a) => on[a.id]).length,
+      agents: list.map((a) => {
+        const o = !!on[a.id];
+        return Object.assign({}, a, {
+          pressed: o ? 'true' : 'false',
+          track: o ? '#2DD4BF' : '#2A3A5C',
+          justify: o ? 'flex-end' : 'flex-start',
+          chip: o ? '#10302F' : '#1A2846',
+          chipText: o ? '#2DD4BF' : '#6B7FA3',
+          opacity: o ? '1' : '0.65',
+          toggle: () => this.setState({ on: Object.assign({}, on, { [a.id]: !o }) })
+        });
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

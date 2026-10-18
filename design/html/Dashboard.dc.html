@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; justify-content: space-between; align-items: center">
+    <div style="display: flex; flex-direction: column">
+      <span style="font-size: 24px; font-weight: 800">Team performance</span>
+      <span style="font-size: 13px; color: #8FA3C4">{{periodLabel}} vs. {{prevLabel}}</span>
+    </div>
+    <a href="Summaries.dc.html" style="height: 40px; padding: 0 14px; border-radius: 12px; background: #10302F; color: #2DD4BF; font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+      Summarize
+    </a>
+  </header>
+
+  <div role="tablist" style="margin: 16px 22px 0; background: #121E36; border-radius: 14px; padding: 4px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px">
+    <sc-for list="{{tabs}}" as="t" hint-placeholder-count="3">
+      <button type="button" role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="height: 40px; border-radius: 10px; border: none; background: {{t.bg}}; color: {{t.color}}; font-family: Inter, sans-serif; font-size: 14px; font-weight: 700">{{t.label}}</button>
+    </sc-for>
+  </div>
+
+  <section style="margin: 14px 22px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+    <sc-for list="{{kpis}}" as="k" hint-placeholder-count="4">
+      <div style="background: #121E36; border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px">
+        <span style="font-size: 12px; color: #8FA3C4">{{k.label}}</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 24px; font-weight: 600">{{k.value}}</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: {{k.dColor}}">{{k.delta}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section style="margin: 14px 22px 0; background: #121E36; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="font-size: 14px; font-weight: 700">Tasks completed</span>
+      <span style="display: flex; gap: 10px; font-size: 11px; color: #A9B9D6">
+        <span style="display: flex; align-items: center; gap: 4px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #2DD4BF"></span>{{periodShort}}</span>
+        <span style="display: flex; align-items: center; gap: 4px"><span style="width: 8px; height: 8px; border-radius: 2px; background: #4A5C80"></span>Previous</span>
+      </span>
+    </div>
+    <div role="img" aria-label="Tasks completed vs. previous period" style="height: 150px; display: flex; align-items: flex-end; justify-content: space-between; gap: 6px; border-bottom: 1px solid #23324F">
+      <sc-for list="{{bars}}" as="b" hint-placeholder-count="5">
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #C9D6EC">{{b.cur}}</span>
+          <div style="display: flex; align-items: flex-end; gap: 3px">
+            <span style="width: 14px; height: {{b.hCur}}; background: #2DD4BF; border-radius: 4px 4px 0 0"></span>
+            <span style="width: 14px; height: {{b.hPrev}}; background: #4A5C80; border-radius: 4px 4px 0 0"></span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; justify-content: space-between; gap: 6px">
+      <sc-for list="{{bars}}" as="b" hint-placeholder-count="5">
+        <span style="flex: 1; text-align: center; font-size: 11px; color: #8FA3C4">{{b.label}}</span>
+      </sc-for>
+    </div>
+  </section>
+
+  <section style="margin: 14px 22px 0; background: #10302F; border-radius: 16px; padding: 12px 14px; display: flex; gap: 10px">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2DD4BF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 3px"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+    <span style="font-size: 13px; line-height: 1.7; color: #D4F5EF">{{insight}}</span>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { p: 'w' };
+  }
+  renderVals() {
+    const data = {
+      d: { label: 'Today', prev: 'yesterday', short: 'Today', labels: ['8 AM', '10 AM', '12 PM', '2 PM', '4 PM'], cur: [3, 5, 4, 6, 2], prv: [2, 4, 4, 3, 3],
+        kpis: [['Tasks completed', '20', '+25%', 1], ['On time', '90%', '+4 pts', 1], ['Avg. rating', '4.3', '+0.2', 1], ['Avg. clarity', '84%', '-2 pts', 0]],
+        insight: 'Output peaks in the afternoon. Keep meetings before 10 AM.' },
+      w: { label: 'This week', prev: 'last week', short: 'This week', labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'], cur: [8, 12, 9, 14, 11], prv: [7, 9, 10, 8, 9],
+        kpis: [['Tasks completed', '54', '+26%', 1], ['On time', '87%', '+6 pts', 1], ['Avg. rating', '4.1', '+0.3', 1], ['Avg. clarity', '86%', '+9 pts', 1]],
+        insight: 'Clarity rose 9 pts once Muntej started asking before sending — and delays dropped with it.' },
+      m: { label: 'This month', prev: 'last month', short: 'This month', labels: ['W1', 'W2', 'W3', 'W4'], cur: [42, 51, 48, 56], prv: [38, 40, 45, 44],
+        kpis: [['Tasks completed', '197', '+18%', 1], ['On time', '84%', '+3 pts', 1], ['Avg. rating', '4.0', '0.0', 1], ['Avg. clarity', '83%', '+11 pts', 1]],
+        insight: 'Khalid’s delays improved 40% after rebalancing. Noura is top-rated for the 2nd month running.' }
+    };
+    const p = this.state.p;
+    const d = data[p];
+    const max = Math.max.apply(null, d.cur.concat(d.prv));
+    const h = (v) => Math.round((v / max) * 110) + 'px';
+    return {
+      periodLabel: d.label, prevLabel: d.prev, periodShort: d.short, insight: d.insight,
+      tabs: [['d', 'Daily'], ['w', 'Weekly'], ['m', 'Monthly']].map((t) => ({
+        label: t[1], sel: p === t[0] ? 'true' : 'false',
+        bg: p === t[0] ? '#2DD4BF' : 'transparent', color: p === t[0] ? '#062420' : '#C9D6EC',
+        pick: () => this.setState({ p: t[0] })
+      })),
+      kpis: d.kpis.map((k) => ({ label: k[0], value: k[1], delta: (k[3] ? '▲ ' : '▼ ') + k[2], dColor: k[3] ? '#2DD4BF' : '#FF9B93' })),
+      bars: d.labels.map((l, i) => ({ label: l, cur: d.cur[i], hCur: h(d.cur[i]), hPrev: h(d.prv[i]) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

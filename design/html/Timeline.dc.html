@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Achievements Timeline</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; justify-content: space-between; align-items: flex-end">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <span style="font-size: 24px; font-weight: 800">Achievements</span>
+      <span style="font-size: 13px; color: #8FA3C4">What actually got done · tap any dot</span>
+    </div>
+    <span style="display: flex; flex-direction: column; align-items: flex-end"><span style="font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 600; color: #2DD4BF">{{count}}</span><span style="font-size: 11px; color: #8FA3C4">{{delta}}</span></span>
+  </header>
+
+  <div style="margin: 14px 22px 0; display: flex; gap: 8px">
+    <div role="tablist" aria-label="View by" style="flex: 1; background: #121E36; border-radius: 14px; padding: 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+      <sc-for list="{{views}}" as="v" hint-placeholder-count="2">
+        <button type="button" role="tab" aria-selected="{{v.sel}}" onClick="{{v.pick}}" style="height: 38px; border-radius: 10px; border: none; background: {{v.bg}}; color: {{v.color}}; font-family: Inter, sans-serif; font-size: 13px; font-weight: 700">{{v.label}}</button>
+      </sc-for>
+    </div>
+    <div role="tablist" aria-label="Period" style="width: 150px; background: #121E36; border-radius: 14px; padding: 4px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px">
+      <sc-for list="{{zooms}}" as="z" hint-placeholder-count="3">
+        <button type="button" role="tab" aria-selected="{{z.sel}}" onClick="{{z.pick}}" style="height: 38px; border-radius: 10px; border: none; background: {{z.bg}}; color: {{z.color}}; font-family: Inter, sans-serif; font-size: 12px; font-weight: 700; padding: 0">{{z.label}}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <section style="margin: 14px 16px 0; background: #121E36; border-radius: 20px; padding: 12px 10px 10px; display: flex; flex-direction: column; gap: 0">
+    <sc-for list="{{lanes}}" as="l" hint-placeholder-count="3">
+      <div style="height: 46px; display: flex; align-items: center; gap: 8px">
+        <span style="width: 78px; flex: none; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; white-space: nowrap">
+          <sc-if value="{{l.isPerson}}" hint-placeholder-val="{{ false }}">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: #1E4B5A; display: flex; align-items: center; justify-content: center; font-size: 11px; flex: none">{{l.initial}}</span>
+          </sc-if>
+          <sc-if value="{{l.isWs}}" hint-placeholder-val="{{ true }}">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: {{l.color}}; flex: none"></span>
+          </sc-if>
+          <span style="display: flex; flex-direction: column; line-height: 1.2"><span>{{l.name}}</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 500; color: #8FA3C4">{{l.n}}</span></span>
+        </span>
+        <div style="flex: 1; height: 46px; position: relative">
+          <span style="position: absolute; left: 0; right: 0; top: 22px; height: 2px; background: #23324F"></span>
+          <sc-for list="{{l.points}}" as="p" hint-placeholder-count="2">
+            <button type="button" onClick="{{p.pick}}" aria-label="{{p.title}}" style="position: absolute; top: 1px; left: {{p.pos}}; margin-left: -22px; width: 44px; height: 44px; border: none; background: transparent; padding: 0; display: flex; align-items: center; justify-content: center">
+              <span style="width: {{p.size}}; height: {{p.size}}; border-radius: 50%; background: {{p.fill}}; border: 3px solid {{p.color}}; box-sizing: border-box"></span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+    <div style="display: flex; gap: 8px; padding-top: 4px">
+      <span style="width: 78px; flex: none"></span>
+      <div style="flex: 1; display: flex; justify-content: space-between; border-top: 1px solid #1A2846; padding-top: 6px">
+        <sc-for list="{{axis}}" as="a" hint-placeholder-count="3">
+          <span style="font-size: 11px; color: #8FA3C4">{{a}}</span>
+        </sc-for>
+      </div>
+    </div>
+    <sc-if value="{{byEmp}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; gap: 10px; justify-content: center; padding-top: 8px; font-size: 11px; color: #A9B9D6">
+        <span style="display: flex; align-items: center; gap: 4px"><span style="width: 8px; height: 8px; border-radius: 50%; border: 2px solid #2DD4BF"></span>Muntej AI</span>
+        <span style="display: flex; align-items: center; gap: 4px"><span style="width: 8px; height: 8px; border-radius: 50%; border: 2px solid #5EB3E4"></span>Nizamy</span>
+        <span style="display: flex; align-items: center; gap: 4px"><span style="width: 8px; height: 8px; border-radius: 50%; border: 2px solid #C79BF2"></span>Wojood</span>
+      </div>
+    </sc-if>
+  </section>
+
+  <section style="margin: 12px 16px 0; background: #1C2C4A; border: 1px solid {{selColor}}; border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #C9D6EC"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{selColor}}"></span>{{selWs}}</span>
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8FA3C4">{{selDate}}</span>
+    </div>
+    <span style="font-size: 17px; font-weight: 800; line-height: 1.5">{{selTitle}}</span>
+    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px">
+      <span style="background: #0B1426; padding: 5px 10px; border-radius: 999px; color: #C9D6EC">{{selWho}}</span>
+      <span style="background: #0B1426; padding: 5px 10px; border-radius: 999px; color: #2DD4BF">{{selProof}} proofs</span>
+      <a href="Summaries.dc.html" style="margin-left: auto; font-size: 12px; font-weight: 700">{{selWho}}'s summary →</a>
+    </div>
+  </section>
+
+  <div style="position: absolute; left: 22px; right: 22px; bottom: 22px; display: flex; gap: 10px">
+    <a href="Summaries.dc.html" style="flex: 1; height: 52px; border-radius: 16px; background: #2DD4BF; color: #062420; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center">Turn into a leadership report</a>
+    <button type="button" style="width: 110px; height: 52px; border-radius: 16px; border: 1px solid #23324F; background: transparent; color: #EAF2FF; font-family: Inter, sans-serif; font-size: 14px; font-weight: 700">Share</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { by: 'ws', z: 'm', sel: 'c' };
+  }
+  renderVals() {
+    const WS = { m: ['Muntej AI', '#2DD4BF'], n: ['Nizamy', '#5EB3E4'], w: ['Wojood', '#C79BF2'] };
+    const PPL = { f: 'Faisal', s: 'Saad', n: 'Noura', k: 'Khalid', m: 'Maha', sh: 'Shahad' };
+    const D = {
+      w: { axis: ['Sun', 'Tue', 'Thu'], count: 9, delta: '▲ 2 vs last week',
+        pts: [['a', 'm', 50, 'Pitched “Create it and forget it” to leadership', 'f', 'Oct 15', 3], ['c', 'm', 92, 'Meeting notetaker launched to beta users', 's', 'Oct 18', 5],
+          ['b', 'n', 30, 'First customer on an annual plan', 'm', 'Oct 14', 2], ['d', 'w', 10, 'Market sizing analysis', 'sh', 'Oct 12', 4], ['e', 'n', 70, 'Fixed 12 bugs in the attendance app', 'k', 'Oct 16', 3]] },
+      m: { axis: ['W1', 'W2', 'W3', 'W4'], count: 47, delta: '▲ 18% vs Sep',
+        pts: [['a', 'm', 20, 'Pilot meeting with SPL', 'f', 'Oct 7', 2], ['b', 'm', 48, 'New direction pitched to leadership', 'f', 'Oct 15', 3], ['c', 'm', 90, 'Meeting notetaker launched to beta users', 's', 'Oct 18', 5],
+          ['h', 'm', 70, 'Agents screens designed', 'n', 'Oct 14', 4], ['d', 'n', 32, 'Fingerprint devices linked in 3 branches', 'k', 'Oct 10', 6], ['e', 'n', 62, 'First customer on an annual plan', 'm', 'Oct 16', 2],
+          ['f', 'w', 8, 'New landing page launched', 'n', 'Oct 3', 3], ['g', 'w', 42, 'Market sizing analysis', 'sh', 'Oct 13', 4]] },
+      q: { axis: ['Aug', 'Sep', 'Oct'], count: 128, delta: '▲ 31% vs last quarter',
+        pts: [['a', 'm', 8, 'MVP v5 launched', 's', 'Aug 12', 7], ['b', 'm', 40, 'Pilot with 5 managers', 'f', 'Sep 9', 4], ['c', 'm', 72, 'Pilot meeting with SPL', 'f', 'Oct 7', 2], ['d', 'm', 94, 'Meeting notetaker launched', 's', 'Oct 18', 5],
+          ['e', 'n', 18, 'Brand identity approved', 'n', 'Aug 20', 3], ['f', 'n', 58, 'Fingerprint devices linked in 3 branches', 'k', 'Oct 10', 6], ['g', 'n', 86, 'First customer on an annual plan', 'm', 'Oct 16', 2],
+          ['h', 'w', 30, 'Wojood project kicked off', 'sh', 'Sep 1', 1], ['i', 'w', 78, 'Market sizing analysis', 'sh', 'Oct 13', 4]] }
+    };
+    const st = this.state;
+    const d = D[st.z];
+    const sel = d.pts.find((p) => p[0] === st.sel) || d.pts[0];
+    const mkPoint = (p) => {
+      const on = p[0] === sel[0];
+      const c = WS[p[1]][1];
+      return { title: p[3], pos: p[2] + '%', color: c, size: on ? '22px' : '14px', fill: on ? c : '#121E36', pick: () => this.setState({ sel: p[0] }) };
+    };
+    const byEmp = st.by === 'emp';
+    const lanes = byEmp
+      ? Object.keys(PPL).map((k) => {
+          const pts = d.pts.filter((p) => p[4] === k);
+          return { isPerson: true, isWs: false, initial: PPL[k][0], name: PPL[k], color: '#EAF2FF', n: pts.length + ' done', points: pts.map(mkPoint) };
+        })
+      : ['m', 'n', 'w'].map((k) => {
+          const pts = d.pts.filter((p) => p[1] === k);
+          return { isPerson: false, isWs: true, initial: '', name: WS[k][0], color: WS[k][1], n: pts.length + ' done', points: pts.map(mkPoint) };
+        });
+    return {
+      count: d.count, delta: d.delta, axis: d.axis, lanes: lanes, byEmp: byEmp,
+      views: [['ws', 'By workspace'], ['emp', 'By person']].map((v) => ({
+        label: v[1], sel: st.by === v[0] ? 'true' : 'false',
+        bg: st.by === v[0] ? '#2DD4BF' : 'transparent', color: st.by === v[0] ? '#062420' : '#C9D6EC',
+        pick: () => this.setState({ by: v[0] })
+      })),
+      zooms: [['w', 'Week'], ['m', 'Month'], ['q', 'Qtr']].map((z) => ({
+        label: z[1], sel: st.z === z[0] ? 'true' : 'false',
+        bg: st.z === z[0] ? '#1C2C4A' : 'transparent', color: st.z === z[0] ? '#2DD4BF' : '#C9D6EC',
+        pick: () => this.setState({ z: z[0], sel: 'c' })
+      })),
+      selTitle: sel[3], selWho: PPL[sel[4]], selDate: sel[5], selProof: sel[6], selWs: WS[sel[1]][0], selColor: WS[sel[1]][1]
+    };
+  }
+}
+</script>
+</body>
+</html>

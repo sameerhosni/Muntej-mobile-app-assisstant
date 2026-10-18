@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Reverse Follow-up</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B1426}
+a{color:#2DD4BF;text-decoration:none}a:hover{color:#5EEAD4}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0B1426; color: #EAF2FF; font-family: Inter, sans-serif; direction: ltr; box-sizing: border-box">
+
+  <header style="padding: 26px 22px 0; display: flex; flex-direction: column; gap: 6px">
+    <span style="font-size: 13px; color: #8FA3C4">Faisal · Employee</span>
+    <span style="font-size: 24px; font-weight: 800">You're waiting on</span>
+    <span style="font-size: 14px; color: #8FA3C4; line-height: 1.6">Things stuck with others — even your manager. Muntej nudges them for you, neutrally.</span>
+  </header>
+
+  <section style="margin: 16px 22px 0; background: #121E36; border-radius: 18px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center">
+    <span style="font-size: 14px; color: #C9D6EC">Time spent waiting this week</span>
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 600; color: #F5B547">31h</span>
+  </section>
+
+  <section style="margin: 14px 22px 0; display: flex; flex-direction: column; gap: 10px">
+    <sc-for list="{{items}}" as="it" hint-placeholder-count="3">
+      <div style="background: #121E36; border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <span style="width: 36px; height: 36px; border-radius: 50%; background: #1E4B5A; display: flex; align-items: center; justify-content: center; font-weight: 700; flex: none">{{it.initial}}</span>
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-weight: 700; font-size: 15px">{{it.what}}</span>
+            <span style="font-size: 12px; color: #8FA3C4">{{it.who}} · {{it.blocks}}</span>
+          </div>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: {{it.color}}; flex: none">{{it.wait}}</span>
+        </div>
+        <sc-if value="{{it.open}}" hint-placeholder-val="{{ true }}">
+          <button type="button" onClick="{{it.chase}}" style="height: 44px; border-radius: 12px; border: 1px solid #2DD4BF; background: transparent; color: #2DD4BF; font-family: Inter, sans-serif; font-size: 15px; font-weight: 700">Nudge politely</button>
+        </sc-if>
+        <sc-if value="{{it.done}}" hint-placeholder-val="{{ false }}">
+          <div style="background: #0B1426; border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px">
+            <span style="font-size: 12px; color: #2DD4BF; font-weight: 700">Muntej sent to {{it.who}}:</span>
+            <span style="font-size: 13px; color: #C9D6EC; line-height: 1.6">{{it.msg}}</span>
+          </div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </section>
+
+  <div style="position: absolute; left: 22px; right: 22px; bottom: 26px; height: 56px; border-radius: 28px; background: #121E36; border: 1px solid #23324F; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 18px; box-sizing: border-box">
+    <span style="flex: 1; font-size: 14px; color: #6B7FA3">"Muntej, remind Ahmed about the discount file"</span>
+    <button type="button" aria-label="Ask by voice" style="width: 44px; height: 44px; border-radius: 50%; border: none; background: #2DD4BF; color: #062420; display: flex; align-items: center; justify-content: center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { d: {} };
+  }
+  renderVals() {
+    const base = [
+      { id: 'a', initial: 'A', who: 'Ahmed (manager)', what: 'Approve discount rate', blocks: 'Blocks SPL proposal', wait: '2d', color: '#FF9B93',
+        msg: 'Reminder: the SPL discount file has waited 2 days for your approval, and the proposal is due Thursday. Approve in one tap?' },
+      { id: 'b', initial: 'A', who: 'Abdullah', what: 'Final Q3 numbers', blocks: 'Blocks the numbers slide', wait: '19h', color: '#F5B547',
+        msg: 'Faisal needs the Q3 numbers to finish the proposal. When can you send them? (Today / Tomorrow)' },
+      { id: 'c', initial: 'F', who: 'Finance', what: 'Confirm demo budget', blocks: 'Blocks room booking', wait: '6h', color: '#8FA3C4',
+        msg: 'SPL demo budget confirmation request — needed before Wednesday.' }
+    ];
+    const d = this.state.d;
+    return {
+      items: base.map((b) => Object.assign({}, b, {
+        open: !d[b.id],
+        done: !!d[b.id],
+        chase: () => this.setState({ d: Object.assign({}, d, { [b.id]: true }) })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>
