@@ -10,12 +10,14 @@ type Props = TextInputProps & {
   /** Fixed text before the input, e.g. "+966". Always LTR. */
   prefix?: string;
   mono?: boolean;
+  /** Force left-to-right input (emails, URLs) even in Arabic. */
+  ltr?: boolean;
   right?: ReactNode;
 };
 
-export function TextField({ label, error, prefix, mono, right, style, ...rest }: Props) {
+export function TextField({ label, error, prefix, mono, ltr, right, style, ...rest }: Props) {
   const { lang, isRTL } = useDirection();
-  const ltrContent = !!prefix || mono; // phone numbers and codes read left-to-right in both languages
+  const ltrContent = !!prefix || !!mono || !!ltr; // numbers, codes and emails read left-to-right in both languages
   return (
     <View style={{ gap: spacing.sm }}>
       {label && (

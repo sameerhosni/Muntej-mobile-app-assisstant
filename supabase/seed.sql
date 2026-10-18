@@ -1,5 +1,5 @@
 -- Muntej sample data: Ahmed (manager) + Faisal, Abdullah, Noura, Khalid, Saad, Maha.
--- Phones match the Supabase Auth test numbers (code 123456). Dates are relative to now().
+-- Sign-in is by email OTP (emails set below). Dates are relative to now().
 -- Runs once: if the sample people already exist the whole seed aborts (one transaction), nothing is duplicated.
 --
 -- Fixed ids:  profiles …-a000-0000000000NN   workspaces …-c000-…   tasks …-b000-…
@@ -22,6 +22,19 @@ insert into public.profiles (id, phone, full_name, full_name_ar, role, manager_i
   ('00000000-0000-4000-a000-000000000006', '966500000006', 'Saad Al-Dosari',      'سعد الدوسري',     'employee', '00000000-0000-4000-a000-000000000001', 'Software Engineer',       'مهندس برمجيات',         '{backend,mobile,integrations}', 'blue', 40),
   ('00000000-0000-4000-a000-000000000007', '966500000007', 'Maha Al-Zahrani',     'مها الزهراني',    'employee', '00000000-0000-4000-a000-000000000001', 'UX Designer',             'مصممة تجربة المستخدم',  '{design,ux,arabic-typography}', 'purple', 40)
 on conflict (id) do nothing;
+
+-- sign-in emails (email OTP); aliases all land in the same inbox
+update public.profiles set email = v.email
+  from (values
+    ('966500000001', 's.hosni@t2.sa'),
+    ('966500000002', 's.hosni+faisal@t2.sa'),
+    ('966500000003', 's.hosni+abdullah@t2.sa'),
+    ('966500000004', 's.hosni+noura@t2.sa'),
+    ('966500000005', 's.hosni+khalid@t2.sa'),
+    ('966500000006', 's.hosni+saad@t2.sa'),
+    ('966500000007', 's.hosni+maha@t2.sa')
+  ) as v(phone, email)
+ where profiles.phone = v.phone;
 
 -- ─── Workspaces ───────────────────────────────────────────────────────────────
 insert into public.workspaces (id, name, name_ar, goal, color, owner_id) values

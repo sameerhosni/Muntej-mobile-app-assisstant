@@ -1,64 +1,57 @@
-// Screen · Sign in (phone) — no mockup; dark style per design/TOKENS.md
+// Screen · Sign in (email) — no mockup; dark style per design/TOKENS.md
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
-import { AppText, Button, Card, TextField } from '@/components/ui';
+import { Button, TextField } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
-import { normalizeSaudiPhone, phoneSchema, type PhoneForm } from '@/features/auth/phone';
+import { emailSchema, type EmailForm } from '@/features/auth/validation';
 
 export default function SignInScreen() {
   const { t } = useTranslation();
   const [serverError, setServerError] = useState<string | null>(null);
-  const { control, handleSubmit, formState } = useForm<PhoneForm>({
-    resolver: zodResolver(phoneSchema),
-    defaultValues: { phone: '' },
+  const { control, handleSubmit, formState } = useForm<EmailForm>({
+    resolver: zodResolver(emailSchema),
+    defaultValues: { email: '' },
   });
 
-  const onSubmit = handleSubmit(async ({ phone }) => {
+  const onSubmit = handleSubmit(async ({ email }) => {
     setServerError(null);
-    const e164 = normalizeSaudiPhone(phone)!;
-    const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
+    const { error } = await supabase.auth.signInWithOtp({ email });
     if (error) {
-      setServerError(t('auth.genericError'));
+      setServerError(error.status === 429 ? t('auth.rateLimited') : t('auth.genericError'));
       return;
     }
-    router.push({ pathname: '/verify', params: { phone: e164 } });
+    router.push({ pathname: '/verify', params: { email } });
   });
 
   return (
-    <AuthShell title={t('auth.phoneTitle')} hint={t('auth.phoneHint')}>
+    <AuthShell title={t('auth.emailTitle')} hint={t('auth.emailHint')}>
       <Controller
         control={control}
-        name="phone"
+        name="email"
         render={({ field }) => (
           <TextField
-            label={t('auth.phoneLabel')}
-            prefix="+966"
-            placeholder={t('auth.phonePlaceholder')}
-            keyboardType="phone-pad"
-            textContentType="telephoneNumber"
-            autoComplete="tel"
+            label={t('auth.emailLabel')}
+            placeholder="name@company.sa"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoComplete="email"
+            autoCapitalize="none"
+            autoCorrect={false}
             autoFocus
-            maxLength={14}
+            ltr
             value={field.value}
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             onSubmitEditing={() => onSubmit()}
-            error={formState.errors.phone?.message ? t(formState.errors.phone.message) : serverError ?? undefined}
+            error={formState.errors.email?.message ? t(formState.errors.email.message) : serverError ?? undefined}
           />
         )}
       />
       <Button label={t('auth.continue')} onPress={onSubmit} loading={formState.isSubmitting} />
-      {__DEV__ && (
-        <Card size="md" tone="teal">
-          <AppText variant="caption" color="teal">
-            {t('auth.devHint')}
-          </AppText>
-        </Card>
-      )}
     </AuthShell>
   );
 }

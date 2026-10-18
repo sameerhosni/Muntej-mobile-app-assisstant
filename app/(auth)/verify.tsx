@@ -9,11 +9,11 @@ import { AppText, Button, TextField } from '@/components/ui';
 import { sizes, spacing } from '@/theme/tokens';
 import { supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
-import { otpSchema, type OtpForm } from '@/features/auth/phone';
+import { otpSchema, type OtpForm } from '@/features/auth/validation';
 
 export default function VerifyScreen() {
   const { t } = useTranslation();
-  const { phone = '' } = useLocalSearchParams<{ phone: string }>();
+  const { email = '' } = useLocalSearchParams<{ email: string }>();
   const [serverError, setServerError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { control, handleSubmit, formState } = useForm<OtpForm>({
@@ -23,20 +23,20 @@ export default function VerifyScreen() {
 
   const onSubmit = handleSubmit(async ({ code }) => {
     setServerError(null);
-    const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' });
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
     if (error) setServerError(t('auth.genericError'));
     // on success the auth guard in app/_layout.tsx swaps to the app automatically
   });
 
   const resend = async () => {
     setServerError(null);
-    const { error } = await supabase.auth.signInWithOtp({ phone });
-    if (error) setServerError(t('auth.genericError'));
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    if (error) setServerError(error.status === 429 ? t('auth.rateLimited') : t('auth.genericError'));
     else setNotice(t('auth.resent'));
   };
 
   return (
-    <AuthShell title={t('auth.codeTitle')} hint={t('auth.codeHint', { phone: `⁦${phone}⁩` })}>
+    <AuthShell title={t('auth.codeTitle')} hint={t('auth.codeHint', { email: `⁦${email}⁩` })}>
       <Controller
         control={control}
         name="code"
