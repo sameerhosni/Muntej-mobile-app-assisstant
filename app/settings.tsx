@@ -2,8 +2,10 @@
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Chip, IconButton, Screen, SectionTitle } from '@/components/ui';
+import { ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react-native';
+import { AppText, Avatar, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle } from '@/components/ui';
+import { useScreenT } from '@/lib/i18n/register';
+import { PROTO_NS } from '@/features/prototype/strings';
 import { useMyProfile, useSignOut } from '@/lib/api';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { setLanguage, useDirection, type Language } from '@/lib/i18n';
@@ -15,6 +17,7 @@ export default function SettingsScreen() {
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
   const { data: me } = useMyProfile();
   const signOut = useSignOut();
+  const { t: tp } = useScreenT(PROTO_NS);
 
   return (
     <Screen>
@@ -24,6 +27,23 @@ export default function SettingsScreen() {
         </IconButton>
         <AppText variant="titleLg">{t('settings.title')}</AppText>
       </View>
+
+      <Card
+        onPress={() => router.push('/prototype')}
+        accessibilityLabel={tp('open')}
+        style={{ flexDirection: 'row', alignItems: 'center' }}
+      >
+        <IconBadge size={44} gradient="heroManager">
+          <LayoutGrid color={colors.onDark} size={20} strokeWidth={2} />
+        </IconBadge>
+        <View style={{ flex: 1, gap: 2 }}>
+          <AppText variant="cardTitle">{tp('open')}</AppText>
+          <AppText variant="caption" color="textMuted">
+            {tp('openHint')}
+          </AppText>
+        </View>
+        <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
+      </Card>
 
       {me && (
         <Card>

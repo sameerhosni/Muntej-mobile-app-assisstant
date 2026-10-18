@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { colors } from '@/theme/tokens';
 import { useMyProfile, usePendingDecisionCount } from '@/lib/api';
 import { TabBar } from '@/features/navigation/TabBar';
+import { SCREENS } from '@/features/screens/registry';
 
 // All role tabs live in one navigator; TabBar shows only the signed-in role's tabs.
 export default function TabsLayout() {
@@ -12,7 +13,12 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
-      tabBar={(props) => <TabBar {...props} role={role} badges={{ '04-decisions': pending }} />}
+      tabBar={(props) => {
+        // show the bar that belongs to the screen on display (lets the prototype walk both roles)
+        const current = props.state.routes[props.state.index]?.name ?? '';
+        const screenRole = SCREENS.find((s) => s.route === `/${current}`)?.tab ?? role;
+        return <TabBar {...props} role={screenRole} badges={{ '04-decisions': pending }} />;
+      }}
     >
       <Tabs.Screen name="01-home" />
       <Tabs.Screen name="03-autopilot" />

@@ -9,6 +9,7 @@ import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/them
 import { useDirection } from '@/lib/i18n';
 import { useHomeStats, useMyProfile, usePendingDecisionCount } from '@/lib/api';
 import { formatNumber, hoursSaved, sarSaved } from '@/features/home/value';
+import { useProto } from '@/features/prototype/store';
 
 function greetingKey(date = new Date()) {
   const h = date.getHours();
@@ -21,8 +22,9 @@ export default function ManagerHome() {
   const me = useMyProfile();
   const stats = useHomeStats();
   const pending = usePendingDecisionCount();
+  const { active: protoActive } = useProto();
 
-  if (me.data?.role === 'employee') return <Redirect href="/25-employee-home" />;
+  if (me.data?.role === 'employee' && !protoActive) return <Redirect href="/25-employee-home" />;
 
   const firstName = (lang === 'ar' && me.data?.full_name_ar ? me.data.full_name_ar : me.data?.full_name ?? '').split(' ')[0];
   const s = stats.data;

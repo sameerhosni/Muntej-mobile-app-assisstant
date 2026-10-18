@@ -13,6 +13,8 @@ import { colors } from '@/theme/tokens';
 import { loadSavedLanguage, useDirection } from '@/lib/i18n';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
 import { SCREENS } from '@/features/screens/registry';
+import { ProtoBar } from '@/features/prototype/ProtoBar';
+import '@/features/prototype/strings';
 
 // non-tab numbered screens, e.g. "14-task-detail"
 const STACK_SCREENS = SCREENS.filter((s) => !s.tab).map((s) => s.route.slice(1));
@@ -72,6 +74,7 @@ function RootNavigator() {
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="settings" />
+          <Stack.Screen name="prototype" />
           {STACK_SCREENS.map((name) => (
             <Stack.Screen
               key={name}
@@ -84,6 +87,7 @@ function RootNavigator() {
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
       </Stack>
+      {signedIn && <ProtoBar />}
     </View>
   );
 }
