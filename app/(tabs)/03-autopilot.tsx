@@ -16,6 +16,10 @@ import {
   RotateCcw,
   Send,
   TrendingUp,
+  Users,
+  CalendarClock,
+  HeartHandshake,
+  FolderPlus,
   XCircle,
   Zap,
   type LucideProps,
@@ -47,6 +51,10 @@ const ACTION_STYLE: Record<string, { Icon: ComponentType<LucideProps>; bg: Color
   task_created: { Icon: FilePlus, bg: 'primaryTint', fg: 'primary' },
   decision_approved: { Icon: CircleCheck, bg: 'greenTint', fg: 'green' },
   decision_declined: { Icon: XCircle, bg: 'redTint', fg: 'red' },
+  reassigned: { Icon: Users, bg: 'purpleTint', fg: 'purple' },
+  roadmap_adjusted: { Icon: CalendarClock, bg: 'amberTint', fg: 'amberText' },
+  help_offered: { Icon: HeartHandshake, bg: 'greenTint', fg: 'green' },
+  workspace_created: { Icon: FolderPlus, bg: 'primaryTint', fg: 'primary' },
 };
 
 function minutesFor(a: ActivityEntry) {

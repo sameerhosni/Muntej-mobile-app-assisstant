@@ -1,0 +1,51 @@
+import { registerStrings } from '@/lib/i18n/register';
+
+const en = {
+  title: 'Workspaces',
+  subtitle: 'No boards, no charts',
+  back: 'Back',
+  hours: '{{h}} h',
+  savedWeek: 'saved / week',
+  sarWeek: 'SAR / week',
+  chases: 'chases',
+  onTrack: 'On track',
+  stuck: '{{n}} stuck',
+  hSaved: '{{h}} h saved',
+  more: '+{{n}}',
+  members: 'Members',
+  tasks: 'Tasks',
+  wins: 'Wins this week',
+  points: 'Points',
+  cardA11y: '{{name}}: {{members}} members, {{tasks}} tasks, {{wins}} wins this week. {{health}}. Opens achievements.',
+  suggest: 'Move {{n}} {{ws}} tasks to {{name}}',
+  empty: 'No workspaces yet. Describe one in a sentence and Muntej picks the team.',
+  error: "Couldn't load workspaces. Pull to retry.",
+  newWorkspace: 'New workspace',
+  agents: 'Agents',
+};
+
+const ar: typeof en = {
+  title: 'مساحات العمل',
+  subtitle: 'بلا لوحات ولا رسومات',
+  back: 'رجوع',
+  hours: '{{h}}',
+  savedWeek: 'ساعة/أسبوع',
+  sarWeek: 'ريال/أسبوع',
+  chases: 'ملاحقة',
+  onTrack: 'ماشي تمام',
+  stuck: '{{n}} واقفة',
+  hSaved: 'وفّرت {{h}} ساعة',
+  more: '+{{n}}',
+  members: 'الأعضاء',
+  tasks: 'المهام',
+  wins: 'إنجازات هالأسبوع',
+  points: 'النقاط',
+  cardA11y: '{{name}}: {{members}} أعضاء، {{tasks}} مهمة، {{wins}} إنجاز هالأسبوع. {{health}}. يفتح الإنجازات.',
+  suggest: 'حوّل {{n}} مهام من {{ws}} لـ{{name}}',
+  empty: 'ما فيه مساحات للحين. اوصف وحدة بجملة ومنتج يختار الفريق.',
+  error: 'ما قدرنا نجيب المساحات. اسحب وجرّب مرة ثانية.',
+  newWorkspace: 'مساحة جديدة',
+  agents: 'الوكلاء',
+};
+
+export const NS = registerStrings('s19', { en, ar });
