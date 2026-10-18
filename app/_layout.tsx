@@ -7,23 +7,46 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { appFonts } from '@/theme/fonts';
 import { colors } from '@/theme/tokens';
 import { loadSavedLanguage, useDirection } from '@/lib/i18n';
+import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
+import { SCREENS } from '@/features/screens/registry';
+
+// non-tab numbered screens, e.g. "14-task-detail"
+const STACK_SCREENS = SCREENS.filter((s) => !s.tab).map((s) => s.route.slice(1));
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 SystemUI.setBackgroundColorAsync(colors.bg).catch(() => {});
 
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
+});
+
 export default function RootLayout() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <SafeAreaProvider>
+          <RootNavigator />
+        </SafeAreaProvider>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}
+
+function RootNavigator() {
   const [fontsLoaded, fontError] = useFonts(appFonts);
   const [langReady, setLangReady] = useState(false);
+  const { session, ready: authReady } = useAuth();
   const { direction } = useDirection();
 
   useEffect(() => {
     loadSavedLanguage().finally(() => setLangReady(true));
   }, []);
 
-  const ready = (fontsLoaded || !!fontError) && langReady;
+  const ready = (fontsLoaded || !!fontError) && langReady && authReady;
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
@@ -31,22 +54,35 @@ export default function RootLayout() {
 
   if (!ready) return null;
 
+  const signedIn = !!session;
+
   return (
-    <SafeAreaProvider>
-      {/* direction flips the whole layout instantly when the language changes (works in Expo Go too). */}
-      <View style={{ flex: 1, direction, backgroundColor: colors.bg }}>
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.bg },
-            animation: direction === 'rtl' ? 'slide_from_left' : 'slide_from_right',
-          }}
-        >
+    // direction flips the whole layout instantly when the language changes (works in Expo Go too).
+    <View style={{ flex: 1, direction, backgroundColor: colors.bg }}>
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.bg },
+          animation: direction === 'rtl' ? 'slide_from_left' : 'slide_from_right',
+        }}
+      >
+        {/* every signed-in route must be listed here, or it is reachable without a session */}
+        <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="02-capture" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-        </Stack>
-      </View>
-    </SafeAreaProvider>
+          <Stack.Screen name="settings" />
+          {STACK_SCREENS.map((name) => (
+            <Stack.Screen
+              key={name}
+              name={name}
+              options={name === '02-capture' ? { presentation: 'modal', animation: 'slide_from_bottom' } : undefined}
+            />
+          ))}
+        </Stack.Protected>
+        <Stack.Protected guard={!signedIn}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+      </Stack>
+    </View>
   );
 }

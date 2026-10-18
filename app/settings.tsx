@@ -3,7 +3,8 @@ import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { AppText, Card, Chip, Screen, SectionTitle } from '@/components/ui';
+import { AppText, Avatar, Button, Card, Chip, Screen, SectionTitle } from '@/components/ui';
+import { useMyProfile, useSignOut } from '@/lib/api';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { setLanguage, useDirection, type Language } from '@/lib/i18n';
 import { SCREENS } from '@/features/screens/registry';
@@ -12,6 +13,8 @@ export default function SettingsScreen() {
   const { t } = useTranslation();
   const { lang, isRTL } = useDirection();
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
+  const { data: me } = useMyProfile();
+  const signOut = useSignOut();
 
   return (
     <Screen>
@@ -33,6 +36,32 @@ export default function SettingsScreen() {
         </Pressable>
         <AppText variant="title">{t('settings.title')}</AppText>
       </View>
+
+      {me && (
+        <Card>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
+            <Avatar name={me.full_name} size={48} bg="tealDeep" fg="teal" />
+            <View style={{ flex: 1, gap: 2 }}>
+              <AppText variant="caption" color="textMuted">
+                {t('settings.signedInAs')}
+              </AppText>
+              <AppText variant="cardTitle">{lang === 'ar' && me.full_name_ar ? me.full_name_ar : me.full_name}</AppText>
+              <AppText variant="caption" color="textMuted">
+                {t(me.role === 'manager' ? 'settings.manager' : 'settings.employee')}
+                {(lang === 'ar' ? me.title_ar : me.title) ? ` · ${lang === 'ar' ? me.title_ar : me.title}` : ''}
+              </AppText>
+            </View>
+          </View>
+          <Button
+            label={t('settings.signOut')}
+            variant="outline"
+            tone="neutral"
+            size="md"
+            loading={signOut.isPending}
+            onPress={() => signOut.mutate()}
+          />
+        </Card>
+      )}
 
       <Card>
         <View style={{ gap: 4 }}>

@@ -4,12 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChartNoAxesColumn, CircleCheck, House, RotateCw } from 'lucide-react-native';
 import { colors, fontFamily, sizes } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
-
-// TODO(S1-3): replace with the live pending-decisions count.
-const PENDING_DECISIONS = 2;
+import { usePendingDecisionCount } from '@/lib/api';
 
 export default function TabsLayout() {
   const { t } = useTranslation();
+  const PENDING_DECISIONS = usePendingDecisionCount();
   const { lang } = useDirection();
   const insets = useSafeAreaInsets();
 
