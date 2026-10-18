@@ -1,5 +1,5 @@
 // Screen · Verify code (OTP) — no mockup; dark style per design/TOKENS.md
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
@@ -31,6 +31,15 @@ export default function VerifyScreen() {
     if (error) setServerError(t('auth.genericError'));
     // on success the auth guard in app/_layout.tsx swaps to the app automatically
   });
+
+  // demo personas: the code is fixed, so sign straight in
+  const autoSubmitted = useRef(false);
+  useEffect(() => {
+    if (demo && !autoSubmitted.current) {
+      autoSubmitted.current = true;
+      onSubmit();
+    }
+  }, [demo, onSubmit]);
 
   const resend = async () => {
     setServerError(null);

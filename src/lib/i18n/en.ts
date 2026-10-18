@@ -114,7 +114,7 @@ const en = {
     invalidPhone: 'Enter a Saudi mobile number starting with 5',
     demoTitle: 'Demo personas',
     demoHint: 'Tap someone to sign in as them. Fixed code, no SMS.',
-    demoCodeHint: 'Demo persona: the code is filled in for you.',
+    demoCodeHint: 'Demo persona: signing you in… (code 123456)',
     emailTitle: 'Sign in with your email',
     emailHint: "We'll email you a 6-digit code.",
     emailLabel: 'Work email',
