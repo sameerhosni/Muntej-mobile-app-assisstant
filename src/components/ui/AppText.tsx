@@ -5,19 +5,21 @@ import { useDirection } from '@/lib/i18n';
 type Variant = keyof typeof fontSize;
 
 const defaultWeight: Partial<Record<Variant, FontWeightName>> = {
-  title: 'extrabold',
-  titleLg: 'extrabold',
   cardTitle: 'bold',
-  cardTitleLg: 'bold',
-  lead: 'bold',
+  stat: 'extrabold',
+  big: 'extrabold',
+  hero: 'extrabold',
 };
+
+// Headings use the display face (Playfair Display EN / Tajawal AR) unless told otherwise.
+const displayVariants: Variant[] = ['title', 'titleLg', 'section'];
 
 export type AppTextProps = TextProps & {
   variant?: Variant;
   weight?: FontWeightName;
   color?: ColorToken;
-  /** IBM Plex Mono for numbers and stats. */
-  mono?: boolean;
+  /** Force the display (heading) face on/off. Defaults to on for title/titleLg/section. */
+  display?: boolean;
   align?: 'start' | 'center' | 'end';
 };
 
@@ -33,18 +35,14 @@ export function AppText({
   variant = 'body',
   weight,
   color = 'text',
-  mono = false,
+  display,
   align = 'start',
   style,
   ...rest
 }: AppTextProps) {
   const { lang, isRTL } = useDirection();
-  const w = weight ?? defaultWeight[variant] ?? 'regular';
-  const family = mono
-    ? w === 'medium' || w === 'regular'
-      ? fontFamily.mono.medium
-      : fontFamily.mono.semibold
-    : fontFamily[lang][w];
+  const useDisplay = display ?? displayVariants.includes(variant);
+  const family = useDisplay ? fontFamily.display[lang] : fontFamily[lang][weight ?? defaultWeight[variant] ?? 'regular'];
 
   return (
     <Text

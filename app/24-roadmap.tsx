@@ -1,4 +1,4 @@
-// Screen 24 · Roadmap — see design/screens/24-Roadmap.png
+// Screen 24 · Roadmap — see design/v2/html/ProjectRoadmap.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen24() {

@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<title>Muntej Prototype</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700;800&amp;family=Tajawal:wght@500;700&amp;family=Playfair+Display:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EEF3FA}
+a{color:#1E9BEA;text-decoration:none}a:hover{color:#0B7FCB}
+@keyframes mjPulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.6);opacity:0}}
+@keyframes mjBob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+@keyframes mjBobDown{0%,100%{transform:rotate(180deg) translateY(0)}50%{transform:rotate(180deg) translateY(6px)}}
+@media (prefers-reduced-motion: reduce){.mj-ring,.mj-hand{animation-play-state:paused !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: #EEF3FA; color: #0B1A33; font-family: Karla, sans-serif; box-sizing: border-box">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; background: linear-gradient(120deg, #0B2A5B 0%, #1F6FEB 65%, #2EC4D6 130%); color: #FFFFFF">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <span style="width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); color: #FFFFFF; display: flex; align-items: center; justify-content: center">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>
+      </span>
+      <div style="display: flex; flex-direction: column">
+        <span style="font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; line-height: 1.1">Muntej</span>
+        <span style="font-size: 13px; color: rgba(255,255,255,0.8)">Create it. Forget it. Muntej does the rest. — 37 screens · English &amp; Arabic · 3 sprints</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px">
+      <div role="tablist" aria-label="Language" style="display: flex; gap: 4px; background: rgba(255,255,255,0.16); border-radius: 999px; padding: 4px">
+        <sc-for list="{{langTabs}}" as="t" hint-placeholder-count="2">
+          <button type="button" role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="height: 36px; padding: 0 16px; border-radius: 999px; border: none; background: {{t.bg}}; color: {{t.color}}; font-family: Karla, Tajawal, sans-serif; font-size: 14px; font-weight: 700">{{t.label}}</button>
+        </sc-for>
+      </div>
+      <div role="tablist" aria-label="Role" style="display: flex; gap: 4px; background: rgba(255,255,255,0.16); border-radius: 999px; padding: 4px">
+        <sc-for list="{{roleTabs}}" as="t" hint-placeholder-count="3">
+          <button type="button" role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="height: 36px; padding: 0 16px; border-radius: 999px; border: none; background: {{t.bg}}; color: {{t.color}}; font-family: Karla, sans-serif; font-size: 14px; font-weight: 600">{{t.label}}</button>
+        </sc-for>
+      </div>
+      <div role="tablist" aria-label="Sprint" style="display: flex; gap: 4px; background: rgba(255,255,255,0.16); border-radius: 999px; padding: 4px">
+        <sc-for list="{{sprintTabs}}" as="t" hint-placeholder-count="4">
+          <button type="button" role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="height: 36px; padding: 0 14px; border-radius: 999px; border: none; background: {{t.bg}}; color: {{t.color}}; font-family: Karla, sans-serif; font-size: 14px; font-weight: 600">{{t.label}}</button>
+        </sc-for>
+      </div>
+    </div>
+  </header>
+
+  <main style="display: flex; gap: 20px; padding: 14px 20px 16px; align-items: flex-start; justify-content: center">
+
+    <nav aria-label="Screens" style="flex: 0 1 250px; min-width: 210px; background: #FFFFFF; border: 1px solid #E6EBF3; border-radius: 20px; padding: 10px; box-sizing: border-box; max-height: 800px; overflow-y: auto">
+      <span style="display: block; padding: 8px 10px; font-size: 13px; color: #66728A">{{listLabel}}</span>
+      <sc-for list="{{items}}" as="s" hint-placeholder-count="12">
+        <button type="button" onClick="{{s.pick}}" aria-current="{{s.current}}" style="width: 100%; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: none; border-radius: 14px; background: {{s.bg}}; color: {{s.color}}; font-family: Karla, sans-serif; text-align: left">
+          <span style="width: 30px; flex: none; font-size: 13px; font-weight: 700; color: {{s.numColor}}">{{s.num}}</span>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 1px">
+            <span style="font-size: 14px; font-weight: 600">{{s.name}}</span>
+            <span style="font-size: 12px; color: {{s.subColor}}">{{s.sprint}} · {{s.role}}</span>
+          </span>
+        </button>
+      </sc-for>
+    </nav>
+
+    <section aria-label="Phone preview" style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 10px">
+      <div style="display: flex; gap: 16px; align-items: flex-start">
+      <sc-if value="{{showEN}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+          <span dir="ltr" style="font-size: 13px; font-weight: 700; color: #1F6FEB; background: #E8F0FE; padding: 4px 12px; border-radius: 999px; font-family: Karla, Tajawal, sans-serif">English</span>
+          <div style="width: 356px; height: 747px; position: relative">
+            <div style="position: absolute; left: 0; top: 0; width: 414px; height: 868px; transform: scale(0.86); transform-origin: 0 0; border-radius: 56px; background: linear-gradient(160deg, #1B2B4A, #0B1A33); padding: 12px; box-sizing: border-box; box-shadow: 0 24px 60px rgba(4,4,4,0.18)">
+              <div style="width: 390px; height: 844px; border-radius: 44px; overflow: hidden; background: #F3F6FB; position: relative">
+              <sc-if value="{{show.Main}}" hint-placeholder-val="{{ true }}"><dc-import name="Main" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Capture}}" hint-placeholder-val="{{ false }}"><dc-import name="Capture" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Autopilot}}" hint-placeholder-val="{{ false }}"><dc-import name="Autopilot" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Decisions}}" hint-placeholder-val="{{ false }}"><dc-import name="Decisions" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Brief}}" hint-placeholder-val="{{ false }}"><dc-import name="Brief" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Employee}}" hint-placeholder-val="{{ false }}"><dc-import name="Employee" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.PromiseCatcher}}" hint-placeholder-val="{{ false }}"><dc-import name="PromiseCatcher" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Pushback}}" hint-placeholder-val="{{ false }}"><dc-import name="Pushback" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.ReverseFollowup}}" hint-placeholder-val="{{ false }}"><dc-import name="ReverseFollowup" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Evidence}}" hint-placeholder-val="{{ false }}"><dc-import name="Evidence" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.LoadRadar}}" hint-placeholder-val="{{ false }}"><dc-import name="LoadRadar" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Sources}}" hint-placeholder-val="{{ false }}"><dc-import name="Sources" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.NoteTaker}}" hint-placeholder-val="{{ false }}"><dc-import name="NoteTaker" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.TaskDetail}}" hint-placeholder-val="{{ false }}"><dc-import name="TaskDetail" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Review}}" hint-placeholder-val="{{ false }}"><dc-import name="Review" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Dashboard}}" hint-placeholder-val="{{ false }}"><dc-import name="Dashboard" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Summaries}}" hint-placeholder-val="{{ false }}"><dc-import name="Summaries" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Alerts}}" hint-placeholder-val="{{ false }}"><dc-import name="Alerts" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Workspaces}}" hint-placeholder-val="{{ false }}"><dc-import name="Workspaces" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.NewWorkspace}}" hint-placeholder-val="{{ false }}"><dc-import name="NewWorkspace" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Timeline}}" hint-placeholder-val="{{ false }}"><dc-import name="Timeline" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Agents}}" hint-placeholder-val="{{ false }}"><dc-import name="Agents" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.NewAgent}}" hint-placeholder-val="{{ false }}"><dc-import name="NewAgent" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.ProjectRoadmap}}" hint-placeholder-val="{{ false }}"><dc-import name="ProjectRoadmap" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.EmployeeHome}}" hint-placeholder-val="{{ false }}"><dc-import name="EmployeeHome" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Rewards}}" hint-placeholder-val="{{ false }}"><dc-import name="Rewards" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.PointsControl}}" hint-placeholder-val="{{ false }}"><dc-import name="PointsControl" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Kudos}}" hint-placeholder-val="{{ false }}"><dc-import name="Kudos" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Badges}}" hint-placeholder-val="{{ false }}"><dc-import name="Badges" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.TeamQuests}}" hint-placeholder-val="{{ false }}"><dc-import name="TeamQuests" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.TeamLaunch}}" hint-placeholder-val="{{ false }}"><dc-import name="TeamLaunch" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Receipt}}" hint-placeholder-val="{{ false }}"><dc-import name="Receipt" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.SetupQuest}}" hint-placeholder-val="{{ false }}"><dc-import name="SetupQuest" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.AddTeam}}" hint-placeholder-val="{{ false }}"><dc-import name="AddTeam" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.FirstRun}}" hint-placeholder-val="{{ false }}"><dc-import name="FirstRun" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.HowTo}}" hint-placeholder-val="{{ false }}"><dc-import name="HowTo" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.Grow}}" hint-placeholder-val="{{ false }}"><dc-import name="Grow" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{hint.on}}" hint-placeholder-val="{{ true }}">
+                <button type="button" onClick="{{next}}" aria-label="Tap here to go to the next screen" title="Tap here to go to the next screen" style="position: absolute; left: {{hint.left}}; top: {{hint.top}}; width: 56px; height: 56px; padding: 0; border: none; background: transparent; cursor: pointer; z-index: 20">
+                  <span class="mj-ring" style="position: absolute; inset: 0; border-radius: 50%; background: rgba(46,163,242,0.35); border: 2px solid #2EA3F2; box-sizing: border-box; animation: mjPulse 1.4s ease-out infinite"></span>
+                  <span style="position: absolute; left: 22px; top: 22px; width: 12px; height: 12px; border-radius: 50%; background: #2EA3F2; border: 2px solid #FFFFFF; box-sizing: border-box"></span>
+                  <svg class="mj-hand" width="44" height="44" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; left: {{hint.handLeft}}; top: {{hint.handTop}}; animation: {{hint.anim}} 1.1s ease-in-out infinite; filter: drop-shadow(0 3px 6px rgba(4,4,4,0.35))"><path d="M10 9.5V4a2 2 0 0 0-4 0v10l-1.6-1.6a2 2 0 0 0-2.83 2.82l3.6 3.6C6.66 20.3 8.36 22 12 22h2a8 8 0 0 0 8-8v-3a2 2 0 1 0-4 0v-1a2 2 0 0 0-4 0V9a2 2 0 0 0-4 0z" fill="#FFFFFF" stroke="#0B1A33" stroke-width="1.5" stroke-linejoin="round"/><path d="M14 10v2M18 11v2M10 9.5v3" stroke="#0B1A33" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </button>
+              </sc-if>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{showAR}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+          <span dir="rtl" style="font-size: 13px; font-weight: 700; color: #1F6FEB; background: #E8F0FE; padding: 4px 12px; border-radius: 999px; font-family: Karla, Tajawal, sans-serif">العربية</span>
+          <div style="width: 356px; height: 747px; position: relative">
+            <div style="position: absolute; left: 0; top: 0; width: 414px; height: 868px; transform: scale(0.86); transform-origin: 0 0; border-radius: 56px; background: linear-gradient(160deg, #1B2B4A, #0B1A33); padding: 12px; box-sizing: border-box; box-shadow: 0 24px 60px rgba(4,4,4,0.18)">
+              <div style="width: 390px; height: 844px; border-radius: 44px; overflow: hidden; background: #F3F6FB; position: relative">
+              <sc-if value="{{show.MainAR}}" hint-placeholder-val="{{ false }}"><dc-import name="MainAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.CaptureAR}}" hint-placeholder-val="{{ false }}"><dc-import name="CaptureAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.AutopilotAR}}" hint-placeholder-val="{{ false }}"><dc-import name="AutopilotAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.DecisionsAR}}" hint-placeholder-val="{{ false }}"><dc-import name="DecisionsAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.BriefAR}}" hint-placeholder-val="{{ false }}"><dc-import name="BriefAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.EmployeeAR}}" hint-placeholder-val="{{ false }}"><dc-import name="EmployeeAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.PromiseCatcherAR}}" hint-placeholder-val="{{ false }}"><dc-import name="PromiseCatcherAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.PushbackAR}}" hint-placeholder-val="{{ false }}"><dc-import name="PushbackAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.ReverseFollowupAR}}" hint-placeholder-val="{{ false }}"><dc-import name="ReverseFollowupAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.EvidenceAR}}" hint-placeholder-val="{{ false }}"><dc-import name="EvidenceAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.LoadRadarAR}}" hint-placeholder-val="{{ false }}"><dc-import name="LoadRadarAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.SourcesAR}}" hint-placeholder-val="{{ false }}"><dc-import name="SourcesAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.NoteTakerAR}}" hint-placeholder-val="{{ false }}"><dc-import name="NoteTakerAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.TaskDetailAR}}" hint-placeholder-val="{{ false }}"><dc-import name="TaskDetailAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.ReviewAR}}" hint-placeholder-val="{{ false }}"><dc-import name="ReviewAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.DashboardAR}}" hint-placeholder-val="{{ false }}"><dc-import name="DashboardAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.SummariesAR}}" hint-placeholder-val="{{ false }}"><dc-import name="SummariesAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.AlertsAR}}" hint-placeholder-val="{{ false }}"><dc-import name="AlertsAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.WorkspacesAR}}" hint-placeholder-val="{{ false }}"><dc-import name="WorkspacesAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.NewWorkspaceAR}}" hint-placeholder-val="{{ false }}"><dc-import name="NewWorkspaceAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.TimelineAR}}" hint-placeholder-val="{{ false }}"><dc-import name="TimelineAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.AgentsAR}}" hint-placeholder-val="{{ false }}"><dc-import name="AgentsAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.NewAgentAR}}" hint-placeholder-val="{{ false }}"><dc-import name="NewAgentAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.ProjectRoadmapAR}}" hint-placeholder-val="{{ false }}"><dc-import name="ProjectRoadmapAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.EmployeeHomeAR}}" hint-placeholder-val="{{ false }}"><dc-import name="EmployeeHomeAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.RewardsAR}}" hint-placeholder-val="{{ false }}"><dc-import name="RewardsAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.PointsControlAR}}" hint-placeholder-val="{{ false }}"><dc-import name="PointsControlAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.KudosAR}}" hint-placeholder-val="{{ false }}"><dc-import name="KudosAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.BadgesAR}}" hint-placeholder-val="{{ false }}"><dc-import name="BadgesAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.TeamQuestsAR}}" hint-placeholder-val="{{ false }}"><dc-import name="TeamQuestsAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.TeamLaunchAR}}" hint-placeholder-val="{{ false }}"><dc-import name="TeamLaunchAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.ReceiptAR}}" hint-placeholder-val="{{ false }}"><dc-import name="ReceiptAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.SetupQuestAR}}" hint-placeholder-val="{{ false }}"><dc-import name="SetupQuestAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.AddTeamAR}}" hint-placeholder-val="{{ false }}"><dc-import name="AddTeamAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.FirstRunAR}}" hint-placeholder-val="{{ false }}"><dc-import name="FirstRunAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.HowToAR}}" hint-placeholder-val="{{ false }}"><dc-import name="HowToAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{show.GrowAR}}" hint-placeholder-val="{{ false }}"><dc-import name="GrowAR" hint-size="390px,844px"></dc-import></sc-if>
+              <sc-if value="{{hintAR.on}}" hint-placeholder-val="{{ true }}">
+                <button type="button" onClick="{{next}}" aria-label="اضغط هنا للشاشة التالية" title="اضغط هنا للشاشة التالية" style="position: absolute; left: {{hintAR.left}}; top: {{hintAR.top}}; width: 56px; height: 56px; padding: 0; border: none; background: transparent; cursor: pointer; z-index: 20">
+                  <span class="mj-ring" style="position: absolute; inset: 0; border-radius: 50%; background: rgba(46,163,242,0.35); border: 2px solid #2EA3F2; box-sizing: border-box; animation: mjPulse 1.4s ease-out infinite"></span>
+                  <span style="position: absolute; left: 22px; top: 22px; width: 12px; height: 12px; border-radius: 50%; background: #2EA3F2; border: 2px solid #FFFFFF; box-sizing: border-box"></span>
+                  <svg class="mj-hand" width="44" height="44" viewBox="0 0 24 24" aria-hidden="true" style="position: absolute; left: {{hintAR.handLeft}}; top: {{hintAR.handTop}}; animation: {{hintAR.anim}} 1.1s ease-in-out infinite; filter: drop-shadow(0 3px 6px rgba(4,4,4,0.35))"><path d="M10 9.5V4a2 2 0 0 0-4 0v10l-1.6-1.6a2 2 0 0 0-2.83 2.82l3.6 3.6C6.66 20.3 8.36 22 12 22h2a8 8 0 0 0 8-8v-3a2 2 0 1 0-4 0v-1a2 2 0 0 0-4 0V9a2 2 0 0 0-4 0z" fill="#FFFFFF" stroke="#0B1A33" stroke-width="1.5" stroke-linejoin="round"/><path d="M14 10v2M18 11v2M10 9.5v3" stroke="#0B1A33" stroke-width="1.3" stroke-linecap="round"/></svg>
+                </button>
+              </sc-if>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px">
+        <button type="button" onClick="{{toggleGuide}}" aria-pressed="{{guidePressed}}" style="height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid {{guideBorder}}; background: {{guideBg}}; color: {{guideColor}}; font-family: Karla, sans-serif; font-size: 13px; font-weight: 600">{{guideLabel}}</button>
+        <span style="font-size: 12px; color: #66728A">Tap where the finger points to go to the next screen.</span>
+      </div>
+    </section>
+
+    <aside aria-label="About this screen" style="flex: 0 1 290px; min-width: 240px; display: flex; flex-direction: column; gap: 16px">
+      <div style="background: #FFFFFF; border: 1px solid #E6EBF3; border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 6px 18px rgba(4,4,4,0.06)">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <span style="font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 999px; background: {{curSprintBg}}; color: {{curSprintFg}}">{{cur.sprintLong}}</span>
+          <span style="font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 999px; background: #EFEBFF; color: #4B32C3">{{cur.role}}</span>
+        </div>
+        <span style="font-size: 13px; color: #66728A">Screen {{cur.num}} · {{position}}</span>
+        <h1 style="margin: 0; font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; line-height: 1.15">{{cur.name}}</h1>
+        <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3A3A3A">{{cur.desc}}</p>
+        <div style="background: #EAF6FE; border-radius: 14px; padding: 12px 14px; display: flex; gap: 10px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1C5D8A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span style="font-size: 14px; line-height: 1.5; color: #1C5D8A"><b>Try this:</b> {{cur.tip}}</span>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 4px">
+          <button type="button" onClick="{{prev}}" style="flex: 1; height: 48px; border-radius: 999px; border: 1px solid #D6E2F5; background: #FFFFFF; color: #1F6FEB; font-family: Karla, sans-serif; font-size: 15px; font-weight: 600">Previous</button>
+          <button type="button" onClick="{{next}}" style="flex: 1; height: 48px; border-radius: 999px; border: none; background: linear-gradient(135deg, #1F6FEB, #2E9BF0); box-shadow: 0 8px 20px rgba(31,111,235,0.30); color: #FFFFFF; font-family: Karla, sans-serif; font-size: 15px; font-weight: 600">Next</button>
+        </div>
+      </div>
+      <div style="background: #FFFFFF; border: 1px solid #E6EBF3; border-radius: 20px; padding: 18px 22px; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 600">Sprints</span>
+        <span style="font-size: 13px; line-height: 1.5; color: #3A3A3A"><b style="color: #1C5D8A">Sprint 1</b> · Core "create &amp; forget" + points system</span>
+        <span style="font-size: 13px; line-height: 1.5; color: #3A3A3A"><b style="color: #8A3A0C">Sprint 2</b> · Capture everywhere, insights &amp; gamification</span>
+        <span style="font-size: 13px; line-height: 1.5; color: #3A3A3A"><b style="color: #1F6B4C">Sprint 3</b> · Workspaces, fairness &amp; agents</span>
+      </div>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { cur: 'Main', role: 'all', sprint: 'all', guide: true, lang: 'both' };
+  }
+  renderVals() {
+    const S = [
+      ['01', 'Main', 'Manager home', 'S1', 'Manager', 'Voice-first home: a big mic to say a task, a live count of what Muntej is handling, the decisions waiting, and the team’s energy this week.', 'Tap the avatar to jump to the employee view, or tap Recognize.'],
+      ['02', 'Capture', 'Capture', 'S1', 'Manager', 'Muntej shows what it understood from one sentence (owner, due, priority, helper, goal, reward) and its follow-up plan.', 'Read the plan, then tap "Done, forget it".'],
+      ['03', 'Autopilot', 'Autopilot', 'S1', 'Manager', 'A read-only feed of everything Muntej did for you: reminders, updates received, meetings set, points awarded.', 'Scan Today vs Yesterday — nothing here needs you.'],
+      ['04', 'Decisions', 'Decisions', 'S1', 'Manager', 'Only exceptions reach the manager, each with an AI recommendation and one-tap approve, decline or voice reply.', 'Tap Approve, then Move to Noura — the inbox clears.'],
+      ['05', 'Brief', 'Weekly brief', 'S2', 'Manager', 'A 60-second audio summary, hours saved, team pulse and one suggestion you can accept with one tap.', 'Press play, then accept the kudos suggestion.'],
+      ['06', 'Employee', 'Employee chat', 'S1', 'Employee', 'Employees get tasks and follow-ups in chat (in-app or WhatsApp) and update with one tap — earning points as they go.', 'Tap 50% or Done and watch the points chip.'],
+      ['07', 'PromiseCatcher', 'Promise Catcher', 'S2', 'Manager', 'After a meeting, every spoken commitment becomes a suggested task with the exact quote and timestamp.', 'Confirm or skip each promise, or Confirm all.'],
+      ['08', 'Pushback', 'Polite Pushback', 'S3', 'Employee', 'An employee can say "my plate is full"; Muntej asks the manager a face-saving priority question for them.', 'Tap "My plate is full", then send it.'],
+      ['09', 'ReverseFollowup', 'Reverse follow-up', 'S2', 'Employee', 'Employees see what they are waiting on — even their manager — and ask Muntej to nudge politely.', 'Tap "Nudge politely" on any item.'],
+      ['10', 'Evidence', 'Evidence progress', 'S2', 'Manager', 'Progress is read from real signals instead of self-reporting, and Muntej offers help when someone looks stuck.', 'Tap "Offer help — no awkwardness".'],
+      ['11', 'LoadRadar', 'Load Radar', 'S3', 'Manager', 'When assigning, see everyone’s load and the impact of the new task, with the best fit recommended.', 'Tap Faisal, then Noura, and compare.'],
+      ['12', 'Sources', 'Sources', 'S2', 'Both', 'Connect WhatsApp, email, meetings, Teams, Slack, Google Chat, Jira, Azure DevOps and sticky notes; updates sync back.', 'Tap tiles to connect or disconnect sources.'],
+      ['13', 'NoteTaker', 'Note Taker', 'S2', 'Manager', 'Meeting bots for Zoom, Meet and Teams plus recording devices for in-room meetings, capturing tasks live.', 'Tap "Stop & extract tasks".'],
+      ['14', 'TaskDetail', 'Task detail', 'S1', 'Both', 'Clarity rate, AI split into subtasks, evidence attachments and the reward for finishing well.', 'Ask about the budget, then Split with AI.'],
+      ['15', 'Review', 'Review loop', 'S1', 'Manager', 'Rate the work, approve or send back with a note — round by round until done, with points awarded on approval.', 'Pick 5 stars, then Approve & close.'],
+      ['16', 'Dashboard', 'Dashboard', 'S2', 'Manager', 'Daily, weekly and monthly KPIs compared with the previous period, plus engagement and one AI insight.', 'Switch Daily / Weekly / Monthly.'],
+      ['17', 'Summaries', 'Summaries', 'S2', 'Manager', 'One-tap summary for any project, product or employee, with AI-drafted feedback for employees.', 'Choose Employee, then Summarize in one tap.'],
+      ['18', 'Alerts', 'Alerts', 'S1', 'Both', 'Channels, alert rules, quiet hours (prayer times, Ramadan) and smart escalation.', 'Toggle channels and rules.'],
+      ['19', 'Workspaces', 'Workspaces', 'S3', 'Manager', 'Each product is a workspace with its people, health, weekly wins and points — no boards or columns.', 'Tap a workspace to open its achievements.'],
+      ['20', 'NewWorkspace', 'New workspace', 'S3', 'Manager', 'Describe a product in one sentence and AI picks the team with a match score and reason.', 'Add or remove people, then create.'],
+      ['21', 'Timeline', 'Achievements', 'S3', 'Manager', 'A one-page timeline of real wins, by workspace or by employee, with week / month / quarter zoom.', 'Switch to By person and tap the dots.'],
+      ['22', 'Agents', 'Agents', 'S3', 'Manager', 'Routines that run by themselves — scheduled or event-based — with on/off toggles.', 'Turn an agent on or off.'],
+      ['23', 'NewAgent', 'New agent', 'S3', 'Manager', 'Write a routine as a prompt; Muntej turns it into a recipe, tests it and runs it with the autonomy you choose.', 'Tap "Test it now", then turn it on.'],
+      ['24', 'ProjectRoadmap', 'Roadmap', 'S3', 'Manager', 'Auto-built roadmap of projects and tasks with start and expected close dates and an AI delay forecast.', 'Tap Qiwa integration, then Apply.'],
+      ['25', 'EmployeeHome', 'Employee home', 'S1', 'Employee', 'The employee’s game-like home: level ring, streak, points, today’s quests and the next reward.', 'Tick quests and watch XP and points grow.'],
+      ['26', 'Rewards', 'Points & rewards', 'S1', 'Employee', 'Balance, how to earn and a rewards marketplace; redeeming sends a one-tap request to the manager.', 'Redeem Coffee on Muntej.'],
+      ['27', 'PointsControl', 'Points control', 'S1', 'Manager', 'Monthly points budget, earning rules, reward approvals and a fairness check.', 'Approve a reward request.'],
+      ['28', 'Kudos', 'Kudos', 'S2', 'Manager', 'Recognition in five seconds with real points; Muntej drafts the message from recent work.', 'Pick a person and value, then Send kudos.'],
+      ['29', 'Badges', 'Levels & badges', 'S2', 'Employee', 'Five levels and badges that reward reliability — on time, proof, clarity, helping.', 'Tap badges to see how to earn them.'],
+      ['30', 'TeamQuests', 'Quests & league', 'S2', 'Employee', 'Weekly team quests and a team-vs-team league; individuals only compare with their own past.', 'Switch between Teams and Me.'],
+      ['31', 'TeamLaunch', 'Bring your team in', 'S1', 'Manager', 'A ready WhatsApp invite and office poster, plus a live "5 of 8 joined" bar with one-tap nudges. Full team earns everyone points.', 'Nudge Khalid, Noura and Saad.'],
+      ['32', 'Receipt', 'Weekly receipt', 'S1', 'Manager', 'A receipt of everything Muntej did for you — follow-ups, updates, decisions — with hours saved in riyals, ready to share.', 'Switch to This month, then Share.'],
+      ['33', 'SetupQuest', 'Setup quest', 'S1', 'Manager', 'Five small steps with points and a progress ring get a new company live in about 5 minutes, with no training or onboarding call.', 'Tick a step and watch the CTA jump to the next one.'],
+      ['34', 'AddTeam', 'Add your team in seconds', 'S1', 'Manager', 'Snap a staff list (AI reads names and numbers), pick from contacts, or drop a join link in the WhatsApp group. No typing.', 'Untick Maha, then invite.'],
+      ['35', 'FirstRun', 'Employee first run', 'S1', 'Employee', 'New employees learn by doing on their real first task: three coach marks (Accept, Add proof, Done) with points. No manual.', 'Follow the black tip: Accept, proof, done.'],
+      ['36', 'HowTo', 'Ask Muntej how', 'S1', 'Both', 'An in-app AI guide replaces manuals and training: ask in Arabic or English, get 3 steps, then "Show me" or "Do it for me".', 'Pick a question, then Do it for me.'],
+      ['37', 'Grow', 'Grow', 'S2', 'Manager', 'Expand without sales calls: new team in a minute, invite another manager, AI spots branches not yet on Muntej, and a give-a-month referral.', 'Invite the Jeddah manager, then share the receipt.']
+    ];
+    const SPR = { S1: 'Sprint 1', S2: 'Sprint 2', S3: 'Sprint 3' };
+    const SBG = { S1: ['#EAF6FE', '#1C5D8A'], S2: ['#FFF1E8', '#8A3A0C'], S3: ['#E8F7F0', '#1F6B4C'] };
+    const st = this.state;
+    const all = S.map((s) => ({ num: s[0], key: s[1], name: s[2], sprint: s[3], sprintLong: SPR[s[3]], role: s[4], desc: s[5], tip: s[6] }));
+    const list = all.filter((s) => (st.sprint === 'all' || s.sprint === st.sprint) && (st.role === 'all' || s.role === st.role || s.role === 'Both'));
+    const cur = all.find((s) => s.key === st.cur) || all[0];
+    const idx = list.findIndex((s) => s.key === cur.key);
+    const go = (d) => {
+      if (!list.length) return;
+      const i = idx < 0 ? 0 : (idx + d + list.length) % list.length;
+      this.setState({ cur: list[i].key });
+    };
+    const show = {};
+    all.forEach((s) => { show[s.key] = s.key === cur.key && st.lang !== 'ar'; show[s.key + 'AR'] = s.key === cur.key && st.lang !== 'en'; });
+    const tab = (on) => ({ bg: on ? '#FFFFFF' : 'transparent', color: on ? '#1F6FEB' : '#FFFFFF', sel: on ? 'true' : 'false' });
+    const HP = { Main: [195, 772], Capture: [142, 784], Autopilot: [273, 789], Decisions: [100, 350], Brief: [310, 644], Employee: [55, 569], PromiseCatcher: [195, 762], Pushback: [195, 432], ReverseFollowup: [195, 305], Evidence: [195, 730], LoadRadar: [195, 788], Sources: [308, 788], NoteTaker: [196, 262], TaskDetail: [195, 784], Review: [111, 776], Dashboard: [308, 73], Summaries: [195, 362], Alerts: [62, 162], Workspaces: [128, 783], NewWorkspace: [195, 785], Timeline: [138, 788], Agents: [195, 783], NewAgent: [285, 784], ProjectRoadmap: [318, 743], EmployeeHome: [276, 74], Rewards: [106, 419], PointsControl: [314, 578], Kudos: [195, 422], Badges: [76, 305], TeamQuests: [280, 163], Receipt: [195, 766], SetupQuest: [195, 758], AddTeam: [195, 792], FirstRun: [116, 320], HowTo: [272, 590], Grow: [126, 322], TeamLaunch: [113, 746] };
+    const HPAR = { Main: [195, 772], Capture: [248, 784], Autopilot: [117, 789], Decisions: [290, 350], Brief: [87, 644], Employee: [335, 572], PromiseCatcher: [195, 762], Pushback: [195, 433], ReverseFollowup: [195, 306], Evidence: [195, 730], LoadRadar: [195, 788], Sources: [82, 788], NoteTaker: [194, 264], TaskDetail: [195, 784], Review: [279, 776], Dashboard: [70, 73], Summaries: [195, 362], Alerts: [328, 162], Workspaces: [262, 783], NewWorkspace: [195, 785], Timeline: [252, 788], Agents: [195, 783], NewAgent: [106, 784], ProjectRoadmap: [69, 743], EmployeeHome: [114, 74], Rewards: [284, 419], PointsControl: [63, 579], Kudos: [195, 423], Badges: [314, 306], TeamQuests: [110, 163], Receipt: [195, 766], SetupQuest: [195, 758], AddTeam: [195, 792], FirstRun: [274, 320], HowTo: [118, 592], Grow: [299, 323], TeamLaunch: [277, 746] };
+    const mk = (hp) => { const up = hp[1] > 560; return { on: st.guide && list.length > 1, left: (hp[0] - 28) + 'px', top: (hp[1] - 28) + 'px', handLeft: up ? '-1px' : '13px', handTop: up ? '-14px' : '30px', anim: up ? 'mjBobDown' : 'mjBob' }; };
+    const hp = HP[cur.key] || [195, 422];
+    const hint = mk(hp);
+    const hintAR = mk(HPAR[cur.key] || [195, 422]);
+    return {
+      hint: hint, hintAR: hintAR, showEN: st.lang !== 'ar', showAR: st.lang !== 'en',
+      langTabs: [['both', 'Both · الاثنين'], ['en', 'English'], ['ar', 'عربي']].map((r) => Object.assign({ label: r[1], pick: () => this.setState({ lang: r[0] }) }, tab(st.lang === r[0]))),
+      guidePressed: st.guide ? 'true' : 'false', guideLabel: st.guide ? 'Finger guide: on' : 'Finger guide: off',
+      guideBg: st.guide ? '#1F6FEB' : '#FFFFFF', guideColor: st.guide ? '#FFFFFF' : '#1F6FEB', guideBorder: st.guide ? '#1F6FEB' : '#D6E2F5',
+      toggleGuide: () => this.setState({ guide: !st.guide }),
+      show: show,
+      cur: cur,
+      curSprintBg: SBG[cur.sprint][0],
+      curSprintFg: SBG[cur.sprint][1],
+      position: idx >= 0 ? (idx + 1) + ' of ' + list.length + ' in view' : 'not in current filter',
+      listLabel: list.length + ' screens',
+      prev: () => go(-1),
+      next: () => go(1),
+      roleTabs: [['all', 'All'], ['Manager', 'Manager'], ['Employee', 'Employee']].map((r) => Object.assign({ label: r[1], pick: () => this.setState({ role: r[0] }) }, tab(st.role === r[0]))),
+      sprintTabs: [['all', 'All sprints'], ['S1', 'Sprint 1'], ['S2', 'Sprint 2'], ['S3', 'Sprint 3']].map((r) => Object.assign({ label: r[1], pick: () => this.setState({ sprint: r[0] }) }, tab(st.sprint === r[0]))),
+      items: list.map((s) => {
+        const on = s.key === cur.key;
+        return {
+          num: s.num, name: s.name, sprint: s.sprintLong, role: s.role,
+          current: on ? 'true' : 'false',
+          bg: on ? 'linear-gradient(135deg, #1F6FEB, #2E9BF0)' : 'transparent', color: on ? '#FFFFFF' : '#0B1A33',
+          numColor: on ? '#FFFFFF' : '#97A1B5', subColor: on ? '#DCE9FF' : '#66728A',
+          pick: () => this.setState({ cur: s.key })
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

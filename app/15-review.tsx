@@ -1,4 +1,4 @@
-// Screen 15 · Review loop — see design/screens/15-Review.png
+// Screen 15 · Review loop — see design/v2/html/Review.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen15() {

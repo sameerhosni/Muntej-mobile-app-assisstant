@@ -1,4 +1,4 @@
-// Screen 04 · Decisions — see design/screens/04-Decisions.png
+// Screen 04 · Decisions — see design/v2/html/Decisions.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen04() {

@@ -1,4 +1,4 @@
-// Screen 20 · New workspace — see design/screens/20-NewWorkspace.png
+// Screen 20 · New workspace — see design/v2/html/NewWorkspace.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen20() {

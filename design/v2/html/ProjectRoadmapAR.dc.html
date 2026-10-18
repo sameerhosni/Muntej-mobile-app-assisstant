@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>منتج - خارطة الطريق</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&amp;family=Karla:wght@400;500;600;700;800&amp;family=Playfair+Display:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3F6FB}
+a{color:#1F6FEB;text-decoration:none}a:hover{color:#1557C0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #F3F6FB; color: #0B1A33; font-family: Tajawal, sans-serif; direction: rtl; box-sizing: border-box">
+
+  <section style="position: absolute; left: 0; top: 0; width: 390px; height: 206px; background: linear-gradient(150deg, #0B2A5B 0%, #1F6FEB 62%, #2EC4D6 120%); border-radius: 0 0 28px 28px; color: #FFFFFF; overflow: hidden">
+    <svg aria-hidden="true" width="150" height="150" viewBox="0 0 150 150" style="position: absolute; left: -20px; top: 30px; opacity: 0.16"><g fill="none" stroke="#FFFFFF" stroke-width="2"><path d="M0 40l25-25 25 25 25-25 25 25 25-25 25 25"/><path d="M0 70l25-25 25 25 25-25 25 25 25-25 25 25"/><path d="M0 100l25-25 25 25 25-25 25 25 25-25 25 25"/><path d="M12 128h126" stroke-dasharray="6 8"/></g></svg>
+    <span aria-hidden="true" style="position: absolute; right: -60px; bottom: -110px; width: 220px; height: 220px; border-radius: 50%; background: rgba(46,196,214,0.22)"></span>
+
+    <div aria-hidden="true" style="height: 44px; padding: 0 26px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; direction: rtl; font-family: Karla, sans-serif; color: #FFFFFF; position: relative"><span>9:41</span><span style="display: flex; gap: 6px; align-items: center"><svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg><svg width="15" height="11" viewBox="0 0 15 11"><path d="M7.5 2.2c2.2 0 4.2.9 5.7 2.3l1.1-1.1A9.6 9.6 0 0 0 7.5.6 9.6 9.6 0 0 0 .7 3.4l1.1 1.1a8 8 0 0 1 5.7-2.3zm0 3.2c1.3 0 2.5.5 3.4 1.3l1.1-1.1a6.4 6.4 0 0 0-9 0l1.1 1.1c.9-.8 2.1-1.3 3.4-1.3zm0 3.2c.5 0 .9.2 1.2.5L7.5 10.3 6.3 9.1c.3-.3.7-.5 1.2-.5z" fill="currentColor"/></svg><svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" fill="none" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="16" height="8" rx="2" fill="currentColor"/><rect x="22.5" y="4" width="2" height="4" rx="1" fill="currentColor" opacity="0.5"/></svg></span></div>
+
+    <header style="position: relative; padding: 6px 22px 0; display: flex; flex-direction: column; gap: 2px">
+      <span style="font-family: Tajawal, sans-serif; font-weight: 800; font-size: 26px; font-weight: 600; line-height: 1.2">خارطة الطريق</span>
+      <span style="font-size: 13px; color: rgba(255,255,255,0.78); display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg>تنبني لحالها · بدون سحب</span>
+    </header>
+
+    <div style="position: relative; margin: 12px 22px 0; display: flex; gap: 8px; align-items: center">
+      <div role="tablist" style="flex: 1; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.24); border-radius: 999px; padding: 3px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px">
+        <sc-for list="{{levels}}" as="v" hint-placeholder-count="2">
+          <button type="button" role="tab" aria-selected="{{v.sel}}" onClick="{{v.pick}}" style="height: 38px; border-radius: 999px; border: none; background: {{v.bg}}; color: {{v.color}}; font-family: Tajawal, sans-serif; font-size: 14px; font-weight: 700">{{v.label}}</button>
+        </sc-for>
+      </div>
+      <span style="font-size: 12px; font-weight: 700; color: #FFFFFF; background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.24); height: 46px; padding: 0 14px; border-radius: 999px; display: flex; align-items: center; gap: 6px; box-sizing: border-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        8 أسابيع
+      </span>
+    </div>
+  </section>
+
+  <section style="position: absolute; left: 16px; right: 16px; top: 180px; background: #FFFFFF; box-shadow: 0 8px 24px rgba(11,42,91,0.10); border-radius: 20px; padding: 12px 10px 10px; display: flex; flex-direction: column; gap: 4px">
+    <span style="font-size: 12px; font-weight: 600; color: #66728A; padding: 0 4px 4px">{{scopeLabel}}</span>
+    <div style="display: flex; gap: 8px">
+      <span style="width: 92px; flex: none"></span>
+      <div style="flex: 1; display: flex; justify-content: space-between; font-size: 11px; color: #97A1B5; padding-bottom: 4px; border-bottom: 1px solid #E6EBF3">
+        <span>18 أكت</span><span>1 نوف</span><span>15 نوف</span><span>29 نوف</span><span>13 ديس</span>
+      </div>
+    </div>
+    <div style="position: relative; display: flex; flex-direction: column">
+      <span style="position: absolute; top: 0; bottom: 0; right: calc(100px + (100% - 100px) * 0.02); width: 2px; background: #6D4AFF; opacity: 0.7; border-radius: 1px"></span>
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+        <button type="button" onClick="{{r.pick}}" style="height: 52px; display: flex; align-items: center; gap: 8px; background: {{r.rowBg}}; border: none; border-radius: 12px; padding: 0; color: #0B1A33; font-family: Tajawal, sans-serif; text-align: right">
+          <span style="width: 92px; flex: none; display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding-right: 4px; overflow: hidden; white-space: nowrap"><span style="width: 8px; height: 8px; border-radius: 50%; background: {{r.ws}}; flex: none"></span>{{r.name}}</span>
+          <span style="flex: 1; height: 52px; position: relative; display: block">
+            <span style="position: absolute; top: 1px; right: {{r.start}}; font-family: Tajawal, sans-serif; font-size: 11px; font-weight: 600; color: #66728A; white-space: nowrap; text-shadow: 0 0 3px #FFFFFF, 0 0 3px #FFFFFF; display: flex; align-items: center; gap: 3px"><span style="width: 2px; height: 9px; background: #B6C0D2; border-radius: 1px"></span>{{r.startDate}}</span>
+            <span style="position: absolute; top: 18px; height: 16px; right: {{r.start}}; width: {{r.width}}; border-radius: 8px; background: #E9EEF6; overflow: hidden; display: flex">
+              <span style="width: {{r.done}}; background-color: {{r.color}}; background-image: linear-gradient(270deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.32) 100%); border-radius: 8px"></span>
+            </span>
+            <span style="position: absolute; top: 18px; height: 16px; right: {{r.end}}; width: {{r.delay}}; border-radius: 8px 0 0 8px; background: repeating-linear-gradient(135deg, #E5484D 0 4px, #FDECEC 4px 8px)"></span>
+            <span style="position: absolute; bottom: 0; left: {{r.endLeft}}; font-family: Tajawal, sans-serif; font-size: 11px; font-weight: 700; color: {{r.endColor}}; white-space: nowrap; text-shadow: 0 0 3px #FFFFFF, 0 0 3px #FFFFFF; display: flex; align-items: center; gap: 3px">{{r.endDate}}<span style="width: 2px; height: 9px; background: {{r.endColor}}; border-radius: 1px"></span></span>
+          </span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="display: flex; gap: 12px; justify-content: center; padding-top: 8px; font-size: 11px; color: #3B475E">
+      <span style="display: flex; align-items: center; gap: 4px"><span style="width: 12px; height: 8px; border-radius: 4px; background: linear-gradient(270deg, #1F6FEB, #2EC4D6)"></span>ماشي تمام</span>
+      <span style="display: flex; align-items: center; gap: 4px"><span style="width: 12px; height: 8px; border-radius: 4px; background: #E8900C"></span>فيه خطر</span>
+      <span style="display: flex; align-items: center; gap: 4px"><span style="width: 12px; height: 8px; border-radius: 4px; background: repeating-linear-gradient(135deg, #E5484D 0 3px, #FDECEC 3px 6px)"></span>تأخير متوقع</span>
+      <span style="display: flex; align-items: center; gap: 4px"><span style="width: 2px; height: 10px; background: #6D4AFF"></span>اليوم</span>
+    </div>
+  </section>
+
+  <section style="position: absolute; left: 16px; right: 16px; top: 618px; background: #FFFFFF; border-right: 4px solid {{selColor}}; box-shadow: 0 4px 18px rgba(11,42,91,0.07); border-radius: 20px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <span style="font-family: Tajawal, sans-serif; font-weight: 800; font-size: 18px; font-weight: 600">{{selName}}</span>
+      <span style="font-size: 12px; font-weight: 700; color: {{selText}}; background: {{selTint}}; padding: 4px 10px; border-radius: 999px">{{selStatus}}</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; font-size: 11px; color: #66728A">
+      <span style="display: flex; flex-direction: column; gap: 3px"><span style="display: flex; align-items: center; gap: 5px"><span style="width: 22px; height: 22px; border-radius: 7px; background: #E8F0FE; display: flex; align-items: center; justify-content: center; flex: none"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1F6FEB" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>البداية</span><span style="font-size: 13px; font-weight: 700; color: #0B1A33">{{selStart}}</span></span>
+      <span style="display: flex; flex-direction: column; gap: 3px"><span style="display: flex; align-items: center; gap: 5px"><span style="width: 22px; height: 22px; border-radius: 7px; background: #EFEBFF; display: flex; align-items: center; justify-content: center; flex: none"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6D4AFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></span>الموعد</span><span style="font-size: 13px; font-weight: 700; color: #0B1A33">{{selDue}}</span></span>
+      <span style="display: flex; flex-direction: column; gap: 3px"><span style="display: flex; align-items: center; gap: 5px"><span style="width: 22px; height: 22px; border-radius: 7px; background: #FDECEC; display: flex; align-items: center; justify-content: center; flex: none"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E5484D" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg></span>النهاية</span><span style="font-size: 13px; font-weight: 700; color: {{selText}}">{{selForecast}}</span></span>
+      <span style="display: flex; flex-direction: column; gap: 3px"><span style="display: flex; align-items: center; gap: 5px"><span style="width: 22px; height: 22px; border-radius: 7px; background: #E3F7EF; display: flex; align-items: center; justify-content: center; flex: none"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16A37A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3v9h9"/></svg></span>المنجز</span><span style="font-family: Tajawal, sans-serif; font-size: 13px; font-weight: 700; color: #1F6FEB">{{selDone}}</span></span>
+    </div>
+    <sc-if value="{{hasTip}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; gap: 8px; align-items: center; background: #F3F0FF; border-radius: 14px; padding: 8px 8px 8px 10px">
+        <span style="width: 28px; height: 28px; border-radius: 9px; background: linear-gradient(135deg, #6D4AFF, #2EC4D6); display: flex; align-items: center; justify-content: center; flex: none"><svg width="14" height="14" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true"><path d="M12 3l2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5z"/></svg></span>
+        <span style="flex: 1; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; line-height: 1.4; color: #3B475E; font-weight: 600">{{selTip}}</span><span style="align-self: flex-start; display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #0E6B50; background: #E3F7EF; padding: 2px 8px 2px 4px; border-radius: 999px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16A37A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{selGain}}</span></span>
+        <button type="button" onClick="{{apply}}" style="height: 36px; padding: 0 16px; border-radius: 999px; border: none; background: linear-gradient(135deg, #1F6FEB, #2E9BF0); color: #FFFFFF; font-family: Tajawal, sans-serif; font-size: 13px; font-weight: 700; flex: none; box-shadow: 0 6px 14px rgba(31,111,235,0.28)">طبّق</button>
+      </div>
+    </sc-if>
+  </section>
+  <span aria-hidden="true" style="position: absolute; left: 50%; bottom: 7px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: #0B1A33; opacity: 0.85"></span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { level: 'p', sel: 'qiwa', fixed: {} };
+  }
+  renderVals() {
+    const WS = { m: '#1F6FEB', n: '#16A37A', w: '#6D4AFF', l: '#F26A1B' };
+    const DARK = { '#1F6FEB': '#1557C0', '#E8900C': '#8A5A00', '#E5484D': '#B42318' };
+    const TINT = { '#1F6FEB': '#E8F0FE', '#E8900C': '#FFF4E0', '#E5484D': '#FDECEC' };
+    const P = [
+      { id: 'spl', name: 'عرض سبل', ws: 'm', s: 0, e: 8, done: 70, delay: 0, due: '22 أكت', tip: '' },
+      { id: 'nt', name: 'المدوّن 2', ws: 'm', s: 4, e: 46, done: 35, delay: 0, risk: true, due: '25 نوف', tip: 'حوّل «اختبار الأجهزة» لنورة', gain: 'يرجّع لك يوم' },
+      { id: 'beta', name: 'نظامي تجريبي', ws: 'n', s: 8, e: 60, done: 42, delay: 0, due: '5 ديس', tip: '' },
+      { id: 'qiwa', name: 'ربط قوى', ws: 'n', s: 22, e: 78, done: 18, delay: 14, due: '10 ديس', tip: 'اطلب بيئة الاختبار اليوم، وشغّل العقود بالتوازي', gain: 'حل الذكاء يرجّع يوم' },
+      { id: 'woj', name: 'حملة وجود', ws: 'w', s: 40, e: 92, done: 5, delay: 0, due: '18 ديس', tip: '' },
+      { id: 'wal', name: 'تطبيق الولاء', ws: 'l', s: 30, e: 100, done: 0, delay: 0, risk: true, due: '+15 ديس', tip: 'اتفق مع الفريق وش يعني «خلصنا»', gain: 'يرجّع لك يوم' }
+    ];
+    const st = this.state;
+    const sel = P.find((p) => p.id === st.sel) || P[0];
+    const fixed = !!st.fixed[sel.id];
+    const MON = ['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'];
+    const dateAt = (pc) => {
+      const d = new Date(2026, 9, 18 + Math.round(pc * 0.56));
+      return d.getDate() + ' ' + MON[d.getMonth()].slice(0, 3);
+    };
+    const statusOf = (p) => {
+      if (st.fixed[p.id]) return ['ماشي تمام', '#1F6FEB', 0];
+      if (p.delay) return [Math.round(p.delay * 0.56) + ' أيام تأخير', '#E5484D', p.delay];
+      if (p.risk) return ['فيه خطر', '#E8900C', 0];
+      return ['ماشي تمام', '#1F6FEB', 0];
+    };
+    const tasksOf = (p) => {
+      const names = p.id === 'qiwa' ? ['دراسة الـAPI', 'بيئة الاختبار', 'العقود', 'القبول', 'الإطلاق'] : ['التحليل', 'البناء', 'المراجعة', 'الإطلاق'];
+      const span = (p.e - p.s) / names.length;
+      return names.map((n, i) => {
+        const s = p.s + span * i;
+        const d = p.id === 'qiwa' && i === 1 && !st.fixed[p.id] ? 10 : 0;
+        const doneT = i === 0 ? 100 : (i === 1 && p.done > 20 ? 50 : 0);
+        return { id: p.id + i, name: n, ws: p.ws, s: s, e: s + span, done: doneT, delay: d, risk: false };
+      });
+    };
+    const src = st.level === 'p' ? P : tasksOf(sel);
+    const pct = (v) => v.toFixed(1) + '%';
+    const rows = src.map((r) => {
+      const stt = st.level === 'p' ? statusOf(r) : [r.delay ? 'متأخر' : 'تمام', r.delay ? '#E5484D' : WS[r.ws], r.delay];
+      const isSel = st.level === 'p' && r.id === sel.id;
+      const dl = Math.min(stt[2], 100 - r.e);
+      const expEnd = r.e + dl;
+      return {
+        name: r.name, ws: WS[r.ws],
+        start: pct(r.s), width: pct(r.e - r.s), end: pct(r.e), delay: pct(dl),
+        startDate: dateAt(r.s),
+        endDate: dateAt(expEnd),
+        endLeft: pct(100 - expEnd),
+        endColor: dl > 0 ? '#B42318' : (stt[1] === '#E8900C' ? '#8A5A00' : '#1557C0'),
+        done: r.done + '%', color: stt[1] === '#E5484D' ? '#E5484D' : stt[1],
+        rowBg: isSel ? '#EEF4FF' : 'transparent',
+        pick: () => { if (st.level === 'p') this.setState({ sel: r.id }); }
+      };
+    });
+    const s = statusOf(sel);
+    return {
+      levels: [['p', 'المشاريع'], ['t', 'المهام']].map((l) => ({
+        label: l[1], sel: st.level === l[0] ? 'true' : 'false',
+        bg: st.level === l[0] ? '#FFFFFF' : 'transparent', color: st.level === l[0] ? '#1F6FEB' : '#FFFFFF',
+        pick: () => this.setState({ level: l[0] })
+      })),
+      scopeLabel: st.level === 'p' ? '6 مشاريع · اضغط على واحد' : 'مهام: ' + sel.name,
+      rows: rows,
+      selName: sel.name, selStatus: s[0], selColor: s[1], selText: DARK[s[1]], selTint: TINT[s[1]], selDue: dateAt(sel.e), selStart: dateAt(sel.s),
+      selForecast: dateAt(sel.e + Math.min(s[2], 100 - sel.e)) + (sel.risk && !fixed ? ' ?' : ''),
+      selDone: sel.done + '%',
+      hasTip: !!sel.tip && !fixed,
+      selTip: sel.tip,
+      selGain: sel.gain,
+      apply: () => this.setState({ fixed: Object.assign({}, st.fixed, { [sel.id]: true }) })
+    };
+  }
+}
+</script>
+</body>
+</html>

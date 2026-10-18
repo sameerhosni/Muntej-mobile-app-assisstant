@@ -8,9 +8,10 @@ Muntej is NOT a project-management tool: no boards, no columns, no manual Gantt 
 
 Read before any work:
 - `docs/BRD.md` — requirements, 24 screens, 3 sprints
-- `design/screens/*.png` — the target UI for every screen (match it closely)
-- `design/html/*.dc.html` — exact layout/colors/sizes for each screen (reference only, do not ship this format)
-- `design/TOKENS.md` — colors, fonts, spacing
+- `design/v2/html/*.dc.html` — **current UI (v2, light theme)**: 37 screens, `<Name>.dc.html` English and `<Name>AR.dc.html` Arabic;
+  exact layout/colors/sizes (reference only, do not ship this format). Screen list + sprint per screen: `design/v2/canvas.json` titles.
+- `design/TOKENS.md` — colors, fonts, spacing (v2)
+- `design/screens/*.png`, `design/html/` — superseded v1 dark designs (history only)
 
 ## Tech stack (do not change without asking)
 - Expo (React Native) + TypeScript + Expo Router (tabs + stacks)
@@ -23,10 +24,10 @@ Read before any work:
 
 ## Conventions
 - Folders: `app/` (routes), `src/components`, `src/features/<feature>`, `src/lib`, `supabase/migrations`, `supabase/functions`
-- Every screen file header comment: `// Screen NN · Name — see design/screens/NN-*.png`
+- Every screen file header comment: `// Screen NN · Name — see design/v2/html/<Name>.dc.html`
 - All strings via i18n keys, no hard-coded text. All colors via `src/theme/tokens.ts`.
 - Every AI action Muntej takes is written to `activity_log` (who, what, why, undoable).
-- Touch targets ≥ 44px. Support dark theme (default).
+- Touch targets ≥ 44px. Light theme (v2) is the default; keep colors in tokens so a dark theme can be added later.
 - Seed script with realistic sample data (Ahmed = manager; Faisal, Abdullah, Noura, Khalid, Saad, Maha = team).
 
 ## Working rules

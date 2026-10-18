@@ -1,4 +1,4 @@
-// Screen 06 · Employee chat — see design/screens/06-Employee.png
+// Screen 06 · Employee chat — see design/v2/html/Employee.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen06() {

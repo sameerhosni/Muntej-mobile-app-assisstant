@@ -1,37 +1,95 @@
-// Design tokens — source of truth: design/TOKENS.md (dark theme from the mockups).
+// Design tokens — source of truth: design/TOKENS.md (v2 light theme, design/v2/html).
 // Every color in the app must come from here.
 
 export const colors = {
-  bg: '#0B1426',
-  surface: '#121E36',
-  surfaceAlt: '#1C2C4A',
-  navBg: '#0E1930',
-  navBorder: '#1C2A47',
-  border: '#23324F',
-  track: '#1A2846',
-  text: '#EAF2FF',
-  textMuted: '#8FA3C4',
-  textSoft: '#C9D6EC',
-  textDim: '#3B4D70',
-  teal: '#2DD4BF',
-  tealDeep: '#10302F',
-  onTeal: '#062420',
-  amber: '#F5B547',
-  amberDeep: '#2A2312',
-  amberSoft: '#D9C9A3',
-  red: '#FF9B93',
-  redDeep: '#2A1A1C',
-  blue: '#5EB3E4',
-  purple: '#C79BF2',
-  toggleOff: '#2A3A5C',
-  knob: '#EAF2FF',
-  ringOuter: '#1E3B4A',
-  ringInner: '#23546A',
-  timelineLine: '#1F3350',
+  // surfaces
+  bg: '#F3F6FB',
+  surface: '#FFFFFF',
+  surfaceMuted: '#F6F8FC',
+  chip: '#E9EEF6',
+  track: '#E9EEF6',
+  border: '#E6EBF3',
+  borderBlue: '#D6E2F5',
+  borderDashed: '#B9D0F7',
+
+  // text
+  text: '#0B1A33',
+  textSoft: '#3B475E',
+  textMuted: '#66728A',
+  textFaint: '#97A1B5',
+  onDark: '#FFFFFF',
+  onDarkMuted: 'rgba(255,255,255,0.80)',
+  glass: 'rgba(255,255,255,0.16)',
+  glassBorder: 'rgba(255,255,255,0.28)',
+
+  // brand (manager = blue)
+  primary: '#1F6FEB',
+  primaryDark: '#1557C0',
+  primaryLight: '#2E9BF0',
+  primaryTint: '#E8F0FE',
+  navy: '#0B2A5B',
+  cyan: '#2EC4D6',
+
+  // employee = purple
+  purple: '#6D4AFF',
+  purpleDark: '#3B1E8F',
+  purpleText: '#5B3BE0',
+  purpleLight: '#A78BFA',
+  purpleTint: '#EFEBFF',
+  purpleBorder: '#D9D0FF',
+
+  // status
+  green: '#16A37A',
+  greenText: '#0E7A5A',
+  greenLight: '#34D399',
+  greenTint: '#E3F7EF',
+  mint: '#5BF0B5',
+  amber: '#F59E0B',
+  amberText: '#E8900C',
+  amberStrong: '#8A5A00',
+  amberTint: '#FFF4E0',
+  gold: '#FFB547',
+  goldLight: '#FFC24D',
+  red: '#E5484D',
+  redTint: '#FDECEC',
+
+  // points
+  orange: '#F26A1B',
+  orangeText: '#E2580B',
+  orangeTint: '#FFF1E8',
+
   transparent: 'transparent',
 } as const;
 
 export type ColorToken = keyof typeof colors;
+
+/** Gradient stops (use with expo-linear-gradient, start {0,0} → end {1,1}). */
+export const gradients = {
+  heroManager: ['#0B2A5B', '#1F6FEB', '#2EC4D6'],
+  heroEmployee: ['#3B1E8F', '#6D4AFF', '#2EC4D6'],
+  primary: ['#1F6FEB', '#2E9BF0'],
+  purple: ['#6D4AFF', '#1F6FEB'],
+  points: ['#FFB547', '#F26A1B'],
+  success: ['#16A37A', '#34D399'],
+  warning: ['#FFC24D', '#F59E0B'],
+  avatarBlue: ['#1F6FEB', '#2EC4D6'],
+  avatarPurple: ['#6D4AFF', '#A78BFA'],
+  avatarGreen: ['#0EA5A4', '#34D399'],
+  avatarOrange: ['#F26A1B', '#FFB547'],
+} as const satisfies Record<string, readonly [string, string, ...string[]]>;
+
+export type GradientToken = keyof typeof gradients;
+
+/** Soft blue-tinted shadows from the mockups (RN boxShadow syntax). */
+export const shadows = {
+  card: '0px 4px 18px rgba(11,42,91,0.07)',
+  tile: '0px 4px 14px rgba(11,42,91,0.06)',
+  raised: '0px 8px 24px rgba(11,42,91,0.10)',
+  nav: '0px -6px 24px rgba(11,42,91,0.08)',
+  primary: '0px 8px 20px rgba(31,111,235,0.30)',
+  purple: '0px 8px 20px rgba(109,74,255,0.30)',
+  mic: '0px 10px 24px rgba(31,111,235,0.40)',
+} as const;
 
 export const spacing = {
   xs: 4,
@@ -44,21 +102,24 @@ export const spacing = {
 } as const;
 
 export const radius = {
-  sm: 12,
+  sm: 10,
   md: 14,
-  button: 16,
-  card: 18,
-  cardLg: 24,
+  tile: 16,
+  button: 18,
+  card: 20,
+  cardLg: 22,
+  hero: 28,
   pill: 999,
 } as const;
 
+// English: Karla body + Playfair Display headings. Arabic: Tajawal for both.
 export const fontFamily = {
   en: {
-    regular: 'Inter_400Regular',
-    medium: 'Inter_500Medium',
-    semibold: 'Inter_600SemiBold',
-    bold: 'Inter_700Bold',
-    extrabold: 'Inter_800ExtraBold',
+    regular: 'Karla_400Regular',
+    medium: 'Karla_500Medium',
+    semibold: 'Karla_600SemiBold',
+    bold: 'Karla_700Bold',
+    extrabold: 'Karla_800ExtraBold',
   },
   ar: {
     regular: 'Tajawal_400Regular',
@@ -67,9 +128,9 @@ export const fontFamily = {
     bold: 'Tajawal_700Bold',
     extrabold: 'Tajawal_800ExtraBold',
   },
-  mono: {
-    medium: 'IBMPlexMono_500Medium',
-    semibold: 'IBMPlexMono_600SemiBold',
+  display: {
+    en: 'PlayfairDisplay_600SemiBold',
+    ar: 'Tajawal_800ExtraBold',
   },
 } as const;
 
@@ -81,16 +142,18 @@ export const fontSize = {
   small: 13,
   body: 14,
   cardTitle: 15,
-  cardTitleLg: 17,
-  lead: 18,
-  title: 22,
-  titleLg: 24,
-  stat: 20,
-  hero: 56,
+  lead: 16,
+  section: 17,
+  stat: 18,
+  title: 20,
+  titleLg: 26,
+  big: 24,
+  hero: 60,
 } as const;
 
 export const sizes = {
   touch: 44,
   buttonHeight: 52,
-  tabBarHeight: 80,
+  tabBarHeight: 84,
+  micButton: 64,
 } as const;

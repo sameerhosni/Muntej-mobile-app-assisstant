@@ -1,4 +1,4 @@
-// Screen 17 · Summaries — see design/screens/17-Summaries.png
+// Screen 17 · Summaries — see design/v2/html/Summaries.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen17() {

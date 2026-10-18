@@ -1,4 +1,4 @@
-// Screen 22 · Agents — see design/screens/22-Agents.png
+// Screen 22 · Agents — see design/v2/html/Agents.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen22() {

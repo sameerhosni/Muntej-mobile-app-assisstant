@@ -59,7 +59,8 @@ function RootNavigator() {
   return (
     // direction flips the whole layout instantly when the language changes (works in Expo Go too).
     <View style={{ flex: 1, direction, backgroundColor: colors.bg }}>
-      <StatusBar style="light" />
+      {/* light theme → dark status-bar text; Hero switches to light while it is on screen */}
+      <StatusBar style="dark" />
       <Stack
         screenOptions={{
           headerShown: false,

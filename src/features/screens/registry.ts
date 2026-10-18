@@ -1,44 +1,66 @@
-// The 24 screens from docs/BRD.md, with their route and design file.
+// The 37 v2 screens (design/v2/canvas.json), with their route, design file and sprint.
 
 export type ScreenNum =
-  | '01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12'
-  | '13' | '14' | '15' | '16' | '17' | '18' | '19' | '20' | '21' | '22' | '23' | '24';
+  | '01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13'
+  | '14' | '15' | '16' | '17' | '18' | '19' | '20' | '21' | '22' | '23' | '24' | '25' | '26'
+  | '27' | '28' | '29' | '30' | '31' | '32' | '33' | '34' | '35' | '36' | '37';
+
+export type Role = 'manager' | 'employee';
 
 export type ScreenMeta = {
   num: ScreenNum;
   route: string;
+  /** design/v2/html/<design>.dc.html (+ <design>AR.dc.html) */
   design: string;
   sprint: 1 | 2 | 3;
-  tab?: boolean;
+  /** Shown in this role's bottom tab bar. */
+  tab?: Role;
 };
 
 export const SCREENS: ScreenMeta[] = [
-  { num: '01', route: '/01-home', design: '01-Home.png', sprint: 1, tab: true },
-  { num: '02', route: '/02-capture', design: '02-Capture.png', sprint: 1 },
-  { num: '03', route: '/03-autopilot', design: '03-Autopilot.png', sprint: 1, tab: true },
-  { num: '04', route: '/04-decisions', design: '04-Decisions.png', sprint: 1, tab: true },
-  { num: '05', route: '/05-brief', design: '05-Brief.png', sprint: 2, tab: true },
-  { num: '06', route: '/06-employee-chat', design: '06-Employee.png', sprint: 1 },
-  { num: '07', route: '/07-promise-catcher', design: '07-PromiseCatcher.png', sprint: 2 },
-  { num: '08', route: '/08-pushback', design: '08-Pushback.png', sprint: 3 },
-  { num: '09', route: '/09-reverse-followup', design: '09-ReverseFollowup.png', sprint: 2 },
-  { num: '10', route: '/10-evidence', design: '10-Evidence.png', sprint: 2 },
-  { num: '11', route: '/11-load-radar', design: '11-LoadRadar.png', sprint: 3 },
-  { num: '12', route: '/12-sources', design: '12-Sources.png', sprint: 2 },
-  { num: '13', route: '/13-note-taker', design: '13-NoteTaker.png', sprint: 2 },
-  { num: '14', route: '/14-task-detail', design: '14-TaskDetail.png', sprint: 1 },
-  { num: '15', route: '/15-review', design: '15-Review.png', sprint: 1 },
-  { num: '16', route: '/16-dashboard', design: '16-Dashboard.png', sprint: 2 },
-  { num: '17', route: '/17-summaries', design: '17-Summaries.png', sprint: 2 },
-  { num: '18', route: '/18-alerts', design: '18-Alerts.png', sprint: 1 },
-  { num: '19', route: '/19-workspaces', design: '19-Workspaces.png', sprint: 3 },
-  { num: '20', route: '/20-new-workspace', design: '20-NewWorkspace.png', sprint: 3 },
-  { num: '21', route: '/21-achievements', design: '21-Achievements.png', sprint: 3 },
-  { num: '22', route: '/22-agents', design: '22-Agents.png', sprint: 3 },
-  { num: '23', route: '/23-new-agent', design: '23-NewAgent.png', sprint: 3 },
-  { num: '24', route: '/24-roadmap', design: '24-Roadmap.png', sprint: 3 },
+  { num: '01', route: '/01-home', design: 'Main', sprint: 1, tab: 'manager' },
+  { num: '02', route: '/02-capture', design: 'Capture', sprint: 1 },
+  { num: '03', route: '/03-autopilot', design: 'Autopilot', sprint: 1, tab: 'manager' },
+  { num: '04', route: '/04-decisions', design: 'Decisions', sprint: 1, tab: 'manager' },
+  { num: '05', route: '/05-brief', design: 'Brief', sprint: 2, tab: 'manager' },
+  { num: '06', route: '/06-employee-chat', design: 'Employee', sprint: 1, tab: 'employee' },
+  { num: '07', route: '/07-promise-catcher', design: 'PromiseCatcher', sprint: 2 },
+  { num: '08', route: '/08-pushback', design: 'Pushback', sprint: 3 },
+  { num: '09', route: '/09-reverse-followup', design: 'ReverseFollowup', sprint: 2 },
+  { num: '10', route: '/10-evidence', design: 'Evidence', sprint: 2 },
+  { num: '11', route: '/11-load-radar', design: 'LoadRadar', sprint: 3 },
+  { num: '12', route: '/12-sources', design: 'Sources', sprint: 2 },
+  { num: '13', route: '/13-note-taker', design: 'NoteTaker', sprint: 2 },
+  { num: '14', route: '/14-task-detail', design: 'TaskDetail', sprint: 1 },
+  { num: '15', route: '/15-review', design: 'Review', sprint: 1 },
+  { num: '16', route: '/16-dashboard', design: 'Dashboard', sprint: 2 },
+  { num: '17', route: '/17-summaries', design: 'Summaries', sprint: 2 },
+  { num: '18', route: '/18-alerts', design: 'Alerts', sprint: 1 },
+  { num: '19', route: '/19-workspaces', design: 'Workspaces', sprint: 3 },
+  { num: '20', route: '/20-new-workspace', design: 'NewWorkspace', sprint: 3 },
+  { num: '21', route: '/21-achievements', design: 'Timeline', sprint: 3 },
+  { num: '22', route: '/22-agents', design: 'Agents', sprint: 3 },
+  { num: '23', route: '/23-new-agent', design: 'NewAgent', sprint: 3 },
+  { num: '24', route: '/24-roadmap', design: 'ProjectRoadmap', sprint: 3 },
+  { num: '25', route: '/25-employee-home', design: 'EmployeeHome', sprint: 1, tab: 'employee' },
+  { num: '26', route: '/26-rewards', design: 'Rewards', sprint: 1, tab: 'employee' },
+  { num: '27', route: '/27-points-control', design: 'PointsControl', sprint: 1 },
+  { num: '28', route: '/28-kudos', design: 'Kudos', sprint: 2 },
+  { num: '29', route: '/29-badges', design: 'Badges', sprint: 2, tab: 'employee' },
+  { num: '30', route: '/30-team-quests', design: 'TeamQuests', sprint: 2 },
+  { num: '31', route: '/31-team-launch', design: 'TeamLaunch', sprint: 1 },
+  { num: '32', route: '/32-receipt', design: 'Receipt', sprint: 1 },
+  { num: '33', route: '/33-setup-quest', design: 'SetupQuest', sprint: 1 },
+  { num: '34', route: '/34-add-team', design: 'AddTeam', sprint: 1 },
+  { num: '35', route: '/35-first-run', design: 'FirstRun', sprint: 1 },
+  { num: '36', route: '/36-how-to', design: 'HowTo', sprint: 1 },
+  { num: '37', route: '/37-grow', design: 'Grow', sprint: 2 },
 ];
 
 export function screenMeta(num: ScreenNum): ScreenMeta {
   return SCREENS.find((s) => s.num === num)!;
+}
+
+export function homeRouteFor(role: Role | undefined) {
+  return role === 'employee' ? '/25-employee-home' : '/01-home';
 }

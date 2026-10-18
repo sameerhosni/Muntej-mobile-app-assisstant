@@ -1,4 +1,4 @@
-// Screen 05 · Weekly brief — see design/screens/05-Brief.png
+// Screen 05 · Weekly brief — see design/v2/html/Brief.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen05() {

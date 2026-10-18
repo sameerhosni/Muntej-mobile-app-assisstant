@@ -1,4 +1,4 @@
-// Screen 18 · Alerts — see design/screens/18-Alerts.png
+// Screen 18 · Alerts — see design/v2/html/Alerts.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen18() {

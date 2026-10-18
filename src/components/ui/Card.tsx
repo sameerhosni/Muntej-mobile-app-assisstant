@@ -1,33 +1,47 @@
 import type { ReactNode } from 'react';
 import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, radius, spacing } from '@/theme/tokens';
+import { colors, radius, shadows, spacing } from '@/theme/tokens';
 
-export type CardTone = 'default' | 'alt' | 'inset' | 'teal' | 'amber' | 'red';
+export type CardTone = 'default' | 'muted' | 'primary' | 'green' | 'amber' | 'purple' | 'orange' | 'red';
 
 const toneBg: Record<CardTone, string> = {
   default: colors.surface,
-  alt: colors.surfaceAlt,
-  inset: colors.bg,
-  teal: colors.tealDeep,
-  amber: colors.amberDeep,
-  red: colors.redDeep,
+  muted: colors.surfaceMuted,
+  primary: colors.primaryTint,
+  green: colors.greenTint,
+  amber: colors.amberTint,
+  purple: colors.purpleTint,
+  orange: colors.orangeTint,
+  red: colors.redTint,
 };
 
 type Props = {
   children: ReactNode;
   tone?: CardTone;
-  size?: 'md' | 'lg';
+  /** 'raised' = the stronger shadow used for cards overlapping a hero. */
+  elevation?: 'flat' | 'card' | 'raised';
+  padding?: number;
   onPress?: () => void;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Card({ children, tone = 'default', size = 'lg', onPress, accessibilityLabel, style }: Props) {
+/** White rounded card with the mockups' soft blue shadow. */
+export function Card({
+  children,
+  tone = 'default',
+  elevation = 'card',
+  padding = spacing.xl,
+  onPress,
+  accessibilityLabel,
+  style,
+}: Props) {
   const base: ViewStyle = {
     backgroundColor: toneBg[tone],
-    borderRadius: size === 'lg' ? radius.cardLg : radius.card,
-    padding: size === 'lg' ? 20 : spacing.xxl,
-    gap: spacing.xl,
+    borderRadius: radius.card,
+    padding,
+    gap: spacing.lg,
+    boxShadow: tone === 'default' && elevation !== 'flat' ? shadows[elevation === 'raised' ? 'raised' : 'card'] : undefined,
   };
   if (onPress) {
     return (
@@ -35,7 +49,7 @@ export function Card({ children, tone = 'default', size = 'lg', onPress, accessi
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        style={({ pressed }) => [base, { opacity: pressed ? 0.85 : 1 }, style]}
+        style={({ pressed }) => [base, { opacity: pressed ? 0.88 : 1 }, style]}
       >
         {children}
       </Pressable>

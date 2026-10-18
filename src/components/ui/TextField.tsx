@@ -9,19 +9,20 @@ type Props = TextInputProps & {
   error?: string;
   /** Fixed text before the input, e.g. "+966". Always LTR. */
   prefix?: string;
-  mono?: boolean;
+  /** Wide letter-spaced digits (OTP codes). */
+  code?: boolean;
   /** Force left-to-right input (emails, URLs) even in Arabic. */
   ltr?: boolean;
   right?: ReactNode;
 };
 
-export function TextField({ label, error, prefix, mono, ltr, right, style, ...rest }: Props) {
+export function TextField({ label, error, prefix, code, ltr, right, style, ...rest }: Props) {
   const { lang, isRTL } = useDirection();
-  const ltrContent = !!prefix || !!mono || !!ltr; // numbers, codes and emails read left-to-right in both languages
+  const ltrContent = !!prefix || !!code || !!ltr; // numbers, codes and emails read left-to-right in both languages
   return (
     <View style={{ gap: spacing.sm }}>
       {label && (
-        <AppText variant="small" color="textMuted">
+        <AppText variant="small" weight="semibold" color="textMuted">
           {label}
         </AppText>
       )}
@@ -31,29 +32,29 @@ export function TextField({ label, error, prefix, mono, ltr, right, style, ...re
           alignItems: 'center',
           minHeight: sizes.buttonHeight + 4,
           backgroundColor: colors.surface,
-          borderRadius: radius.button,
+          borderRadius: radius.tile,
           borderWidth: 1,
-          borderColor: error ? colors.red : colors.border,
+          borderColor: error ? colors.red : colors.borderBlue,
           paddingHorizontal: spacing.xxl,
           gap: spacing.md,
           direction: ltrContent ? 'ltr' : isRTL ? 'rtl' : 'ltr',
         }}
       >
         {prefix && (
-          <AppText mono weight="semibold" color="textMuted" style={{ fontSize: fontSize.lead, writingDirection: 'ltr' }}>
+          <AppText weight="extrabold" color="textMuted" style={{ fontSize: fontSize.lead, writingDirection: 'ltr' }}>
             {prefix}
           </AppText>
         )}
         <TextInput
-          placeholderTextColor={colors.textDim}
-          selectionColor={colors.teal}
+          placeholderTextColor={colors.textFaint}
+          selectionColor={colors.primary}
           {...rest}
           style={[
             {
               flex: 1,
               color: colors.text,
               fontSize: fontSize.lead,
-              fontFamily: mono || prefix ? fontFamily.mono.semibold : fontFamily[lang].medium,
+              fontFamily: ltrContent ? fontFamily.en[code ? 'extrabold' : 'semibold'] : fontFamily[lang].medium,
               paddingVertical: spacing.lg,
               textAlign: ltrContent ? 'left' : isRTL ? 'right' : 'left',
               writingDirection: ltrContent ? 'ltr' : isRTL ? 'rtl' : 'ltr',

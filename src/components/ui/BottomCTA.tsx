@@ -9,12 +9,13 @@ type Props = {
   primary: Action;
   /** Optional outline button next to the primary one (e.g. "Edit" on Capture). */
   secondary?: Action;
+  tone?: 'blue' | 'purple';
 };
 
-/** Sticky bottom action bar. Pair with <Screen bottomInset={BOTTOM_CTA_SPACE}>. */
+/** Sticky bottom action bar. Pair with a ScrollView paddingBottom of BOTTOM_CTA_SPACE. */
 export const BOTTOM_CTA_SPACE = 110;
 
-export function BottomCTA({ primary, secondary }: Props) {
+export function BottomCTA({ primary, secondary, tone = 'blue' }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <View
@@ -25,14 +26,14 @@ export function BottomCTA({ primary, secondary }: Props) {
         bottom: 0,
         paddingHorizontal: spacing.screen,
         paddingTop: spacing.lg,
-        paddingBottom: Math.max(insets.bottom, spacing.xxl) + 8,
+        paddingBottom: Math.max(insets.bottom, spacing.xxl) + 14,
         backgroundColor: colors.bg,
         flexDirection: 'row',
         gap: spacing.md,
       }}
     >
-      <Button {...primary} style={{ flex: 1 }} />
-      {secondary && <Button {...secondary} variant="outline" tone="neutral" style={{ minWidth: 96 }} />}
+      <Button {...primary} tone={tone} style={{ flex: 1 }} />
+      {secondary && <Button {...secondary} variant="outline" tone={tone} style={{ minWidth: 96 }} />}
     </View>
   );
 }

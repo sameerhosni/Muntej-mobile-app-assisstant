@@ -101,7 +101,7 @@ serve(async (req) => {
     body: JSON.stringify({
       model,
       // reasoning models (gpt-5*, o*) accept an effort hint; extraction needs little
-      ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: Deno.env.get('PARSE_REASONING') ?? 'minimal' } : {}),
+      ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: Deno.env.get('PARSE_REASONING') ?? 'low' /* 'minimal' was faster but missed names */ } : {}),
       messages: [
         { role: 'system', content: SYSTEM },
         { role: 'user', content: `Context:\n${JSON.stringify(context)}\n\nManager said:\n"""${sentence}"""` },

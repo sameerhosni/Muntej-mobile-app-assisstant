@@ -6,8 +6,8 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#0B1426",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F3F6FB",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "sa.muntej.app"
@@ -15,7 +15,7 @@
     "android": {
       "package": "sa.muntej.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0B1426",
+        "backgroundColor": "#F3F6FB",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -32,7 +32,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0B1426",
+          "backgroundColor": "#F3F6FB",
           "image": "./assets/splash-icon.png",
           "imageWidth": 160
         }
@@ -65,3 +65,4 @@
     }
   }
 }
+

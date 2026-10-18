@@ -1,12 +1,12 @@
-// Screen · Sign in (phone or email) — no mockup; dark style per design/TOKENS.md
+// Screen · Sign in (phone or email) — no mockup; v2 light style per design/TOKENS.md
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
-import { AppText, Avatar, Button, Card, TextField } from '@/components/ui';
-import { colors, radius, sizes, spacing } from '@/theme/tokens';
+import { AppText, Avatar, avatarGradientFor, Button, Card, TextField } from '@/components/ui';
+import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
@@ -135,7 +135,7 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   return (
     <View
       accessibilityRole="radiogroup"
-      style={{ flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.md, padding: 4 }}
+      style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}
     >
       {(['phone', 'email'] as Mode[]).map((m) => {
         const active = mode === m;
@@ -148,13 +148,14 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
             style={{
               flex: 1,
               minHeight: sizes.touch,
-              borderRadius: radius.sm,
+              borderRadius: radius.pill,
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: active ? colors.surfaceAlt : colors.transparent,
+              backgroundColor: active ? colors.surface : colors.transparent,
+              boxShadow: active ? shadows.tile : undefined,
             }}
           >
-            <AppText weight="bold" color={active ? 'text' : 'textMuted'}>
+            <AppText weight="bold" color={active ? 'primary' : 'textMuted'}>
               {t(m === 'phone' ? 'auth.modePhone' : 'auth.modeEmail')}
             </AppText>
           </Pressable>
@@ -182,9 +183,9 @@ function DemoPersonas() {
   };
 
   return (
-    <Card size="md" tone="teal">
+    <Card>
       <View style={{ gap: 4 }}>
-        <AppText variant="cardTitle" color="teal">
+        <AppText variant="cardTitle" color="primary">
           {t('auth.demoTitle')}
         </AppText>
         <AppText variant="caption" color="textSoft">
@@ -206,13 +207,13 @@ function DemoPersonas() {
               minHeight: sizes.touch,
               paddingHorizontal: spacing.md,
               borderRadius: radius.pill,
-              backgroundColor: colors.bg,
+              backgroundColor: colors.surface,
               borderWidth: 1,
-              borderColor: p.role === 'manager' ? colors.teal : colors.border,
+              borderColor: p.role === 'manager' ? colors.primary : colors.purpleBorder,
               opacity: busy && busy !== p.phone ? 0.5 : pressed ? 0.8 : 1,
             })}
           >
-            <Avatar name={p.name} size={26} bg={p.role === 'manager' ? 'teal' : 'track'} fg={p.role === 'manager' ? 'onTeal' : 'text'} />
+            <Avatar name={p.name} size={26} gradient={p.role === 'manager' ? 'avatarOrange' : avatarGradientFor(p.name)} />
             <AppText variant="small" weight="semibold">
               {lang === 'ar' ? p.nameAr : p.name}
             </AppText>

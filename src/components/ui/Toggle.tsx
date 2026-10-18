@@ -7,13 +7,14 @@ type Props = {
   onValueChange: (next: boolean) => void;
   disabled?: boolean;
   accessibilityLabel?: string;
+  tone?: 'blue' | 'purple';
 };
 
 const W = 48;
 const H = 28;
 const KNOB = 22;
 
-export function Toggle({ value, onValueChange, disabled, accessibilityLabel }: Props) {
+export function Toggle({ value, onValueChange, disabled, accessibilityLabel, tone = 'blue' }: Props) {
   const { isRTL } = useDirection();
   // Knob sits at the "end" side when on; in RTL the end is visually left.
   const onRight = value !== isRTL;
@@ -32,14 +33,22 @@ export function Toggle({ value, onValueChange, disabled, accessibilityLabel }: P
           width: W,
           height: H,
           borderRadius: H / 2,
-          backgroundColor: value ? colors.teal : colors.toggleOff,
+          backgroundColor: value ? (tone === 'purple' ? colors.purple : colors.primary) : colors.track,
           justifyContent: 'center',
           paddingHorizontal: (H - KNOB) / 2,
           direction: 'ltr',
           alignItems: onRight ? 'flex-end' : 'flex-start',
         }}
       >
-        <View style={{ width: KNOB, height: KNOB, borderRadius: KNOB / 2, backgroundColor: colors.knob }} />
+        <View
+          style={{
+            width: KNOB,
+            height: KNOB,
+            borderRadius: KNOB / 2,
+            backgroundColor: colors.surface,
+            boxShadow: '0px 1px 3px rgba(11,42,91,0.25)',
+          }}
+        />
       </View>
     </Pressable>
   );

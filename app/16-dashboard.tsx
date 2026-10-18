@@ -1,4 +1,4 @@
-// Screen 16 · Dashboard — see design/screens/16-Dashboard.png
+// Screen 16 · Dashboard — see design/v2/html/Dashboard.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen16() {

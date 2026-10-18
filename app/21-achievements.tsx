@@ -1,4 +1,4 @@
-// Screen 21 · Achievements — see design/screens/21-Achievements.png
+// Screen 21 · Achievements — see design/v2/html/Timeline.dc.html
 import { PlaceholderScreen } from '@/components/PlaceholderScreen';
 
 export default function Screen21() {

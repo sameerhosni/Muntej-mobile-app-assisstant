@@ -1,13 +1,13 @@
-// Screen 02 · Capture — see design/screens/02-Capture.png
+// Screen 02 · Capture — see design/v2/html/Capture.dc.html (Arabic: CaptureAR.dc.html)
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react-native';
-import { AppText, BottomCTA, BOTTOM_CTA_SPACE, Button, Card, TextField } from '@/components/ui';
-import { colors, sizes, spacing } from '@/theme/tokens';
+import { AlertTriangle, Check, X } from 'lucide-react-native';
+import { AppText, BottomCTA, BOTTOM_CTA_SPACE, Button, Card, IconBadge, IconButton, TextField } from '@/components/ui';
+import { colors, spacing } from '@/theme/tokens';
 import { useMyProfile, useTeam } from '@/lib/api';
 import { MicButton } from '@/features/home/MicButton';
 import { Waveform } from '@/features/capture/Waveform';
@@ -130,30 +130,25 @@ export default function CaptureScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <AppText variant="title" style={{ fontSize: 20 }}>
-              {title}
-            </AppText>
-            <Pressable
-              onPress={close}
-              accessibilityRole="button"
-              accessibilityLabel={t('capture.close')}
-              style={{
-                width: sizes.touch,
-                height: sizes.touch,
-                borderRadius: sizes.touch / 2,
-                backgroundColor: colors.surface,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <X color={colors.textMuted} size={20} strokeWidth={2} />
-            </Pressable>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 1 }}>
+              {(step.kind === 'review' || step.kind === 'edit') && (
+                <IconBadge size={36} gradient="success">
+                  <Check color={colors.onDark} size={18} strokeWidth={2.4} />
+                </IconBadge>
+              )}
+              <AppText variant="titleLg" numberOfLines={1}>
+                {title}
+              </AppText>
+            </View>
+            <IconButton label={t('capture.close')} onPress={close}>
+              <X color={colors.text} size={20} strokeWidth={1.9} />
+            </IconButton>
           </View>
 
           {step.kind === 'recording' && (
             <View style={{ alignItems: 'center', gap: spacing.xxl, marginTop: 40 }}>
               <Waveform level={recorder.isRecording ? recorder.level : 0} />
-              <AppText variant="hero" mono weight="semibold" color="text" style={{ fontSize: 32 }}>
+              <AppText variant="hero" color="text" style={{ fontSize: 34 }}>
                 {formatClock(recorder.durationMillis)}
               </AppText>
               <MicButton label={t('capture.tapToStop')} active={recorder.isRecording} onPress={stopRecording} />
@@ -161,7 +156,6 @@ export default function CaptureScreen() {
               <Button
                 label={t('capture.typeInstead')}
                 variant="outline"
-                tone="neutral"
                 size="md"
                 onPress={async () => {
                   if (recorder.isRecording) await recorder.stop().catch(() => {});
@@ -188,16 +182,13 @@ export default function CaptureScreen() {
           {step.kind === 'working' && (
             <View style={{ alignItems: 'center', gap: spacing.xxl, marginTop: 60 }}>
               <Waveform />
-              <ActivityIndicator color={colors.teal} />
+              <ActivityIndicator color={colors.primary} />
               <AppText color="textMuted">{t(`capture.${step.label}`)}</AppText>
             </View>
           )}
 
           {step.kind === 'review' && (
-            <>
-              <Waveform />
-              <TaskReview task={step.task} team={team.data ?? []} />
-            </>
+            <TaskReview task={step.task} team={team.data ?? []} />
           )}
 
           {step.kind === 'edit' && (
@@ -210,8 +201,15 @@ export default function CaptureScreen() {
           )}
 
           {step.kind === 'error' && (
-            <Card tone="red" style={{ marginTop: 24 }}>
-              <AppText color="red">{step.message}</AppText>
+            <Card style={{ marginTop: 24 }}>
+              <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
+                <IconBadge size={32} bg="redTint" round>
+                  <AlertTriangle color={colors.red} size={16} strokeWidth={2.1} />
+                </IconBadge>
+                <AppText color="textSoft" style={{ flex: 1 }}>
+                  {step.message}
+                </AppText>
+              </View>
               <View style={{ flexDirection: 'row', gap: spacing.md }}>
                 {source === 'voice' && (
                   <Button label={t('capture.tryAgain')} size="md" style={{ flex: 1 }} onPress={startRecording} />
@@ -219,7 +217,6 @@ export default function CaptureScreen() {
                 <Button
                   label={t('capture.typeInstead')}
                   variant="outline"
-                  tone="neutral"
                   size="md"
                   style={{ flex: 1 }}
                   onPress={() => setStep({ kind: 'typing' })}

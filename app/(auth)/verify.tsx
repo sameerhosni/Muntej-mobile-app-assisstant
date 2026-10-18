@@ -69,7 +69,7 @@ export default function VerifyScreen() {
         render={({ field }) => (
           <TextField
             label={t('auth.codeLabel')}
-            mono
+            code
             placeholder="••••••"
             keyboardType="number-pad"
             textContentType="oneTimeCode"
@@ -89,7 +89,7 @@ export default function VerifyScreen() {
       />
       <Button label={t('auth.verify')} onPress={onSubmit} loading={formState.isSubmitting} />
       {notice && (
-        <AppText variant="caption" color="teal">
+        <AppText variant="caption" color="green">
           {notice}
         </AppText>
       )}
@@ -108,7 +108,7 @@ function LinkButton({ label, onPress }: { label: string; onPress: () => void }) 
       accessibilityRole="button"
       style={{ minHeight: sizes.touch, justifyContent: 'center', paddingHorizontal: spacing.xs }}
     >
-      <AppText variant="small" color="teal" weight="semibold">
+      <AppText variant="small" color="primary" weight="bold">
         {label}
       </AppText>
     </Pressable>

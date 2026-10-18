@@ -1,16 +1,35 @@
+import type { ComponentType, ReactNode } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { AppText, Avatar, Card } from '@/components/ui';
-import { colors, radius, spacing, type ColorToken } from '@/theme/tokens';
+import {
+  AlertTriangle,
+  Banknote,
+  Calendar,
+  CircleCheck,
+  Clock,
+  Flag,
+  Hand,
+  MessageCircle,
+  Mic,
+  Search,
+  Send,
+  Sparkles,
+  Target,
+  type LucideProps,
+} from 'lucide-react-native';
+import { AppText, Avatar, Card, Gradient, IconBadge, StatTile } from '@/components/ui';
+import { colors, radius, shadows, spacing, type ColorToken, type GradientToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import type { Profile } from '@/lib/api';
+import { formatNumber, taskSavings } from '@/features/home/value';
 import type { FollowupStep, ParsedTask } from './api';
 import { formatDue, formatStep } from './format';
+import { Waveform } from './Waveform';
 
 const priorityColor: Record<ParsedTask['priority'], ColorToken> = {
   low: 'textSoft',
-  medium: 'text',
-  high: 'amber',
+  medium: 'primary',
+  high: 'amberStrong',
   urgent: 'red',
 };
 
@@ -19,7 +38,7 @@ export function personName(p: Profile | undefined, lang: string) {
   return lang === 'ar' && p.full_name_ar ? p.full_name_ar : p.full_name;
 }
 
-/** Quote + "Here's what I got" card + follow-up plan (Capture mockup). */
+/** Transcript + savings + "Muntej understood" + auto plan (design/v2/html/Capture.dc.html). */
 export function TaskReview({ task, team }: { task: ParsedTask; team: Profile[] }) {
   const { t } = useTranslation();
   const { lang } = useDirection();
@@ -28,108 +47,179 @@ export function TaskReview({ task, team }: { task: ParsedTask; team: Profile[] }
   const firstName = (p?: Profile) => personName(p, lang).split(' ')[0];
   // AI-written text follows the language the manager spoke, not the UI language
   const contentDir = task.language === 'ar' ? 'rtl' : 'ltr';
+  const savings = taskSavings(owner ? task.followup_plan.length : 0);
 
   return (
-    <View style={{ gap: spacing.xl }}>
-      <Card size="md" style={{ borderRadius: radius.card }}>
-        <AppText style={{ fontSize: 16, lineHeight: 27, writingDirection: contentDir }} color="textSoft">
-          “{task.transcript}”
-        </AppText>
-      </Card>
+    <View style={{ gap: spacing.xxl }}>
+      <View style={{ borderRadius: radius.cardLg, overflow: 'hidden', boxShadow: shadows.primary }}>
+        <Gradient name="heroManager" style={{ paddingVertical: spacing.lg, paddingHorizontal: spacing.xxl, gap: spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
+            <IconBadge size={36} bg="glass" round>
+              <Mic color={colors.onDark} size={16} strokeWidth={2} />
+            </IconBadge>
+            <Waveform onDark />
+          </View>
+          <AppText color="onDark" style={{ lineHeight: 21, writingDirection: contentDir }}>
+            “{task.transcript}”
+          </AppText>
+        </Gradient>
+      </View>
 
-      <Card size="md" style={{ gap: spacing.lg, borderRadius: 20 }}>
-        <AppText variant="small" color="textMuted">
-          {t('capture.hereIsWhat')}
-        </AppText>
-        <Row label={t('capture.owner')}>
-          {owner ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <Avatar name={owner.full_name} size={26} bg="tealDeep" fg="text" />
-              <AppText weight="bold">{personName(owner, lang)}</AppText>
-            </View>
-          ) : (
-            <AppText weight="bold" color="amber">
-              {t('capture.notSet')}
+      {owner && (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }} accessibilityLabel={t('capture.saves')}>
+          <StatTile iconBg="primaryTint" icon={<Clock color={colors.primary} size={15} strokeWidth={2.1} />}
+            value={formatNumber(savings.minutes, lang)} label={t('capture.minSaved')} />
+          <StatTile iconBg="greenTint" icon={<Banknote color={colors.green} size={15} strokeWidth={2.1} />}
+            value={formatNumber(savings.sar, lang)} label={t('capture.sarSaved')} />
+          <StatTile iconBg="orangeTint" icon={<Hand color={colors.orange} size={15} strokeWidth={2.1} />}
+            value={formatNumber(savings.followups, lang)} label={t('capture.followupsSaved')} />
+        </View>
+      )}
+
+      <Card padding={spacing.xl} style={{ overflow: 'hidden' }}>
+        <View style={{ position: 'absolute', top: 0, bottom: 0, start: 0, width: 4, overflow: 'hidden' }}>
+          <Gradient name="avatarBlue" style={{ flex: 1 }} />
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <IconBadge size={22} gradient="avatarBlue">
+            <Sparkles color={colors.onDark} size={13} strokeWidth={2.1} />
+          </IconBadge>
+          <AppText variant="small" weight="bold" color="primary">
+            {t('capture.hereIsWhat')}
+          </AppText>
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.xl }}>
+          <Field label={t('capture.owner')} icon={owner ? <Avatar name={owner.full_name} size={34} gradient="avatarBlue" /> : undefined}
+            Icon={owner ? undefined : Hand} iconBg="amberTint" iconColor="amberText">
+            <AppText weight="bold" color={owner ? 'text' : 'amberText'} numberOfLines={1}>
+              {owner ? firstName(owner) : t('capture.notSet')}
             </AppText>
+          </Field>
+          <Field label={t('capture.due')} Icon={Calendar} iconBg="primaryTint" iconColor="primary">
+            <AppText weight="bold" color={task.due_at ? 'text' : 'amberText'} numberOfLines={1}>
+              {task.due_at ? formatDue(task.due_at, lang) : t('capture.notSet')}
+            </AppText>
+          </Field>
+          <Field label={t('capture.priority')} Icon={Flag} iconBg="amberTint" iconColor="amberText">
+            <AppText weight="bold" color={priorityColor[task.priority]}>
+              {t(`capture.p_${task.priority}`)}
+            </AppText>
+          </Field>
+          {helper && (
+            <Field
+              label={task.helper_reason ? `${t('capture.support')} · ${task.helper_reason}` : t('capture.support')}
+              icon={<Avatar name={helper.full_name} size={34} gradient="avatarPurple" />}
+            >
+              <AppText weight="bold" numberOfLines={1}>
+                {firstName(helper)}
+              </AppText>
+            </Field>
           )}
-        </Row>
-        <Row label={t('capture.due')}>
-          <AppText weight="bold" color={task.due_at ? 'text' : 'amber'}>
-            {task.due_at ? formatDue(task.due_at, lang) : t('capture.notSet')}
-          </AppText>
-        </Row>
-        <Row label={t('capture.priority')}>
-          <AppText weight="bold" color={priorityColor[task.priority]}>
-            {t(`capture.p_${task.priority}`)}
-          </AppText>
-        </Row>
-        {helper && (
-          <Row label={t('capture.support')}>
-            <AppText weight="bold">
-              {firstName(helper)}
-              {task.helper_reason ? ` — ${task.helper_reason}` : ''}
-            </AppText>
-          </Row>
-        )}
-        {task.goal && (
-          <Row label={t('capture.goal')}>
-            <AppText weight="bold">{task.goal}</AppText>
-          </Row>
-        )}
+          {task.goal && (
+            <Field label={t('capture.goal')} Icon={Target} iconBg="purpleTint" iconColor="purple">
+              <AppText weight="bold" color="purpleText" numberOfLines={1} style={{ writingDirection: contentDir }}>
+                {task.goal}
+              </AppText>
+            </Field>
+          )}
+        </View>
       </Card>
 
-      {owner && task.followup_plan.length > 0 && <PlanTimeline steps={task.followup_plan} contentDir={contentDir} />}
+      {owner && task.followup_plan.length > 0 && <AutoPlan steps={task.followup_plan} />}
       {!owner && (
-        <AppText variant="small" color="amber">
-          {t('capture.noOwnerWarn')}
-        </AppText>
+        <Card tone="amber">
+          <AppText variant="small" color="amberStrong">
+            {t('capture.noOwnerWarn')}
+          </AppText>
+        </Card>
       )}
     </View>
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  icon,
+  Icon,
+  iconBg = 'primaryTint',
+  iconColor = 'primary',
+}: {
+  label: string;
+  children: ReactNode;
+  icon?: ReactNode;
+  Icon?: ComponentType<LucideProps>;
+  iconBg?: ColorToken;
+  iconColor?: ColorToken;
+}) {
   return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.lg }}>
-      <AppText color="textMuted">{label}</AppText>
-      <View style={{ flexShrink: 1, alignItems: 'flex-end' }}>{children}</View>
+    <View style={{ width: '50%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingEnd: spacing.sm }}>
+      {icon ??
+        (Icon && (
+          <IconBadge size={34} bg={iconBg}>
+            <Icon color={colors[iconColor]} size={17} strokeWidth={1.9} />
+          </IconBadge>
+        ))}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <AppText variant="micro" color="textMuted" numberOfLines={1}>
+          {label}
+        </AppText>
+        {children}
+      </View>
     </View>
   );
 }
 
-function PlanTimeline({ steps, contentDir }: { steps: FollowupStep[]; contentDir: 'rtl' | 'ltr' }) {
+const STEP_STYLE: Record<FollowupStep['kind'], { Icon: ComponentType<LucideProps>; gradient?: GradientToken; bg: ColorToken; fg: ColorToken }> = {
+  brief: { Icon: MessageCircle, gradient: 'primary', bg: 'primaryTint', fg: 'onDark' },
+  check: { Icon: Search, bg: 'purpleTint', fg: 'purple' },
+  risk: { Icon: AlertTriangle, bg: 'amberTint', fg: 'amberText' },
+  collect: { Icon: Send, bg: 'greenTint', fg: 'green' },
+};
+
+function AutoPlan({ steps }: { steps: FollowupStep[] }) {
   const { t } = useTranslation();
   const { lang } = useDirection();
   return (
-    <View>
-      <AppText variant="small" color="textMuted" style={{ marginBottom: spacing.md }}>
-        {t('capture.planTitle')}
-      </AppText>
-      {steps.map((s, i) => {
-        const last = i === steps.length - 1;
-        const accent = s.kind === 'risk' ? colors.amber : colors.teal;
-        return (
-          <View key={`${s.at}-${i}`} style={{ flexDirection: 'row', gap: spacing.lg }}>
-            <View style={{ alignItems: 'center', paddingTop: 5 }}>
-              <View
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: i === 0 ? accent : colors.transparent,
-                  borderWidth: i === 0 ? 0 : 2,
-                  borderColor: accent,
-                }}
-              />
-              {!last && <View style={{ width: 2, flex: 1, backgroundColor: colors.timelineLine }} />}
+    <Card padding={spacing.lg} style={{ paddingVertical: spacing.xl }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <AppText variant="small" weight="bold">
+          {t('capture.planTitle')}
+        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.greenTint, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
+          <CircleCheck color={colors.greenText} size={11} strokeWidth={3} />
+          <AppText variant="micro" weight="bold" color="greenText">
+            {t('capture.zeroChases')}
+          </AppText>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row' }}>
+        <View style={{ position: 'absolute', top: 19, start: '12%', end: '12%', height: 2, backgroundColor: colors.border }} />
+        {steps.map((s, i) => {
+          const st = STEP_STYLE[s.kind];
+          return (
+            <View key={`${s.at}-${i}`} style={{ flex: 1, alignItems: 'center', gap: 5, paddingHorizontal: 2 }}>
+              {st.gradient && i === 0 ? (
+                <View style={{ width: 40, height: 40, borderRadius: 20, overflow: 'hidden', boxShadow: '0px 0px 0px 4px #E8F0FE' }}>
+                  <Gradient name={st.gradient} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <st.Icon color={colors.onDark} size={18} strokeWidth={2} />
+                  </Gradient>
+                </View>
+              ) : (
+                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors[st.bg], borderWidth: 2, borderColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+                  <st.Icon color={colors[st.fg === 'onDark' ? 'primary' : st.fg]} size={18} strokeWidth={2} />
+                </View>
+              )}
+              <AppText variant="caption" weight="extrabold" color={i === 0 ? 'primary' : 'text'} align="center" numberOfLines={1}>
+                {formatStep(s.at, lang, t('capture.now'))}
+              </AppText>
+              <AppText variant="micro" color="textMuted" align="center" numberOfLines={3} style={{ lineHeight: 14 }}>
+                {s.summary}
+              </AppText>
             </View>
-            <AppText style={{ flex: 1, paddingBottom: last ? 0 : spacing.lg }}>
-              <AppText weight="bold">{formatStep(s.at, lang, t('capture.now'))}</AppText> —{' '}
-              <AppText style={{ writingDirection: contentDir }}>{s.summary}</AppText>
-            </AppText>
-          </View>
-        );
-      })}
-    </View>
+          );
+        })}
+      </View>
+    </Card>
   );
 }

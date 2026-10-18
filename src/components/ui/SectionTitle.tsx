@@ -1,35 +1,20 @@
 import { Pressable, View } from 'react-native';
-import { sizes } from '@/theme/tokens';
 import { AppText } from './AppText';
 
 type Props = {
   title: string;
-  /** 'muted' = small grey label (e.g. "Muntej is now…"), 'strong' = bold section header (e.g. "Subtasks"). */
-  kind?: 'muted' | 'strong';
   actionLabel?: string;
   onAction?: () => void;
 };
 
-export function SectionTitle({ title, kind = 'muted', actionLabel, onAction }: Props) {
+/** Display-face section heading with an optional link on the end side. */
+export function SectionTitle({ title, actionLabel, onAction }: Props) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-      {kind === 'muted' ? (
-        <AppText variant="small" color="textMuted">
-          {title}
-        </AppText>
-      ) : (
-        <AppText variant="cardTitleLg" weight="bold">
-          {title}
-        </AppText>
-      )}
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <AppText variant="section">{title}</AppText>
       {actionLabel && (
-        <Pressable
-          onPress={onAction}
-          accessibilityRole="link"
-          hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-          style={{ minHeight: sizes.touch - 20, justifyContent: 'center' }}
-        >
-          <AppText variant="small" color="teal">
+        <Pressable onPress={onAction} accessibilityRole="link" hitSlop={{ top: 14, bottom: 14, left: 8, right: 8 }}>
+          <AppText variant="caption" weight="bold" color="primary">
             {actionLabel}
           </AppText>
         </Pressable>

@@ -1,11 +1,11 @@
-// Screen · Settings — simple settings (language); no mockup, follows design/TOKENS.md
+// Screen · Settings — profile, language, sign out, all-screens dev index; no mockup, v2 style per design/TOKENS.md
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Chip, Screen, SectionTitle } from '@/components/ui';
+import { AppText, Avatar, Button, Card, Chip, IconButton, Screen, SectionTitle } from '@/components/ui';
 import { useMyProfile, useSignOut } from '@/lib/api';
-import { colors, radius, sizes, spacing } from '@/theme/tokens';
+import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { setLanguage, useDirection, type Language } from '@/lib/i18n';
 import { SCREENS } from '@/features/screens/registry';
 
@@ -19,28 +19,16 @@ export default function SettingsScreen() {
   return (
     <Screen>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel={t('common.back')}
-          style={{
-            width: sizes.touch,
-            height: sizes.touch,
-            borderRadius: sizes.touch / 2,
-            backgroundColor: colors.surface,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <ChevronLeft color={colors.textMuted} size={22} strokeWidth={2} style={flip} />
-        </Pressable>
-        <AppText variant="title">{t('settings.title')}</AppText>
+        <IconButton label={t('common.back')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
+          <ChevronLeft color={colors.text} size={22} strokeWidth={2} style={flip} />
+        </IconButton>
+        <AppText variant="titleLg">{t('settings.title')}</AppText>
       </View>
 
       {me && (
         <Card>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
-            <Avatar name={me.full_name} size={48} bg="tealDeep" fg="teal" />
+            <Avatar name={me.full_name} size={48} gradient={me.role === 'manager' ? 'avatarOrange' : 'avatarBlue'} />
             <View style={{ flex: 1, gap: 2 }}>
               <AppText variant="caption" color="textMuted">
                 {t('settings.signedInAs')}
@@ -55,7 +43,6 @@ export default function SettingsScreen() {
           <Button
             label={t('settings.signOut')}
             variant="outline"
-            tone="neutral"
             size="md"
             loading={signOut.isPending}
             onPress={() => signOut.mutate()}
@@ -72,7 +59,7 @@ export default function SettingsScreen() {
         </View>
         <View
           accessibilityRole="radiogroup"
-          style={{ flexDirection: 'row', backgroundColor: colors.bg, borderRadius: radius.md, padding: 4 }}
+          style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}
         >
           {(['en', 'ar'] as Language[]).map((l) => {
             const active = lang === l;
@@ -85,13 +72,14 @@ export default function SettingsScreen() {
                 style={{
                   flex: 1,
                   minHeight: sizes.touch,
-                  borderRadius: radius.sm,
+                  borderRadius: radius.pill,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: active ? colors.teal : colors.transparent,
+                  backgroundColor: active ? colors.surface : colors.transparent,
+                  boxShadow: active ? shadows.tile : undefined,
                 }}
               >
-                <AppText weight="bold" color={active ? 'onTeal' : 'textSoft'}>
+                <AppText weight="bold" color={active ? 'primary' : 'textMuted'}>
                   {l === 'en' ? t('settings.english') : t('settings.arabic')}
                 </AppText>
               </Pressable>
@@ -100,11 +88,11 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
-      <SectionTitle title={t('settings.allScreens')} kind="strong" />
+      <SectionTitle title={t('settings.allScreens')} />
       <AppText variant="caption" color="textMuted">
         {t('settings.allScreensHint')}
       </AppText>
-      <Card size="md" style={{ gap: 0, paddingVertical: spacing.sm }}>
+      <Card style={{ gap: 0, paddingVertical: spacing.sm }}>
         {SCREENS.map((s, i) => (
           <Pressable
             key={s.num}
@@ -119,12 +107,12 @@ export default function SettingsScreen() {
               borderTopColor: colors.border,
             }}
           >
-            <AppText mono weight="semibold" color="teal" style={{ width: 28 }}>
+            <AppText weight="extrabold" color="primary" style={{ width: 28 }}>
               {s.num}
             </AppText>
             <AppText style={{ flex: 1 }}>{t(`screens.${s.num}`)}</AppText>
-            <Chip label={`S${s.sprint}`} style={{ alignSelf: 'center' }} />
-            <ChevronRight color={colors.textMuted} size={18} strokeWidth={2} style={flip} />
+            <Chip label={`S${s.sprint}`} tone={s.tab === 'employee' ? 'purple' : 'neutral'} style={{ alignSelf: 'center' }} />
+            <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
           </Pressable>
         ))}
       </Card>
