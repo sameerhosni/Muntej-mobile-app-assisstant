@@ -27,6 +27,7 @@ export const colors = {
   knob: '#EAF2FF',
   ringOuter: '#1E3B4A',
   ringInner: '#23546A',
+  timelineLine: '#1F3350',
   transparent: 'transparent',
 } as const;
 

@@ -41,9 +41,21 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": ["en", "ar"],
-            "android": ["en", "ar"]
+            "ios": [
+              "en",
+              "ar"
+            ],
+            "android": [
+              "en",
+              "ar"
+            ]
           }
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Muntej uses the microphone so you can say a task out loud."
         }
       ]
     ],

@@ -476,6 +476,7 @@ export type Database = {
         Row: {
           avatar_color: string | null
           created_at: string
+          email: string | null
           full_name: string
           full_name_ar: string | null
           id: string
@@ -493,6 +494,7 @@ export type Database = {
         Insert: {
           avatar_color?: string | null
           created_at?: string
+          email?: string | null
           full_name: string
           full_name_ar?: string | null
           id?: string
@@ -510,6 +512,7 @@ export type Database = {
         Update: {
           avatar_color?: string | null
           created_at?: string
+          email?: string | null
           full_name?: string
           full_name_ar?: string | null
           id?: string
@@ -885,6 +888,7 @@ export type Database = {
       can_see_profile: { Args: { target: string }; Returns: boolean }
       can_see_task: { Args: { t_id: string }; Returns: boolean }
       can_see_workspace: { Args: { w_id: string }; Returns: boolean }
+      create_task_with_plan: { Args: { p: Json }; Returns: string }
       current_profile_id: { Args: never; Returns: string }
       evidence_task_id: { Args: { object_name: string }; Returns: string }
       is_manager_of: { Args: { target: string }; Returns: boolean }
