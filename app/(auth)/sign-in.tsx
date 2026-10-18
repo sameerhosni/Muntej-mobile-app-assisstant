@@ -1,15 +1,90 @@
-// Screen · Sign in (email) — no mockup; dark style per design/TOKENS.md
+// Screen · Sign in (phone or email) — no mockup; dark style per design/TOKENS.md
 import { useState } from 'react';
+import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
-import { Button, TextField } from '@/components/ui';
+import { AppText, Avatar, Button, Card, TextField } from '@/components/ui';
+import { colors, radius, sizes, spacing } from '@/theme/tokens';
+import { useDirection } from '@/lib/i18n';
 import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
-import { emailSchema, type EmailForm } from '@/features/auth/validation';
+import { DEMO_PERSONAS, type DemoPersona } from '@/features/auth/demoPersonas';
+import {
+  emailSchema,
+  normalizeSaudiPhone,
+  phoneSchema,
+  type EmailForm,
+  type PhoneForm,
+} from '@/features/auth/validation';
+
+type Mode = 'phone' | 'email';
 
 export default function SignInScreen() {
+  const { t } = useTranslation();
+  const [mode, setMode] = useState<Mode>('phone');
+
+  return (
+    <AuthShell
+      title={t(mode === 'phone' ? 'auth.phoneTitle' : 'auth.emailTitle')}
+      hint={t(mode === 'phone' ? 'auth.phoneHint' : 'auth.emailHint')}
+    >
+      <ModeSwitch mode={mode} onChange={setMode} />
+      {mode === 'phone' ? <PhoneSignIn /> : <EmailSignIn />}
+      {__DEV__ && <DemoPersonas />}
+    </AuthShell>
+  );
+}
+
+function errorText(t: (k: string) => string, status?: number) {
+  return status === 429 ? t('auth.rateLimited') : t('auth.genericError');
+}
+
+function PhoneSignIn() {
+  const { t } = useTranslation();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const { control, handleSubmit, formState } = useForm<PhoneForm>({
+    resolver: zodResolver(phoneSchema),
+    defaultValues: { phone: '' },
+  });
+
+  const onSubmit = handleSubmit(async ({ phone }) => {
+    setServerError(null);
+    const e164 = normalizeSaudiPhone(phone)!;
+    const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
+    if (error) return setServerError(errorText(t, error.status));
+    router.push({ pathname: '/verify', params: { phone: e164 } });
+  });
+
+  return (
+    <>
+      <Controller
+        control={control}
+        name="phone"
+        render={({ field }) => (
+          <TextField
+            label={t('auth.phoneLabel')}
+            prefix="+966"
+            placeholder="5X XXX XXXX"
+            keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+            autoComplete="tel"
+            maxLength={14}
+            value={field.value}
+            onChangeText={field.onChange}
+            onBlur={field.onBlur}
+            onSubmitEditing={() => onSubmit()}
+            error={formState.errors.phone?.message ? t(formState.errors.phone.message) : serverError ?? undefined}
+          />
+        )}
+      />
+      <Button label={t('auth.continue')} onPress={onSubmit} loading={formState.isSubmitting} />
+    </>
+  );
+}
+
+function EmailSignIn() {
   const { t } = useTranslation();
   const [serverError, setServerError] = useState<string | null>(null);
   const { control, handleSubmit, formState } = useForm<EmailForm>({
@@ -20,15 +95,12 @@ export default function SignInScreen() {
   const onSubmit = handleSubmit(async ({ email }) => {
     setServerError(null);
     const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
-    if (error) {
-      setServerError(error.status === 429 ? t('auth.rateLimited') : t('auth.genericError'));
-      return;
-    }
+    if (error) return setServerError(errorText(t, error.status));
     router.push({ pathname: '/verify', params: { email } });
   });
 
   return (
-    <AuthShell title={t('auth.emailTitle')} hint={t('auth.emailHint')}>
+    <>
       <Controller
         control={control}
         name="email"
@@ -41,7 +113,6 @@ export default function SignInScreen() {
             autoComplete="email"
             autoCapitalize="none"
             autoCorrect={false}
-            autoFocus
             ltr
             value={field.value}
             onChangeText={field.onChange}
@@ -52,6 +123,103 @@ export default function SignInScreen() {
         )}
       />
       <Button label={t('auth.continue')} onPress={onSubmit} loading={formState.isSubmitting} />
-    </AuthShell>
+    </>
+  );
+}
+
+function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
+  const { t } = useTranslation();
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      style={{ flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.md, padding: 4 }}
+    >
+      {(['phone', 'email'] as Mode[]).map((m) => {
+        const active = mode === m;
+        return (
+          <Pressable
+            key={m}
+            onPress={() => onChange(m)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: active }}
+            style={{
+              flex: 1,
+              minHeight: sizes.touch,
+              borderRadius: radius.sm,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: active ? colors.surfaceAlt : colors.transparent,
+            }}
+          >
+            <AppText weight="bold" color={active ? 'text' : 'textMuted'}>
+              {t(m === 'phone' ? 'auth.modePhone' : 'auth.modeEmail')}
+            </AppText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Dev-only: one tap signs in as a demo persona (fixed code, no SMS). */
+function DemoPersonas() {
+  const { t } = useTranslation();
+  const { lang } = useDirection();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const pick = async (p: DemoPersona) => {
+    setBusy(p.phone);
+    setError(null);
+    const { error: err } = await supabase.auth.signInWithOtp({ phone: p.phone });
+    setBusy(null);
+    if (err) return setError(errorText(t, err.status));
+    router.push({ pathname: '/verify', params: { phone: p.phone } });
+  };
+
+  return (
+    <Card size="md" tone="teal">
+      <View style={{ gap: 4 }}>
+        <AppText variant="cardTitle" color="teal">
+          {t('auth.demoTitle')}
+        </AppText>
+        <AppText variant="caption" color="textSoft">
+          {t('auth.demoHint')}
+        </AppText>
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        {DEMO_PERSONAS.map((p) => (
+          <Pressable
+            key={p.phone}
+            onPress={() => pick(p)}
+            disabled={!!busy}
+            accessibilityRole="button"
+            accessibilityLabel={lang === 'ar' ? p.nameAr : p.name}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.sm,
+              minHeight: sizes.touch,
+              paddingHorizontal: spacing.md,
+              borderRadius: radius.pill,
+              backgroundColor: colors.bg,
+              borderWidth: 1,
+              borderColor: p.role === 'manager' ? colors.teal : colors.border,
+              opacity: busy && busy !== p.phone ? 0.5 : pressed ? 0.8 : 1,
+            })}
+          >
+            <Avatar name={p.name} size={26} bg={p.role === 'manager' ? 'teal' : 'track'} fg={p.role === 'manager' ? 'onTeal' : 'text'} />
+            <AppText variant="small" weight="semibold">
+              {lang === 'ar' ? p.nameAr : p.name}
+            </AppText>
+          </Pressable>
+        ))}
+      </View>
+      {error && (
+        <AppText variant="caption" color="red">
+          {error}
+        </AppText>
+      )}
+    </Card>
   );
 }

@@ -10,33 +10,42 @@ import { sizes, spacing } from '@/theme/tokens';
 import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { otpSchema, type OtpForm } from '@/features/auth/validation';
+import { DEMO_CODE, isDemoPhone } from '@/features/auth/demoPersonas';
 
 export default function VerifyScreen() {
   const { t } = useTranslation();
-  const { email = '' } = useLocalSearchParams<{ email: string }>();
+  const { email = '', phone = '' } = useLocalSearchParams<{ email?: string; phone?: string }>();
+  const demo = __DEV__ && !!phone && isDemoPhone(phone);
   const [serverError, setServerError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { control, handleSubmit, formState } = useForm<OtpForm>({
     resolver: zodResolver(otpSchema),
-    defaultValues: { code: '' },
+    defaultValues: { code: demo ? DEMO_CODE : '' },
   });
 
   const onSubmit = handleSubmit(async ({ code }) => {
     setServerError(null);
-    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+    const { error } = phone
+      ? await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' })
+      : await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
     if (error) setServerError(t('auth.genericError'));
     // on success the auth guard in app/_layout.tsx swaps to the app automatically
   });
 
   const resend = async () => {
     setServerError(null);
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
+    const { error } = phone
+      ? await supabase.auth.signInWithOtp({ phone })
+      : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
     if (error) setServerError(error.status === 429 ? t('auth.rateLimited') : t('auth.genericError'));
     else setNotice(t('auth.resent'));
   };
 
   return (
-    <AuthShell title={t('auth.codeTitle')} hint={t('auth.codeHint', { email: `⁦${email}⁩` })}>
+    <AuthShell
+      title={t('auth.codeTitle')}
+      hint={demo ? t('auth.demoCodeHint') : t('auth.codeHint', { to: `⁦${phone || email}⁩` })}
+    >
       <Controller
         control={control}
         name="code"
