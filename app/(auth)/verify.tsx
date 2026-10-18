@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 import { AppText, Button, TextField } from '@/components/ui';
 import { sizes, spacing } from '@/theme/tokens';
-import { supabase } from '@/lib/supabase';
+import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { otpSchema, type OtpForm } from '@/features/auth/validation';
 
@@ -30,7 +30,7 @@ export default function VerifyScreen() {
 
   const resend = async () => {
     setServerError(null);
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
     if (error) setServerError(error.status === 429 ? t('auth.rateLimited') : t('auth.genericError'));
     else setNotice(t('auth.resent'));
   };

@@ -16,9 +16,15 @@ export const supabase = createClient<Database>(url, key, {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // web: pick up the session from an emailed sign-in link (#access_token=…); native uses the 6-digit code
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
+
+/** Where emailed sign-in links should land (web only; on the phone the user types the code). */
+export function emailRedirectTo(): string | undefined {
+  return Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined;
+}
 
 // Refresh tokens only while the app is in the foreground (native).
 if (Platform.OS !== 'web') {

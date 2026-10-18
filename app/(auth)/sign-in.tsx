@@ -5,7 +5,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 import { Button, TextField } from '@/components/ui';
-import { supabase } from '@/lib/supabase';
+import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { emailSchema, type EmailForm } from '@/features/auth/validation';
 
@@ -19,7 +19,7 @@ export default function SignInScreen() {
 
   const onSubmit = handleSubmit(async ({ email }) => {
     setServerError(null);
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
     if (error) {
       setServerError(error.status === 429 ? t('auth.rateLimited') : t('auth.genericError'));
       return;
