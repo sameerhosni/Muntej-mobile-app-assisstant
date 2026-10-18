@@ -53,4 +53,4 @@ export function filteredScreens(s: Pick<State, 'role' | 'sprint'>): ProtoScreen[
 }
 
 /** Screens with real backend data today (the rest render demo data). */
-export const LIVE_SCREENS: ScreenNum[] = ['01', '02', '03', '04', '06', '18', '25', '32'];
+export const LIVE_SCREENS: ScreenNum[] = ['01', '02', '03', '04', '05', '06', '09', '10', '12', '16', '17', '18', '25', '32'];

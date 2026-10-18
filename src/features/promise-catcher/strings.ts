@@ -1,0 +1,61 @@
+import { registerStrings } from '@/lib/i18n/register';
+
+const en = {
+  close: 'Close',
+  meeting: 'Sales meeting · {{min}} min',
+  caughtPre: 'Caught',
+  caughtPost: 'promises',
+  forgotten: 'forgotten',
+  notesValue: '{{n}}m',
+  notesSaved: 'notes saved',
+  sarSaved: 'SAR saved',
+  progress: '{{pct}}% reviewed',
+  skip: 'Not a task',
+  confirm: 'Confirm',
+  task: 'Task',
+  skipped: 'Skipped',
+  quote: '"{{q}}"',
+  confirmAll: 'Confirm all ({{n}})',
+  done: 'Done — forget the meeting',
+  whatsapp: 'WhatsApp confirm',
+  points: '+points',
+  ifKept: 'if kept',
+  rowLabel: '{{who}} · {{task}} · {{due}}',
+  promises: {
+    a: { who: 'Faisal', due: 'Wed', task: 'Quote to Al Rajhi', quote: "On it, you'll have it Wednesday" },
+    b: { who: 'Abdullah', due: 'Tomorrow', task: 'Update Q3 numbers', quote: "I'll send them tomorrow" },
+    c: { who: 'Noura', due: 'Thu', task: 'Book SPL demo', quote: "I'll call and set it up" },
+    d: { who: 'You', due: 'Sun', task: 'Approve new discount', quote: "I'll get back to you Sunday" },
+  },
+};
+
+const ar: typeof en = {
+  close: 'إغلاق',
+  meeting: 'اجتماع المبيعات · {{min}} د',
+  caughtPre: 'لقطنا',
+  caughtPost: 'وعود',
+  forgotten: 'وعد منسي',
+  notesValue: '{{n}}د',
+  notesSaved: 'تدوين وفّرته',
+  sarSaved: 'ريال وفّرتها',
+  progress: 'راجعنا {{pct}}٪',
+  skip: 'مو مهمة',
+  confirm: 'تأكيد',
+  task: 'مهمة',
+  skipped: 'تخطّيناها',
+  quote: '"{{q}}"',
+  confirmAll: 'أكّد الكل ({{n}})',
+  done: 'تم، انسَ الاجتماع',
+  whatsapp: 'تأكيد بالواتساب',
+  points: '+نقاط',
+  ifKept: 'لو وفى',
+  rowLabel: '{{who}} · {{task}} · {{due}}',
+  promises: {
+    a: { who: 'فيصل', due: 'الأربعاء', task: 'عرض سعر للراجحي', quote: 'أبشر، يوصلك الأربعاء' },
+    b: { who: 'عبدالله', due: 'بكرة', task: 'تحديث أرقام الربع 3', quote: 'برسلها لك بكرة' },
+    c: { who: 'نورة', due: 'الخميس', task: 'موعد عرض لسُبل', quote: 'بكلمهم وأرتّبها' },
+    d: { who: 'أنت', due: 'الأحد', task: 'اعتماد الخصم الجديد', quote: 'أرد عليك الأحد' },
+  },
+};
+
+export const NS = registerStrings('s07', { en, ar });

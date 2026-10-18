@@ -1,0 +1,103 @@
+import { registerStrings } from '@/lib/i18n/register';
+
+const en = {
+  back: 'Back',
+  title: 'Kudos',
+  subtitle: '5 seconds · no forms',
+  who: 'Who',
+  value: 'Value',
+  values: {
+    ownership: 'Ownership',
+    speed: 'Speed',
+    quality: 'Quality',
+    teamwork: 'Teamwork',
+  },
+  points: 'Points',
+  plus: '+{{n}}',
+  pointsA11y: '{{n}} points',
+  drafted: 'Drafted from their work',
+  send: 'Send kudos +{{n}}',
+  sentTo: 'Sent to {{name}}',
+  wall: 'Team wall',
+  arrow: '→',
+  justNow: 'Just now · {{msg}}',
+  perKudos: 'per kudos',
+  fiveSec: '5 sec',
+  sar: 'SAR {{n}}',
+  realReward: 'real reward',
+  forms: 'forms',
+  // Draft built from the person's latest finished task.
+  draftFrom: {
+    ownership: '{{name}}, you took "{{task}}" all the way to done. Real ownership!',
+    speed: '{{name}}, "{{task}}" closed fast and clean. Great pace!',
+    quality: '{{name}}, "{{task}}" was spot on. Top quality!',
+    teamwork: '{{name}}, "{{task}}" came together thanks to you. Great teamwork!',
+  },
+  draftGeneric: '{{name}}, thank you for the great work this week. It shows!',
+  // Design drafts, used when we have no finished task for that person.
+  drafts: {
+    khalid: 'Khalid, 6 tasks closed and the sync fixed unasked. Real ownership!',
+    noura: 'Noura, agent screens landed early and saved a day. Brilliant!',
+    saad: 'Saad, the note taker beta shipped smooth and on time. Great!',
+    maha: 'Maha, our first paying Nizamy customer. Proud of you!',
+    faisal: 'Faisal, the SPL pitch was sharp and early. Thank you!',
+    abdullah: 'Abdullah, the Q3 numbers were clear and on time. Thank you!',
+  },
+  feed: {
+    f1: { from: 'Ahmed', to: 'Noura', value: 'Quality', msg: 'Agent screens were spot on.' },
+    f2: { from: 'Saad', to: 'Faisal', value: 'Teamwork', msg: 'Covered the client call!' },
+    f3: { from: 'Ahmed', to: 'Maha', value: 'Ownership', msg: 'First paying customer!' },
+  },
+  me: 'Ahmed',
+};
+
+const ar: typeof en = {
+  back: 'رجوع',
+  title: 'اشكرهم',
+  subtitle: '5 ثواني · بدون نماذج',
+  who: 'مين',
+  value: 'القيمة',
+  values: {
+    ownership: 'المسؤولية',
+    speed: 'السرعة',
+    quality: 'الجودة',
+    teamwork: 'التعاون',
+  },
+  points: 'النقاط',
+  plus: '⁦+{{n}}⁩',
+  pointsA11y: '{{n}} نقطة',
+  drafted: 'كتبناها من شغلهم',
+  send: 'أرسل الشكر ⁦+{{n}}⁩',
+  sentTo: 'انرسل الشكر لـ{{name}}',
+  wall: 'جدار الفريق',
+  arrow: '←',
+  justNow: 'الحين · {{msg}}',
+  perKudos: 'لكل شكر',
+  fiveSec: '5 ثواني',
+  sar: '{{n}} ريال',
+  realReward: 'مكافأة',
+  forms: 'نماذج',
+  draftFrom: {
+    ownership: '{{name}}، مسكت "{{task}}" لين خلصت. هذي المسؤولية!',
+    speed: '{{name}}، "{{task}}" خلصت بسرعة وبدون مشاكل. كفو!',
+    quality: '{{name}}، "{{task}}" طلعت مضبوطة. شغل نظيف!',
+    teamwork: '{{name}}، "{{task}}" مشت بفضل تعاونك. يعطيك العافية!',
+  },
+  draftGeneric: '{{name}}، شكراً على شغلك هالأسبوع. واضح وباين!',
+  drafts: {
+    khalid: 'خالد، خلّصت 6 مهام وصلّحت المزامنة. هذي المسؤولية!',
+    noura: 'نورة، شاشات الوكلاء جت بدري ووفّرت يوم كامل. إبداع!',
+    saad: 'سعد، نسخة المدوّن التجريبية طلعت بوقتها وبدون مشاكل. كفو!',
+    maha: 'مها، أول عميل يدفع لنظامي. فخورين فيك!',
+    faisal: 'فيصل، عرض سبل كان مرتب وجاهز بدري. يعطيك العافية!',
+    abdullah: 'عبدالله، أرقام الربع الثالث جت واضحة وبوقتها. يعطيك العافية!',
+  },
+  feed: {
+    f1: { from: 'أحمد', to: 'نورة', value: 'الجودة', msg: 'شاشات الوكلاء مضبوطة.' },
+    f2: { from: 'سعد', to: 'فيصل', value: 'التعاون', msg: 'غطّى مكالمة العميل!' },
+    f3: { from: 'أحمد', to: 'مها', value: 'المسؤولية', msg: 'أول عميل يدفع!' },
+  },
+  me: 'أحمد',
+};
+
+export const NS = registerStrings('s28', { en, ar });
