@@ -246,6 +246,82 @@ export type Database = {
           },
         ]
       }
+      alerts: {
+        Row: {
+          body: string
+          body_ar: string | null
+          created_at: string
+          dedupe_key: string
+          id: string
+          kind: string
+          profile_id: string
+          read_at: string | null
+          sent_push: boolean
+          sent_whatsapp: boolean
+          subject_id: string | null
+          task_id: string | null
+          title: string
+          title_ar: string | null
+          whatsapp_status: string | null
+        }
+        Insert: {
+          body: string
+          body_ar?: string | null
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          kind: string
+          profile_id: string
+          read_at?: string | null
+          sent_push?: boolean
+          sent_whatsapp?: boolean
+          subject_id?: string | null
+          task_id?: string | null
+          title: string
+          title_ar?: string | null
+          whatsapp_status?: string | null
+        }
+        Update: {
+          body?: string
+          body_ar?: string | null
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          kind?: string
+          profile_id?: string
+          read_at?: string | null
+          sent_push?: boolean
+          sent_whatsapp?: boolean
+          subject_id?: string | null
+          task_id?: string | null
+          title?: string
+          title_ar?: string | null
+          whatsapp_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_messages: {
         Row: {
           action: string
@@ -516,6 +592,76 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: true
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      objectives: {
+        Row: {
+          achieved_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_at: string
+          id: string
+          owner_id: string | null
+          start_at: string
+          status: Database["public"]["Enums"]["objective_status"]
+          title: string
+          title_ar: string | null
+          updated_at: string
+          workspace_id: string | null
+        }
+        Insert: {
+          achieved_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_at: string
+          id?: string
+          owner_id?: string | null
+          start_at?: string
+          status?: Database["public"]["Enums"]["objective_status"]
+          title: string
+          title_ar?: string | null
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Update: {
+          achieved_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_at?: string
+          id?: string
+          owner_id?: string | null
+          start_at?: string
+          status?: Database["public"]["Enums"]["objective_status"]
+          title?: string
+          title_ar?: string | null
+          updated_at?: string
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "objectives_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objectives_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "objectives_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -812,6 +958,7 @@ export type Database = {
           goal: string | null
           helper_id: string | null
           id: string
+          objective_id: string | null
           owner_id: string | null
           priority: Database["public"]["Enums"]["task_priority"]
           progress: number
@@ -837,6 +984,7 @@ export type Database = {
           goal?: string | null
           helper_id?: string | null
           id?: string
+          objective_id?: string | null
           owner_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
           progress?: number
@@ -862,6 +1010,7 @@ export type Database = {
           goal?: string | null
           helper_id?: string | null
           id?: string
+          objective_id?: string | null
           owner_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
           progress?: number
@@ -886,6 +1035,13 @@ export type Database = {
             columns: ["helper_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_objective_id_fkey"
+            columns: ["objective_id"]
+            isOneToOne: false
+            referencedRelation: "objectives"
             referencedColumns: ["id"]
           },
           {
@@ -986,27 +1142,41 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_edit_objective: { Args: { o_id: string }; Returns: boolean }
       can_lead: { Args: never; Returns: boolean }
+      can_see_objective: { Args: { o_id: string }; Returns: boolean }
       can_see_profile: { Args: { target: string }; Returns: boolean }
       can_see_task: { Args: { t_id: string }; Returns: boolean }
       can_see_workspace: { Args: { w_id: string }; Returns: boolean }
+      cancel_objective: { Args: { p_objective: string }; Returns: undefined }
       cancel_task: { Args: { p_task: string }; Returns: undefined }
       create_task_with_plan: { Args: { p: Json }; Returns: string }
       current_profile_id: { Args: never; Returns: string }
       delete_task: { Args: { p_task: string }; Returns: undefined }
+      distribute_tasks: { Args: { p_objective: string }; Returns: number }
       evidence_task_id: { Args: { object_name: string }; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_below: { Args: { boss: string; target: string }; Returns: boolean }
       is_manager_of: { Args: { target: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      link_task: {
+        Args: { p_objective: string; p_task: string }
+        Returns: undefined
+      }
+      refresh_objective: { Args: { p_objective: string }; Returns: undefined }
       save_push_token: {
         Args: { p_device_name?: string; p_platform: string; p_token: string }
+        Returns: undefined
+      }
+      shift_task_due: {
+        Args: { new_due: string; p_task: string }
         Returns: undefined
       }
       update_task_from_chat: {
         Args: { p_task: string; patch: Json }
         Returns: undefined
       }
+      upsert_objective: { Args: { p: Json }; Returns: string }
       upsert_person: { Args: { p: Json }; Returns: string }
       upsert_person_inner: { Args: { p: Json }; Returns: string }
     }
@@ -1030,6 +1200,7 @@ export type Database = {
         | "skipped"
         | "cancelled"
         | "failed"
+      objective_status: "active" | "achieved" | "missed" | "cancelled"
       person_status: "active" | "pending" | "deleted"
       review_decision: "approved" | "sent_back"
       source_status: "connected" | "disconnected" | "coming_soon" | "error"
@@ -1215,6 +1386,7 @@ export const Constants = {
         "cancelled",
         "failed",
       ],
+      objective_status: ["active", "achieved", "missed", "cancelled"],
       person_status: ["active", "pending", "deleted"],
       review_decision: ["approved", "sent_back"],
       source_status: ["connected", "disconnected", "coming_soon", "error"],
