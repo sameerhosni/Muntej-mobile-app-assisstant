@@ -16,6 +16,7 @@ const ar: Translations = {
     autopilot: 'الطيار الآلي',
     decisions: 'القرارات',
     brief: 'الملخص',
+    tasks: 'المهام',
     myTasks: 'مهامي',
     rewards: 'المكافآت',
     badges: 'الأوسمة',
@@ -59,6 +60,7 @@ const ar: Translations = {
     '35': 'أول تجربة',
     '36': 'اسأل منتج كيف',
     '37': 'كبّر شغلك',
+    '38': 'المهام',
   },
   home: {
     morning: 'صباح الخير',

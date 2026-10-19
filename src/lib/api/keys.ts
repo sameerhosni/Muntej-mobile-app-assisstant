@@ -1,6 +1,7 @@
 import type { DecisionStatus, TaskStatus } from './types';
 
-export type TaskFilter = { ownerId?: string; statuses?: TaskStatus[]; workspaceId?: string };
+/** orderBy: 'due' (default, soonest first) or 'created' (newest first). */
+export type TaskFilter = { ownerId?: string; statuses?: TaskStatus[]; workspaceId?: string; orderBy?: 'due' | 'created' };
 
 export const qk = {
   me: ['me'] as const,

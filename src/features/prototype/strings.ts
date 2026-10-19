@@ -63,6 +63,7 @@ const en = {
   d35: 'New employees learn by doing on their real first task: three coach marks (Accept, Add proof, Done) with points.',
   d36: 'An in-app AI guide replaces manuals: ask in Arabic or English, get 3 steps, then "Show me" or "Do it for me".',
   d37: 'Expand without sales calls: new team in a minute, invite another manager, branches not yet on Muntej, referral.',
+  d38: 'Every task you can see in one list: newest or by priority, with what is missing flagged. Changes go through the chat.',
   t01: 'Tap the avatar for settings, or say a task with the mic.',
   t02: 'Read the plan, then tap "Done, forget it".',
   t03: 'Scan Today vs Yesterday. Nothing here needs you.',
@@ -100,6 +101,7 @@ const en = {
   t35: 'Follow the tip: Accept, proof, done.',
   t36: 'Pick a question, then Do it for me.',
   t37: 'Invite the Jeddah manager, then share the receipt.',
+  t38: 'Switch Newest / Priority, filter Mine, then tap a task to change it by chatting with Muntej.',
 };
 
 const ar: typeof en = {
@@ -163,6 +165,7 @@ const ar: typeof en = {
   d34: 'صوّر قائمة الموظفين، أو اختر من الجهات، أو حط رابط الانضمام في قروب الواتساب. بدون كتابة.',
   d35: 'الموظف الجديد يتعلم وهو يشتغل على أول مهمة: ثلاث تلميحات (قبول، إثبات، تم) بنقاط.',
   d36: 'دليل ذكي بدال الكتيبات: اسأل بالعربي أو الإنجليزي، خذ ٣ خطوات، وبعدها "ورّني" أو "سوّها عني".',
+  d38: 'كل المهام اللي تقدر تشوفها في قائمة وحدة: الأحدث أو حسب الأولوية، والناقص عليه علامة. التعديل يصير من المحادثة.',
   d37: 'توسّع بدون مبيعات: فريق جديد في دقيقة، ادعُ مدير ثاني، فروع للحين ما انضمت، وإحالة.',
   t01: 'اضغط الصورة للإعدادات، أو قل مهمة بالمايك.',
   t02: 'اقرأ الخطة، وبعدها اضغط "تم، انساها".',
@@ -200,6 +203,7 @@ const ar: typeof en = {
   t34: 'شيل مها، وبعدها أرسل الدعوة.',
   t35: 'امشِ مع التلميح: قبول، إثبات، تم.',
   t36: 'اختر سؤال، وبعدها سوّها عني.',
+  t38: 'بدّل بين الأحدث والأولوية، فلتر مهامي، وبعدها اضغط مهمة وعدّلها بالسوالف مع منتج.',
   t37: 'ادعُ مدير جدة، وبعدها شارك الإيصال.',
 };
 

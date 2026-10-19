@@ -49,7 +49,10 @@ export function useTasks(filter: TaskFilter = {}) {
   return useQuery({
     queryKey: qk.tasks(filter),
     queryFn: async (): Promise<TaskWithPeople[]> => {
-      let q = supabase.from('tasks').select(TASK_SELECT).order('due_at', { ascending: true, nullsFirst: false });
+      let q =
+        filter.orderBy === 'created'
+          ? supabase.from('tasks').select(TASK_SELECT).order('created_at', { ascending: false })
+          : supabase.from('tasks').select(TASK_SELECT).order('due_at', { ascending: true, nullsFirst: false });
       if (filter.ownerId) q = q.eq('owner_id', filter.ownerId);
       if (filter.workspaceId) q = q.eq('workspace_id', filter.workspaceId);
       if (filter.statuses?.length) q = q.in('status', filter.statuses);

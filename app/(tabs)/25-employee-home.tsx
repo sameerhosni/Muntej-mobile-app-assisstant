@@ -1,18 +1,18 @@
 // Screen 25 · Employee Home — see design/v2/html/EmployeeHome.dc.html (Arabic: EmployeeHomeAR.dc.html)
-// Live: profile, "less reporting" hours (useHomeStats) and "My tasks" (tasks, RLS-scoped).
+// Live: profile, "less reporting" hours (useHomeStats) and "Latest tasks" (Mine; tasks, RLS-scoped).
 // Demo: level, XP, streak, badges, quests, points and rewards (shared demo wallet) — no gamification backend yet.
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
-import { Award, Banknote, Calendar, Check, ChevronRight, Clock, Flame, Gift, Hand, Trophy } from 'lucide-react-native';
-import { AppText, Avatar, Card, Chip, Gradient, Hero, IconBadge, PointsCoin, PointsPill, ProgressBar } from '@/components/ui';
-import type { ChipTone } from '@/components/ui/Chip';
+import { useQueryClient } from '@tanstack/react-query';
+import { Award, Banknote, Check, ChevronRight, Clock, Flame, Gift, Hand, Trophy } from 'lucide-react-native';
+import { AppText, Avatar, Card, Gradient, Hero, IconBadge, PointsCoin, PointsPill, ProgressBar } from '@/components/ui';
 import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { ACTIVE_STATUSES, useHomeStats, useMyProfile, useTasks, type TaskPriority } from '@/lib/api';
+import { useHomeStats, useMyProfile } from '@/lib/api';
 import { formatNumber, hoursSaved } from '@/features/home/value';
-import { formatDue } from '@/features/capture/format';
+import { LatestTasks } from '@/features/tasks/LatestTasks';
 import { person, personLabel } from '@/features/demo/team';
 import { LEVEL, NEXT_LEVEL_XP, useWallet, wallet } from '@/features/rewards/wallet';
 import { NEXT_REWARD } from '@/features/rewards/demo';
@@ -21,14 +21,13 @@ import { BADGE_COUNT, QUESTS, STREAK_DAYS, TEAM_QUEST } from '@/features/employe
 import { LevelRing } from '@/features/employee-home/LevelRing';
 import { NS } from '@/features/employee-home/strings';
 
-const priorityTone: Record<TaskPriority, ChipTone> = { low: 'neutral', medium: 'primary', high: 'amber', urgent: 'red' };
-
 export default function EmployeeHome() {
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
   const me = useMyProfile();
   const stats = useHomeStats();
-  const tasks = useTasks({ ownerId: me.data?.id, statuses: ACTIVE_STATUSES });
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
   const w = useWallet();
 
   const n = (v: number) => formatNumber(v, lang);
@@ -36,7 +35,6 @@ export default function EmployeeHome() {
   const firstName = fullName.split(' ')[0];
   // employee view of "time saved": updates they gave in one tap instead of writing reports
   const hours = stats.data ? hoursSaved(0, stats.data.updatesReceived) : null;
-  const myTasks = me.data ? (tasks.data ?? []).filter((x) => x.owner_id === me.data?.id) : [];
   const toGo = Math.max(NEXT_REWARD.cost - w.balance, 0);
 
   return (
@@ -45,10 +43,10 @@ export default function EmployeeHome() {
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
           <RefreshControl
-            refreshing={tasks.isRefetching}
+            refreshing={refreshing}
             onRefresh={() => {
-              tasks.refetch();
-              stats.refetch();
+              setRefreshing(true);
+              Promise.all([qc.invalidateQueries({ queryKey: ['tasks'] }), stats.refetch()]).finally(() => setRefreshing(false));
             }}
             tintColor={colors.purple}
           />
@@ -263,38 +261,9 @@ export default function EmployeeHome() {
             <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
           </Card>
 
-          {/* My tasks (live) */}
-          <View style={{ gap: spacing.md, marginTop: 6 }}>
-            <AppText variant="section">{t('myTasks')}</AppText>
-            {myTasks.length === 0 && !tasks.isLoading && (
-              <Card>
-                <AppText color="textMuted">{t('noTasks')}</AppText>
-              </Card>
-            )}
-            {myTasks.map((task) => (
-              <Card
-                key={task.id}
-                padding={spacing.lg}
-                onPress={() => router.push({ pathname: '/14-task-detail', params: { id: task.id } })}
-                accessibilityLabel={task.title}
-                style={{ flexDirection: 'row', alignItems: 'center', minHeight: 58 }}
-              >
-                <IconBadge size={36} bg="purpleTint">
-                  <Calendar color={colors.purple} size={17} strokeWidth={1.9} />
-                </IconBadge>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <AppText weight="bold" numberOfLines={1}>
-                    {task.title}
-                  </AppText>
-                  {task.due_at && (
-                    <AppText variant="caption" color="textMuted">
-                      {t('due', { when: formatDue(task.due_at, lang) })}
-                    </AppText>
-                  )}
-                </View>
-                <Chip label={t(`p_${task.priority}`)} tone={priorityTone[task.priority]} style={{ alignSelf: 'center' }} />
-              </Card>
-            ))}
+          {/* Latest tasks (live, mine) */}
+          <View style={{ marginTop: 6 }}>
+            <LatestTasks filter="mine" role="employee" />
           </View>
         </View>
       </ScrollView>

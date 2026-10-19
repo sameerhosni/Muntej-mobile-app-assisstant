@@ -16,7 +16,9 @@ export default function TabsLayout() {
       tabBar={(props) => {
         // show the bar that belongs to the screen on display (lets the prototype walk both roles)
         const current = props.state.routes[props.state.index]?.name ?? '';
-        const screenRole = SCREENS.find((s) => s.route === `/${current}`)?.tab ?? role;
+        const tab = SCREENS.find((s) => s.route === `/${current}`)?.tab;
+        // shared tabs (e.g. 38 Tasks) keep the signed-in user's bar
+        const screenRole = tab && tab !== 'both' ? tab : role;
         return <TabBar {...props} role={screenRole} badges={{ '04-decisions': pending }} />;
       }}
     >
@@ -24,6 +26,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="03-autopilot" />
       <Tabs.Screen name="04-decisions" />
       <Tabs.Screen name="05-brief" />
+      <Tabs.Screen name="38-tasks" />
       <Tabs.Screen name="25-employee-home" />
       <Tabs.Screen name="06-employee-chat" />
       <Tabs.Screen name="26-rewards" />

@@ -1,9 +1,10 @@
-// The 37 v2 screens (design/v2/canvas.json), with their route, design file and sprint.
+// The 37 v2 screens (design/v2/canvas.json), with their route, design file and sprint,
+// plus 38 Tasks (no mockup; v2 light style per design/TOKENS.md).
 
 export type ScreenNum =
   | '01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13'
   | '14' | '15' | '16' | '17' | '18' | '19' | '20' | '21' | '22' | '23' | '24' | '25' | '26'
-  | '27' | '28' | '29' | '30' | '31' | '32' | '33' | '34' | '35' | '36' | '37';
+  | '27' | '28' | '29' | '30' | '31' | '32' | '33' | '34' | '35' | '36' | '37' | '38';
 
 export type Role = 'manager' | 'employee';
 
@@ -13,8 +14,11 @@ export type ScreenMeta = {
   /** design/v2/html/<design>.dc.html (+ <design>AR.dc.html) */
   design: string;
   sprint: 1 | 2 | 3;
-  /** Shown in this role's bottom tab bar. */
-  tab?: Role;
+  /**
+   * Lives in the tab navigator. A role name means the screen shows that role's bar;
+   * 'both' means it is in both bars and shows the signed-in user's bar.
+   */
+  tab?: Role | 'both';
 };
 
 export const SCREENS: ScreenMeta[] = [
@@ -55,6 +59,7 @@ export const SCREENS: ScreenMeta[] = [
   { num: '35', route: '/35-first-run', design: 'FirstRun', sprint: 1 },
   { num: '36', route: '/36-how-to', design: 'HowTo', sprint: 1 },
   { num: '37', route: '/37-grow', design: 'Grow', sprint: 2 },
+  { num: '38', route: '/38-tasks', design: 'Tasks', sprint: 1, tab: 'both' },
 ];
 
 export function screenMeta(num: ScreenNum): ScreenMeta {

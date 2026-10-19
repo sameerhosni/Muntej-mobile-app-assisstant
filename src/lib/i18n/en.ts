@@ -13,6 +13,7 @@ const en = {
     autopilot: 'Autopilot',
     decisions: 'Decisions',
     brief: 'Brief',
+    tasks: 'Tasks',
     myTasks: 'My tasks',
     rewards: 'Rewards',
     badges: 'Badges',
@@ -56,6 +57,7 @@ const en = {
     '35': 'First run',
     '36': 'Ask Muntej how',
     '37': 'Grow',
+    '38': 'Tasks',
   },
   home: {
     morning: 'Good morning',

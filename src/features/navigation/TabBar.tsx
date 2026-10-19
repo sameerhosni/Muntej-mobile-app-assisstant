@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { router, type Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { Award, CircleCheck, Gift, House, MessageCircle, Mic, RotateCw, ChartNoAxesColumn, type LucideProps } from 'lucide-react-native';
+import { Award, CircleCheck, Gift, House, ListChecks, Mic, ChartNoAxesColumn, type LucideProps } from 'lucide-react-native';
 import { AppText, Gradient } from '@/components/ui';
 import { colors, radius, shadows, sizes } from '@/theme/tokens';
 import type { Role } from '@/features/screens/registry';
@@ -14,7 +14,7 @@ type TabDef = { name: string; label: string; Icon: ComponentType<LucideProps> };
 
 const MANAGER: (TabDef | 'mic')[] = [
   { name: '01-home', label: 'tabs.home', Icon: House },
-  { name: '03-autopilot', label: 'tabs.autopilot', Icon: RotateCw },
+  { name: '38-tasks', label: 'tabs.tasks', Icon: ListChecks },
   'mic',
   { name: '04-decisions', label: 'tabs.decisions', Icon: CircleCheck },
   { name: '05-brief', label: 'tabs.brief', Icon: ChartNoAxesColumn },
@@ -23,7 +23,7 @@ const MANAGER: (TabDef | 'mic')[] = [
 // everyone can create tasks (an employee may manage others), so both bars carry the centre mic
 const EMPLOYEE: (TabDef | 'mic')[] = [
   { name: '25-employee-home', label: 'tabs.home', Icon: House },
-  { name: '06-employee-chat', label: 'tabs.myTasks', Icon: MessageCircle },
+  { name: '38-tasks', label: 'tabs.tasks', Icon: ListChecks },
   'mic',
   { name: '26-rewards', label: 'tabs.rewards', Icon: Gift },
   { name: '29-badges', label: 'tabs.badges', Icon: Award },

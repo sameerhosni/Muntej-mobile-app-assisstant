@@ -3,7 +3,8 @@ import type { ComponentType } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Banknote, ChevronRight, Clock, Hand, Keyboard, Receipt, type LucideProps } from 'lucide-react-native';
+import { AlertTriangle, Banknote, ChevronRight, Clock, Hand, Keyboard, Receipt, RotateCw, type LucideProps } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import { AppText, Avatar, Card, Gradient, Hero, IconBadge, SectionTitle, StatTile } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -11,6 +12,9 @@ import { useHomeStats, useMyProfile, usePendingDecisionCount } from '@/lib/api';
 import { formatNumber, hoursSaved, sarSaved } from '@/features/home/value';
 import { useProto } from '@/features/prototype/store';
 import { TeamEnergyCard } from '@/features/home/TeamEnergyCard';
+import { LatestTasks } from '@/features/tasks/LatestTasks';
+import { NS as TASKS_NS } from '@/features/tasks/strings';
+import { useScreenT } from '@/lib/i18n/register';
 
 function greetingKey(date = new Date()) {
   const h = date.getHours();
@@ -24,6 +28,8 @@ export default function ManagerHome() {
   const stats = useHomeStats();
   const pending = usePendingDecisionCount();
   const { active: protoActive } = useProto();
+  const qc = useQueryClient();
+  const { t: tt } = useScreenT(TASKS_NS);
 
   if (me.data?.role === 'employee' && !protoActive) return <Redirect href="/25-employee-home" />;
 
@@ -37,7 +43,14 @@ export default function ManagerHome() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
-          <RefreshControl refreshing={stats.isRefetching} onRefresh={() => stats.refetch()} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={stats.isRefetching}
+            onRefresh={() => {
+              stats.refetch();
+              qc.invalidateQueries({ queryKey: ['tasks'] });
+            }}
+            tintColor={colors.primary}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -169,6 +182,28 @@ export default function ManagerHome() {
               <Keyboard color={colors.primary} size={20} strokeWidth={1.9} />
             </Pressable>
           </View>
+
+          <LatestTasks filter="all" role="manager" />
+
+          {/* Autopilot left the tab bar (Tasks took its place); it stays one tap away from Home. */}
+          <Card
+            padding={spacing.lg}
+            onPress={() => router.push('/03-autopilot')}
+            accessibilityLabel={`${tt('autopilot')} · ${tt('autopilotSub')}`}
+            style={{ flexDirection: 'row', alignItems: 'center', minHeight: sizes.touch + 12, marginTop: -spacing.sm }}
+          >
+            <IconBadge size={36} bg="primaryTint">
+              <RotateCw color={colors.primary} size={17} strokeWidth={2} />
+            </IconBadge>
+            <AppText variant="small" color="textMuted" numberOfLines={1} style={{ flex: 1 }}>
+              <AppText variant="small" weight="bold">
+                {tt('autopilot')}
+              </AppText>
+              {' · '}
+              {tt('autopilotSub')}
+            </AppText>
+            <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
+          </Card>
         </View>
       </ScrollView>
     </View>
