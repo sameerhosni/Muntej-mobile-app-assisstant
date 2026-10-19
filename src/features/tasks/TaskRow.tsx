@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
-import { CircleCheck, Info } from 'lucide-react-native';
+import { CircleCheck, Info, Mic } from 'lucide-react-native';
 import { AppText, Avatar, Card, Chip } from '@/components/ui';
 import type { ChipTone } from '@/components/ui/Chip';
 import { colors, sizes, spacing } from '@/theme/tokens';
@@ -24,17 +24,14 @@ const statusTone: Record<TaskStatus, ChipTone> = {
   cancelled: 'neutral',
 };
 
-/** Changes are conversational: open the Muntej chat with the task already named. */
-export function useOpenTaskChat() {
-  const { t } = useScreenT(NS);
-  return (task: Pick<TaskWithPeople, 'title'>) =>
-    router.push({ pathname: '/02-capture', params: { mode: 'text', draft: t('aboutDraft', { title: task.title }) } });
+/** Changes are conversational: open the Muntej chat locked on this task (typed or by voice). */
+function openTaskChat(taskId: string, mode: 'text' | 'voice') {
+  router.push({ pathname: '/02-capture', params: { mode, focus: taskId } });
 }
 
 export function TaskRow({ task }: { task: TaskWithPeople }) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
-  const openChat = useOpenTaskChat();
 
   const done = task.status === 'done';
   const cancelled = task.status === 'cancelled';
@@ -45,7 +42,7 @@ export function TaskRow({ task }: { task: TaskWithPeople }) {
     // the row and the info button are siblings: a pressable can't sit inside another (nested <button> on web)
     <Card padding={spacing.lg} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingEnd: spacing.xs }}>
       <Pressable
-        onPress={() => openChat(task)}
+        onPress={() => openTaskChat(task.id, 'text')}
         accessibilityRole="button"
         accessibilityLabel={t('rowA11y', { title: task.title })}
         style={({ pressed }) => ({ flex: 1, minWidth: 0, gap: 6, opacity: pressed ? 0.75 : 1 })}
@@ -96,6 +93,22 @@ export function TaskRow({ task }: { task: TaskWithPeople }) {
             </AppText>
           </View>
         )}
+      </Pressable>
+
+      <Pressable
+        onPress={() => openTaskChat(task.id, 'voice')}
+        accessibilityRole="button"
+        accessibilityLabel={t('micA11y', { title: task.title })}
+        style={({ pressed }) => ({
+          width: sizes.touch,
+          height: sizes.touch,
+          marginTop: -6,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <Mic color={colors.primary} size={19} strokeWidth={2.1} />
       </Pressable>
 
       <Pressable

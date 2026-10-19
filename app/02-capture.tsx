@@ -2,6 +2,8 @@
 // Now the Muntej chat: one continuous conversation; the muntej-chat Edge Function decides whether to reply,
 // create a task (saved immediately), update, cancel or delete one. Everything is changed by talking: no edit page.
 // Task cards offer Cancel / Delete and fill-in-missing chips; optional next-step suggestions sit under the latest reply.
+// Focus: opened with ?focus=<task id> (or "Talk about this" / picking a candidate) the chat is locked on that task and
+// every message changes it directly. Without focus, describing a task gives a proposed change the user must confirm.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -13,29 +15,42 @@ import { AppText, IconButton } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useMyProfile, useTeam } from '@/lib/api';
+import { useMyProfile, useTask, useTeam } from '@/lib/api';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
 import { transcribeAudio } from '@/features/capture/api';
 import { personName } from '@/features/capture/TaskReview';
 import {
   appendToChat,
   chatKey,
+  confirmChange,
   invalidateTaskData,
+  isCandidates,
   mergeTask,
   sendChat,
   cancelTask,
   deleteTask,
+  taskSnapshot,
   useChat,
   type ChatSource,
   type MissingItem,
+  type TaskSnapshot,
 } from '@/features/chat/api';
 import { MuntejAvatar, MuntejBubble, MuntejText, NoticeBubble, TypingBubble, UserBubble } from '@/features/chat/Bubbles';
-import { TaskCard, type CardState } from '@/features/chat/TaskCard';
+import { ProposalCard, TaskCard, type CardState, type ProposalState } from '@/features/chat/TaskCard';
 import { Suggestions } from '@/features/chat/Suggestions';
+import { Candidates } from '@/features/chat/Candidates';
+import { FocusBar } from '@/features/chat/FocusBar';
 import { Composer, type VoiceState } from '@/features/chat/Composer';
 import { NS } from '@/features/chat/strings';
 
-type Pending = { content: string; source: ChatSource; at: string; status: 'sending' | 'error'; error?: string };
+type Pending = {
+  content: string;
+  source: ChatSource;
+  focus: string | null;
+  at: string;
+  status: 'sending' | 'error';
+  error?: string;
+};
 
 const EXAMPLES = ['ex1', 'ex2', 'ex3'] as const;
 
@@ -45,15 +60,23 @@ export default function MuntejChatScreen() {
   const { lang } = useDirection();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  // draft: opened from the Tasks list ("About …: ") so the user just continues the sentence
-  const { mode, draft } = useLocalSearchParams<{ mode?: 'voice' | 'text'; draft?: string }>();
+  // focus: opened from a task (Tasks list row / mic) → the chat is locked on that task
+  const { mode, focus } = useLocalSearchParams<{ mode?: 'voice' | 'text'; focus?: string }>();
 
   const chat = useChat();
   const team = useTeam();
   const me = useMyProfile();
   const recorder = useVoiceRecorder();
 
-  const [text, setText] = useState(typeof draft === 'string' ? draft : '');
+  const [focusTaskId, setFocusTaskId] = useState<string | null>(typeof focus === 'string' && focus ? focus : null);
+  // the same (modal) screen opened again for another task
+  useEffect(() => {
+    if (typeof focus === 'string' && focus) setFocusTaskId(focus);
+  }, [focus]);
+
+  const [text, setText] = useState('');
+  // proposals the user turned down ("Not this one"), by message id
+  const [rejected, setRejected] = useState<Record<string, true>>({});
   const [pending, setPending] = useState<Pending | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [voice, setVoice] = useState<VoiceState>('idle');
@@ -76,15 +99,17 @@ export default function MuntejChatScreen() {
   }, [lang]);
 
   // ── sending ────────────────────────────────────────────────────────────────
+  // focusOverride: send about a task picked just now (state hasn't updated yet); default = the current focus
   const send = useCallback(
-    async (raw: string, source: ChatSource) => {
+    async (raw: string, source: ChatSource, focusOverride?: string | null) => {
       const content = raw.trim();
       if (!content) return;
       setNotice(null);
-      const p: Pending = { content, source, at: new Date().toISOString(), status: 'sending' };
+      const f = focusOverride !== undefined ? focusOverride : focusTaskId;
+      const p: Pending = { content, source, focus: f, at: new Date().toISOString(), status: 'sending' };
       setPending(p);
       try {
-        const rows = await sendChat(content, source);
+        const rows = await sendChat(content, source, f);
         appendToChat(qc, rows);
         setPending(null);
         qc.invalidateQueries({ queryKey: chatKey });
@@ -93,7 +118,7 @@ export default function MuntejChatScreen() {
         setPending({ ...p, status: 'error', error: (e as Error).message || t('failed') });
       }
     },
-    [qc, t],
+    [qc, t, focusTaskId],
   );
 
   const busy = pending?.status === 'sending';
@@ -168,13 +193,69 @@ export default function MuntejChatScreen() {
   // ── task cards ─────────────────────────────────────────────────────────────
   const messages = chat.data?.messages ?? [];
   const liveTasks = chat.data?.tasks ?? {};
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
 
-  // only the newest card per task is shown (it carries the latest state)
+  // only the newest card per task is shown (it carries the latest state); proposals are always shown on their own message
   const latestCardFor = useMemo(() => {
     const m = new Map<string, string>();
-    for (const msg of messages) if (msg.payload?.id) m.set(msg.payload.id, msg.id);
+    for (const msg of messages) {
+      const snap = taskSnapshot(msg.payload);
+      if (snap && !snap.confirm_update) m.set(snap.id, msg.id);
+    }
     return m;
   }, [messages]);
+
+  // a proposal counts as confirmed when a later assistant message updated that task
+  const proposalState = (index: number, snap: TaskSnapshot, msgId: string): ProposalState => {
+    if (rejected[msgId]) return 'rejected';
+    const later = messages.slice(index + 1);
+    if (later.some((x) => x.role === 'assistant' && x.action === 'updated' && (x.task_id ?? taskSnapshot(x.payload)?.id) === snap.id))
+      return 'confirmed';
+    return msgId === lastAssistantId && !pending ? 'open' : 'stale';
+  };
+
+  const confirmProposal = async (taskId: string, patch: NonNullable<TaskSnapshot['proposed_patch']>) => {
+    try {
+      const rows = await confirmChange(taskId, patch, lang);
+      appendToChat(qc, rows);
+      await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
+    } catch {
+      setNotice(t('confirmFailed'));
+    }
+  };
+
+  const focusComposer = () => setTimeout(() => input.current?.focus(), 50);
+
+  const rejectProposal = (msgId: string) => {
+    setRejected((r) => ({ ...r, [msgId]: true }));
+    setText('');
+    focusComposer();
+  };
+
+  const talkAbout = (taskId: string) => {
+    setFocusTaskId(taskId);
+    focusComposer();
+  };
+
+  // ── focus bar ──────────────────────────────────────────────────────────────
+  const focusLive = focusTaskId ? liveTasks[focusTaskId] : undefined;
+  // not in the chat yet (opened from the Tasks list) → read the task itself
+  const focusDetail = useTask(focusTaskId && !focusLive ? focusTaskId : undefined);
+  const focusTitle = focusLive?.title ?? focusDetail.data?.title ?? null;
+  const focusOwnerId = focusLive ? focusLive.owner_id : (focusDetail.data?.owner_id ?? null);
+  const focusOwnerProfile = focusOwnerId ? (team.data ?? []).find((p) => p.id === focusOwnerId) : undefined;
+  const focusOwnerFull = focusOwnerProfile
+    ? personName(focusOwnerProfile, lang)
+    : focusDetail.data?.owner
+      ? (lang === 'ar' && focusDetail.data.owner.full_name_ar) || focusDetail.data.owner.full_name
+      : null;
+  const focusOwner = focusOwnerFull ? focusOwnerFull.split(' ')[0] : null;
+
+  // the focused task was deleted → leave focus
+  const goneIds = chat.data?.gone;
+  useEffect(() => {
+    if (focusTaskId && goneIds?.includes(focusTaskId)) setFocusTaskId(null);
+  }, [focusTaskId, goneIds]);
 
   const end = async (taskId: string, how: 'cancelled' | 'deleted') => {
     try {
@@ -188,12 +269,11 @@ export default function MuntejChatScreen() {
 
   const fillMissing = (item: MissingItem) => {
     setText(t(`s_${item}`));
-    setTimeout(() => input.current?.focus(), 50);
+    focusComposer();
   };
 
   const firstName = me.data ? personName(me.data, lang).split(' ')[0] : '';
   const gone = new Set(chat.data?.gone ?? []);
-  const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
   const meId = me.data?.id;
   const empty = !chat.isLoading && !chat.isError && messages.length === 0 && !pending;
 
@@ -302,12 +382,25 @@ export default function MuntejChatScreen() {
           </>
         )}
 
-        {messages.map((m) => {
+        {messages.map((m, i) => {
           if (m.role === 'user') return <UserBubble key={m.id} text={m.content} time={timeFmt(m.created_at)} />;
-          const showCard = !!m.payload?.id && latestCardFor.get(m.payload.id) === m.id;
+          const snap = taskSnapshot(m.payload);
+          const isLatest = m.id === lastAssistantId && !pending;
           let card = null;
-          if (showCard && m.payload) {
-            const task = mergeTask(m.payload, liveTasks[m.payload.id]);
+          if (snap?.confirm_update) {
+            const patch = snap.proposed_patch ?? {};
+            card = (
+              <ProposalCard
+                key={`p-${m.id}`}
+                snap={snap}
+                team={team.data ?? []}
+                state={proposalState(i, snap, m.id)}
+                onConfirm={() => confirmProposal(snap.id, patch)}
+                onReject={() => rejectProposal(m.id)}
+              />
+            );
+          } else if (snap && latestCardFor.get(snap.id) === m.id) {
+            const task = mergeTask(snap, liveTasks[snap.id]);
             const state: CardState =
               ended[task.id] ?? (gone.has(task.id) ? 'deleted' : task.status === 'cancelled' ? 'cancelled' : 'active');
             const owner = (team.data ?? []).find((p) => p.id === task.owner_id);
@@ -320,19 +413,31 @@ export default function MuntejChatScreen() {
                 team={team.data ?? []}
                 state={state}
                 canDelete={canDelete}
-                askDelete={!!m.payload.confirm_delete && m.id === lastAssistantId}
+                askDelete={!!snap.confirm_delete && m.id === lastAssistantId}
                 onCancel={() => end(task.id, 'cancelled')}
                 onDelete={() => end(task.id, 'deleted')}
                 onMissing={fillMissing}
+                onTalkAbout={focusTaskId === task.id ? undefined : () => talkAbout(task.id)}
               />
             );
           }
-          const next = m.id === lastAssistantId && !pending ? (m.payload?.suggestions ?? []) : [];
+          const next = isLatest ? (m.payload?.suggestions ?? []) : [];
+          const candidates = isLatest && isCandidates(m.payload) ? m.payload : null;
           return (
             <View key={m.id} style={{ gap: spacing.md }}>
               <MuntejBubble time={timeFmt(m.created_at)} below={card}>
                 <MuntejText text={m.content} />
               </MuntejBubble>
+              {candidates && (
+                <Candidates
+                  items={candidates.candidates}
+                  disabled={busy}
+                  onPick={(c) => {
+                    setFocusTaskId(c.id);
+                    send(candidates.original_message, 'text', c.id);
+                  }}
+                />
+              )}
               <Suggestions items={next} onPick={(x) => send(x, 'text')} disabled={busy} />
             </View>
           );
@@ -350,11 +455,23 @@ export default function MuntejChatScreen() {
           <NoticeBubble
             text={pending.error ?? t('failed')}
             retryLabel={t('retry')}
-            onRetry={() => send(pending.content, pending.source)}
+            onRetry={() => send(pending.content, pending.source, pending.focus)}
           />
         )}
         {notice && <NoticeBubble text={notice} />}
       </ScrollView>
+
+      {!!focusTaskId && !!focusTitle && (
+        <FocusBar
+          title={focusTitle}
+          ownerFirstName={focusOwner}
+          onClear={() => {
+            setFocusTaskId(null);
+            // drop it from the route too, or a reload would lock onto the task again
+            router.setParams({ focus: undefined });
+          }}
+        />
+      )}
 
       <Composer
         value={text}

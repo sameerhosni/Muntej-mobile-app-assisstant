@@ -31,7 +31,45 @@ export type TaskSnapshot = {
   suggestions?: string[];
   /** the user asked to delete this task in the chat: show the delete confirmation */
   confirm_delete?: boolean;
+  /** PROPOSAL: nothing has changed yet; the user must confirm proposed_patch */
+  confirm_update?: boolean;
+  proposed_patch?: ProposedPatch;
+  proposed_owner_name?: string | null;
 };
+
+/** Fields Muntej may propose to change on a described (not focused) task. */
+export type ProposedPatch = {
+  due_at?: string | null;
+  owner_id?: string | null;
+  helper_id?: string | null;
+  priority?: TaskPriority;
+  title?: string;
+  definition_of_done?: string | null;
+  budget?: string | null;
+  goal?: string | null;
+};
+
+/** A task that might be the one the user described (several fit). */
+export type Candidate = { id: string; title: string; owner_name: string | null; due_at: string | null };
+
+/** Assistant payload when several tasks fit: no id; the user picks one and the message is re-sent with that focus. */
+export type CandidatesPayload = {
+  id?: undefined;
+  candidates: Candidate[];
+  original_message: string;
+  suggestions?: string[];
+};
+
+export type ChatPayload = TaskSnapshot | CandidatesPayload;
+
+export function isCandidates(p: ChatPayload | null | undefined): p is CandidatesPayload {
+  return !!p && Array.isArray((p as CandidatesPayload).candidates);
+}
+
+/** The task card snapshot on a message, if it has one. */
+export function taskSnapshot(p: ChatPayload | null | undefined): TaskSnapshot | null {
+  return p && !isCandidates(p) && typeof p.id === 'string' ? p : null;
+}
 
 export type ChatMessage = {
   id: string;
@@ -40,7 +78,7 @@ export type ChatMessage = {
   content: string;
   task_id: string | null;
   action: ChatAction;
-  payload: TaskSnapshot | null;
+  payload: ChatPayload | null;
   created_at: string;
 };
 
@@ -66,7 +104,7 @@ async function fetchChat(): Promise<ChatData> {
   const messages = ((data ?? []) as ChatMessage[]).reverse();
 
   // payload.id survives a delete (task_id is set to null when the task row goes)
-  const ids = [...new Set(messages.map((m) => m.payload?.id ?? m.task_id).filter((x): x is string => !!x))];
+  const ids = [...new Set(messages.map((m) => taskSnapshot(m.payload)?.id ?? m.task_id).filter((x): x is string => !!x))];
   const tasks: Record<string, LiveTaskRow> = {};
   let gone: string[] = [];
   if (ids.length) {
@@ -88,10 +126,20 @@ export function useChat() {
   return useQuery({ queryKey: chatKey, queryFn: fetchChat });
 }
 
-/** Sends one message; returns the stored [user, assistant] rows. */
-export async function sendChat(message: string, source: ChatSource): Promise<ChatMessage[]> {
+/** Sends one message; returns the stored [user, assistant] rows.
+ *  focusTaskId: the chat is locked on that task, so the server changes it directly. */
+export async function sendChat(message: string, source: ChatSource, focusTaskId?: string | null): Promise<ChatMessage[]> {
   const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', {
-    body: { message, source },
+    body: focusTaskId ? { message, source, focus_task_id: focusTaskId } : { message, source },
+  });
+  if (error) throw await toError(error);
+  return data?.messages ?? [];
+}
+
+/** Applies a proposed change the user confirmed; returns the one stored assistant row. */
+export async function confirmChange(taskId: string, patch: ProposedPatch, lang: 'en' | 'ar'): Promise<ChatMessage[]> {
+  const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', {
+    body: { apply: { task_id: taskId, patch }, lang },
   });
   if (error) throw await toError(error);
   return data?.messages ?? [];
