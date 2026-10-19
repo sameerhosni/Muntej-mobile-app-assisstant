@@ -41,9 +41,11 @@ const TaskUpdate = z.object({
 const ChatOutput = z.object({
   language: z.enum(['en', 'ar']),
   reply: z.string(),
-  action: z.enum(['none', 'create', 'update']),
+  action: z.enum(['none', 'create', 'update', 'cancel', 'delete']),
   task: NewTask.nullable().describe('Only when action = create'),
   update: TaskUpdate.nullable().describe('Only when action = update; null fields mean "unchanged"'),
+  target_task_id: z.string().nullable().describe('Only when action = cancel or delete'),
+  suggestions: z.array(z.string()).describe('0-3 optional next steps, each a short ready-to-send message in the user language'),
 });
 type ChatOutput = z.infer<typeof ChatOutput>;
 
@@ -56,11 +58,14 @@ Each turn, choose ONE action:
 - "none": small talk (hi, thanks) and questions ("what's late?", "who is free?"). Answer questions from the provided open_tasks/team data only; never invent facts.
 - "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). Create it IMMEDIATELY, even if details are vague — the user can Undo, and gaps are filled later in the chat. Never ask a clarifying question instead of creating: write the best short title you can from what was said, and mention the open points (which one, when, what "done" means) in the reply as things they can add. Only the title is required: owner, due date, what "done" means, priority details and budget may all be null and filled later. Only use "none" for work if you cannot even name the task.
   WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team using, in order: skills and title that match the work, recent_tasks similar to this one, then the lowest open_tasks load. Put the reason in owner_reason (one short clause, user's language). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
-- "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null.
+- "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null. The user may point at another task by its title, client or owner ("move the lease task to Thursday", "مهمة فيصل خلها بكرة"): match it in recent_chat_tasks or open_tasks.
+- "cancel": the user wants a task stopped ("cancel it", "الغها", "ما نحتاجها"). Put its id in target_task_id (most recent task unless another is meant).
+- "delete": the user wants a task removed completely ("delete it", "احذفها"). Put its id in target_task_id. Deleting needs one tap to confirm, so say you've shown it and they just need to confirm. Prefer "cancel" when they only mean it's no longer needed.
 
 Writing rules:
 - language = the language of the user's latest message. Write reply, title, owner_reason, goal, definition_of_done and helper_reason in it. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
 - reply: 1–3 short sentences, human and warm, no lists, no ids. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so.
+- suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. Empty for small talk, questions, cancel and delete.
 - ids (owner_id, helper_id, workspace_id, task_id) must come from the provided lists, else null.
 - Dates: resolve relative dates against current_time_riyadh. Saudi work week is Sunday–Thursday. "Before Thursday" = Thursday 17:00; no time said → 17:00. ISO 8601 with +03:00.
 - priority: urgent only for today/ASAP/ضروري/عاجل; high for client or executive deadlines within a week; low if "no rush"; else medium.
@@ -219,7 +224,8 @@ serve(async (req) => {
   const taskIds = new Set(allTasks.map((t) => t.id));
   const person = (id: string | null) => (id && teamIds.has(id) ? id : null);
 
-  let action: 'none' | 'created' | 'updated' = 'none';
+  let action: 'none' | 'created' | 'updated' | 'cancelled' = 'none';
+  let confirmDelete = false;
   let taskId: string | null = null;
   let ownerReason: string | null = null;
   let ownerChanged = false;
@@ -298,6 +304,18 @@ serve(async (req) => {
     }
   }
 
+  // cancel runs now; delete only shows the card in a confirm state (one tap in the app actually deletes it)
+  if ((parsed.action === 'cancel' || parsed.action === 'delete') && parsed.target_task_id && taskIds.has(parsed.target_task_id)) {
+    taskId = parsed.target_task_id;
+    if (parsed.action === 'cancel') {
+      const { error } = await db.rpc('cancel_task', { p_task: taskId });
+      if (error) throw new HttpError(400, error.message);
+      action = 'cancelled';
+    } else {
+      confirmDelete = true;
+    }
+  }
+
   // ── task card snapshot ──
   let payload: Record<string, unknown> | null = null;
   if (taskId) {
@@ -316,7 +334,10 @@ serve(async (req) => {
         definition_of_done: t.definition_of_done,
         budget: t.budget,
         status: t.status,
+        assigner_id: t.assigner_id,
         missing: missingOf(t),
+        suggestions: action === 'created' || action === 'updated' ? parsed.suggestions.slice(0, 3) : [],
+        ...(confirmDelete ? { confirm_delete: true } : {}),
       };
     }
   }

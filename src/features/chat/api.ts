@@ -3,13 +3,13 @@ import { supabase } from '@/lib/supabase';
 import type { Task, TaskPriority, TaskStatus } from '@/lib/api';
 import { toError } from '@/features/capture/api';
 
-// chat_messages and the chat RPCs (update_task_from_chat, undo_chat_task) are not in the generated
+// chat_messages and the chat RPCs (cancel_task, delete_task) are not in the generated
 // database types yet. The untyped client stays inside this file; everything else uses the types below.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const untyped = supabase as any;
 
 export type ChatSource = 'voice' | 'text';
-export type ChatAction = 'none' | 'created' | 'updated' | 'undone';
+export type ChatAction = 'none' | 'created' | 'updated' | 'cancelled' | 'deleted';
 export type MissingItem = 'owner' | 'due' | 'definition_of_done' | 'budget';
 
 /** Task card snapshot the muntej-chat function stores on an assistant message (action created/updated). */
@@ -25,7 +25,12 @@ export type TaskSnapshot = {
   definition_of_done: string | null;
   budget: string | null;
   status: TaskStatus;
+  assigner_id?: string;
   missing: MissingItem[];
+  /** optional next steps, each a ready-to-send message */
+  suggestions?: string[];
+  /** the user asked to delete this task in the chat: show the delete confirmation */
+  confirm_delete?: boolean;
 };
 
 export type ChatMessage = {
@@ -45,14 +50,11 @@ export type LiveTask = Pick<
   'id' | 'title' | 'owner_id' | 'helper_id' | 'due_at' | 'priority' | 'definition_of_done' | 'budget' | 'goal' | 'status'
 >;
 
-export type ChatData = { messages: ChatMessage[]; tasks: Record<string, LiveTask> };
+export type LiveTaskRow = LiveTask & { assigner_id: string };
+/** gone = task ids the chat mentions that no longer exist (deleted) */
+export type ChatData = { messages: ChatMessage[]; tasks: Record<string, LiveTaskRow>; gone: string[] };
 
 export const chatKey = ['chat'] as const;
-
-/** Fields update_task_from_chat accepts. */
-export type TaskPatch = Partial<
-  Pick<LiveTask, 'title' | 'owner_id' | 'helper_id' | 'due_at' | 'priority' | 'definition_of_done' | 'budget' | 'goal'>
->;
 
 async function fetchChat(): Promise<ChatData> {
   const { data, error } = await untyped
@@ -63,17 +65,22 @@ async function fetchChat(): Promise<ChatData> {
   if (error) throw new Error(error.message);
   const messages = ((data ?? []) as ChatMessage[]).reverse();
 
-  const ids = [...new Set(messages.map((m) => m.task_id).filter((x): x is string => !!x))];
-  const tasks: Record<string, LiveTask> = {};
+  // payload.id survives a delete (task_id is set to null when the task row goes)
+  const ids = [...new Set(messages.map((m) => m.payload?.id ?? m.task_id).filter((x): x is string => !!x))];
+  const tasks: Record<string, LiveTaskRow> = {};
+  let gone: string[] = [];
   if (ids.length) {
     const res = await supabase
       .from('tasks')
-      .select('id, title, owner_id, helper_id, due_at, priority, definition_of_done, budget, goal, status')
+      .select('id, title, owner_id, helper_id, assigner_id, due_at, priority, definition_of_done, budget, goal, status')
       .in('id', ids);
     // live state is a nice-to-have: the cards fall back to their snapshot if this fails
-    if (!res.error) for (const t of res.data) tasks[t.id] = t;
+    if (!res.error) {
+      for (const t of res.data) tasks[t.id] = t;
+      gone = ids.filter((id) => !tasks[id]);
+    }
   }
-  return { messages, tasks };
+  return { messages, tasks, gone };
 }
 
 /** The signed-in person's chat with Muntej (last 60 messages, oldest first). */
@@ -97,18 +104,20 @@ export function appendToChat(qc: QueryClient, rows: ChatMessage[]) {
     return {
       messages: [...(old?.messages ?? []), ...rows.filter((r) => !known.has(r.id))],
       tasks: old?.tasks ?? {},
+      gone: old?.gone ?? [],
     };
   });
 }
 
-/** "Undo" on a task card: cancels the task and its pending follow-ups (nothing is deleted). */
-export async function undoChatTask(taskId: string): Promise<void> {
-  const { error } = await untyped.rpc('undo_chat_task', { p_task: taskId });
+/** Cancel: the task stays (status cancelled) and its pending follow-ups stop. */
+export async function cancelTask(taskId: string): Promise<void> {
+  const { error } = await untyped.rpc('cancel_task', { p_task: taskId });
   if (error) throw new Error(error.message);
 }
 
-export async function updateTaskFromChat(taskId: string, patch: TaskPatch): Promise<void> {
-  const { error } = await untyped.rpc('update_task_from_chat', { p_task: taskId, patch });
+/** Delete: removes the task for good (only its assigner or the owner's manager may). */
+export async function deleteTask(taskId: string): Promise<void> {
+  const { error } = await untyped.rpc('delete_task', { p_task: taskId });
   if (error) throw new Error(error.message);
 }
 
@@ -136,11 +145,12 @@ export type CardTask = {
   budget: string | null;
   goal: string | null;
   status: TaskStatus;
+  assigner_id: string | null;
   missing: MissingItem[];
 };
 
-export function mergeTask(snap: TaskSnapshot, live?: LiveTask): CardTask {
-  if (!live) return { ...snap, helper_id: null, goal: null };
+export function mergeTask(snap: TaskSnapshot, live?: LiveTaskRow): CardTask {
+  if (!live) return { ...snap, helper_id: null, goal: null, assigner_id: snap.assigner_id ?? null };
   const sameOwner = live.owner_id === snap.owner_id;
   const missing: MissingItem[] = [];
   if (!live.owner_id) missing.push('owner');
@@ -161,6 +171,7 @@ export function mergeTask(snap: TaskSnapshot, live?: LiveTask): CardTask {
     budget: live.budget,
     goal: live.goal,
     status: live.status,
+    assigner_id: live.assigner_id,
     missing,
   };
 }

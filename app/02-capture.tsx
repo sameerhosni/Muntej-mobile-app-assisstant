@@ -1,6 +1,7 @@
 // Screen 02 · Capture — see design/v2/html/Capture.dc.html (Arabic: CaptureAR.dc.html)
 // Now the Muntej chat: one continuous conversation; the muntej-chat Edge Function decides whether to reply,
-// create a task (saved immediately) or update a recent one. Task cards support Undo / Edit / fill-in-missing.
+// create a task (saved immediately), update, cancel or delete one. Everything is changed by talking: no edit page.
+// Task cards offer Cancel / Delete and fill-in-missing chips; optional next-step suggestions sit under the latest reply.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -22,18 +23,16 @@ import {
   invalidateTaskData,
   mergeTask,
   sendChat,
-  undoChatTask,
-  updateTaskFromChat,
+  cancelTask,
+  deleteTask,
   useChat,
-  type CardTask,
   type ChatSource,
   type MissingItem,
-  type TaskPatch,
 } from '@/features/chat/api';
 import { MuntejAvatar, MuntejBubble, MuntejText, NoticeBubble, TypingBubble, UserBubble } from '@/features/chat/Bubbles';
-import { TaskCard } from '@/features/chat/TaskCard';
+import { TaskCard, type CardState } from '@/features/chat/TaskCard';
+import { Suggestions } from '@/features/chat/Suggestions';
 import { Composer, type VoiceState } from '@/features/chat/Composer';
-import { EditSheet } from '@/features/chat/EditSheet';
 import { NS } from '@/features/chat/strings';
 
 type Pending = { content: string; source: ChatSource; at: string; status: 'sending' | 'error'; error?: string };
@@ -46,19 +45,20 @@ export default function MuntejChatScreen() {
   const { lang } = useDirection();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const { mode } = useLocalSearchParams<{ mode?: 'voice' | 'text' }>();
+  // draft: opened from the Tasks list ("About …: ") so the user just continues the sentence
+  const { mode, draft } = useLocalSearchParams<{ mode?: 'voice' | 'text'; draft?: string }>();
 
   const chat = useChat();
   const team = useTeam();
   const me = useMyProfile();
   const recorder = useVoiceRecorder();
 
-  const [text, setText] = useState('');
+  const [text, setText] = useState(typeof draft === 'string' ? draft : '');
   const [pending, setPending] = useState<Pending | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [voice, setVoice] = useState<VoiceState>('idle');
-  const [undone, setUndone] = useState<Set<string>>(() => new Set());
-  const [editing, setEditing] = useState<CardTask | null>(null);
+  // optimistic card states until the refetch confirms them
+  const [ended, setEnded] = useState<Record<string, Exclude<CardState, 'active'>>>({});
 
   const scroll = useRef<ScrollView>(null);
   const input = useRef<TextInput>(null);
@@ -88,7 +88,7 @@ export default function MuntejChatScreen() {
         appendToChat(qc, rows);
         setPending(null);
         qc.invalidateQueries({ queryKey: chatKey });
-        if (rows.some((r) => r.action === 'created' || r.action === 'updated')) invalidateTaskData(qc);
+        if (rows.some((r) => r.action !== 'none')) invalidateTaskData(qc);
       } catch (e) {
         setPending({ ...p, status: 'error', error: (e as Error).message || t('failed') });
       }
@@ -172,28 +172,18 @@ export default function MuntejChatScreen() {
   // only the newest card per task is shown (it carries the latest state)
   const latestCardFor = useMemo(() => {
     const m = new Map<string, string>();
-    for (const msg of messages) if (msg.payload && msg.task_id) m.set(msg.task_id, msg.id);
+    for (const msg of messages) if (msg.payload?.id) m.set(msg.payload.id, msg.id);
     return m;
   }, [messages]);
 
-  const undo = async (taskId: string) => {
-    setUndone((s) => new Set(s).add(taskId));
+  const end = async (taskId: string, how: 'cancelled' | 'deleted') => {
     try {
-      await undoChatTask(taskId);
+      await (how === 'deleted' ? deleteTask(taskId) : cancelTask(taskId));
+      setEnded((e) => ({ ...e, [taskId]: how }));
       await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
     } catch {
-      setUndone((s) => {
-        const n = new Set(s);
-        n.delete(taskId);
-        return n;
-      });
-      setNotice(t('undoFailed'));
+      setNotice(t(how === 'deleted' ? 'deleteFailed' : 'cancelFailed'));
     }
-  };
-
-  const saveEdit = async (taskId: string, patch: TaskPatch) => {
-    await updateTaskFromChat(taskId, patch);
-    await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
   };
 
   const fillMissing = (item: MissingItem) => {
@@ -202,6 +192,9 @@ export default function MuntejChatScreen() {
   };
 
   const firstName = me.data ? personName(me.data, lang).split(' ')[0] : '';
+  const gone = new Set(chat.data?.gone ?? []);
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
+  const meId = me.data?.id;
   const empty = !chat.isLoading && !chat.isError && messages.length === 0 && !pending;
 
   return (
@@ -311,27 +304,37 @@ export default function MuntejChatScreen() {
 
         {messages.map((m) => {
           if (m.role === 'user') return <UserBubble key={m.id} text={m.content} time={timeFmt(m.created_at)} />;
-          const showCard = !!m.payload && !!m.task_id && latestCardFor.get(m.task_id) === m.id;
+          const showCard = !!m.payload?.id && latestCardFor.get(m.payload.id) === m.id;
           let card = null;
           if (showCard && m.payload) {
             const task = mergeTask(m.payload, liveTasks[m.payload.id]);
-            const isUndone = undone.has(task.id) || task.status === 'cancelled' || m.action === 'undone';
+            const state: CardState =
+              ended[task.id] ?? (gone.has(task.id) ? 'deleted' : task.status === 'cancelled' ? 'cancelled' : 'active');
+            const owner = (team.data ?? []).find((p) => p.id === task.owner_id);
+            const canDelete = !!meId && (task.assigner_id === meId || owner?.manager_id === meId);
             card = (
               <TaskCard
+                key={`${task.id}-${m.id}`}
                 task={task}
                 action={m.action}
                 team={team.data ?? []}
-                undone={isUndone}
-                onUndo={() => undo(task.id)}
-                onEdit={() => setEditing(task)}
+                state={state}
+                canDelete={canDelete}
+                askDelete={!!m.payload.confirm_delete && m.id === lastAssistantId}
+                onCancel={() => end(task.id, 'cancelled')}
+                onDelete={() => end(task.id, 'deleted')}
                 onMissing={fillMissing}
               />
             );
           }
+          const next = m.id === lastAssistantId && !pending ? (m.payload?.suggestions ?? []) : [];
           return (
-            <MuntejBubble key={m.id} time={timeFmt(m.created_at)} below={card}>
-              <MuntejText text={m.content} />
-            </MuntejBubble>
+            <View key={m.id} style={{ gap: spacing.md }}>
+              <MuntejBubble time={timeFmt(m.created_at)} below={card}>
+                <MuntejText text={m.content} />
+              </MuntejBubble>
+              <Suggestions items={next} onPick={(x) => send(x, 'text')} disabled={busy} />
+            </View>
           );
         })}
 
@@ -369,7 +372,6 @@ export default function MuntejChatScreen() {
         bottomInset={insets.bottom}
       />
 
-      <EditSheet task={editing} team={team.data ?? []} onClose={() => setEditing(null)} onSave={saveEdit} />
     </KeyboardAvoidingView>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { Calendar, CircleAlert, CircleCheck, Pencil, Plus, Undo2, Users } from 'lucide-react-native';
+import { Ban, Calendar, CircleAlert, CircleCheck, Plus, Trash2, Users } from 'lucide-react-native';
 import { AppText, Avatar } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -19,21 +19,29 @@ const priorityStyle: Record<TaskPriority, { bg: ColorToken; fg: ColorToken }> = 
   low: { bg: 'chip', fg: 'textMuted' },
 };
 
+export type CardState = 'active' | 'cancelled' | 'deleted';
+
 type Props = {
   task: CardTask;
   action: ChatAction;
   team: Profile[];
-  undone: boolean;
-  onUndo: () => Promise<void>;
-  onEdit: () => void;
+  state: CardState;
+  /** only the person who assigned it (or the owner's manager) may delete; the server checks too */
+  canDelete: boolean;
+  /** the user asked to delete it in the chat → open with the delete confirmation */
+  askDelete?: boolean;
+  onCancel: () => Promise<void>;
+  onDelete: () => Promise<void>;
   onMissing: (item: MissingItem) => void;
 };
 
 /** The task Muntej just created/updated, under its chat message. */
-export function TaskCard({ task, action, team, undone, onUndo, onEdit, onMissing }: Props) {
+export function TaskCard({ task, action, team, state, canDelete, askDelete, onCancel, onDelete, onMissing }: Props) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
-  const [undoing, setUndoing] = useState(false);
+  const [confirm, setConfirm] = useState<'cancel' | 'delete' | null>(askDelete && canDelete ? 'delete' : null);
+  const [working, setWorking] = useState(false);
+  const undone = state !== 'active';
 
   const owner = team.find((p) => p.id === task.owner_id);
   const helper = team.find((p) => p.id === task.helper_id);
@@ -41,12 +49,13 @@ export function TaskCard({ task, action, team, undone, onUndo, onEdit, onMissing
   const helperName = helper ? personName(helper, lang).split(' ')[0] : task.helper_name;
   const pr = priorityStyle[task.priority];
 
-  const undo = async () => {
-    setUndoing(true);
+  const run = async () => {
+    setWorking(true);
     try {
-      await onUndo();
+      await (confirm === 'delete' ? onDelete() : onCancel());
+      setConfirm(null);
     } finally {
-      setUndoing(false);
+      setWorking(false);
     }
   };
 
@@ -67,12 +76,12 @@ export function TaskCard({ task, action, team, undone, onUndo, onEdit, onMissing
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {undone ? (
-          <Undo2 color={colors.textMuted} size={13} strokeWidth={2.4} />
+          state === 'deleted' ? <Trash2 color={colors.textMuted} size={13} strokeWidth={2.4} /> : <Ban color={colors.textMuted} size={13} strokeWidth={2.4} />
         ) : (
           <CircleCheck color={colors.greenText} size={13} strokeWidth={2.4} />
         )}
         <AppText variant="micro" weight="bold" color={undone ? 'textMuted' : 'greenText'}>
-          {undone ? t('undone') : action === 'updated' ? t('updated') : t('created')}
+          {undone ? t(state) : action === 'updated' ? t('updated') : action === 'none' ? t('taskLabel') : t('created')}
         </AppText>
       </View>
 
@@ -167,14 +176,28 @@ export function TaskCard({ task, action, team, undone, onUndo, onEdit, onMissing
             </View>
           )}
 
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <CardButton label={t('undo')} onPress={undo} busy={undoing}>
-              <Undo2 color={colors.textSoft} size={16} strokeWidth={2.1} />
-            </CardButton>
-            <CardButton label={t('edit')} onPress={onEdit} primary>
-              <Pencil color={colors.primary} size={15} strokeWidth={2.1} />
-            </CardButton>
-          </View>
+          {confirm ? (
+            <View style={{ gap: spacing.sm, backgroundColor: colors.redTint, borderRadius: radius.md, padding: spacing.md }}>
+              <AppText variant="small" weight="bold" color="red">
+                {t(confirm === 'delete' ? 'confirmDelete' : 'confirmCancel')}
+              </AppText>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <CardButton label={t('keep')} onPress={() => setConfirm(null)} />
+                <CardButton label={t(confirm === 'delete' ? 'yesDelete' : 'yesCancel')} onPress={run} busy={working} danger />
+              </View>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <CardButton label={t('cancelTask')} onPress={() => setConfirm('cancel')}>
+                <Ban color={colors.textSoft} size={15} strokeWidth={2.1} />
+              </CardButton>
+              {canDelete && (
+                <CardButton label={t('delete')} onPress={() => setConfirm('delete')}>
+                  <Trash2 color={colors.red} size={15} strokeWidth={2.1} />
+                </CardButton>
+              )}
+            </View>
+          )}
         </>
       )}
     </View>
@@ -202,15 +225,15 @@ function Pill({ bg, children }: { bg: ColorToken; children: React.ReactNode }) {
 function CardButton({
   label,
   onPress,
-  primary,
+  danger,
   busy,
   children,
 }: {
   label: string;
   onPress: () => void;
-  primary?: boolean;
+  danger?: boolean;
   busy?: boolean;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <Pressable
@@ -224,8 +247,8 @@ function CardButton({
         minHeight: sizes.touch,
         borderRadius: radius.pill,
         borderWidth: 1,
-        borderColor: primary ? colors.borderBlue : colors.border,
-        backgroundColor: primary ? colors.primaryTint : colors.surface,
+        borderColor: danger ? colors.red : colors.border,
+        backgroundColor: danger ? colors.red : colors.surface,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -234,11 +257,11 @@ function CardButton({
       })}
     >
       {busy ? (
-        <ActivityIndicator size="small" color={colors.textSoft} />
+        <ActivityIndicator size="small" color={danger ? colors.onDark : colors.textSoft} />
       ) : (
         <>
           {children}
-          <AppText variant="small" weight="bold" color={primary ? 'primary' : 'textSoft'}>
+          <AppText variant="small" weight="bold" color={danger ? 'onDark' : 'textSoft'}>
             {label}
           </AppText>
         </>
