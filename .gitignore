@@ -42,3 +42,8 @@ supabase/.branches/
 # generated native folders
 /ios
 /android
+
+# Firebase: the app config files (google-services.json, GoogleService-Info.plist) are public by design and committed;
+# the service-account JSON and APNs .p8 keys are secrets: never commit them (they live only in Expo credentials)
+*firebase-adminsdk*.json
+muntej-fbfe5-*.json

@@ -20,7 +20,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -58,11 +59,18 @@
           "microphonePermission": "Muntej uses the microphone so you can say a task out loud."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#1F6FEB",
+          "defaultChannel": "muntej"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
     }
   }
 }
-

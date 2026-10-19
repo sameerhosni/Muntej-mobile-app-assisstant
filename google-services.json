@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "750263401502",
+    "project_id": "muntej-fbfe5",
+    "storage_bucket": "muntej-fbfe5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:750263401502:android:66ac6eee7cf1b21bd7820f",
+        "android_client_info": {
+          "package_name": "sa.muntej.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCwF_9xzPOE92MO6h3ms7vtWd2kl3fB1Bg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

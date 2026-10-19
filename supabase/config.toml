@@ -424,3 +424,6 @@ verify_jwt = false
 
 [functions.muntej-chat]
 verify_jwt = false
+
+[functions.send-followups]
+verify_jwt = false

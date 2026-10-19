@@ -2,7 +2,8 @@
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck } from 'lucide-react-native';
+import { useState } from 'react';
+import { Bell, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck } from 'lucide-react-native';
 import { AppText, Avatar, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle } from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
 import { PROTO_NS } from '@/features/prototype/strings';
@@ -11,6 +12,7 @@ import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { setLanguage, useDirection, type Language } from '@/lib/i18n';
 import { SCREENS } from '@/features/screens/registry';
 import { useTotpFactor } from '@/features/auth/useTotpFactor';
+import { sendTestPush, usePushStatus } from '@/features/notifications/push';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -20,6 +22,20 @@ export default function SettingsScreen() {
   const signOut = useSignOut();
   const { t: tp } = useScreenT(PROTO_NS);
   const twoStep = useTotpFactor();
+  const push = usePushStatus();
+  const [testing, setTesting] = useState(false);
+  const [testNote, setTestNote] = useState<string | null>(null);
+  const test = async () => {
+    setTesting(true);
+    setTestNote(null);
+    try {
+      setTestNote(t((await sendTestPush()) > 0 ? 'push.testSent' : 'push.testNone'));
+    } catch {
+      setTestNote(t('push.error'));
+    } finally {
+      setTesting(false);
+    }
+  };
 
   return (
     <Screen>
@@ -87,6 +103,26 @@ export default function SettingsScreen() {
           </AppText>
         </View>
         <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
+      </Card>
+
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
+          <IconBadge size={44} bg={push === 'on' ? 'greenTint' : 'primaryTint'}>
+            <Bell color={push === 'on' ? colors.green : colors.primary} size={20} strokeWidth={2} />
+          </IconBadge>
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText variant="cardTitle">{t('push.row')}</AppText>
+            <AppText variant="caption" color={push === 'on' ? 'greenText' : 'textMuted'}>
+              {t(`push.${push}`)}
+            </AppText>
+          </View>
+        </View>
+        {push === 'on' && <Button label={t('push.test')} variant="outline" size="md" loading={testing} onPress={test} />}
+        {testNote && (
+          <AppText variant="caption" color="textMuted">
+            {testNote}
+          </AppText>
+        )}
       </Card>
 
       <Card>

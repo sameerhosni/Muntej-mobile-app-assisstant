@@ -6,6 +6,7 @@
 // When the owner's Muntej engine API is ready, this function is the one place to swap it in.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve } from '../_shared/http.ts';
+import { sendPush } from '../_shared/push.ts';
 
 const FollowupStep = z.object({
   at: z.string().describe('ISO 8601 datetime with +03:00 offset'),
@@ -234,6 +235,7 @@ serve(async (req) => {
   let action: 'none' | 'created' | 'updated' = 'none';
   let taskId: string | null = null;
   let ownerReason: string | null = null;
+  let ownerChanged = false;
 
   if (parsed.action === 'create' && parsed.task) {
     const t = parsed.task;
@@ -253,6 +255,7 @@ serve(async (req) => {
     if (error) throw new HttpError(400, error.message);
     taskId = data as string;
     ownerReason = t.owner_reason;
+    ownerChanged = !!t.owner_id;
     action = 'created';
   } else if (parsed.action === 'update' && parsed.update && taskIds.has(parsed.update.task_id)) {
     const u = parsed.update;
@@ -270,6 +273,7 @@ serve(async (req) => {
       if (error) throw new HttpError(400, error.message);
       taskId = u.task_id;
       ownerReason = patch.owner_id ? u.owner_reason : null;
+      ownerChanged = !!patch.owner_id;
       action = 'updated';
     }
   }
@@ -310,6 +314,24 @@ serve(async (req) => {
     .select()
     .single();
   if (e2) throw new HttpError(500, e2.message);
+
+  // ── tell the new owner (never the user themself); a failed push must not fail the chat ──
+  const ownerId = payload?.owner_id as string | null | undefined;
+  if (ownerChanged && ownerId && ownerId !== profileId) {
+    const owner = team.find((p) => p.id === ownerId);
+    const ar = owner?.locale === 'ar';
+    const me = team.find((p) => p.id === profileId);
+    const from = ((ar ? me?.full_name_ar : null) ?? me?.full_name)?.split(' ')[0] ?? 'Muntej';
+    const due = payload?.due_at
+      ? new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(payload.due_at as string))
+      : null;
+    const title = payload?.title as string;
+    await sendPush([ownerId], {
+      title: ar ? `${from} سند لك مهمة` : `${from} assigned you a task`,
+      body: due ? (ar ? `${title} · التسليم ${due}` : `${title} · due ${due}`) : title,
+      data: { taskId },
+    }).catch((e) => console.error('assign push failed', e));
+  }
 
   return json({ messages: [userMsg, botMsg] });
 });

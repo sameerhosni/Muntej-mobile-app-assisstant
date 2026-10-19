@@ -14,6 +14,7 @@ import { loadSavedLanguage, useDirection } from '@/lib/i18n';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
 import { SCREENS } from '@/features/screens/registry';
 import { ProtoBar } from '@/features/prototype/ProtoBar';
+import { usePushNotifications } from '@/features/notifications/push';
 import '@/features/prototype/strings';
 
 // non-tab numbered screens, e.g. "14-task-detail"
@@ -43,6 +44,8 @@ function RootNavigator() {
   const [langReady, setLangReady] = useState(false);
   const { session, ready: authReady, needsMfa } = useAuth();
   const { direction } = useDirection();
+  // register this phone for push + open tasks from tapped notifications (no-op in Expo Go / web)
+  usePushNotifications(!!session && !needsMfa);
 
   useEffect(() => {
     loadSavedLanguage().finally(() => setLangReady(true));

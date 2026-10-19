@@ -169,6 +169,17 @@ const en = {
     genericError: "Couldn't sign in. Check the email or code and try again.",
     rateLimited: 'Too many codes requested. Wait a few minutes and try again.',
   },
+  push: {
+    row: 'Notifications',
+    on: 'On · this phone gets task updates',
+    denied: 'Blocked · allow notifications for Muntej in your phone settings',
+    checking: 'Checking…',
+    error: "Couldn't turn on notifications. Try reopening the app.",
+    unsupported: "Install the Muntej app build to get notifications (they don't work in Expo Go or on the web).",
+    test: 'Send me a test',
+    testSent: 'Sent. It should arrive in a few seconds.',
+    testNone: 'No device registered yet for your account.',
+  },
   security: {
     row: 'Two-step verification',
     rowOn: 'On · authenticator app',
