@@ -4,6 +4,7 @@
 // Task cards offer Cancel / Delete and fill-in-missing chips; optional next-step suggestions sit under the latest reply.
 // Focus: opened with ?focus=<task id> (or "Talk about this" / picking a candidate) the chat is locked on that task and
 // every message changes it directly. Without focus, describing a task gives a proposed change the user must confirm.
+// Team changes ("add Reem under Khalid", "Noura left") always come as an OrgProposalCard: saved only on Confirm.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -23,9 +24,13 @@ import {
   appendToChat,
   chatKey,
   confirmChange,
+  confirmOrg,
   invalidateTaskData,
+  invalidateTeamData,
   isCandidates,
   mergeTask,
+  orgDone,
+  orgProposal,
   sendChat,
   cancelTask,
   deleteTask,
@@ -33,8 +38,10 @@ import {
   useChat,
   type ChatSource,
   type MissingItem,
+  type OrgPatch,
   type TaskSnapshot,
 } from '@/features/chat/api';
+import { OrgProposalCard, type OrgProposalState } from '@/features/chat/OrgProposalCard';
 import { MuntejAvatar, MuntejBubble, MuntejText, NoticeBubble, TypingBubble, UserBubble } from '@/features/chat/Bubbles';
 import { ProposalCard, TaskCard, type CardState, type ProposalState } from '@/features/chat/TaskCard';
 import { Suggestions } from '@/features/chat/Suggestions';
@@ -224,6 +231,21 @@ export default function MuntejChatScreen() {
     }
   };
 
+  // a team change counts as saved when the next assistant message is its "Done"
+  const orgState = (index: number, msgId: string): OrgProposalState => {
+    if (rejected[msgId]) return 'rejected';
+    const next = messages.slice(index + 1).find((x) => x.role === 'assistant');
+    if (next && orgDone(next.payload)) return 'done';
+    return msgId === lastAssistantId && !pending ? 'open' : 'stale';
+  };
+
+  // errors are thrown back to the card, which shows them inline
+  const confirmOrgChange = async (patch: OrgPatch) => {
+    const rows = await confirmOrg(patch, lang);
+    appendToChat(qc, rows);
+    await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTeamData(qc), invalidateTaskData(qc)]);
+  };
+
   const focusComposer = () => setTimeout(() => input.current?.focus(), 50);
 
   const rejectProposal = (msgId: string) => {
@@ -385,9 +407,20 @@ export default function MuntejChatScreen() {
         {messages.map((m, i) => {
           if (m.role === 'user') return <UserBubble key={m.id} text={m.content} time={timeFmt(m.created_at)} />;
           const snap = taskSnapshot(m.payload);
+          const org = orgProposal(m.payload);
           const isLatest = m.id === lastAssistantId && !pending;
           let card = null;
-          if (snap?.confirm_update) {
+          if (org) {
+            card = (
+              <OrgProposalCard
+                key={`o-${m.id}`}
+                proposal={org}
+                state={orgState(i, m.id)}
+                onConfirm={() => confirmOrgChange(org.patch)}
+                onReject={() => rejectProposal(m.id)}
+              />
+            );
+          } else if (snap?.confirm_update) {
             const patch = snap.proposed_patch ?? {};
             card = (
               <ProposalCard

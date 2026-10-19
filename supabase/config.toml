@@ -427,3 +427,6 @@ verify_jwt = false
 
 [functions.send-followups]
 verify_jwt = false
+
+[functions.team-alerts]
+verify_jwt = false

@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import { Bell, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck } from 'lucide-react-native';
+import { Bell, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Users } from 'lucide-react-native';
 import { AppText, Avatar, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle } from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
 import { PROTO_NS } from '@/features/prototype/strings';
@@ -13,6 +13,7 @@ import { setLanguage, useDirection, type Language } from '@/lib/i18n';
 import { SCREENS } from '@/features/screens/registry';
 import { useTotpFactor } from '@/features/auth/useTotpFactor';
 import { sendTestPush, usePushStatus } from '@/features/notifications/push';
+import { NS as TEAM_NS } from '@/features/org/strings';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -21,6 +22,7 @@ export default function SettingsScreen() {
   const { data: me } = useMyProfile();
   const signOut = useSignOut();
   const { t: tp } = useScreenT(PROTO_NS);
+  const { t: tt } = useScreenT(TEAM_NS);
   const twoStep = useTotpFactor();
   const push = usePushStatus();
   const [testing, setTesting] = useState(false);
@@ -87,6 +89,23 @@ export default function SettingsScreen() {
           />
         </Card>
       )}
+
+      <Card
+        onPress={() => router.push('/39-team')}
+        accessibilityLabel={`${tt('title')} · ${tt('linkSub')}`}
+        style={{ flexDirection: 'row', alignItems: 'center' }}
+      >
+        <IconBadge size={44} bg="primaryTint">
+          <Users color={colors.primary} size={20} strokeWidth={2} />
+        </IconBadge>
+        <View style={{ flex: 1, gap: 2 }}>
+          <AppText variant="cardTitle">{tt('title')}</AppText>
+          <AppText variant="caption" color="textMuted">
+            {tt('linkSub')}
+          </AppText>
+        </View>
+        <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
+      </Card>
 
       <Card
         onPress={() => router.push('/security')}

@@ -41,7 +41,8 @@ export function useTeam() {
   return useQuery({
     queryKey: qk.team,
     queryFn: async (): Promise<Profile[]> =>
-      unwrap(await supabase.from('profiles').select('*').order('full_name')),
+      // people who left (status deleted) stay in the org page but not in pickers and team lists
+      unwrap(await supabase.from('profiles').select('*').neq('status', 'deleted').order('full_name')),
   });
 }
 

@@ -53,6 +53,17 @@ const en = {
   loading: 'Loading your alerts…',
   error: "Couldn't load your alerts. Pull to retry.",
   saveError: "Couldn't save that change. We put it back.",
+  recent: 'Recent alerts',
+  recentLabel: 'Recent alerts list',
+  recentEmpty: 'No alerts yet. We only ping you when something needs you, or deserves a cheer.',
+  recentError: "Couldn't load recent alerts.",
+  unread: 'Unread',
+  openHint: 'Opens the task',
+  agoNow: 'now',
+  agoM: '{{n}}m',
+  agoH: '{{n}}h',
+  agoD: '{{n}}d',
+  waNote: "WhatsApp delivery starts once your company's WhatsApp is connected.",
 };
 
 const ar: typeof en = {
@@ -108,6 +119,17 @@ const ar: typeof en = {
   loading: 'نجيب تنبيهاتك…',
   error: 'ما قدرنا نجيب تنبيهاتك. اسحب عشان تعيد.',
   saveError: 'ما قدرنا نحفظ التغيير. رجّعناه مثل ما كان.',
+  recent: 'آخر التنبيهات',
+  recentLabel: 'قائمة آخر التنبيهات',
+  recentEmpty: 'ما فيه تنبيهات للحين. ننبهك بس إذا فيه شي يحتاجك، أو إنجاز يستاهل.',
+  recentError: 'ما قدرنا نجيب آخر التنبيهات.',
+  unread: 'غير مقروء',
+  openHint: 'يفتح المهمة',
+  agoNow: 'الحين',
+  agoM: 'قبل {{n}} د',
+  agoH: 'قبل {{n}} س',
+  agoD: 'قبل {{n}} يوم',
+  waNote: 'التنبيهات على الواتساب تبدأ أول ما يتربط واتساب شركتك.',
 };
 
 export const NS = registerStrings('s18', { en, ar });

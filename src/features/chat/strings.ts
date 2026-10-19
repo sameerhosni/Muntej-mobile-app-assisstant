@@ -80,6 +80,13 @@ const en = {
   f_budget: 'Budget',
   f_goal: 'Goal',
   none: 'None',
+  // team changes
+  orgProposed: 'Team change',
+  orgAdd: 'New team member',
+  orgSaved: 'Saved',
+  orgNotNow: 'Not now',
+  orgSkipped: 'Not saved',
+  orgFailed: "Couldn't save: {{reason}}",
 };
 
 const ar: typeof en = {
@@ -159,6 +166,12 @@ const ar: typeof en = {
   f_budget: 'الميزانية',
   f_goal: 'الهدف',
   none: 'لا شيء',
+  orgProposed: 'تعديل على الفريق',
+  orgAdd: 'عضو جديد في الفريق',
+  orgSaved: 'انحفظ',
+  orgNotNow: 'مو الحين',
+  orgSkipped: 'ما انحفظ',
+  orgFailed: 'ما قدرت أحفظ: {{reason}}',
 };
 
 export const NS = registerStrings('chat', { en, ar });

@@ -64,6 +64,7 @@ const en = {
   d36: 'An in-app AI guide replaces manuals: ask in Arabic or English, get 3 steps, then "Show me" or "Do it for me".',
   d37: 'Expand without sales calls: new team in a minute, invite another manager, branches not yet on Muntej, referral.',
   d38: 'Every task you can see in one list: newest or by priority, with what is missing flagged. Changes go through the chat.',
+  d39: 'The org structure as a tree: who reports to whom, skills with levels, contacts and live task numbers per person.',
   t01: 'Tap the avatar for settings, or say a task with the mic.',
   t02: 'Read the plan, then tap "Done, forget it".',
   t03: 'Scan Today vs Yesterday. Nothing here needs you.',
@@ -102,6 +103,7 @@ const en = {
   t36: 'Pick a question, then Do it for me.',
   t37: 'Invite the Jeddah manager, then share the receipt.',
   t38: 'Switch Newest / Priority, filter Mine, then tap a task to change it by chatting with Muntej.',
+  t39: 'Search a skill, tap a person to see their numbers, then add someone under them.',
 };
 
 const ar: typeof en = {
@@ -166,6 +168,7 @@ const ar: typeof en = {
   d35: 'الموظف الجديد يتعلم وهو يشتغل على أول مهمة: ثلاث تلميحات (قبول، إثبات، تم) بنقاط.',
   d36: 'دليل ذكي بدال الكتيبات: اسأل بالعربي أو الإنجليزي، خذ ٣ خطوات، وبعدها "ورّني" أو "سوّها عني".',
   d38: 'كل المهام اللي تقدر تشوفها في قائمة وحدة: الأحدث أو حسب الأولوية، والناقص عليه علامة. التعديل يصير من المحادثة.',
+  d39: 'هيكل الفريق كشجرة: مين يتبع مين، المهارات ومستوياتها، أرقام التواصل، وأرقام المهام لكل شخص.',
   d37: 'توسّع بدون مبيعات: فريق جديد في دقيقة، ادعُ مدير ثاني، فروع للحين ما انضمت، وإحالة.',
   t01: 'اضغط الصورة للإعدادات، أو قل مهمة بالمايك.',
   t02: 'اقرأ الخطة، وبعدها اضغط "تم، انساها".',
@@ -204,7 +207,11 @@ const ar: typeof en = {
   t35: 'امشِ مع التلميح: قبول، إثبات، تم.',
   t36: 'اختر سؤال، وبعدها سوّها عني.',
   t38: 'بدّل بين الأحدث والأولوية، فلتر مهامي، وبعدها اضغط مهمة وعدّلها بالسوالف مع منتج.',
+  t39: 'دوّر على مهارة، اضغط على شخص تشوف أرقامه، وبعدها أضف أحد تحته.',
   t37: 'ادعُ مدير جدة، وبعدها شارك الإيصال.',
 };
 
 export const PROTO_NS = registerStrings('proto', { en, ar });
+
+// Screen 39 (Team) has no entry in the shared en/ar `screens` list: add its name here.
+registerStrings('screens', { en: { '39': 'Team' }, ar: { '39': 'الفريق' } });

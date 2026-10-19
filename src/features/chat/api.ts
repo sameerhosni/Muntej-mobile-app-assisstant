@@ -60,10 +60,35 @@ export type CandidatesPayload = {
   suggestions?: string[];
 };
 
-export type ChatPayload = TaskSnapshot | CandidatesPayload;
+/** Patch for upsert_person (only the keys that change; id for an existing person). */
+export type OrgPatch = Record<string, unknown> & { id?: string };
+
+/** A team change Muntej proposes ("add Reem under Khalid", "Noura left"): nothing is saved until Confirm. */
+export type OrgProposal = {
+  op: 'add' | 'update' | 'move' | 'status';
+  person_id: string | null;
+  person_name: string;
+  patch: OrgPatch;
+  /** ready-made lines in the conversation language, e.g. "Manager: Ahmed → Maha" */
+  summary_lines: string[];
+};
+
+export type OrgProposalPayload = { id?: undefined; suggestions?: undefined; org_proposal: OrgProposal };
+/** Stored on the "Done" message after a confirmed team change. */
+export type OrgDonePayload = { id?: undefined; suggestions?: undefined; org_done: { person_id: string; person_name: string } };
+
+export type ChatPayload = TaskSnapshot | CandidatesPayload | OrgProposalPayload | OrgDonePayload;
 
 export function isCandidates(p: ChatPayload | null | undefined): p is CandidatesPayload {
   return !!p && Array.isArray((p as CandidatesPayload).candidates);
+}
+
+export function orgProposal(p: ChatPayload | null | undefined): OrgProposal | null {
+  return p && 'org_proposal' in p && p.org_proposal ? p.org_proposal : null;
+}
+
+export function orgDone(p: ChatPayload | null | undefined): OrgDonePayload['org_done'] | null {
+  return p && 'org_done' in p && p.org_done ? p.org_done : null;
 }
 
 /** The task card snapshot on a message, if it has one. */
@@ -143,6 +168,26 @@ export async function confirmChange(taskId: string, patch: ProposedPatch, lang: 
   });
   if (error) throw await toError(error);
   return data?.messages ?? [];
+}
+
+/** Saves a team change the user confirmed (upsert_person runs as them and enforces permissions).
+ *  Throws with the server's readable reason ("You can only change people in your own team"). */
+export async function confirmOrg(patch: OrgPatch, lang: 'en' | 'ar'): Promise<ChatMessage[]> {
+  const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', {
+    body: { apply_org: { patch }, lang },
+  });
+  if (error) throw await toError(error);
+  return data?.messages ?? [];
+}
+
+/** Query keys whose data changes when a team change is saved. */
+export function invalidateTeamData(qc: QueryClient) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['team'] }),
+    qc.invalidateQueries({ queryKey: ['me'] }),
+    qc.invalidateQueries({ queryKey: ['org'] }),
+    qc.invalidateQueries({ queryKey: ['activity'] }),
+  ]);
 }
 
 /** Puts freshly returned rows into the cache right away (before the refetch lands). */

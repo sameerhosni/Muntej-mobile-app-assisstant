@@ -1,8 +1,10 @@
 // Screen 18 · Alerts — see design/v2/html/Alerts.dc.html (Arabic: AlertsAR.dc.html)
 // Live data: notification_prefs (own row, RLS). Toggles save optimistically via src/features/alerts/useAlertPrefs.
+// Recent alerts: table alerts (own rows, written by the team-alerts Edge Function) via src/features/alerts/useAlerts.
 import { Fragment, type ComponentType } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowUp,
   BellOff,
@@ -12,10 +14,12 @@ import {
   CircleCheck,
   Clock,
   FileText,
+  Gauge,
   Hand,
   Mail,
   MessageCircle,
   Moon,
+  Rocket,
   Smartphone,
   Star,
   Sun,
@@ -23,12 +27,14 @@ import {
   Users,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Card, Hero, IconBadge, IconButton, StatTile, Toggle } from '@/components/ui';
+import { AppText, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, Toggle } from '@/components/ui';
 import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { NS } from '@/features/alerts/strings';
+import { ageParts } from '@/features/decisions/people';
+import { useRecentAlerts, type AlertItem, type AlertKind } from '@/features/alerts/useAlerts';
 import { CHANNELS, RULE_KEYS, useAlertPrefs, type Channel, type Rule, type RuleKey } from '@/features/alerts/useAlertPrefs';
 
 const CHANNEL_ICON: Record<Channel, ComponentType<LucideProps>> = {
@@ -50,6 +56,94 @@ const RULE_STYLE: Record<RuleKey, { Icon: ComponentType<LucideProps>; bg: ColorT
   daily_summary: { Icon: Sun, bg: 'primary' },
   weekly_report: { Icon: ChartColumn, bg: 'purple' },
 };
+
+/** Risk alerts in red/amber, achievements in green. */
+const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: ColorToken }> = {
+  task_late: { Icon: Clock, bg: 'red' },
+  task_at_risk: { Icon: TriangleAlert, bg: 'amberText' },
+  overload: { Icon: Gauge, bg: 'amberText' },
+  task_done_on_time: { Icon: CircleCheck, bg: 'green' },
+  task_done_early: { Icon: Rocket, bg: 'green' },
+  five_star: { Icon: Star, bg: 'green' },
+};
+
+function RecentAlerts() {
+  const { t } = useScreenT(NS);
+  const { lang } = useDirection();
+  const { alerts, isLoading, isError, markRead } = useRecentAlerts();
+
+  const open = (a: AlertItem) => {
+    if (!a.read_at) markRead(a.id);
+    if (a.task_id) router.push({ pathname: '/14-task-detail', params: { id: a.task_id } });
+  };
+
+  return (
+    <Card padding={spacing.xl} style={{ gap: spacing.sm }}>
+      <SectionTitle title={t('recent')} />
+      {isLoading && <ActivityIndicator color={colors.primary} style={{ alignSelf: 'flex-start' }} />}
+      {isError && !alerts && (
+        <AppText variant="small" color="red">
+          {t('recentError')}
+        </AppText>
+      )}
+      {alerts && alerts.length === 0 && (
+        <AppText variant="small" color="textMuted">
+          {t('recentEmpty')}
+        </AppText>
+      )}
+      {alerts && alerts.length > 0 && (
+        <View accessibilityLabel={t('recentLabel')}>
+          {alerts.map((a, i) => {
+            const st = ALERT_STYLE[a.kind] ?? ALERT_STYLE.task_at_risk;
+            const ar = lang === 'ar';
+            const title = ar && a.title_ar ? a.title_ar : a.title;
+            const body = ar && a.body_ar ? a.body_ar : a.body;
+            const age = ageParts(a.created_at);
+            const ago = t(age.key, { n: formatNumber(age.n, lang) });
+            const unread = !a.read_at;
+            return (
+              <Pressable
+                key={a.id}
+                onPress={() => open(a)}
+                accessibilityRole={a.task_id ? 'link' : 'button'}
+                accessibilityLabel={`${unread ? `${t('unread')}. ` : ''}${title}. ${body}. ${ago}`}
+                accessibilityHint={a.task_id ? t('openHint') : undefined}
+                style={({ pressed }) => ({
+                  minHeight: 56,
+                  paddingVertical: spacing.sm,
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  gap: spacing.md,
+                  borderTopWidth: i === 0 ? 0 : 1,
+                  borderTopColor: colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <IconBadge size={32} bg={st.bg}>
+                  <st.Icon color={colors.onDark} size={16} strokeWidth={2} />
+                </IconBadge>
+                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                  <AppText weight={unread ? 'extrabold' : 'bold'} numberOfLines={1}>
+                    {title}
+                  </AppText>
+                  <AppText variant="small" color="textMuted" numberOfLines={2}>
+                    {body}
+                  </AppText>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 6, paddingTop: 2 }}>
+                  <AppText variant="micro" color="textFaint" numberOfLines={1}>
+                    {ago}
+                  </AppText>
+                  {unread && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </Card>
+  );
+}
 
 export default function AlertsScreen() {
   const { t } = useScreenT(NS);
@@ -77,6 +171,12 @@ export default function AlertsScreen() {
     return when ? `${chans} · ${when}` : chans;
   };
 
+  const qc = useQueryClient();
+  const onRefresh = () => {
+    refetch();
+    qc.invalidateQueries({ queryKey: ['alerts'] });
+  };
+
   const esc = prefs?.escalation;
   const quietOn = !!prefs?.quiet_hours.enabled;
 
@@ -85,7 +185,7 @@ export default function AlertsScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
         <Hero overlap={40}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg }}>
@@ -121,6 +221,8 @@ export default function AlertsScreen() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -40, gap: spacing.md }}>
+          <RecentAlerts />
+
           {/* Channels */}
           <View accessibilityLabel={t('channelsLabel')} style={{ flexDirection: 'row', gap: spacing.sm }}>
             {CHANNELS.map((c) => {
@@ -164,6 +266,13 @@ export default function AlertsScreen() {
                 </Pressable>
               );
             })}
+          </View>
+          {/* Static: the app can't see the server's WhatsApp setup, so this note always sits next to the toggle. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -spacing.xs }}>
+            <MessageCircle color={colors.textMuted} size={13} strokeWidth={2} />
+            <AppText variant="micro" color="textMuted" style={{ flex: 1 }}>
+              {t('waNote')}
+            </AppText>
           </View>
 
           {isLoading && (

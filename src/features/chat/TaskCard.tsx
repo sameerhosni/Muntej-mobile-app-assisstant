@@ -395,7 +395,7 @@ function Pill({ bg, children }: { bg: ColorToken; children: React.ReactNode }) {
   );
 }
 
-function CardButton({
+export function CardButton({
   label,
   onPress,
   danger,

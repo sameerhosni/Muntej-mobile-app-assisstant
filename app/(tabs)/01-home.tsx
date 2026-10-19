@@ -3,7 +3,7 @@ import type { ComponentType } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Banknote, ChevronRight, Clock, Hand, Keyboard, Receipt, RotateCw, type LucideProps } from 'lucide-react-native';
+import { AlertTriangle, Banknote, ChevronRight, Clock, Hand, Keyboard, Receipt, RotateCw, Users, type LucideProps } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppText, Avatar, Card, Gradient, Hero, IconBadge, SectionTitle, StatTile } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
@@ -14,6 +14,7 @@ import { useProto } from '@/features/prototype/store';
 import { TeamEnergyCard } from '@/features/home/TeamEnergyCard';
 import { LatestTasks } from '@/features/tasks/LatestTasks';
 import { NS as TASKS_NS } from '@/features/tasks/strings';
+import { NS as TEAM_NS } from '@/features/org/strings';
 import { useScreenT } from '@/lib/i18n/register';
 
 function greetingKey(date = new Date()) {
@@ -30,6 +31,7 @@ export default function ManagerHome() {
   const { active: protoActive } = useProto();
   const qc = useQueryClient();
   const { t: tt } = useScreenT(TASKS_NS);
+  const { t: tteam } = useScreenT(TEAM_NS);
 
   if (me.data?.role === 'employee' && !protoActive) return <Redirect href="/25-employee-home" />;
 
@@ -201,6 +203,26 @@ export default function ManagerHome() {
               </AppText>
               {' · '}
               {tt('autopilotSub')}
+            </AppText>
+            <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
+          </Card>
+
+          {/* Org structure (screen 39): who reports to whom, skills, contacts. */}
+          <Card
+            padding={spacing.lg}
+            onPress={() => router.push('/39-team')}
+            accessibilityLabel={`${tteam('title')} · ${tteam('linkSub')}`}
+            style={{ flexDirection: 'row', alignItems: 'center', minHeight: sizes.touch + 12, marginTop: -spacing.sm }}
+          >
+            <IconBadge size={36} bg="primaryTint">
+              <Users color={colors.primary} size={17} strokeWidth={2} />
+            </IconBadge>
+            <AppText variant="small" color="textMuted" numberOfLines={1} style={{ flex: 1 }}>
+              <AppText variant="small" weight="bold">
+                {tteam('title')}
+              </AppText>
+              {' · '}
+              {tteam('linkSub')}
             </AppText>
             <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
           </Card>
