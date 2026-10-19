@@ -180,3 +180,18 @@ export function liveCard(
     raw: d,
   };
 }
+
+/** Filter chips on the Decisions screen: one bucket per card, by decision type. */
+export type DecisionFilter = 'all' | 'extensions' | 'risks' | 'reassign' | 'other';
+export const DECISION_FILTERS: DecisionFilter[] = ['all', 'extensions', 'risks', 'reassign', 'other'];
+
+export function decisionBucket(type: DecisionType): Exclude<DecisionFilter, 'all'> {
+  if (type === 'extension_request') return 'extensions';
+  if (type === 'delay_risk') return 'risks';
+  if (type === 'reassignment') return 'reassign';
+  return 'other';
+}
+
+export function matchesDecisionFilter(card: CardVM, f: DecisionFilter): boolean {
+  return f === 'all' || decisionBucket(card.type) === f;
+}

@@ -60,6 +60,9 @@ const en = {
     qiwaTasks: 'API study,Test env,Contracts,Acceptance,Launch',
     tasks: 'Analysis,Build,Review,Launch',
   },
+  filter: { all: 'All', late: 'Late', atRisk: 'At risk', onTrack: 'On track' },
+  nothingHere: 'Nothing here',
+  showAll: 'Show all',
 };
 
 const ar: typeof en = {
@@ -122,6 +125,9 @@ const ar: typeof en = {
     qiwaTasks: 'دراسة الـAPI,بيئة الاختبار,العقود,القبول,الإطلاق',
     tasks: 'التحليل,البناء,المراجعة,الإطلاق',
   },
+  filter: { all: 'الكل', late: 'متأخرة', atRisk: 'فيها خطر', onTrack: 'ماشية تمام' },
+  nothingHere: 'ما فيه شي هنا',
+  showAll: 'عرض الكل',
 };
 
 export const NS = registerStrings('s24', { en, ar });

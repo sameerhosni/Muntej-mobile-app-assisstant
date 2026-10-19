@@ -1,11 +1,12 @@
 // Screen 38 · Tasks — no mockup; v2 light style per design/TOKENS.md
 // Live: every task the user may see (RLS), newest or by priority. Changes go through the Muntej chat (02-capture).
+// One search box + one chip row (All · Mine · I assigned · Late · Unassigned · Cancelled), counts follow the search.
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ListChecks } from 'lucide-react-native';
-import { AppText, Button, Card, Chip, IconBadge } from '@/components/ui';
+import { AppText, Button, Card, Chip, FilterChips, IconBadge, SearchField } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -20,8 +21,15 @@ export default function TasksScreen() {
   const { lang } = useDirection();
   const [sort, setSort] = useState<SortMode>('newest');
   const [filter, setFilter] = useState<TaskListFilter>('all');
-  const { query, rows, role } = useTaskList(filter, sort);
+  const [search, setSearch] = useState('');
+  const { query, rows, counts, role } = useTaskList(filter, sort, search);
   const accent = role === 'employee' ? colors.purple : colors.primary;
+  const hasAnyTask = (query.data?.length ?? 0) > 0;
+
+  const resetView = () => {
+    setFilter('all');
+    setSearch('');
+  };
 
   const header = (
     <View style={{ gap: spacing.lg, marginBottom: spacing.sm }}>
@@ -49,17 +57,15 @@ export default function TasksScreen() {
 
       <SortToggle value={sort} onChange={setSort} role={role} />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        accessibilityLabel={t('filtersA11y')}
-        style={{ marginHorizontal: -spacing.screen }}
-        contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingVertical: 4, gap: spacing.sm }}
-      >
-        {FILTERS.map((f) => (
-          <Chip key={f} label={t(`f_${f}`)} selected={filter === f} onPress={() => setFilter(f)} />
-        ))}
-      </ScrollView>
+      <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
+
+      <View accessibilityLabel={t('filtersA11y')}>
+        <FilterChips
+          options={FILTERS.map((f) => ({ key: f, label: t(`f_${f}`), count: counts[f] }))}
+          value={filter}
+          onChange={setFilter}
+        />
+      </View>
 
       {query.isError && (
         <Card tone="red" padding={spacing.lg}>
@@ -73,32 +79,32 @@ export default function TasksScreen() {
 
   const empty = query.isLoading ? (
     <ActivityIndicator color={accent} style={{ paddingVertical: spacing.xxl * 2 }} />
-  ) : query.isError ? null : (
+  ) : query.isError ? null : hasAnyTask ? (
+    // Tasks exist but the search/filter hides them all.
+    <Card style={{ alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.md }}>
+      <AppText color="textMuted" align="center">
+        {t('nothingHere')}
+      </AppText>
+      <Chip label={t('showAll')} onPress={resetView} />
+    </Card>
+  ) : (
     <Card style={{ alignItems: 'center', paddingVertical: spacing.xxl * 2, gap: spacing.md }}>
       <IconBadge size={52} bg={role === 'employee' ? 'purpleTint' : 'primaryTint'} round>
         <ListChecks color={accent} size={24} strokeWidth={2} />
       </IconBadge>
-      {filter === 'cancelled' ? (
-        <AppText color="textMuted" align="center">
-          {t('emptyCancelled')}
-        </AppText>
-      ) : (
-        <>
-          <AppText variant="cardTitle" align="center">
-            {t('emptyTitle')}
-          </AppText>
-          <AppText variant="small" color="textMuted" align="center">
-            {t('emptyBody')}
-          </AppText>
-          <Button
-            label={t('tellMuntej')}
-            size="md"
-            tone={role === 'employee' ? 'purple' : 'blue'}
-            onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })}
-            style={{ marginTop: spacing.sm, alignSelf: 'center' }}
-          />
-        </>
-      )}
+      <AppText variant="cardTitle" align="center">
+        {t('emptyTitle')}
+      </AppText>
+      <AppText variant="small" color="textMuted" align="center">
+        {t('emptyBody')}
+      </AppText>
+      <Button
+        label={t('tellMuntej')}
+        size="md"
+        tone={role === 'employee' ? 'purple' : 'blue'}
+        onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })}
+        style={{ marginTop: spacing.sm, alignSelf: 'center' }}
+      />
     </Card>
   );
 
@@ -112,6 +118,8 @@ export default function TasksScreen() {
         ListEmptyComponent={empty}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingTop: 20, paddingBottom: 32 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => query.refetch()} tintColor={accent} />}
         showsVerticalScrollIndicator={false}
       />

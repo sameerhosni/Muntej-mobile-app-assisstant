@@ -22,6 +22,11 @@ const en = {
   error: "Couldn't load workspaces. Pull to retry.",
   newWorkspace: 'New workspace',
   agents: 'Agents',
+  search: 'Search workspaces',
+  clearSearch: 'Clear search',
+  filter: { all: 'All', atRisk: 'At risk', onTrack: 'On track' },
+  nothingHere: 'Nothing here',
+  showAll: 'Show all',
 };
 
 const ar: typeof en = {
@@ -46,6 +51,11 @@ const ar: typeof en = {
   error: 'ما قدرنا نجيب المساحات. اسحب وجرّب مرة ثانية.',
   newWorkspace: 'مساحة جديدة',
   agents: 'الوكلاء',
+  search: 'دوّر على مساحة',
+  clearSearch: 'امسح البحث',
+  filter: { all: 'الكل', atRisk: 'في خطر', onTrack: 'ماشية تمام' },
+  nothingHere: 'ما فيه شي هنا',
+  showAll: 'عرض الكل',
 };
 
 export const NS = registerStrings('s19', { en, ar });

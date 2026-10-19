@@ -7,9 +7,13 @@ import { formatNumber } from '@/features/home/value';
 type T = (key: string, opts?: Record<string, unknown>) => string;
 type Named = Pick<Profile, 'full_name' | 'full_name_ar'>;
 
+export type WaitKind = 'decision' | 'blocked';
+
 export type WaitItem = {
   id: string;
   sample: boolean;
+  /** A pending decision I asked for, or a blocked task I own / help on. */
+  kind: WaitKind;
   /** Person (or team) the employee waits on. */
   who: string;
   /** Avatar gradient; null = neutral grey dot (a team, not a person). */
@@ -47,14 +51,15 @@ export function waitLabel(fromIso: string, t: T, lang: string): { label: string;
 
 /** The three items from design/v2/html/ReverseFollowup.dc.html. */
 export function demoItems(t: T): WaitItem[] {
-  const rows: { id: 'a' | 'b' | 'c'; gradient: GradientToken | null; hours: number }[] = [
-    { id: 'a', gradient: 'avatarBlue', hours: 48 },
-    { id: 'b', gradient: 'avatarPurple', hours: 19 },
-    { id: 'c', gradient: null, hours: 6 },
+  const rows: { id: 'a' | 'b' | 'c'; kind: WaitKind; gradient: GradientToken | null; hours: number }[] = [
+    { id: 'a', kind: 'decision', gradient: 'avatarBlue', hours: 48 },
+    { id: 'b', kind: 'blocked', gradient: 'avatarPurple', hours: 19 },
+    { id: 'c', kind: 'decision', gradient: null, hours: 6 },
   ];
   return rows.map((r) => ({
     id: `demo-${r.id}`,
     sample: true,
+    kind: r.kind,
     who: t(`demo.${r.id}.who`),
     gradient: r.gradient,
     what: t(`demo.${r.id}.what`),
@@ -91,6 +96,7 @@ export function liveItems(ctx: {
     out.push({
       id: `d-${d.id}`,
       sample: false,
+      kind: 'decision',
       who: firstName(byId(d.manager_id), lang) || t('yourManager'),
       gradient: 'avatarBlue',
       what,
@@ -113,6 +119,7 @@ export function liveItems(ctx: {
     out.push({
       id: `t-${task.id}`,
       sample: false,
+      kind: 'blocked',
       who: name,
       gradient: avatarGradientFor(name),
       what: task.title,

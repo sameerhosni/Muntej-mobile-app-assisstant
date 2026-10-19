@@ -174,3 +174,12 @@ export function sampleProjects(s: DemoStrings, fixed: Record<string, boolean>, n
     };
   });
 }
+
+/** Filter chips on screen 24: by each row's forecast ('late' = forecast delay). */
+export type RoadFilter = 'all' | 'late' | 'atRisk' | 'onTrack';
+export const ROAD_FILTERS: RoadFilter[] = ['all', 'late', 'atRisk', 'onTrack'];
+const FILTER_FORECAST: Record<Exclude<RoadFilter, 'all'>, Forecast> = { late: 'delay', atRisk: 'at_risk', onTrack: 'on_track' };
+
+export function matchesRoadFilter(r: RoadRow, f: RoadFilter): boolean {
+  return f === 'all' || r.forecast === FILTER_FORECAST[f];
+}

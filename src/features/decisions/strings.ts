@@ -52,6 +52,15 @@ const en = {
     declined: 'Declined: {{title}}',
     moved: 'Moved “{{task}}” to {{name}}',
   },
+  filter: {
+    all: 'All',
+    extensions: 'Extensions',
+    risks: 'Risks',
+    reassign: 'Reassign',
+    other: 'Other',
+  },
+  nothingHere: 'Nothing here',
+  showAll: 'Show all',
   demo: {
     d1Title: 'Abdullah · SPL numbers analysis',
     d1Reason: 'Finance data late',
@@ -114,6 +123,15 @@ const ar: typeof en = {
     declined: 'رفضت: {{title}}',
     moved: 'حوّلت «{{task}}» ل{{name}}',
   },
+  filter: {
+    all: 'الكل',
+    extensions: 'تمديد',
+    risks: 'مخاطر',
+    reassign: 'إعادة توزيع',
+    other: 'غيرها',
+  },
+  nothingHere: 'ما فيه شي هنا',
+  showAll: 'عرض الكل',
   demo: {
     d1Title: 'عبدالله · تحليل أرقام SPL',
     d1Reason: 'بيانات المالية تأخرت',

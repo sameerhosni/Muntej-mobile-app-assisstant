@@ -9,7 +9,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View, type Vi
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CalendarDays, Check, ChevronLeft, Flag, PieChart, Sparkles, TrendingUp, UserRoundCog } from 'lucide-react-native';
-import { AppText, Button, Card, Gradient, Hero, IconBadge, IconButton } from '@/components/ui';
+import { AppText, Button, Card, Chip, FilterChips, Gradient, Hero, IconBadge, IconButton } from '@/components/ui';
 import { colors, gradients, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -17,7 +17,18 @@ import { useMyProfile, useTasks } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
 import { DAY_MS, startOfDay } from '@/features/dashboard/metrics';
 import { Stripes } from '@/features/roadmap/Stripes';
-import { fmtDate, frac, liveProjects, sampleProjects, windowStart, type Forecast, type RoadRow } from '@/features/roadmap/model';
+import {
+  fmtDate,
+  frac,
+  liveProjects,
+  matchesRoadFilter,
+  ROAD_FILTERS,
+  sampleProjects,
+  windowStart,
+  type Forecast,
+  type RoadFilter,
+  type RoadRow,
+} from '@/features/roadmap/model';
 import { useRoadmapApply, useRoadmapUndo, type Applied } from '@/features/roadmap/useRoadmapApply';
 import { NS } from '@/features/roadmap/strings';
 
@@ -46,6 +57,7 @@ export default function RoadmapScreen() {
   const [fixed, setFixed] = useState<Record<string, boolean>>({});
   const [applied, setApplied] = useState<{ rowId: string; result?: Applied } | null>(null);
   const [undone, setUndone] = useState<string | null>(null);
+  const [filter, setFilter] = useState<RoadFilter>('all');
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -66,13 +78,19 @@ export default function RoadmapScreen() {
     [sample, live, fixed, t],
   );
 
-  const fallback = projects.find((p) => p.forecast === 'delay') ?? projects.find((p) => p.forecast === 'at_risk') ?? projects[0];
-  const project = projects.find((p) => p.id === selProject) ?? fallback;
-  const rows = level === 'p' ? projects : project?.children ?? [];
-  const selected: RoadRow | undefined =
-    level === 'p'
-      ? project
-      : rows.find((r) => r.id === selTask) ?? rows.find((r) => r.forecast === 'delay') ?? rows.find((r) => r.forecast === 'at_risk') ?? rows[0];
+  // The chip row filters the rows of the current level (projects or the chosen project's tasks) by forecast.
+  const pick = (list: RoadRow[], id: string | null) =>
+    list.find((r) => r.id === id) ?? list.find((r) => r.forecast === 'delay') ?? list.find((r) => r.forecast === 'at_risk') ?? list[0];
+  const shownProjects = projects.filter((p) => matchesRoadFilter(p, filter));
+  const project = level === 'p' ? pick(shownProjects, selProject) : pick(projects, selProject);
+  const levelRows = level === 'p' ? projects : project?.children ?? [];
+  const rows = levelRows.filter((r) => matchesRoadFilter(r, filter));
+  const filterOptions = ROAD_FILTERS.map((key) => ({
+    key,
+    label: t(`filter.${key}`),
+    count: levelRows.filter((r) => matchesRoadFilter(r, key)).length,
+  }));
+  const selected: RoadRow | undefined = level === 'p' ? project : pick(rows, selTask);
 
   // ── dates ──
   const w0 = windowStart();
@@ -181,6 +199,7 @@ export default function RoadmapScreen() {
               </AppText>
             </View>
           </View>
+          {!tasks.isLoading && <FilterChips options={filterOptions} value={filter} onChange={setFilter} />}
         </Hero>
 
         <View style={{ paddingHorizontal: 16, marginTop: -26, gap: spacing.lg }}>
@@ -212,6 +231,14 @@ export default function RoadmapScreen() {
             </View>
 
             {tasks.isLoading && <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.xxl }} />}
+            {!tasks.isLoading && rows.length === 0 && (
+              <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
+                <AppText color="textMuted" align="center">
+                  {t('nothingHere')}
+                </AppText>
+                <Chip label={t('showAll')} onPress={() => setFilter('all')} />
+              </View>
+            )}
             {!tasks.isLoading &&
               rows.map((r) => (
                 <TimelineRow

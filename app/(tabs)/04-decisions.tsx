@@ -4,7 +4,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { CircleCheck, Clock, Hand } from 'lucide-react-native';
-import { AppText, Card, Hero, IconBadge } from '@/components/ui';
+import { AppText, Card, Chip, FilterChips, Hero, IconBadge } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -12,7 +12,17 @@ import { useDecisions, useMyProfile, useTeam } from '@/lib/api';
 import { formatNumber, HOURLY_COST_SAR, MIN_PER_FOLLOWUP } from '@/features/home/value';
 import { DEMO_TEAM } from '@/features/demo/team';
 import { DecisionCard } from '@/features/decisions/DecisionCard';
-import { demoCards, FOLLOWUPS_PER_DECISION, liveCard, type CardVM, type Outcome, type Person } from '@/features/decisions/model';
+import {
+  DECISION_FILTERS,
+  demoCards,
+  FOLLOWUPS_PER_DECISION,
+  liveCard,
+  matchesDecisionFilter,
+  type CardVM,
+  type DecisionFilter,
+  type Outcome,
+  type Person,
+} from '@/features/decisions/model';
 import { useResolveDecision, useTaskOwners } from '@/features/decisions/useResolveDecision';
 import { NS } from '@/features/decisions/strings';
 
@@ -30,6 +40,7 @@ export default function DecisionsScreen() {
   const [kept, setKept] = useState<Record<string, CardVM>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [filter, setFilter] = useState<DecisionFilter>('all');
 
   const rows = decisions.data ?? [];
   const owners = useTaskOwners(rows.map((d) => d.task_id).filter((x): x is string => !!x));
@@ -42,6 +53,13 @@ export default function DecisionsScreen() {
     const extra = Object.values(kept).filter((c) => !liveIds.has(c.id));
     return [...live, ...extra].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [sample, rows, teamList, owners.data, kept, t, lang]);
+
+  const filterOptions = DECISION_FILTERS.map((key) => ({
+    key,
+    label: t(`filter.${key}`),
+    count: cards.filter((c) => matchesDecisionFilter(c, key)).length,
+  }));
+  const shown = cards.filter((c) => matchesDecisionFilter(c, filter));
 
   const candidates: Person[] = sample
     ? DEMO_TEAM.filter((p) => p.role === 'employee').map((p) => ({ id: p.id, full_name: p.name, full_name_ar: p.nameAr }))
@@ -145,7 +163,18 @@ export default function DecisionsScreen() {
             </Card>
           )}
 
-          {cards.map((c, i) => (
+          {cards.length > 0 && <FilterChips options={filterOptions} value={filter} onChange={setFilter} />}
+
+          {cards.length > 0 && shown.length === 0 && (
+            <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
+              <AppText color="textMuted" align="center">
+                {t('nothingHere')}
+              </AppText>
+              <Chip label={t('showAll')} onPress={() => setFilter('all')} />
+            </View>
+          )}
+
+          {shown.map((c, i) => (
             <DecisionCard
               key={c.id}
               card={c}

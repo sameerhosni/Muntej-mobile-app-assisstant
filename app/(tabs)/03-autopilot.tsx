@@ -1,7 +1,7 @@
 // Screen 03 · Autopilot — see design/v2/html/Autopilot.dc.html (Arabic: AutopilotAR.dc.html)
 // Live data: activity_log (RLS-scoped). Read-only feed of what Muntej did.
 import { useMemo, useState, type ComponentType } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
@@ -24,15 +24,18 @@ import {
   Zap,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Avatar, Card, Hero, IconBadge, ProgressBar, StatTile } from '@/components/ui';
-import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
+import { AppText, Avatar, Card, Chip, FilterChips, Hero, IconBadge, ProgressBar, SearchField, StatTile } from '@/components/ui';
+import { colors, radius, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useActivity, useTeam, type ActivityEntry } from '@/lib/api';
+import { matchesSearch } from '@/lib/search';
 import { formatNumber, HOURLY_COST_SAR, MIN_PER_FOLLOWUP, MIN_PER_UPDATE } from '@/features/home/value';
 import { NS } from '@/features/autopilot/strings';
 
 type Filter = 'all' | 'followups' | 'updates' | 'escalations';
+
+const FILTERS: Filter[] = ['all', 'followups', 'updates', 'escalations'];
 
 const FILTER_ACTIONS: Record<Exclude<Filter, 'all'>, string[]> = {
   followups: ['followup_sent'],
@@ -88,6 +91,7 @@ export default function AutopilotScreen() {
   const activity = useActivity(200);
   const team = useTeam();
   const [filter, setFilter] = useState<Filter>('all');
+  const [search, setSearch] = useState('');
 
   const entries = activity.data ?? [];
   const stats = useMemo(() => {
@@ -107,7 +111,17 @@ export default function AutopilotScreen() {
     return { today, month, delta: prev > 0 ? Math.round(((month - prev) / prev) * 100) : null };
   }, [entries]);
 
-  const shown = entries.filter((a) => filter === 'all' || FILTER_ACTIONS[filter].includes(a.action));
+  const inFilter = (a: ActivityEntry, f: Filter) => f === 'all' || FILTER_ACTIONS[f].includes(a.action);
+  // Search: summary (EN/AR) + the person's name (EN/AR). Counts follow the search so each chip matches what you'd see.
+  const searched = useMemo(() => {
+    const people = team.data ?? [];
+    return entries.filter((a) => {
+      const p = a.subject_id ? people.find((x) => x.id === a.subject_id) : undefined;
+      return matchesSearch(search, a.summary, a.summary_ar, p?.full_name, p?.full_name_ar);
+    });
+  }, [entries, team.data, search]);
+  const counts = Object.fromEntries(FILTERS.map((f) => [f, searched.filter((a) => inFilter(a, f)).length])) as Record<Filter, number>;
+  const shown = searched.filter((a) => inFilter(a, filter));
   const groups = (['today', 'yesterday', 'earlier'] as const)
     .map((b) => ({ bucket: b, items: shown.filter((a) => dayBucket(a.created_at) === b) }))
     .filter((g) => g.items.length > 0);
@@ -123,6 +137,8 @@ export default function AutopilotScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={<RefreshControl refreshing={activity.isRefetching} onRefresh={() => activity.refetch()} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
@@ -152,27 +168,32 @@ export default function AutopilotScreen() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -30, gap: spacing.xl }}>
-          <View accessibilityRole="tablist" style={{ flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.surface, borderRadius: radius.pill, boxShadow: shadows.raised }}>
-            {(['all', 'followups', 'updates', 'escalations'] as Filter[]).map((f) => {
-              const on = filter === f;
-              return (
-                <Pressable
-                  key={f}
-                  onPress={() => setFilter(f)}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: on }}
-                  style={{ flex: 1, minHeight: sizes.touch - 8, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? colors.primary : colors.transparent, paddingHorizontal: 4 }}
-                >
-                  <AppText variant="small" weight={on ? 'bold' : 'semibold'} color={on ? 'onDark' : 'textMuted'} numberOfLines={1}>
-                    {t(f)}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </View>
+          <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
+
+          <FilterChips
+            options={FILTERS.map((f) => ({ key: f, label: t(f), count: counts[f] }))}
+            value={filter}
+            onChange={setFilter}
+          />
 
           <Card padding={spacing.xl} style={{ gap: 0 }}>
-            {groups.length === 0 && !activity.isLoading && <AppText color="textMuted">{t('empty')}</AppText>}
+            {groups.length === 0 && !activity.isLoading &&
+              (entries.length === 0 ? (
+                <AppText color="textMuted">{t('empty')}</AppText>
+              ) : (
+                <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
+                  <AppText color="textMuted" align="center">
+                    {t('nothingHere')}
+                  </AppText>
+                  <Chip
+                    label={t('showAll')}
+                    onPress={() => {
+                      setFilter('all');
+                      setSearch('');
+                    }}
+                  />
+                </View>
+              ))}
             {groups.map((g, gi) => (
               <View key={g.bucket}>
                 <AppText

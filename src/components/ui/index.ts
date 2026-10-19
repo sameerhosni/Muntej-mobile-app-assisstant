@@ -15,3 +15,5 @@ export { IconBadge } from './IconBadge';
 export { Hero } from './Hero';
 export { PointsCoin, PointsPill } from './PointsPill';
 export { IconButton } from './IconButton';
+export { FilterChips, type FilterOption } from './FilterChips';
+export { SearchField } from './SearchField';

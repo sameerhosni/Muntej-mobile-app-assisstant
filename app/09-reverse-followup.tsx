@@ -6,14 +6,19 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from '
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronLeft, Clock, Hand, Lock, Mic, Send } from 'lucide-react-native';
-import { AppText, Avatar, Card, Gradient, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
+import { AppText, Avatar, Card, Chip, FilterChips, Gradient, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { ACTIVE_STATUSES, useDecisions, useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
 import { LEVEL, useWallet } from '@/features/rewards/wallet';
-import { demoItems, liveItems, type WaitItem } from '@/features/reverse-followup/model';
+import { demoItems, liveItems, type WaitItem, type WaitKind } from '@/features/reverse-followup/model';
+
+type WaitFilter = 'all' | 'decisions' | 'blocked';
+const WAIT_FILTERS: WaitFilter[] = ['all', 'decisions', 'blocked'];
+const FILTER_KIND: Record<Exclude<WaitFilter, 'all'>, WaitKind> = { decisions: 'decision', blocked: 'blocked' };
+const matchesWaitFilter = (i: WaitItem, f: WaitFilter) => f === 'all' || i.kind === FILTER_KIND[f];
 import { NS } from '@/features/reverse-followup/strings';
 
 /** Design value for the sample: hours of waiting Muntej's nudges cut this week. */
@@ -32,6 +37,7 @@ export default function ReverseFollowupScreen() {
   const w = useWallet();
   const [nudged, setNudged] = useState<Record<string, boolean>>({});
   const [voiceHint, setVoiceHint] = useState(false);
+  const [filter, setFilter] = useState<WaitFilter>('all');
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
@@ -47,6 +53,12 @@ export default function ReverseFollowupScreen() {
   const failed = tasks.isError && decisions.isError;
   const items: WaitItem[] = live.length > 0 ? live : demoItems(t);
   const isSample = live.length === 0;
+  const filterOptions = WAIT_FILTERS.map((key) => ({
+    key,
+    label: t(`filter.${key}`),
+    count: items.filter((i) => matchesWaitFilter(i, key)).length,
+  }));
+  const shown = items.filter((i) => matchesWaitFilter(i, filter));
 
   const nudgedCount = items.filter((i) => nudged[i.id]).length;
   // Live estimate: a polite nudge roughly halves the remaining wait on each item.
@@ -140,14 +152,25 @@ export default function ReverseFollowupScreen() {
               <ActivityIndicator color={colors.purple} />
             </Card>
           ) : (
-            items.map((it) => (
-              <WaitCard
-                key={it.id}
-                item={it}
-                done={!!nudged[it.id]}
-                onNudge={() => setNudged((n) => ({ ...n, [it.id]: true }))}
-              />
-            ))
+            <>
+              <FilterChips options={filterOptions} value={filter} onChange={setFilter} />
+              {shown.length === 0 && (
+                <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
+                  <AppText color="textMuted" align="center">
+                    {t('nothingHere')}
+                  </AppText>
+                  <Chip label={t('showAll')} onPress={() => setFilter('all')} />
+                </View>
+              )}
+              {shown.map((it) => (
+                <WaitCard
+                  key={it.id}
+                  item={it}
+                  done={!!nudged[it.id]}
+                  onNudge={() => setNudged((n) => ({ ...n, [it.id]: true }))}
+                />
+              ))}
+            </>
           )}
         </View>
       </ScrollView>

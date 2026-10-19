@@ -1,7 +1,7 @@
 // Screen 22 · Agents — see design/v2/html/Agents.dc.html (Arabic: AgentsAR.dc.html)
 // Live data: agents (own rows, RLS) + agent_runs (via ownership). Toggles save `enabled` optimistically
 // (src/features/agents/useAgents). Hours/SAR tiles are estimates (2 h per active agent per month).
-import { type ComponentType } from 'react';
+import { useState, type ComponentType } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,7 +21,8 @@ import {
   Star,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Button, Card, Hero, IconBadge, IconButton, StatTile, Toggle } from '@/components/ui';
+import { AppText, Button, Card, Chip, FilterChips, Hero, IconBadge, IconButton, SearchField, StatTile, Toggle } from '@/components/ui';
+import { matchesSearch } from '@/lib/search';
 import { colors, radius, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -39,7 +40,11 @@ const KIND_STYLE: Record<AgentKind, { Icon: ComponentType<LucideProps>; bg: Colo
   kudos: { Icon: Star, bg: 'orangeTint', fg: 'orange' },
 };
 
-const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+type AgentFilter = 'all' | 'on' | 'off';
+const AGENT_FILTERS: AgentFilter[] = ['all', 'on', 'off'];
+const matchesAgentFilter = (a: Agent, f: AgentFilter) => f === 'all' || a.enabled === (f === 'on');
+
+const DOW_KEYS =['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 /** Show ready-made agents while the manager has fewer than this many. */
 const SUGGEST_BELOW = 3;
 
@@ -57,7 +62,22 @@ export default function AgentsScreen() {
   const totalRuns = agents.reduce((sum, a) => sum + a.run_count, 0);
   const hours = active * HOURS_PER_AGENT_MONTH;
 
-  const usedTemplates = new Set(agents.map((a) => parseRecipe(a.recipe)?.template).filter(Boolean));
+  // Search by name and the plain-language instruction (agents have no separate description column).
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<AgentFilter>('all');
+  const searched = agents.filter((a) => matchesSearch(query, a.name, a.prompt));
+  const filterOptions = AGENT_FILTERS.map((key) => ({
+    key,
+    label: t(`filter.${key}`),
+    count: searched.filter((a) => matchesAgentFilter(a, key)).length,
+  }));
+  const shown = searched.filter((a) => matchesAgentFilter(a, filter));
+  const resetFilters = () => {
+    setQuery('');
+    setFilter('all');
+  };
+
+  const usedTemplates =new Set(agents.map((a) => parseRecipe(a.recipe)?.template).filter(Boolean));
   const suggestions = ready && agents.length < SUGGEST_BELOW ? TEMPLATE_KEYS.filter((k) => !usedTemplates.has(k)) : [];
 
   const lastLabel = (a: Agent, recipe: Recipe | null, agentRuns: AgentRun[]) => {
@@ -181,7 +201,22 @@ export default function AgentsScreen() {
             </Card>
           )}
 
-          {agents.map((a) => {
+          {agents.length > 0 && (
+            <View style={{ gap: spacing.md, marginBottom: spacing.xs }}>
+              <SearchField value={query} onChangeText={setQuery} placeholder={t('search')} clearLabel={t('clearSearch')} />
+              <FilterChips options={filterOptions} value={filter} onChange={setFilter} />
+            </View>
+          )}
+          {agents.length > 0 && shown.length === 0 && (
+            <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
+              <AppText color="textMuted" align="center">
+                {t('nothingHere')}
+              </AppText>
+              <Chip label={t('showAll')} onPress={resetFilters} />
+            </View>
+          )}
+
+          {shown.map((a) => {
             const recipe = parseRecipe(a.recipe);
             const st = KIND_STYLE[kindOf(recipe)];
             const on = a.enabled;

@@ -80,3 +80,13 @@ export function suggestion(cards: WorkspaceCardVM[], tasks: TaskWithPeople[], te
   if (!helper) return null;
   return { ws: worst.ws, n: Math.min(worst.stuck, 3), person: helper };
 }
+
+/** Filter chips on screen 19: by the card's computed health (attention = at risk). */
+export type WorkspaceFilter = 'all' | 'atRisk' | 'onTrack';
+export const WORKSPACE_FILTERS: WorkspaceFilter[] = ['all', 'atRisk', 'onTrack'];
+
+export function matchesWorkspaceFilter(c: WorkspaceCardVM, f: WorkspaceFilter): boolean {
+  if (f === 'atRisk') return c.attention;
+  if (f === 'onTrack') return !c.attention;
+  return true;
+}

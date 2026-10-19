@@ -81,6 +81,11 @@ const en = {
     none: 'Runs quietly',
     ifLate: 'only if {{n}}+ days late',
   },
+  search: 'Search agents',
+  clearSearch: 'Clear search',
+  filter: { all: 'All', on: 'On', off: 'Off' },
+  nothingHere: 'Nothing here',
+  showAll: 'Show all',
   tpl: {
     daily_recap: {
       name: 'Daily recap → team group',
@@ -185,6 +190,11 @@ const ar: typeof en = {
     none: 'يشتغل بهدوء',
     ifLate: 'بس إذا تأخرت {{n}} أيام وأكثر',
   },
+  search: 'دوّر على وكيل',
+  clearSearch: 'امسح البحث',
+  filter: { all: 'الكل', on: 'شغّال', off: 'موقّف' },
+  nothingHere: 'ما فيه شي هنا',
+  showAll: 'عرض الكل',
   tpl: {
     daily_recap: {
       name: 'ملخص يومي ← قروب الفريق',

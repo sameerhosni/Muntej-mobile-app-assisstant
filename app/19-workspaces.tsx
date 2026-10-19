@@ -2,7 +2,7 @@
 // Live data: workspaces + workspace_members (RLS: owner or member), tasks (health, task count, wins this week),
 // activity_log (hours / SAR saved this week). Points per workspace are demo until the points tables exist.
 // Tap a workspace → /21-achievements?workspace=<id> (prototype tip t19).
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { AlertTriangle, Banknote, Check, ChevronLeft, Clock, Hand, ListChecks, Plus, RotateCw, Sparkles, Users } from 'lucide-react-native';
@@ -12,13 +12,17 @@ import {
   BottomCTA,
   BOTTOM_CTA_SPACE,
   Card,
+  Chip,
+  FilterChips,
   Gradient,
   Hero,
   IconBadge,
   IconButton,
   PointsPill,
+  SearchField,
   StatTile,
 } from '@/components/ui';
+import { matchesSearch } from '@/lib/search';
 import { colors, radius, shadows, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -26,7 +30,15 @@ import { useActivity, useTasks, useTeam } from '@/lib/api';
 import { formatNumber, sarSaved } from '@/features/home/value';
 import { firstName, personName, startOfWeek } from '@/features/dashboard/metrics';
 import { useWorkspaces, workspaceName } from '@/features/workspaces/useWorkspaces';
-import { activityMinutes, buildCards, suggestion, type WorkspaceCardVM } from '@/features/workspaces/model';
+import {
+  activityMinutes,
+  buildCards,
+  matchesWorkspaceFilter,
+  suggestion,
+  WORKSPACE_FILTERS,
+  type WorkspaceCardVM,
+  type WorkspaceFilter,
+} from '@/features/workspaces/model';
 import { wsTone } from '@/features/workspaces/color';
 import { NS } from '@/features/workspaces/strings';
 
@@ -48,6 +60,20 @@ export default function WorkspacesScreen() {
     const from = startOfWeek().getTime();
     return (activity.data ?? []).reduce((m, a) => (new Date(a.created_at).getTime() >= from ? m + activityMinutes(a) : m), 0) / 60;
   }, [activity.data]);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<WorkspaceFilter>('all');
+  const searched = useMemo(() => cards.filter((c) => matchesSearch(query, c.ws.name, c.ws.name_ar)), [cards, query]);
+  const filterOptions = WORKSPACE_FILTERS.map((key) => ({
+    key,
+    label: t(`filter.${key}`),
+    count: searched.filter((c) => matchesWorkspaceFilter(c, key)).length,
+  }));
+  const shown = searched.filter((c) => matchesWorkspaceFilter(c, filter));
+  const resetFilters = () => {
+    setQuery('');
+    setFilter('all');
+  };
+
   const tip = useMemo(() => suggestion(cards, tasks.data ?? [], team.data ?? []), [cards, tasks.data, team.data]);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -101,9 +127,25 @@ export default function WorkspacesScreen() {
               <AppText color="textMuted">{t('empty')}</AppText>
             </Card>
           )}
-          {cards.map((c, i) => (
-            <WorkspaceCard key={c.ws.id} c={c} index={i} first={i === 0} />
-          ))}
+          {cards.length > 0 && (
+            <View style={{ gap: spacing.md }}>
+              <SearchField value={query} onChangeText={setQuery} placeholder={t('search')} clearLabel={t('clearSearch')} />
+              <FilterChips options={filterOptions} value={filter} onChange={setFilter} />
+            </View>
+          )}
+          {cards.length > 0 && shown.length === 0 && (
+            <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
+              <AppText color="textMuted" align="center">
+                {t('nothingHere')}
+              </AppText>
+              <Chip label={t('showAll')} onPress={resetFilters} />
+            </View>
+          )}
+          {shown.map((c) => {
+            // Keep each workspace's colour stable while filtering: index in the full list.
+            const i = cards.indexOf(c);
+            return <WorkspaceCard key={c.ws.id} c={c} index={i} first={i === 0} />;
+          })}
 
           {tip && (
             <Pressable

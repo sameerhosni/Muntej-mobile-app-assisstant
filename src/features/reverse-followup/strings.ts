@@ -35,6 +35,9 @@ const en = {
   voice: 'Ask by voice',
   voiceSoon: 'Voice requests are coming soon. For now, tap "Nudge politely" on an item.',
   error: "Couldn't load what you're waiting on. Showing an example.",
+  filter: { all: 'All', decisions: 'Decisions', blocked: 'Blocked tasks' },
+  nothingHere: 'Nothing here',
+  showAll: 'Show all',
   demo: {
     a: { who: 'Ahmed', what: 'Approve discount rate', blocks: 'SPL proposal', wait: '2d', msg: 'Discount waiting 2 days · due Thu. Approve?' },
     b: { who: 'Abdullah', what: 'Final Q3 numbers', blocks: 'Numbers slide', wait: '19h', msg: 'Q3 numbers needed for the proposal. Today or tomorrow?' },
@@ -77,6 +80,9 @@ const ar: typeof en = {
   voice: 'اسأل بالصوت',
   voiceSoon: 'الطلب بالصوت قريب. حالياً اضغط "ذكّر بلباقة" على أي بند.',
   error: 'ما قدرنا نجيب اللي تنتظره. نعرض لك مثال.',
+  filter: { all: 'الكل', decisions: 'قرارات', blocked: 'مهام واقفة' },
+  nothingHere: 'ما فيه شي هنا',
+  showAll: 'عرض الكل',
   demo: {
     a: { who: 'أحمد', what: 'اعتماد نسبة الخصم', blocks: 'عرض SPL', wait: 'يومين', msg: 'الخصم ينتظرك من يومين والتسليم الخميس. تعتمده؟' },
     b: { who: 'عبدالله', what: 'أرقام الربع الثالث', blocks: 'شريحة الأرقام', wait: '19 س', msg: 'نحتاج أرقام الربع الثالث للعرض. اليوم ولا بكرة؟' },
