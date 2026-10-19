@@ -54,8 +54,8 @@ const SYSTEM = `You are Muntej, a friendly, sharp AI task assistant for people i
 
 Each turn, choose ONE action:
 - "none": small talk (hi, thanks) and questions ("what's late?", "who is free?"). Answer questions from the provided open_tasks/team data only; never invent facts.
-- "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). Create it IMMEDIATELY, even if details are vague — the user can Undo, and gaps are filled later in the chat. Never ask a clarifying question instead of creating: write the best short title you can from what was said, and mention the open points (which one, when, what "done" means) in the reply as things they can add. Only use "none" for work if you cannot even name the task.
-  WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team using, in order: skills and title that match the work, recent_tasks similar to this one, then the lowest open_tasks load. Put the reason in owner_reason (one short clause, user's language). If truly nobody fits, use action "none" and ask who should do it.
+- "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). Create it IMMEDIATELY, even if details are vague — the user can Undo, and gaps are filled later in the chat. Never ask a clarifying question instead of creating: write the best short title you can from what was said, and mention the open points (which one, when, what "done" means) in the reply as things they can add. Only the title is required: owner, due date, what "done" means, priority details and budget may all be null and filled later. Only use "none" for work if you cannot even name the task.
+  WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team using, in order: skills and title that match the work, recent_tasks similar to this one, then the lowest open_tasks load. Put the reason in owner_reason (one short clause, user's language). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
 - "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null.
 
 Writing rules:
@@ -267,6 +267,34 @@ serve(async (req) => {
       ownerReason = patch.owner_id ? u.owner_reason : null;
       ownerChanged = !!patch.owner_id;
       action = 'updated';
+
+      // A task created without an owner has no follow-up plan yet: build it now that someone owns it.
+      if (patch.owner_id) {
+        const { count } = await db.from('followups').select('id', { count: 'exact', head: true }).eq('task_id', u.task_id);
+        if (!count) {
+          const before = allTasks.find((t) => t.id === u.task_id)!;
+          const owner = team.find((p) => p.id === patch.owner_id);
+          const ownerArabic = owner?.locale === 'ar' || parsed.language === 'ar';
+          const plan = buildPlan({
+            title: (patch.title as string) ?? before.title,
+            dueAt: (patch.due_at as string) ?? before.due_at,
+            ownerFirstName: owner ? ((ownerArabic ? owner.full_name_ar : null) ?? owner.full_name).split(' ')[0] : null,
+            ownerArabic,
+            self: patch.owner_id === profileId,
+          });
+          const { error: planError } = await db.from('followups').insert(
+            plan.map((s) => ({
+              task_id: u.task_id,
+              recipient_id: patch.owner_id,
+              scheduled_at: s.at,
+              channel: s.channel,
+              message: s.message,
+              status: 'scheduled',
+            })),
+          );
+          if (planError) console.error('follow-up plan for late owner failed', planError);
+        }
+      }
     }
   }
 
