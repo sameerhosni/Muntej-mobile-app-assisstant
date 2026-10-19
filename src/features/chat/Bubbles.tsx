@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { AlertTriangle, RotateCcw, Sparkles } from 'lucide-react-native';
+import { AlertTriangle, RotateCcw } from 'lucide-react-native';
 import { AppText, Button, Gradient } from '@/components/ui';
+import { Munti, type MuntiMood, type MuntiSize } from '@/features/munti/Munti';
 import { colors, fontSize, radius, shadows, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
 import { NS } from './strings';
@@ -11,15 +12,10 @@ export function contentDirection(text: string) {
   return /[؀-ۿ]/.test(text) ? ('rtl' as const) : ('ltr' as const);
 }
 
-export function MuntejAvatar({ size = 30 }: { size?: number }) {
+/** Muntej's face in the chat: Munti the robot. talk/celebrate settle back to idle after a moment. */
+export function MuntejAvatar({ size = 'sm', mood = 'idle' }: { size?: MuntiSize; mood?: MuntiMood }) {
   const { t } = useScreenT(NS);
-  return (
-    <View accessibilityLabel={t('avatar')} style={{ width: size, height: size, borderRadius: size / 2, overflow: 'hidden' }}>
-      <Gradient name="heroManager" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Sparkles color={colors.onDark} size={size * 0.5} strokeWidth={2} />
-      </Gradient>
-    </View>
-  );
+  return <Munti size={size} mood={mood} settleAfter={mood === 'talk' ? 2600 : undefined} label={t('avatar')} />;
 }
 
 function Time({ label, end }: { label?: string; end?: boolean }) {
@@ -31,21 +27,23 @@ function Time({ label, end }: { label?: string; end?: boolean }) {
   );
 }
 
-/** Muntej's message: start side, white card, small sparkle avatar. `below` renders under the bubble (task card). */
+/** Muntej's message: start side, white card, small Munti avatar. `below` renders under the bubble (task card). */
 export function MuntejBubble({
   children,
   time,
   below,
   tone = 'default',
+  mood,
 }: {
   children: ReactNode;
   time?: string;
   below?: ReactNode;
   tone?: 'default' | 'red';
+  mood?: MuntiMood;
 }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
-      <MuntejAvatar />
+      <MuntejAvatar mood={mood ?? (tone === 'red' ? 'oops' : 'idle')} />
       <View style={{ flex: 1, minWidth: 0, gap: spacing.xs, alignItems: 'flex-start' }}>
         <View
           style={{
@@ -101,7 +99,7 @@ export function UserBubble({ text, time, failed }: { text: string; time?: string
 
 export function TypingBubble({ label }: { label: string }) {
   return (
-    <MuntejBubble>
+    <MuntejBubble mood="think">
       <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <ActivityIndicator size="small" color={colors.primary} />
         <AppText color="textMuted">{label}</AppText>

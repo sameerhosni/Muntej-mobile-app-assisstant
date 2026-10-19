@@ -5,8 +5,7 @@ import { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ListChecks } from 'lucide-react-native';
-import { AppText, Button, Card, Chip, FilterChips, IconBadge, SearchField } from '@/components/ui';
+import { AppText, Button, Card, Chip, FilterChips, SearchField } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -15,9 +14,12 @@ import { FILTERS, useTaskList, type SortMode, type TaskListFilter } from '@/feat
 import { SortToggle } from '@/features/tasks/SortToggle';
 import { TaskRow } from '@/features/tasks/TaskRow';
 import { NS } from '@/features/tasks/strings';
+import { Munti } from '@/features/munti/Munti';
+import { MUNTI_NS } from '@/features/munti/tips';
 
 export default function TasksScreen() {
   const { t } = useScreenT(NS);
+  const { t: tm } = useScreenT(MUNTI_NS);
   const { lang } = useDirection();
   const [sort, setSort] = useState<SortMode>('newest');
   const [filter, setFilter] = useState<TaskListFilter>('all');
@@ -89,14 +91,15 @@ export default function TasksScreen() {
     </Card>
   ) : (
     <Card style={{ alignItems: 'center', paddingVertical: spacing.xxl * 2, gap: spacing.md }}>
-      <IconBadge size={52} bg={role === 'employee' ? 'purpleTint' : 'primaryTint'} round>
-        <ListChecks color={accent} size={24} strokeWidth={2} />
-      </IconBadge>
+      <Munti size="lg" mood="sleep" />
       <AppText variant="cardTitle" align="center">
         {t('emptyTitle')}
       </AppText>
       <AppText variant="small" color="textMuted" align="center">
         {t('emptyBody')}
+      </AppText>
+      <AppText variant="small" weight="semibold" color={role === 'employee' ? 'purpleText' : 'primary'} align="center">
+        {tm('empty_tasks')}
       </AppText>
       <Button
         label={t('tellMuntej')}

@@ -5,8 +5,8 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, UserPlus, Users, X } from 'lucide-react-native';
-import { AppText, Button, Card, FilterChips, IconBadge, IconButton, SearchField } from '@/components/ui';
+import { ChevronLeft, UserPlus, X } from 'lucide-react-native';
+import { AppText, Button, Card, FilterChips, IconButton, SearchField } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -28,6 +28,8 @@ import {
 import { PersonRow } from '@/features/org/PersonRow';
 import { PersonSheet } from '@/features/org/PersonSheet';
 import { PersonForm, type FormMode } from '@/features/org/PersonForm';
+import { Munti } from '@/features/munti/Munti';
+import { MUNTI_NS } from '@/features/munti/tips';
 import { NS } from '@/features/org/strings';
 
 type StatusFilter = 'all' | 'active' | 'pending' | 'deleted';
@@ -306,16 +308,18 @@ function editFormFor(me: Person | undefined, person: Person, index: OrgIndex): F
 
 function EmptyState({ onAdd }: { onAdd?: () => void }) {
   const { t } = useScreenT(NS);
+  const { t: tm } = useScreenT(MUNTI_NS);
   return (
     <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
-      <IconBadge size={52} bg="primaryTint" round>
-        <Users color={colors.primary} size={24} strokeWidth={2} />
-      </IconBadge>
+      <Munti size="lg" mood="wave" settleAfter={4000} />
       <AppText variant="cardTitle" align="center">
         {t('emptyTitle')}
       </AppText>
       <AppText variant="small" color="textMuted" align="center">
         {t('emptyBody')}
+      </AppText>
+      <AppText variant="small" weight="semibold" color="primary" align="center">
+        {tm('empty_team')}
       </AppText>
       {onAdd && <Button label={t('addTop')} size="md" onPress={onAdd} style={{ alignSelf: 'stretch' }} />}
     </Card>

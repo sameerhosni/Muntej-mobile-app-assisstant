@@ -273,7 +273,7 @@ export function ProposalCard({
   };
   const due = (iso: string | null | undefined) => (iso ? formatDue(iso, lang) : t('noDue'));
 
-  const rows = PATCH_FIELDS.filter((f) => f in patch).map((f) => {
+  const fieldRows = PATCH_FIELDS.filter((f) => f in patch).map((f) => {
     switch (f) {
       case 'owner_id':
         return { f, from: person(snap.owner_id, snap.owner_name), to: person(patch.owner_id, snap.proposed_owner_name) };
@@ -287,6 +287,21 @@ export function ProposalCard({
         return { f, from: null, to: (patch[f] as string | null | undefined) || t('none') };
     }
   });
+  const rows: { key: string; label: string; from: string | null; to: string }[] = fieldRows.map((r) => ({
+    key: r.f,
+    label: t(fieldLabel[r.f]),
+    from: r.from,
+    to: r.to,
+  }));
+  // linking / unlinking the task to an objective
+  if (patch.objective_id || patch.unlink_objective) {
+    rows.push({
+      key: 'objective',
+      label: t('f_objective'),
+      from: snap.objective_title ?? t('none'),
+      to: patch.unlink_objective ? t('outOfObjective') : snap.proposed_objective_title ?? t('none'),
+    });
+  }
 
   const confirm = async () => {
     setWorking(true);
@@ -338,9 +353,9 @@ export function ProposalCard({
       {state !== 'rejected' && rows.length > 0 && (
         <View style={{ gap: 6 }}>
           {rows.map((r) => (
-            <View key={r.f} style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+            <View key={r.key} style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
               <AppText variant="small" weight="bold" color="textMuted">
-                {t(fieldLabel[r.f])}:
+                {r.label}:
               </AppText>
               {r.from !== null && (
                 <>

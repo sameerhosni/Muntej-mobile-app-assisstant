@@ -4,7 +4,7 @@ import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { Bell, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Users } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle } from '@/components/ui';
+import { AppText, Avatar, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle, Toggle } from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
 import { PROTO_NS } from '@/features/prototype/strings';
 import { useMyProfile, useSignOut } from '@/lib/api';
@@ -14,6 +14,9 @@ import { SCREENS } from '@/features/screens/registry';
 import { useTotpFactor } from '@/features/auth/useTotpFactor';
 import { sendTestPush, usePushStatus } from '@/features/notifications/push';
 import { NS as TEAM_NS } from '@/features/org/strings';
+import { Munti } from '@/features/munti/Munti';
+import { munti, useMunti } from '@/features/munti/store';
+import { MUNTI_NS } from '@/features/munti/tips';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -23,6 +26,8 @@ export default function SettingsScreen() {
   const signOut = useSignOut();
   const { t: tp } = useScreenT(PROTO_NS);
   const { t: tt } = useScreenT(TEAM_NS);
+  const { t: tm } = useScreenT(MUNTI_NS);
+  const muntiState = useMunti();
   const twoStep = useTotpFactor();
   const push = usePushStatus();
   const [testing, setTesting] = useState(false);
@@ -142,6 +147,19 @@ export default function SettingsScreen() {
             {testNote}
           </AppText>
         )}
+      </Card>
+
+      <Card>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
+          <Munti size="md" mood={muntiState.enabled ? 'wave' : 'sleep'} settleAfter={muntiState.enabled ? 2000 : undefined} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText variant="cardTitle">{tm('settingTitle')}</AppText>
+            <AppText variant="caption" color="textMuted">
+              {tm('settingHint')}
+            </AppText>
+          </View>
+          <Toggle value={muntiState.enabled} onValueChange={munti.setEnabled} accessibilityLabel={tm('settingTitle')} />
+        </View>
       </Card>
 
       <Card>

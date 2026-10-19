@@ -27,6 +27,9 @@ export type TaskSnapshot = {
   status: TaskStatus;
   assigner_id?: string;
   missing: MissingItem[];
+  /** the objective the task belongs to (title in the conversation language) */
+  objective_id?: string | null;
+  objective_title?: string | null;
   /** optional next steps, each a ready-to-send message */
   suggestions?: string[];
   /** the user asked to delete this task in the chat: show the delete confirmation */
@@ -35,6 +38,8 @@ export type TaskSnapshot = {
   confirm_update?: boolean;
   proposed_patch?: ProposedPatch;
   proposed_owner_name?: string | null;
+  /** title of proposed_patch.objective_id */
+  proposed_objective_title?: string | null;
 };
 
 /** Fields Muntej may propose to change on a described (not focused) task. */
@@ -47,6 +52,10 @@ export type ProposedPatch = {
   definition_of_done?: string | null;
   budget?: string | null;
   goal?: string | null;
+  /** link the task to this objective */
+  objective_id?: string;
+  /** take the task out of its objective */
+  unlink_objective?: true;
 };
 
 /** A task that might be the one the user described (several fit). */
@@ -77,7 +86,53 @@ export type OrgProposalPayload = { id?: undefined; suggestions?: undefined; org_
 /** Stored on the "Done" message after a confirmed team change. */
 export type OrgDonePayload = { id?: undefined; suggestions?: undefined; org_done: { person_id: string; person_name: string } };
 
-export type ChatPayload = TaskSnapshot | CandidatesPayload | OrgProposalPayload | OrgDonePayload;
+export type ObjectiveOp = 'create' | 'update' | 'cancel' | 'distribute';
+
+/** Patch for upsert_objective (only the keys that change; empty for cancel / distribute). */
+export type ObjectivePatch = {
+  title?: string;
+  title_ar?: string;
+  description?: string;
+  owner_id?: string;
+  start_at?: string;
+  due_at?: string;
+};
+
+/** An objective change Muntej proposes ("new objective: …", "move X to April", "spread X's tasks"): nothing is saved until Confirm. */
+export type ObjectiveProposal = {
+  op: ObjectiveOp;
+  /** null only for create */
+  objective_id: string | null;
+  /** display title in the conversation language */
+  title: string;
+  patch: ObjectivePatch;
+  /** ready-made lines in the conversation language, e.g. "Ends: Thu 5 Mar 2026 → Tue 31 Mar 2026" */
+  summary_lines: string[];
+};
+
+export type ObjectiveProposalPayload = { id?: undefined; suggestions?: undefined; objective_proposal: ObjectiveProposal };
+/** Stored on the "Done" message after a confirmed objective change (count = tasks spread, for distribute). */
+export type ObjectiveDonePayload = {
+  id?: undefined;
+  suggestions?: undefined;
+  objective_done: { objective_id: string; title: string; op: ObjectiveOp; count?: number };
+};
+
+export type ChatPayload =
+  | TaskSnapshot
+  | CandidatesPayload
+  | OrgProposalPayload
+  | OrgDonePayload
+  | ObjectiveProposalPayload
+  | ObjectiveDonePayload;
+
+export function objectiveProposal(p: ChatPayload | null | undefined): ObjectiveProposal | null {
+  return p && 'objective_proposal' in p && p.objective_proposal ? p.objective_proposal : null;
+}
+
+export function objectiveDone(p: ChatPayload | null | undefined): ObjectiveDonePayload['objective_done'] | null {
+  return p && 'objective_done' in p && p.objective_done ? p.objective_done : null;
+}
 
 export function isCandidates(p: ChatPayload | null | undefined): p is CandidatesPayload {
   return !!p && Array.isArray((p as CandidatesPayload).candidates);
@@ -178,6 +233,32 @@ export async function confirmOrg(patch: OrgPatch, lang: 'en' | 'ar'): Promise<Ch
   });
   if (error) throw await toError(error);
   return data?.messages ?? [];
+}
+
+/** Saves an objective change the user confirmed (upsert_objective / cancel_objective / distribute_tasks run as them).
+ *  Throws with the server's readable reason ("Only the objective owner, its creator or their manager can change it"). */
+export async function confirmObjective(
+  op: ObjectiveOp,
+  objectiveId: string | null,
+  patch: ObjectivePatch,
+  lang: 'en' | 'ar',
+): Promise<ChatMessage[]> {
+  const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', {
+    body: { apply_objective: { op, objective_id: objectiveId, patch }, lang },
+  });
+  if (error) throw await toError(error);
+  return data?.messages ?? [];
+}
+
+/** Query keys whose data changes when an objective is saved (its tasks may be re-timed too). */
+export function invalidateObjectiveData(qc: QueryClient) {
+  return Promise.all([
+    // same prefix as objectiveKeys.all in src/features/objectives/api.ts
+    qc.invalidateQueries({ queryKey: ['objectives'] }),
+    qc.invalidateQueries({ queryKey: ['tasks'] }),
+    qc.invalidateQueries({ queryKey: ['homeStats'] }),
+    qc.invalidateQueries({ queryKey: ['activity'] }),
+  ]);
 }
 
 /** Query keys whose data changes when a team change is saved. */

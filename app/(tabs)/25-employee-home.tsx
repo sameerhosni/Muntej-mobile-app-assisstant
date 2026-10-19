@@ -13,6 +13,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useHomeStats, useMyProfile } from '@/lib/api';
 import { formatNumber, hoursSaved } from '@/features/home/value';
 import { LatestTasks } from '@/features/tasks/LatestTasks';
+import { ObjectivesLinkCard } from '@/features/objectives/ObjectivesLinkCard';
 import { person, personLabel } from '@/features/demo/team';
 import { LEVEL, NEXT_LEVEL_XP, useWallet, wallet } from '@/features/rewards/wallet';
 import { NEXT_REWARD } from '@/features/rewards/demo';
@@ -260,6 +261,11 @@ export default function EmployeeHome() {
             </View>
             <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
           </Card>
+
+          {/* My objectives (screen 40) */}
+          <View style={{ marginTop: spacing.sm }}>
+            <ObjectivesLinkCard variant="employee" />
+          </View>
 
           {/* Latest tasks (live, mine) */}
           <View style={{ marginTop: 6 }}>

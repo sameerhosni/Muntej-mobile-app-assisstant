@@ -1,4 +1,6 @@
 // Add / edit a person for screen 39 (react-hook-form + zod). Saves through upsert_person; the RPC re-checks permissions.
+// "✨ Suggest with AI" (edit only) asks the suggest-skills Edge Function and merges its answer into the form:
+// new skills get an "AI" badge, existing ones take the suggested level. Nothing is saved until Save.
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
@@ -7,6 +9,8 @@ import { z } from 'zod';
 import { Check, ChevronDown, Plus, X } from 'lucide-react-native';
 import { AppText, Avatar, Button, Card, Chip, SearchField, TextField, Toggle } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
+import { supabase } from '@/lib/supabase';
+import { toError } from '@/features/capture/api';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import {
@@ -23,6 +27,7 @@ import {
   type PersonPayload,
   type PersonRole,
   type PersonStatus,
+  type Skill,
 } from './model';
 import { NS } from './strings';
 
@@ -95,6 +100,16 @@ function toValues(p: Person | undefined, managerId: string | null): FormValues {
 
 const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v));
 
+async function suggestSkills(personId: string, lang: 'en' | 'ar'): Promise<Skill[]> {
+  const { data, error } = await supabase.functions.invoke<{ skills: Skill[] }>('suggest-skills', {
+    body: { person_id: personId, lang },
+  });
+  if (error) throw await toError(error);
+  return data?.skills ?? [];
+}
+
+const skillKey = (name: string) => name.trim().toLowerCase();
+
 /** Form values → upsert_person keys (only the RPC's column names). */
 function toPayload(v: FormValues, selfOnly: boolean): Record<string, unknown> {
   const skills_detail = v.skills.map((s) => ({
@@ -136,12 +151,53 @@ export function PersonForm({ mode, me, people, index, onDone }: Props) {
     [editing?.id],
   );
 
-  const { control, handleSubmit, formState, watch } = useForm<FormValues>({
+  const { control, handleSubmit, formState, watch, getValues, setValue } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: initial,
   });
   const skills = useFieldArray({ control, name: 'skills' });
   const err = (m?: string) => (m ? t(m) : undefined);
+
+  // ✨ Suggest with AI
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiNote, setAiNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const [aiNames, setAiNames] = useState<Set<string>>(new Set());
+  const suggest = async () => {
+    if (!editing) return;
+    setAiBusy(true);
+    setAiNote(null);
+    try {
+      const suggested = await suggestSkills(editing.id, lang);
+      const current = getValues('skills');
+      const added: string[] = [];
+      let updated = 0;
+      for (const s of suggested) {
+        const i = current.findIndex((c) => skillKey(c.name) === skillKey(s.name));
+        if (i >= 0) {
+          if (current[i].level !== s.level) {
+            setValue(`skills.${i}.level`, s.level, { shouldDirty: true });
+            updated++;
+          }
+          // fill gaps only; never overwrite what someone typed
+          if (!current[i].years.trim() && s.years !== null && s.years !== undefined)
+            setValue(`skills.${i}.years`, String(s.years), { shouldDirty: true });
+          if (!current[i].notes.trim() && s.notes) setValue(`skills.${i}.notes`, s.notes, { shouldDirty: true });
+        } else {
+          added.push(skillKey(s.name));
+          skills.append(
+            { name: s.name, level: s.level, years: s.years === null || s.years === undefined ? '' : String(s.years), notes: s.notes ?? '' },
+            { shouldFocus: false },
+          );
+        }
+      }
+      if (added.length) setAiNames((prev) => new Set([...prev, ...added]));
+      setAiNote({ text: added.length || updated ? t('aiResult', { added: added.length, updated }) : t('aiNothing') });
+    } catch (e) {
+      setAiNote({ text: t('aiFailed', { msg: e instanceof Error ? e.message : String(e) }), error: true });
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const roles = useMemo(() => {
     const list = roleOptions(me);
@@ -318,9 +374,41 @@ export function PersonForm({ mode, me, people, index, onDone }: Props) {
         <AppText variant="small" weight="semibold" color="textMuted">
           {t('skills')}
         </AppText>
+        {editing && (
+          <View style={{ gap: spacing.xs }}>
+            <Button
+              label={aiBusy ? t('aiSuggesting') : t('aiSuggest')}
+              variant="outline"
+              size="md"
+              loading={aiBusy}
+              disabled={aiBusy}
+              onPress={suggest}
+            />
+            <AppText variant="caption" color={aiNote?.error ? 'red' : aiNote ? 'greenText' : 'textMuted'} accessibilityLiveRegion="polite">
+              {aiNote?.text ?? t('aiHint')}
+            </AppText>
+          </View>
+        )}
         {skills.fields.map((f, i) => (
           <Card key={f.id} tone="muted" elevation="flat" padding={spacing.lg}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+              {aiNames.has(skillKey(watch(`skills.${i}.name`) ?? '')) && (
+                <View
+                  accessible
+                  accessibilityLabel={t('aiBadgeA11y')}
+                  style={{
+                    marginTop: 30,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: 2,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.purpleTint,
+                  }}
+                >
+                  <AppText variant="micro" weight="extrabold" color="purpleText">
+                    {t('aiBadge')}
+                  </AppText>
+                </View>
+              )}
               <View style={{ flex: 1 }}>
                 <Controller
                   control={control}

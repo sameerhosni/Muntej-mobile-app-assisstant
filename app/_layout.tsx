@@ -14,6 +14,7 @@ import { loadSavedLanguage, useDirection } from '@/lib/i18n';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
 import { SCREENS } from '@/features/screens/registry';
 import { ProtoBar } from '@/features/prototype/ProtoBar';
+import { HelperButton } from '@/features/munti/HelperButton';
 import { usePushNotifications } from '@/features/notifications/push';
 import '@/features/prototype/strings';
 
@@ -92,6 +93,7 @@ function RootNavigator() {
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
       </Stack>
+      {signedIn && <HelperButton />}
       {signedIn && <ProtoBar />}
     </View>
   );

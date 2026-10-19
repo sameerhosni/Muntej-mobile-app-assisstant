@@ -25,6 +25,10 @@ import {
   chatKey,
   confirmChange,
   confirmOrg,
+  confirmObjective,
+  invalidateObjectiveData,
+  objectiveDone,
+  objectiveProposal,
   invalidateTaskData,
   invalidateTeamData,
   isCandidates,
@@ -39,9 +43,12 @@ import {
   type ChatSource,
   type MissingItem,
   type OrgPatch,
+  type ObjectiveOp,
+  type ObjectivePatch,
   type TaskSnapshot,
 } from '@/features/chat/api';
 import { OrgProposalCard, type OrgProposalState } from '@/features/chat/OrgProposalCard';
+import { ObjectiveProposalCard, type ObjectiveProposalState } from '@/features/chat/ObjectiveProposalCard';
 import { MuntejAvatar, MuntejBubble, MuntejText, NoticeBubble, TypingBubble, UserBubble } from '@/features/chat/Bubbles';
 import { ProposalCard, TaskCard, type CardState, type ProposalState } from '@/features/chat/TaskCard';
 import { Suggestions } from '@/features/chat/Suggestions';
@@ -49,6 +56,8 @@ import { Candidates } from '@/features/chat/Candidates';
 import { FocusBar } from '@/features/chat/FocusBar';
 import { Composer, type VoiceState } from '@/features/chat/Composer';
 import { NS } from '@/features/chat/strings';
+import { munti } from '@/features/munti/store';
+import { MUNTI_NS } from '@/features/munti/tips';
 
 type Pending = {
   content: string;
@@ -89,6 +98,12 @@ export default function MuntejChatScreen() {
   const [voice, setVoice] = useState<VoiceState>('idle');
   // optimistic card states until the refetch confirms them
   const [ended, setEnded] = useState<Record<string, Exclude<CardState, 'active'>>>({});
+  // the reply that just arrived: Munti talks on it (or celebrates a new task)
+  const [freshId, setFreshId] = useState<string | null>(null);
+  const markFresh = (rows: { id: string; role: string }[]) => {
+    const reply = [...rows].reverse().find((r) => r.role === 'assistant');
+    if (reply) setFreshId(reply.id);
+  };
 
   const scroll = useRef<ScrollView>(null);
   const input = useRef<TextInput>(null);
@@ -118,6 +133,7 @@ export default function MuntejChatScreen() {
       try {
         const rows = await sendChat(content, source, f);
         appendToChat(qc, rows);
+        markFresh(rows);
         setPending(null);
         qc.invalidateQueries({ queryKey: chatKey });
         if (rows.some((r) => r.action !== 'none')) invalidateTaskData(qc);
@@ -225,6 +241,7 @@ export default function MuntejChatScreen() {
     try {
       const rows = await confirmChange(taskId, patch, lang);
       appendToChat(qc, rows);
+      markFresh(rows);
       await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
     } catch {
       setNotice(t('confirmFailed'));
@@ -243,7 +260,22 @@ export default function MuntejChatScreen() {
   const confirmOrgChange = async (patch: OrgPatch) => {
     const rows = await confirmOrg(patch, lang);
     appendToChat(qc, rows);
+    markFresh(rows);
     await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTeamData(qc), invalidateTaskData(qc)]);
+  };
+
+  // objective create/update/cancel/distribute proposals: saved only on Confirm, like team changes
+  const objectiveState = (index: number, msgId: string): ObjectiveProposalState => {
+    if (rejected[msgId]) return 'rejected';
+    const next = messages.slice(index + 1).find((x) => x.role === 'assistant');
+    if (next && objectiveDone(next.payload)) return 'done';
+    return msgId === lastAssistantId && !pending ? 'open' : 'stale';
+  };
+  const confirmObjectiveChange = async (op: ObjectiveOp, id: string | null, patch: ObjectivePatch) => {
+    const rows = await confirmObjective(op, id, patch, lang);
+    appendToChat(qc, rows);
+    markFresh(rows);
+    await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateObjectiveData(qc), invalidateTaskData(qc)]);
   };
 
   const focusComposer = () => setTimeout(() => input.current?.focus(), 50);
@@ -318,8 +350,14 @@ export default function MuntejChatScreen() {
           zIndex: 1,
         }}
       >
-        <View style={{ width: 46, height: 46, borderRadius: 23, boxShadow: shadows.primary }}>
-          <MuntejAvatar size={46} />
+        <Pressable
+          onPress={() => munti.sayKey('tip_chat')}
+          accessibilityRole="button"
+          accessibilityLabel={tg(`${MUNTI_NS}.name`)}
+          accessibilityHint={tg(`${MUNTI_NS}.tip_chat`)}
+          style={{ width: 56, height: 56 }}
+        >
+          <MuntejAvatar size="md" mood={busy ? 'think' : pending?.status === 'error' ? 'oops' : 'idle'} />
           <View
             style={{
               position: 'absolute',
@@ -333,7 +371,7 @@ export default function MuntejChatScreen() {
               borderColor: colors.surface,
             }}
           />
-        </View>
+        </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
           <AppText variant="title" display>
             {t('title')}
@@ -408,6 +446,7 @@ export default function MuntejChatScreen() {
           if (m.role === 'user') return <UserBubble key={m.id} text={m.content} time={timeFmt(m.created_at)} />;
           const snap = taskSnapshot(m.payload);
           const org = orgProposal(m.payload);
+          const obj = objectiveProposal(m.payload);
           const isLatest = m.id === lastAssistantId && !pending;
           let card = null;
           if (org) {
@@ -417,6 +456,16 @@ export default function MuntejChatScreen() {
                 proposal={org}
                 state={orgState(i, m.id)}
                 onConfirm={() => confirmOrgChange(org.patch)}
+                onReject={() => rejectProposal(m.id)}
+              />
+            );
+          } else if (obj) {
+            card = (
+              <ObjectiveProposalCard
+                key={`ob-${m.id}`}
+                proposal={obj}
+                state={objectiveState(i, m.id)}
+                onConfirm={() => confirmObjectiveChange(obj.op, obj.objective_id, obj.patch)}
                 onReject={() => rejectProposal(m.id)}
               />
             );
@@ -458,7 +507,11 @@ export default function MuntejChatScreen() {
           const candidates = isLatest && isCandidates(m.payload) ? m.payload : null;
           return (
             <View key={m.id} style={{ gap: spacing.md }}>
-              <MuntejBubble time={timeFmt(m.created_at)} below={card}>
+              <MuntejBubble
+                time={timeFmt(m.created_at)}
+                below={card}
+                mood={m.id === freshId ? (m.action === 'created' ? 'celebrate' : 'talk') : undefined}
+              >
                 <MuntejText text={m.content} />
               </MuntejBubble>
               {candidates && (

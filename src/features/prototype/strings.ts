@@ -65,6 +65,8 @@ const en = {
   d37: 'Expand without sales calls: new team in a minute, invite another manager, branches not yet on Muntej, referral.',
   d38: 'Every task you can see in one list: newest or by priority, with what is missing flagged. Changes go through the chat.',
   d39: 'The org structure as a tree: who reports to whom, skills with levels, contacts and live task numbers per person.',
+  d40: 'Goals with a date that tasks add up to: progress against time used, and the gaps Muntej can fix.',
+  d41: 'One objective: health, gaps with one-tap fixes, a mini timeline and its linked tasks.',
   t01: 'Tap the avatar for settings, or say a task with the mic.',
   t02: 'Read the plan, then tap "Done, forget it".',
   t03: 'Scan Today vs Yesterday. Nothing here needs you.',
@@ -104,6 +106,8 @@ const en = {
   t37: 'Invite the Jeddah manager, then share the receipt.',
   t38: 'Switch Newest / Priority, filter Mine, then tap a task to change it by chatting with Muntej.',
   t39: 'Search a skill, tap a person to see their numbers, then add someone under them.',
+  t40: 'Tap the At risk gap, open an objective, then add one with + Objective.',
+  t41: 'Tap Fit them in on a gap, then Link tasks to add work to the objective.',
 };
 
 const ar: typeof en = {
@@ -169,6 +173,8 @@ const ar: typeof en = {
   d36: 'دليل ذكي بدال الكتيبات: اسأل بالعربي أو الإنجليزي، خذ ٣ خطوات، وبعدها "ورّني" أو "سوّها عني".',
   d38: 'كل المهام اللي تقدر تشوفها في قائمة وحدة: الأحدث أو حسب الأولوية، والناقص عليه علامة. التعديل يصير من المحادثة.',
   d39: 'هيكل الفريق كشجرة: مين يتبع مين، المهارات ومستوياتها، أرقام التواصل، وأرقام المهام لكل شخص.',
+  d40: 'أهداف لها تاريخ تصب فيها المهام: الإنجاز مقابل الوقت اللي راح، والفجوات اللي منتج يقدر يحلها.',
+  d41: 'هدف واحد: حالته، فجواته وحلها بضغطة، جدول زمني صغير، ومهامه المربوطة.',
   d37: 'توسّع بدون مبيعات: فريق جديد في دقيقة، ادعُ مدير ثاني، فروع للحين ما انضمت، وإحالة.',
   t01: 'اضغط الصورة للإعدادات، أو قل مهمة بالمايك.',
   t02: 'اقرأ الخطة، وبعدها اضغط "تم، انساها".',
@@ -208,10 +214,15 @@ const ar: typeof en = {
   t36: 'اختر سؤال، وبعدها سوّها عني.',
   t38: 'بدّل بين الأحدث والأولوية، فلتر مهامي، وبعدها اضغط مهمة وعدّلها بالسوالف مع منتج.',
   t39: 'دوّر على مهارة، اضغط على شخص تشوف أرقامه، وبعدها أضف أحد تحته.',
+  t40: 'اضغط فجوة "في خطر"، افتح هدف، وبعدها أضف واحد من + هدف.',
+  t41: 'اضغط "دخّلها في المدة" على فجوة، وبعدها اربط مهام بالهدف.',
   t37: 'ادعُ مدير جدة، وبعدها شارك الإيصال.',
 };
 
 export const PROTO_NS = registerStrings('proto', { en, ar });
 
-// Screen 39 (Team) has no entry in the shared en/ar `screens` list: add its name here.
-registerStrings('screens', { en: { '39': 'Team' }, ar: { '39': 'الفريق' } });
+// Screens 39 (Team), 40 (Objectives) and 41 (Objective) have no entry in the shared en/ar `screens` list: add its name here.
+registerStrings('screens', {
+  en: { '39': 'Team', '40': 'Objectives', '41': 'Objective' },
+  ar: { '39': 'الفريق', '40': 'الأهداف', '41': 'الهدف' },
+});

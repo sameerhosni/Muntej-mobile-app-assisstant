@@ -87,6 +87,21 @@ const en = {
   orgNotNow: 'Not now',
   orgSkipped: 'Not saved',
   orgFailed: "Couldn't save: {{reason}}",
+  // objectives
+  objNew: 'New objective',
+  objUpdate: 'Objective change',
+  objCancel: 'Cancel objective',
+  objDistribute: 'Spread tasks over the objective',
+  objSaved: 'Saved',
+  objCancelled: 'Cancelled',
+  objSpread: 'Tasks spread',
+  objNotNow: 'Not now',
+  objSkipped: 'Not saved',
+  objFailed: "Couldn't save: {{reason}}",
+  objYesCancel: 'Yes, cancel it',
+  f_objective: 'Objective',
+  inObjective: 'Objective: {{title}}',
+  outOfObjective: 'Out of its objective',
 };
 
 const ar: typeof en = {
@@ -172,6 +187,20 @@ const ar: typeof en = {
   orgNotNow: 'مو الحين',
   orgSkipped: 'ما انحفظ',
   orgFailed: 'ما قدرت أحفظ: {{reason}}',
+  objNew: 'هدف جديد',
+  objUpdate: 'تعديل على الهدف',
+  objCancel: 'إلغاء الهدف',
+  objDistribute: 'توزيع المهام على مدة الهدف',
+  objSaved: 'انحفظ',
+  objCancelled: 'انلغى',
+  objSpread: 'توزّعت المهام',
+  objNotNow: 'مو الحين',
+  objSkipped: 'ما انحفظ',
+  objFailed: 'ما قدرت أحفظ: {{reason}}',
+  objYesCancel: 'إيه، ألغه',
+  f_objective: 'الهدف',
+  inObjective: 'الهدف: {{title}}',
+  outOfObjective: 'تطلع من هدفها',
 };
 
 export const NS = registerStrings('chat', { en, ar });

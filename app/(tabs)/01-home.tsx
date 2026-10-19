@@ -15,6 +15,7 @@ import { TeamEnergyCard } from '@/features/home/TeamEnergyCard';
 import { LatestTasks } from '@/features/tasks/LatestTasks';
 import { NS as TASKS_NS } from '@/features/tasks/strings';
 import { NS as TEAM_NS } from '@/features/org/strings';
+import { ObjectivesLinkCard } from '@/features/objectives/ObjectivesLinkCard';
 import { useScreenT } from '@/lib/i18n/register';
 
 function greetingKey(date = new Date()) {
@@ -226,6 +227,9 @@ export default function ManagerHome() {
             </AppText>
             <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
           </Card>
+
+          {/* Objectives (screen 40): goals the tasks add up to, with "N at risk". */}
+          <ObjectivesLinkCard />
         </View>
       </ScrollView>
     </View>

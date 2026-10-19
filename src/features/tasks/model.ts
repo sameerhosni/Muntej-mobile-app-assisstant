@@ -3,10 +3,10 @@ import { useMyProfile, useTasks, type TaskPriority, type TaskWithPeople } from '
 import { matchesSearch } from '@/lib/search';
 
 export type SortMode = 'newest' | 'priority';
-export type TaskListFilter = 'all' | 'mine' | 'assigned' | 'late' | 'unassigned' | 'cancelled';
+export type TaskListFilter = 'all' | 'mine' | 'assigned' | 'late' | 'unassigned' | 'unlinked' | 'cancelled';
 
 export const SORT_MODES: SortMode[] = ['newest', 'priority'];
-export const FILTERS: TaskListFilter[] = ['all', 'mine', 'assigned', 'late', 'unassigned', 'cancelled'];
+export const FILTERS: TaskListFilter[] = ['all', 'mine', 'assigned', 'late', 'unassigned', 'unlinked', 'cancelled'];
 
 const PRIORITY_RANK: Record<TaskPriority, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
@@ -38,6 +38,9 @@ export function inFilter(task: TaskWithPeople, filter: TaskListFilter, meId: str
       return isLate(task, now);
     case 'unassigned':
       return !task.owner_id;
+    case 'unlinked':
+      // open work that doesn't serve any objective yet (a gap)
+      return !task.objective_id && task.status !== 'done';
     default:
       return true;
   }
