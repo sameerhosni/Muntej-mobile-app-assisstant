@@ -94,7 +94,7 @@ export default function VerifyScreen() {
         </AppText>
       )}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-        <LinkButton label={t('auth.changeNumber')} onPress={() => router.back()} />
+        <LinkButton label={t('auth.changeEmail')} onPress={() => router.back()} />
         <LinkButton label={t('auth.resend')} onPress={resend} />
       </View>
     </AuthShell>

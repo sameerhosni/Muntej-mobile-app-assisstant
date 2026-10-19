@@ -15,7 +15,7 @@ Read before any work:
 
 ## Tech stack (do not change without asking)
 - Expo (React Native) + TypeScript + Expo Router (tabs + stacks)
-- Supabase: Auth (phone OTP), Postgres, Storage (evidence files), Edge Functions (AI + jobs), Realtime
+- Supabase: Auth (email OTP + optional authenticator-app 2FA; no SMS — phone test numbers only for the dev demo picker), Postgres, Storage (evidence files), Edge Functions (AI + jobs), Realtime
 - AI: OpenAI API called ONLY from Supabase Edge Functions (never from the app). Key in env `OPENAI_API_KEY`; model via `PARSE_MODEL` (default `gpt-5-mini`). (Switched from Claude on 2026-10-18 by owner's decision: OpenAI account has credits.)
 - Speech-to-text: Edge Function wrapping an STT provider that supports Saudi Arabic (configurable via env; currently OpenAI `gpt-4o-transcribe`)
 - Notifications: Expo Notifications (push) + email via Resend; WhatsApp via Meta WhatsApp Cloud API (Sprint 2)

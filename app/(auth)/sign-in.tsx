@@ -1,4 +1,4 @@
-// Screen · Sign in (phone or email) — no mockup; v2 light style per design/TOKENS.md
+// Screen · Sign in (email code; optional authenticator step after) — no mockup; v2 light style per design/TOKENS.md
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
@@ -6,33 +6,19 @@ import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 import { AppText, Avatar, avatarGradientFor, Button, Card, TextField } from '@/components/ui';
-import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
+import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { DEMO_PERSONAS, type DemoPersona } from '@/features/auth/demoPersonas';
 import { setPendingLogin } from '@/features/auth/pending';
-import {
-  emailSchema,
-  normalizeSaudiPhone,
-  phoneSchema,
-  type EmailForm,
-  type PhoneForm,
-} from '@/features/auth/validation';
-
-type Mode = 'phone' | 'email';
+import { emailSchema, type EmailForm } from '@/features/auth/validation';
 
 export default function SignInScreen() {
   const { t } = useTranslation();
-  const [mode, setMode] = useState<Mode>('phone');
-
   return (
-    <AuthShell
-      title={t(mode === 'phone' ? 'auth.phoneTitle' : 'auth.emailTitle')}
-      hint={t(mode === 'phone' ? 'auth.phoneHint' : 'auth.emailHint')}
-    >
-      <ModeSwitch mode={mode} onChange={setMode} />
-      {mode === 'phone' ? <PhoneSignIn /> : <EmailSignIn />}
+    <AuthShell title={t('auth.emailTitle')} hint={t('auth.emailHint')}>
+      <EmailSignIn />
       {__DEV__ && <DemoPersonas />}
     </AuthShell>
   );
@@ -40,50 +26,6 @@ export default function SignInScreen() {
 
 function errorText(t: (k: string) => string, status?: number) {
   return status === 429 ? t('auth.rateLimited') : t('auth.genericError');
-}
-
-function PhoneSignIn() {
-  const { t } = useTranslation();
-  const [serverError, setServerError] = useState<string | null>(null);
-  const { control, handleSubmit, formState } = useForm<PhoneForm>({
-    resolver: zodResolver(phoneSchema),
-    defaultValues: { phone: '' },
-  });
-
-  const onSubmit = handleSubmit(async ({ phone }) => {
-    setServerError(null);
-    const e164 = normalizeSaudiPhone(phone)!;
-    const { error } = await supabase.auth.signInWithOtp({ phone: e164 });
-    if (error) return setServerError(errorText(t, error.status));
-    setPendingLogin({ phone: e164 });
-    router.push('/verify');
-  });
-
-  return (
-    <>
-      <Controller
-        control={control}
-        name="phone"
-        render={({ field }) => (
-          <TextField
-            label={t('auth.phoneLabel')}
-            prefix="+966"
-            placeholder="5X XXX XXXX"
-            keyboardType="phone-pad"
-            textContentType="telephoneNumber"
-            autoComplete="tel"
-            maxLength={14}
-            value={field.value}
-            onChangeText={field.onChange}
-            onBlur={field.onBlur}
-            onSubmitEditing={() => onSubmit()}
-            error={formState.errors.phone?.message ? t(formState.errors.phone.message) : serverError ?? undefined}
-          />
-        )}
-      />
-      <Button label={t('auth.continue')} onPress={onSubmit} loading={formState.isSubmitting} />
-    </>
-  );
 }
 
 function EmailSignIn() {
@@ -130,42 +72,7 @@ function EmailSignIn() {
   );
 }
 
-function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  const { t } = useTranslation();
-  return (
-    <View
-      accessibilityRole="radiogroup"
-      style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}
-    >
-      {(['phone', 'email'] as Mode[]).map((m) => {
-        const active = mode === m;
-        return (
-          <Pressable
-            key={m}
-            onPress={() => onChange(m)}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: active }}
-            style={{
-              flex: 1,
-              minHeight: sizes.touch,
-              borderRadius: radius.pill,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: active ? colors.surface : colors.transparent,
-              boxShadow: active ? shadows.tile : undefined,
-            }}
-          >
-            <AppText weight="bold" color={active ? 'primary' : 'textMuted'}>
-              {t(m === 'phone' ? 'auth.modePhone' : 'auth.modeEmail')}
-            </AppText>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-/** Dev-only: one tap signs in as a demo persona (fixed code, no SMS). */
+/** Dev-only: one tap signs in as a demo persona (Supabase test phone numbers with a fixed code: no SMS is ever sent). */
 function DemoPersonas() {
   const { t } = useTranslation();
   const { lang } = useDirection();

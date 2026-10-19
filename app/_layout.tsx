@@ -41,7 +41,7 @@ export default function RootLayout() {
 function RootNavigator() {
   const [fontsLoaded, fontError] = useFonts(appFonts);
   const [langReady, setLangReady] = useState(false);
-  const { session, ready: authReady } = useAuth();
+  const { session, ready: authReady, needsMfa } = useAuth();
   const { direction } = useDirection();
 
   useEffect(() => {
@@ -56,7 +56,8 @@ function RootNavigator() {
 
   if (!ready) return null;
 
-  const signedIn = !!session;
+  // email code done AND (no 2FA, or authenticator code entered)
+  const signedIn = !!session && !needsMfa;
 
   return (
     // direction flips the whole layout instantly when the language changes (works in Expo Go too).
@@ -74,6 +75,7 @@ function RootNavigator() {
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="settings" />
+          <Stack.Screen name="security" />
           <Stack.Screen name="prototype" />
           {STACK_SCREENS.map((name) => (
             <Stack.Screen
