@@ -208,6 +208,10 @@ const ar: Translations = {
     error: 'صار خطأ. جرّب مرة ثانية.',
   },
   settings: {
+    role_super_admin: 'مدير النظام',
+    role_admin: 'مسؤول',
+    role_manager: 'مدير',
+    role_employee: 'موظف',
     title: 'الإعدادات',
     signedInAs: 'مسجّل باسم',
     signOut: 'تسجيل خروج',

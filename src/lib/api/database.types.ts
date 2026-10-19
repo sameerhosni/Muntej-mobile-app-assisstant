@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -246,6 +246,54 @@ export type Database = {
           },
         ]
       }
+      chat_messages: {
+        Row: {
+          action: string
+          content: string
+          created_at: string
+          id: string
+          payload: Json | null
+          profile_id: string
+          role: string
+          task_id: string | null
+        }
+        Insert: {
+          action?: string
+          content: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          profile_id: string
+          role: string
+          task_id?: string | null
+        }
+        Update: {
+          action?: string
+          content?: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          profile_id?: string
+          role?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       decisions: {
         Row: {
           created_at: string
@@ -485,11 +533,17 @@ export type Database = {
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
           skills: string[]
+          skills_detail: Json
+          status: Database["public"]["Enums"]["person_status"]
+          telegram_connected: boolean
+          telegram_handle: string | null
           title: string | null
           title_ar: string | null
           updated_at: string
           user_id: string | null
           weekly_capacity_hours: number
+          whatsapp_connected: boolean
+          years_experience: number | null
         }
         Insert: {
           avatar_color?: string | null
@@ -503,11 +557,17 @@ export type Database = {
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
+          skills_detail?: Json
+          status?: Database["public"]["Enums"]["person_status"]
+          telegram_connected?: boolean
+          telegram_handle?: string | null
           title?: string | null
           title_ar?: string | null
           updated_at?: string
           user_id?: string | null
           weekly_capacity_hours?: number
+          whatsapp_connected?: boolean
+          years_experience?: number | null
         }
         Update: {
           avatar_color?: string | null
@@ -521,16 +581,57 @@ export type Database = {
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
+          skills_detail?: Json
+          status?: Database["public"]["Enums"]["person_status"]
+          telegram_connected?: boolean
+          telegram_handle?: string | null
           title?: string | null
           title_ar?: string | null
           updated_at?: string
           user_id?: string | null
           weekly_capacity_hours?: number
+          whatsapp_connected?: boolean
+          years_experience?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "profiles_manager_id_fkey"
             columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_tokens: {
+        Row: {
+          device_name: string | null
+          id: string
+          platform: string
+          profile_id: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          device_name?: string | null
+          id?: string
+          platform: string
+          profile_id: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          device_name?: string | null
+          id?: string
+          platform?: string
+          profile_id?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_profile_id_fkey"
+            columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -885,13 +986,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_lead: { Args: never; Returns: boolean }
       can_see_profile: { Args: { target: string }; Returns: boolean }
       can_see_task: { Args: { t_id: string }; Returns: boolean }
       can_see_workspace: { Args: { w_id: string }; Returns: boolean }
+      cancel_task: { Args: { p_task: string }; Returns: undefined }
       create_task_with_plan: { Args: { p: Json }; Returns: string }
       current_profile_id: { Args: never; Returns: string }
+      delete_task: { Args: { p_task: string }; Returns: undefined }
       evidence_task_id: { Args: { object_name: string }; Returns: string }
+      is_admin: { Args: never; Returns: boolean }
+      is_below: { Args: { boss: string; target: string }; Returns: boolean }
       is_manager_of: { Args: { target: string }; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
+      save_push_token: {
+        Args: { p_device_name?: string; p_platform: string; p_token: string }
+        Returns: undefined
+      }
+      update_task_from_chat: {
+        Args: { p_task: string; patch: Json }
+        Returns: undefined
+      }
+      upsert_person: { Args: { p: Json }; Returns: string }
+      upsert_person_inner: { Args: { p: Json }; Returns: string }
     }
     Enums: {
       actor_type: "muntej" | "user" | "agent"
@@ -913,6 +1030,7 @@ export type Database = {
         | "skipped"
         | "cancelled"
         | "failed"
+      person_status: "active" | "pending" | "deleted"
       review_decision: "approved" | "sent_back"
       source_status: "connected" | "disconnected" | "coming_soon" | "error"
       source_type:
@@ -948,7 +1066,7 @@ export type Database = {
         | "returned"
         | "done"
         | "cancelled"
-      user_role: "manager" | "employee"
+      user_role: "manager" | "employee" | "admin" | "super_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1097,6 +1215,7 @@ export const Constants = {
         "cancelled",
         "failed",
       ],
+      person_status: ["active", "pending", "deleted"],
       review_decision: ["approved", "sent_back"],
       source_status: ["connected", "disconnected", "coming_soon", "error"],
       source_type: [
@@ -1135,7 +1254,7 @@ export const Constants = {
         "done",
         "cancelled",
       ],
-      user_role: ["manager", "employee"],
+      user_role: ["manager", "employee", "admin", "super_admin"],
     },
   },
 } as const

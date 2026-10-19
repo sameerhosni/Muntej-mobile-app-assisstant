@@ -65,7 +65,7 @@ export default function ReverseFollowupScreen() {
   const waitingCut = isSample ? DEMO_WAITING_CUT_H : Math.round(items.reduce((s, i) => s + i.waitHours, 0) / 2);
 
   const myName = me.data ? ((lang === 'ar' && me.data.full_name_ar ? me.data.full_name_ar : me.data.full_name).split(' ')[0] ?? '') : '';
-  const role = me.data?.role === 'manager' ? t('roleManager') : t('roleEmployee');
+  const role = me.data?.role === 'employee' ? t('roleEmployee') : t('roleManager');
   const firstOpen = items.find((i) => !nudged[i.id]) ?? items[0];
   const voiceText = isSample || !firstOpen ? t('voiceExample') : t('voiceExampleLive', { name: firstOpen.who, what: firstOpen.what });
 

@@ -205,6 +205,10 @@ const en = {
     error: "Something went wrong. Try again.",
   },
   settings: {
+    role_super_admin: 'Super admin',
+    role_admin: 'Admin',
+    role_manager: 'Manager',
+    role_employee: 'Employee',
     title: 'Settings',
     signedInAs: 'Signed in as',
     signOut: 'Sign out',

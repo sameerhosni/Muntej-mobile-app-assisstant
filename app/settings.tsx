@@ -66,14 +66,14 @@ export default function SettingsScreen() {
       {me && (
         <Card>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
-            <Avatar name={me.full_name} size={48} gradient={me.role === 'manager' ? 'avatarOrange' : 'avatarBlue'} />
+            <Avatar name={me.full_name} size={48} gradient={me.role === 'employee' ? 'avatarBlue' : 'avatarOrange'} />
             <View style={{ flex: 1, gap: 2 }}>
               <AppText variant="caption" color="textMuted">
                 {t('settings.signedInAs')}
               </AppText>
               <AppText variant="cardTitle">{lang === 'ar' && me.full_name_ar ? me.full_name_ar : me.full_name}</AppText>
               <AppText variant="caption" color="textMuted">
-                {t(me.role === 'manager' ? 'settings.manager' : 'settings.employee')}
+                {t(`settings.role_${me.role}`)}
                 {(lang === 'ar' ? me.title_ar : me.title) ? ` · ${lang === 'ar' ? me.title_ar : me.title}` : ''}
               </AppText>
             </View>

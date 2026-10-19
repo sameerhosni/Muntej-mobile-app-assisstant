@@ -66,6 +66,7 @@ export function screenMeta(num: ScreenNum): ScreenMeta {
   return SCREENS.find((s) => s.num === num)!;
 }
 
-export function homeRouteFor(role: Role | undefined) {
+// admins and super admins use the manager home
+export function homeRouteFor(role: Role | 'admin' | 'super_admin' | undefined) {
   return role === 'employee' ? '/25-employee-home' : '/01-home';
 }
