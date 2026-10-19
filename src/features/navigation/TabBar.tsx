@@ -20,16 +20,18 @@ const MANAGER: (TabDef | 'mic')[] = [
   { name: '05-brief', label: 'tabs.brief', Icon: ChartNoAxesColumn },
 ];
 
-const EMPLOYEE: TabDef[] = [
+// everyone can create tasks (an employee may manage others), so both bars carry the centre mic
+const EMPLOYEE: (TabDef | 'mic')[] = [
   { name: '25-employee-home', label: 'tabs.home', Icon: House },
   { name: '06-employee-chat', label: 'tabs.myTasks', Icon: MessageCircle },
+  'mic',
   { name: '26-rewards', label: 'tabs.rewards', Icon: Gift },
   { name: '29-badges', label: 'tabs.badges', Icon: Award },
 ];
 
 type Props = TabBarProps & { role: Role; badges?: Record<string, number> };
 
-/** v2 bottom bar: white, rounded top, manager gets a raised centre mic; employee bar is purple. */
+/** v2 bottom bar: white, rounded top, raised centre mic for everyone; employee bar is purple. */
 export function TabBar({ state, navigation, role, badges = {} }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -71,7 +73,7 @@ export function TabBar({ state, navigation, role, badges = {} }: Props) {
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                 })}
               >
-                <Gradient name="heroManager" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <Gradient name={role === 'employee' ? 'heroEmployee' : 'heroManager'} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                   <Mic color={colors.onDark} size={26} strokeWidth={2} />
                 </Gradient>
               </Pressable>
