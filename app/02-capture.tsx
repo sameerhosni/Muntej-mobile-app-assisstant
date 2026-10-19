@@ -133,6 +133,12 @@ export default function MuntejChatScreen() {
       setNotice(tg('capture.tooShort'));
       return;
     }
+    // nothing but room noise: don't send it (the speech model can invent words from silence)
+    if (recorder.wasSilent()) {
+      setVoice('idle');
+      setNotice(tg('capture.noSpeech'));
+      return;
+    }
     setVoice('transcribing');
     try {
       const transcript = await transcribeAudio(uri);
@@ -141,7 +147,8 @@ export default function MuntejChatScreen() {
       else setNotice(tg('capture.tooShort'));
     } catch (e) {
       setVoice('idle');
-      setNotice((e as Error).message || tg('capture.failed'));
+      const msg = (e as Error).message;
+      setNotice(msg === 'No speech detected' ? tg('capture.noSpeech') : msg || tg('capture.failed'));
     }
   };
 

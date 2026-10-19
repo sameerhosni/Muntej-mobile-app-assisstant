@@ -15,9 +15,18 @@ serve(async (req) => {
   if (!(file instanceof File) || file.size === 0) throw new HttpError(400, 'Missing audio file');
   if (file.size > MAX_BYTES) throw new HttpError(413, 'Recording is too long');
 
-  // Team names help the model spell people correctly (Arabic + English).
-  const { data: team } = await db.from('profiles').select('full_name, full_name_ar');
-  const names = (team ?? []).flatMap((p) => [p.full_name, p.full_name_ar]).filter(Boolean).join(', ');
+  // App language: Arabic UI → tell the model the speech is Arabic (big accuracy gain for Saudi dialect).
+  const lang = String(form.get('lang') ?? '').slice(0, 2);
+
+  // Spelling hints only: names of people and workspaces. Keep this a plain word list. Full sentences or task
+  // titles here make the model hallucinate them when the audio is silent or noisy.
+  const [{ data: team }, { data: workspaces }] = await Promise.all([
+    db.from('profiles').select('full_name, full_name_ar'),
+    db.from('workspaces').select('name, name_ar'),
+  ]);
+  const vocab = [...(team ?? []).flatMap((p) => [p.full_name, p.full_name_ar]), ...(workspaces ?? []).flatMap((w) => [w.name, w.name_ar])]
+    .filter(Boolean)
+    .join(', ');
 
   const provider = Deno.env.get('STT_PROVIDER') ?? 'openai';
   if (provider !== 'openai') throw new HttpError(500, `Unsupported STT_PROVIDER: ${provider}`);
@@ -25,10 +34,8 @@ serve(async (req) => {
   const body = new FormData();
   body.append('file', file, file.name || 'audio.m4a');
   body.append('model', Deno.env.get('STT_MODEL') ?? 'gpt-4o-transcribe');
-  body.append(
-    'prompt',
-    `A manager in Saudi Arabia is giving a task, in Saudi Arabic or English (often mixed). Team: ${names}.`,
-  );
+  if (lang === 'ar') body.append('language', 'ar');
+  body.append('prompt', `Saudi dialect. Names: ${vocab}.`.slice(0, 800));
 
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
@@ -42,5 +49,13 @@ serve(async (req) => {
   const out = (await res.json()) as { text?: string };
   const text = (out.text ?? '').trim();
   if (!text) throw new HttpError(422, 'No speech detected');
+  // On silence or noise the model tends to read the prompt back ("عبدالله القحطاني, نورة…"). A transcript made only of
+  // hint names is that echo, not speech: reject it instead of turning it into a task.
+  const words = (x: string) => x.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1);
+  const hint = new Set(words(`Saudi dialect Names ${vocab}`));
+  const spoken = words(text);
+  if (spoken.length && spoken.filter((w) => !hint.has(w)).length < 2 && spoken.length > 2) {
+    throw new HttpError(422, 'No speech detected');
+  }
   return json({ text });
 });

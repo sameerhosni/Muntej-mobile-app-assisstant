@@ -99,6 +99,7 @@ const en = {
     loadError: "Couldn't load your dashboard. Pull down to retry.",
   },
   capture: {
+    noSpeech: "I didn't hear anything. Hold the phone closer and try again.",
     gotIt: 'Got it',
     listening: 'Listening…',
     tapToStop: 'Tap to stop',

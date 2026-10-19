@@ -102,6 +102,7 @@ const ar: Translations = {
     loadError: 'ما قدرنا نحمّل الصفحة. اسحب لتحت وجرّب مرة ثانية.',
   },
   capture: {
+    noSpeech: 'ما سمعت شي. قرّب الجوال وجرّب مرة ثانية.',
     gotIt: 'وصلت',
     listening: 'أسمعك…',
     tapToStop: 'اضغط عشان توقف',

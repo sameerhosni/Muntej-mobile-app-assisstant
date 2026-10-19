@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import { File } from 'expo-file-system';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import i18n from '@/lib/i18n';
 import type { TaskPriority } from '@/lib/api';
 
 export type FollowupStep = {
@@ -51,6 +52,7 @@ export async function transcribeAudio(uri: string): Promise<string> {
     const form = new FormData();
     const blob = await (await fetch(uri)).blob();
     form.append('file', blob, blob.type.includes('webm') ? 'audio.webm' : 'audio.m4a');
+    form.append('lang', i18n.language);
     const { data, error } = await supabase.functions.invoke<{ text: string }>('transcribe', { body: form });
     if (error) throw await toError(error);
     return data!.text;
@@ -61,6 +63,8 @@ export async function transcribeAudio(uri: string): Promise<string> {
   const file = new File(fileUri);
   const form = new FormData();
   form.append('file', file, 'audio.m4a');
+  // the app language is a strong hint for the speech model (Saudi Arabic vs English)
+  form.append('lang', i18n.language);
 
   const { data: session } = await supabase.auth.getSession();
   const token = session.session?.access_token;

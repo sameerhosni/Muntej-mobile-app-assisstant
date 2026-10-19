@@ -7,14 +7,7 @@
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve } from '../_shared/http.ts';
 import { sendPush } from '../_shared/push.ts';
-
-const FollowupStep = z.object({
-  at: z.string().describe('ISO 8601 datetime with +03:00 offset'),
-  kind: z.enum(['brief', 'check', 'risk', 'collect']),
-  channel: z.enum(['whatsapp', 'in_app', 'push', 'email']),
-  summary: z.string().describe('What Muntej will do, shown to the user, e.g. "Check where he is at"'),
-  message: z.string().describe('The friendly message Muntej sends to the owner'),
-});
+import { buildPlan } from '../_shared/followup-plan.ts';
 
 const Priority = z.enum(['low', 'medium', 'high', 'urgent']);
 
@@ -30,7 +23,6 @@ const NewTask = z.object({
   definition_of_done: z.string().nullable(),
   budget: z.string().nullable(),
   workspace_id: z.string().nullable(),
-  followup_plan: z.array(FollowupStep),
 });
 
 const TaskUpdate = z.object({
@@ -67,19 +59,13 @@ Each turn, choose ONE action:
 - "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null.
 
 Writing rules:
-- language = the language of the user's latest message. Write reply, title, owner_reason, goal, definition_of_done, helper_reason and plan text in it. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
+- language = the language of the user's latest message. Write reply, title, owner_reason, goal, definition_of_done and helper_reason in it. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
 - reply: 1–3 short sentences, human and warm, no lists, no ids. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so.
 - ids (owner_id, helper_id, workspace_id, task_id) must come from the provided lists, else null.
 - Dates: resolve relative dates against current_time_riyadh. Saudi work week is Sunday–Thursday. "Before Thursday" = Thursday 17:00; no time said → 17:00. ISO 8601 with +03:00.
 - priority: urgent only for today/ASAP/ضروري/عاجل; high for client or executive deadlines within a week; low if "no rush"; else medium.
 - definition_of_done: one concrete, checkable sentence only if it can be inferred; otherwise null (it becomes a missing item). goal: business goal/client in 1–4 words or null. budget: only if money/resources are mentioned.
-- followup_plan (create only), so nobody has to chase: 3–5 chronological steps inside working hours (Sun–Thu 09:00–17:00 Riyadh, never Friday or after 21:00):
-  1. kind "brief" now on whatsapp: brief the owner, ask for a confirm, mention the helper if any.
-  2. one or two kind "check" steps before the due date.
-  3. kind "risk" around 60–70% of the way: if progress < 50%, flag it to the user with a ready fix.
-  4. kind "collect" exactly at due_at as the LAST step.
-  Due under 24h → brief + one check + collect. No due date → brief + a check in 2 working days.
-  "message" is what the owner receives: short, warm, respectful; Saudi Arabic if the owner prefers Arabic or the user wrote Arabic. When the owner is the user themself, phrase it as a reminder to them.`;
+- The follow-up plan is built by the server; you never write it.`;
 
 const ACTIVE = ['draft', 'assigned', 'in_progress', 'blocked', 'submitted', 'returned'];
 
@@ -191,7 +177,8 @@ serve(async (req) => {
   }));
 
   // ── ask the model ──
-  const model = Deno.env.get('CHAT_MODEL') ?? Deno.env.get('PARSE_MODEL') ?? 'gpt-5-mini';
+  // gpt-4.1: ~2-4 s replies with good Saudi Arabic; gpt-5-mini was 5-12 s (its reasoning step) for the same quality
+  const model = Deno.env.get('CHAT_MODEL') ?? 'gpt-4.1';
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${requireEnv('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
@@ -242,16 +229,21 @@ serve(async (req) => {
     t.owner_id = person(t.owner_id);
     t.helper_id = person(t.helper_id);
     if (t.workspace_id && !wsIds.has(t.workspace_id)) t.workspace_id = null;
-    if (t.due_at && t.followup_plan.length && t.followup_plan.at(-1)!.kind !== 'collect') {
-      t.followup_plan.push({
-        at: t.due_at,
-        kind: 'collect',
-        channel: 'in_app',
-        summary: parsed.language === 'ar' ? 'أجمع التسليم وأرسله لك' : 'Collect the deliverable and send it to you',
-        message: parsed.language === 'ar' ? 'اليوم موعد التسليم، ارفعه لو سمحت.' : 'It is due today. Please upload it here.',
-      });
-    }
-    const { data, error } = await db.rpc('create_task_with_plan', { p: { ...t, source, transcript: message } });
+    if (t.due_at && Number.isNaN(Date.parse(t.due_at))) t.due_at = null;
+    const owner = team.find((p) => p.id === t.owner_id);
+    const helper = team.find((p) => p.id === t.helper_id);
+    const ownerArabic = owner ? owner.locale === 'ar' || parsed.language === 'ar' : parsed.language === 'ar';
+    const first = (p?: { full_name: string; full_name_ar: string | null }) =>
+      p ? ((ownerArabic ? p.full_name_ar : null) ?? p.full_name).split(' ')[0] : null;
+    const followup_plan = buildPlan({
+      title: t.title,
+      dueAt: t.due_at,
+      ownerFirstName: first(owner),
+      ownerArabic,
+      self: t.owner_id === profileId,
+      helperFirstName: first(helper),
+    });
+    const { data, error } = await db.rpc('create_task_with_plan', { p: { ...t, followup_plan, source, transcript: message } });
     if (error) throw new HttpError(400, error.message);
     taskId = data as string;
     ownerReason = t.owner_reason;
