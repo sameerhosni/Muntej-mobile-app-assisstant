@@ -46,6 +46,7 @@ const ChatOutput = z.object({
   update: TaskUpdate.nullable().describe('Only when action = update; null fields mean "unchanged"'),
   target_task_id: z.string().nullable().describe('Only when action = cancel or delete'),
   suggestions: z.array(z.string()).describe('0-3 optional next steps, each a short ready-to-send message in the user language'),
+  candidates: z.array(z.string()).describe('Only with action none: 2-3 task ids when the user wants to change a task but several tasks fit'),
 });
 type ChatOutput = z.infer<typeof ChatOutput>;
 
@@ -59,12 +60,14 @@ Each turn, choose ONE action:
 - "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). Create it IMMEDIATELY, even if details are vague — the user can Undo, and gaps are filled later in the chat. Never ask a clarifying question instead of creating: write the best short title you can from what was said, and mention the open points (which one, when, what "done" means) in the reply as things they can add. Only the title is required: owner, due date, what "done" means, priority details and budget may all be null and filled later. Only use "none" for work if you cannot even name the task.
   WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team using, in order: skills and title that match the work, recent_tasks similar to this one, then the lowest open_tasks load. Put the reason in owner_reason (one short clause, user's language). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
 - "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null. The user may point at another task by its title, client or owner ("move the lease task to Thursday", "مهمة فيصل خلها بكرة"): match it in recent_chat_tasks or open_tasks.
+- FOCUS: when focused_task is given, the user opened the chat on that task: every change, cancel or delete targets focused_task (use its id), and questions are about it, unless they clearly name a different task.
+- WHICH ONE: when the user wants to change a task by describing it (title, client, owner, any detail) and two or more tasks in open_tasks fit equally, use action "none", put their ids in candidates (max 3) and ask which one in the reply. If exactly one fits, use "update" with its id (the app will ask the user to confirm when it is not the task being discussed). If NO task fits (e.g. it was cancelled or never existed), use "none" and say you couldn't find it; never pick an unrelated task.
 - "cancel": the user wants a task stopped ("cancel it", "الغها", "ما نحتاجها"). Put its id in target_task_id (most recent task unless another is meant).
 - "delete": the user wants a task removed completely ("delete it", "احذفها"). Put its id in target_task_id. Deleting needs one tap to confirm, so say you've shown it and they just need to confirm. Prefer "cancel" when they only mean it's no longer needed.
 
 Writing rules:
 - language = the language of the user's latest message. Write reply, title, owner_reason, goal, definition_of_done and helper_reason in it. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
-- reply: 1–3 short sentences, human and warm, no lists, no ids. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so.
+- reply: 1–3 short sentences, human and warm, no lists, no ids. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so (with action "none" you created and changed nothing).
 - suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. Empty for small talk, questions, cancel and delete.
 - ids (owner_id, helper_id, workspace_id, task_id) must come from the provided lists, else null.
 - Dates: resolve relative dates against current_time_riyadh. Saudi work week is Sunday–Thursday. "Before Thursday" = Thursday 17:00; no time said → 17:00. ISO 8601 with +03:00.
@@ -103,10 +106,18 @@ serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
   const { db, profileId } = await getCaller(req);
 
-  const body = (await req.json().catch(() => ({}))) as { message?: string; source?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    message?: string;
+    source?: string;
+    /** the chat was opened on this task (Tasks list / row mic): changes go straight to it */
+    focus_task_id?: string;
+    /** the user tapped Confirm on a proposed change: apply it without asking the model */
+    apply?: { task_id: string; patch: Record<string, unknown> };
+    lang?: string;
+  };
   const message = (body.message ?? '').trim();
   const source = body.source === 'voice' ? 'voice' : 'text';
-  if (!message) throw new HttpError(400, 'Say or type something first');
+  if (!message && !body.apply) throw new HttpError(400, 'Say or type something first');
   if (message.length > 4000) throw new HttpError(413, 'That message is too long');
 
   // ── context (all RLS-scoped to the caller) ──
@@ -137,6 +148,11 @@ serve(async (req) => {
       missing: missingOf(t),
     }));
 
+  const taskById = new Map(allTasks.map((t) => [t.id, t]));
+  const focus = body.focus_task_id && taskById.has(body.focus_task_id) ? taskById.get(body.focus_task_id)! : null;
+  // the task the conversation was just about: follow-ups like "make it Thursday" may change it without asking
+  const lastTurnTaskId = [...chat].reverse().find((m) => m.role === 'assistant')?.task_id ?? null;
+
   const now = new Date();
   const riyadhNow = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Riyadh',
@@ -164,8 +180,22 @@ serve(async (req) => {
       open_tasks: open.filter((t) => t.owner_id === p.id).length,
       recent_tasks: allTasks.filter((t) => t.owner_id === p.id).slice(0, 5).map((t) => t.title),
     })),
+    focused_task: focus
+      ? {
+          id: focus.id,
+          title: focus.title,
+          owner: nameOf(focus.owner_id),
+          status: focus.status,
+          due_at: focus.due_at,
+          priority: focus.priority,
+          definition_of_done: focus.definition_of_done,
+          budget: focus.budget,
+          goal: focus.goal,
+          missing: missingOf(focus),
+        }
+      : null,
     recent_chat_tasks: recentChatTasks,
-    open_tasks: open.slice(0, 30).map((t) => ({
+    open_tasks: open.slice(0, 60).map((t) => ({
       id: t.id,
       title: t.title,
       owner: nameOf(t.owner_id),
@@ -181,6 +211,34 @@ serve(async (req) => {
     content: m.role === 'assistant' && m.action !== 'none' ? `${m.content}\n[${m.action} task ${m.task_id}]` : m.content,
   }));
 
+  let parsed: ChatOutput;
+  if (body.apply && taskById.has(body.apply.task_id)) {
+    // Confirm tapped on a proposed change: no model call, same apply path as a direct update.
+    const ar = body.lang === 'ar';
+    const a = body.apply.patch ?? {};
+    const str = (k: string) => (typeof a[k] === 'string' ? (a[k] as string) : null);
+    parsed = {
+      language: ar ? 'ar' : 'en',
+      reply: ar ? 'تم، عدّلتها.' : 'Done, updated.',
+      action: 'update',
+      task: null,
+      update: {
+        task_id: body.apply.task_id,
+        title: str('title'),
+        owner_id: str('owner_id'),
+        owner_reason: null,
+        helper_id: str('helper_id'),
+        due_at: str('due_at'),
+        priority: str('priority') as 'low' | 'medium' | 'high' | 'urgent' | null,
+        goal: str('goal'),
+        definition_of_done: str('definition_of_done'),
+        budget: str('budget'),
+      },
+      target_task_id: null,
+      suggestions: [],
+      candidates: [],
+    };
+  } else {
   // ── ask the model ──
   // gpt-4.1: ~2-4 s replies with good Saudi Arabic; gpt-5-mini was 5-12 s (its reasoning step) for the same quality
   const model = Deno.env.get('CHAT_MODEL') ?? 'gpt-4.1';
@@ -194,7 +252,9 @@ serve(async (req) => {
         { role: 'system', content: SYSTEM },
         { role: 'system', content: `Context:\n${JSON.stringify(context)}` },
         ...conversation,
-        { role: 'user', content: message },
+        // anchor the turn on the focused task so the reply talks about it (the saved message stays as typed)
+        { role: 'user', content: focus ? `[Focused task: "${focus.title}" (id ${focus.id}). This message is about this task only.]
+${message}` : message },
       ],
       response_format: { type: 'json_schema', json_schema: { name: 'muntej_chat', strict: true, schema: RESPONSE_SCHEMA } },
     }),
@@ -209,13 +269,13 @@ serve(async (req) => {
   const out = (await res.json()) as { choices?: { message?: { content?: string | null; refusal?: string | null } }[] };
   const msg = out.choices?.[0]?.message;
   if (msg?.refusal) throw new HttpError(422, 'Muntej could not process that request');
-  let parsed: ChatOutput;
   try {
     const r = ChatOutput.safeParse(JSON.parse(msg?.content ?? ''));
     if (!r.success) throw new Error('schema');
     parsed = r.data;
   } catch {
     throw new HttpError(502, 'Muntej got confused, try rephrasing');
+  }
   }
 
   // ── act ──
@@ -229,6 +289,8 @@ serve(async (req) => {
   let taskId: string | null = null;
   let ownerReason: string | null = null;
   let ownerChanged = false;
+  // a change to a task picked by description waits for the user's Confirm
+  let proposedPatch: Record<string, unknown> | null = null;
 
   if (parsed.action === 'create' && parsed.task) {
     const t = parsed.task;
@@ -255,8 +317,10 @@ serve(async (req) => {
     ownerReason = t.owner_reason;
     ownerChanged = !!t.owner_id;
     action = 'created';
-  } else if (parsed.action === 'update' && parsed.update && taskIds.has(parsed.update.task_id)) {
+  } else if (parsed.action === 'update' && parsed.update && (focus || taskIds.has(parsed.update.task_id))) {
     const u = parsed.update;
+    // the user opened the chat on a task: that task is the target, whatever the model picked
+    if (focus && !body.apply) u.task_id = focus.id;
     const patch: Record<string, unknown> = {};
     if (u.title) patch.title = u.title;
     if (person(u.owner_id)) patch.owner_id = u.owner_id;
@@ -266,7 +330,13 @@ serve(async (req) => {
     if (u.goal) patch.goal = u.goal;
     if (u.definition_of_done) patch.definition_of_done = u.definition_of_done;
     if (u.budget) patch.budget = u.budget;
-    if (Object.keys(patch).length) {
+    // direct when the user picked the task (focus / Confirm) or it's the one just discussed; otherwise propose
+    const direct = !!body.apply || u.task_id === focus?.id || u.task_id === lastTurnTaskId;
+    if (Object.keys(patch).length && !direct) {
+      taskId = u.task_id;
+      proposedPatch = patch;
+      ownerReason = patch.owner_id ? u.owner_reason : null;
+    } else if (Object.keys(patch).length) {
       const { error } = await db.rpc('update_task_from_chat', { p_task: u.task_id, patch });
       if (error) throw new HttpError(400, error.message);
       taskId = u.task_id;
@@ -305,8 +375,9 @@ serve(async (req) => {
   }
 
   // cancel runs now; delete only shows the card in a confirm state (one tap in the app actually deletes it)
-  if ((parsed.action === 'cancel' || parsed.action === 'delete') && parsed.target_task_id && taskIds.has(parsed.target_task_id)) {
-    taskId = parsed.target_task_id;
+  const target = focus?.id ?? (parsed.target_task_id && taskIds.has(parsed.target_task_id) ? parsed.target_task_id : null);
+  if ((parsed.action === 'cancel' || parsed.action === 'delete') && target) {
+    taskId = target;
     if (parsed.action === 'cancel') {
       const { error } = await db.rpc('cancel_task', { p_task: taskId });
       if (error) throw new HttpError(400, error.message);
@@ -338,17 +409,51 @@ serve(async (req) => {
         missing: missingOf(t),
         suggestions: action === 'created' || action === 'updated' ? parsed.suggestions.slice(0, 3) : [],
         ...(confirmDelete ? { confirm_delete: true } : {}),
+        ...(proposedPatch ? { confirm_update: true, proposed_patch: proposedPatch, proposed_owner_name: nameOf((proposedPatch.owner_id as string) ?? null) } : {}),
       };
     }
+  } else if (parsed.action === 'none' && parsed.candidates.length >= 2) {
+    // several tasks fit the description: let the user pick one (the app re-sends the message focused on it)
+    const picks = parsed.candidates.filter((id) => taskById.has(id)).slice(0, 3).map((id) => {
+      const t = taskById.get(id)!;
+      return { id, title: t.title, owner_name: nameOf(t.owner_id), due_at: t.due_at };
+    });
+    if (picks.length >= 2) payload = { candidates: picks, original_message: message };
+  }
+
+  // a proposal must never read as done: the server words the question, naming the task it found
+  if (proposedPatch && taskId) {
+    const t = taskById.get(taskId)!;
+    const ar = parsed.language === 'ar';
+    const owner = nameOf(t.owner_id);
+    const parts: string[] = [];
+    const fmt = (iso: string) =>
+      new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+    if (proposedPatch.due_at) parts.push(ar ? `الموعد ← ${fmt(proposedPatch.due_at as string)}` : `due → ${fmt(proposedPatch.due_at as string)}`);
+    if (proposedPatch.owner_id) parts.push(ar ? `المسؤول ← ${nameOf(proposedPatch.owner_id as string)}` : `owner → ${nameOf(proposedPatch.owner_id as string)}`);
+    if (proposedPatch.helper_id) parts.push(ar ? `المساعد ← ${nameOf(proposedPatch.helper_id as string)}` : `helper → ${nameOf(proposedPatch.helper_id as string)}`);
+    if (proposedPatch.priority) parts.push(ar ? 'الأولوية' : `priority → ${proposedPatch.priority}`);
+    if (proposedPatch.title) parts.push(ar ? 'العنوان' : 'title');
+    if (proposedPatch.definition_of_done) parts.push(ar ? 'وش يعتبر خالص' : 'what done means');
+    if (proposedPatch.budget) parts.push(ar ? 'الميزانية' : 'budget');
+    if (proposedPatch.goal) parts.push(ar ? 'الهدف' : 'goal');
+    parsed.reply = ar
+      ? `تقصد مهمة «${t.title}»${owner ? ` (${owner})` : ''}؟ بعدّل: ${parts.join('، ')}. أكّد لي وأسويها.`
+      : `Do you mean "${t.title}"${owner ? ` (${owner})` : ''}? I'll change: ${parts.join(', ')}. Confirm and I'll do it.`;
   }
 
   // ── save both messages (user first, so ordering is stable) ──
-  const { data: userMsg, error: e1 } = await db
-    .from('chat_messages')
-    .insert({ profile_id: profileId, role: 'user', content: message })
-    .select()
-    .single();
-  if (e1) throw new HttpError(500, e1.message);
+  // a Confirm tap has no user message of its own
+  let userMsg: unknown = null;
+  if (!body.apply) {
+    const { data, error: e1 } = await db
+      .from('chat_messages')
+      .insert({ profile_id: profileId, role: 'user', content: message })
+      .select()
+      .single();
+    if (e1) throw new HttpError(500, e1.message);
+    userMsg = data;
+  }
   const { data: botMsg, error: e2 } = await db
     .from('chat_messages')
     .insert({ profile_id: profileId, role: 'assistant', content: parsed.reply, task_id: taskId, action, payload })
@@ -374,5 +479,5 @@ serve(async (req) => {
     }).catch((e) => console.error('assign push failed', e));
   }
 
-  return json({ messages: [userMsg, botMsg] });
+  return json({ messages: userMsg ? [userMsg, botMsg] : [botMsg] });
 });
