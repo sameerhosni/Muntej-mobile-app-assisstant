@@ -31,7 +31,7 @@ export type ParsedTask = {
 };
 
 /** Turns a functions.invoke error into an Error with the server's message. */
-async function toError(error: unknown): Promise<Error> {
+export async function toError(error: unknown): Promise<Error> {
   if (error instanceof FunctionsHttpError) {
     try {
       const body = (await error.context.json()) as { error?: string };

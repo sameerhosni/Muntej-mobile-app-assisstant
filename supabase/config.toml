@@ -421,3 +421,6 @@ verify_jwt = false
 [functions.parse-task]
 verify_jwt = false
 
+
+[functions.muntej-chat]
+verify_jwt = false

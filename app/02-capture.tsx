@@ -1,268 +1,368 @@
 // Screen 02 · Capture — see design/v2/html/Capture.dc.html (Arabic: CaptureAR.dc.html)
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+// Now the Muntej chat: one continuous conversation; the muntej-chat Edge Function decides whether to reply,
+// create a task (saved immediately) or update a recent one. Task cards support Undo / Edit / fill-in-missing.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Check, X } from 'lucide-react-native';
-import { AppText, BottomCTA, BOTTOM_CTA_SPACE, Button, Card, IconBadge, IconButton, TextField } from '@/components/ui';
-import { colors, spacing } from '@/theme/tokens';
+import { X } from 'lucide-react-native';
+import { AppText, IconButton } from '@/components/ui';
+import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
+import { useDirection } from '@/lib/i18n';
+import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTeam } from '@/lib/api';
-import { MicButton } from '@/features/home/MicButton';
-import { Waveform } from '@/features/capture/Waveform';
-import { TaskReview } from '@/features/capture/TaskReview';
-import { EditTask } from '@/features/capture/EditTask';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
-import { formatClock } from '@/features/capture/points';
-import { createTask, parseTask, rescalePlan, transcribeAudio, type ParsedTask } from '@/features/capture/api';
+import { transcribeAudio } from '@/features/capture/api';
+import { personName } from '@/features/capture/TaskReview';
+import {
+  appendToChat,
+  chatKey,
+  invalidateTaskData,
+  mergeTask,
+  sendChat,
+  undoChatTask,
+  updateTaskFromChat,
+  useChat,
+  type CardTask,
+  type ChatSource,
+  type MissingItem,
+  type TaskPatch,
+} from '@/features/chat/api';
+import { MuntejAvatar, MuntejBubble, MuntejText, NoticeBubble, TypingBubble, UserBubble } from '@/features/chat/Bubbles';
+import { TaskCard } from '@/features/chat/TaskCard';
+import { Composer, type VoiceState } from '@/features/chat/Composer';
+import { EditSheet } from '@/features/chat/EditSheet';
+import { NS } from '@/features/chat/strings';
 
-type Step =
-  | { kind: 'recording' }
-  | { kind: 'typing' }
-  | { kind: 'working'; label: 'transcribing' | 'understanding' }
-  | { kind: 'review'; task: ParsedTask }
-  | { kind: 'edit'; task: ParsedTask; draft: ParsedTask }
-  | { kind: 'error'; message: string };
+type Pending = { content: string; source: ChatSource; at: string; status: 'sending' | 'error'; error?: string };
 
-export default function CaptureScreen() {
-  const { t } = useTranslation();
+const EXAMPLES = ['ex1', 'ex2', 'ex3'] as const;
+
+export default function MuntejChatScreen() {
+  const { t } = useScreenT(NS);
+  const { t: tg } = useTranslation();
+  const { lang } = useDirection();
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const { mode } = useLocalSearchParams<{ mode?: 'voice' | 'text' }>();
-  const source = mode === 'text' ? 'text' : 'voice';
-  const [step, setStep] = useState<Step>(source === 'voice' ? { kind: 'recording' } : { kind: 'typing' });
-  const [text, setText] = useState('');
-  const [saving, setSaving] = useState(false);
-  // length of the voice note behind the current transcript; null for typed text
-  const [voiceMs, setVoiceMs] = useState<number | null>(null);
-  const recorder = useVoiceRecorder();
+
+  const chat = useChat();
   const team = useTeam();
   const me = useMyProfile();
+  const recorder = useVoiceRecorder();
+
+  const [text, setText] = useState('');
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [voice, setVoice] = useState<VoiceState>('idle');
+  const [undone, setUndone] = useState<Set<string>>(() => new Set());
+  const [editing, setEditing] = useState<CardTask | null>(null);
+
+  const scroll = useRef<ScrollView>(null);
+  const input = useRef<TextInput>(null);
   const started = useRef(false);
 
-  const understand = useCallback(
-    async (sentence: string) => {
-      setStep({ kind: 'working', label: 'understanding' });
+  const timeFmt = useMemo(() => {
+    const f = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US', { hour: 'numeric', minute: '2-digit' });
+    return (iso: string) => {
       try {
-        setStep({ kind: 'review', task: await parseTask(sentence) });
+        return f.format(new Date(iso));
+      } catch {
+        return '';
+      }
+    };
+  }, [lang]);
+
+  // ── sending ────────────────────────────────────────────────────────────────
+  const send = useCallback(
+    async (raw: string, source: ChatSource) => {
+      const content = raw.trim();
+      if (!content) return;
+      setNotice(null);
+      const p: Pending = { content, source, at: new Date().toISOString(), status: 'sending' };
+      setPending(p);
+      try {
+        const rows = await sendChat(content, source);
+        appendToChat(qc, rows);
+        setPending(null);
+        qc.invalidateQueries({ queryKey: chatKey });
+        if (rows.some((r) => r.action === 'created' || r.action === 'updated')) invalidateTaskData(qc);
       } catch (e) {
-        setStep({ kind: 'error', message: (e as Error).message || t('capture.failed') });
+        setPending({ ...p, status: 'error', error: (e as Error).message || t('failed') });
       }
     },
-    [t],
+    [qc, t],
   );
 
+  const busy = pending?.status === 'sending';
+
+  const sendTyped = () => {
+    if (busy || !text.trim()) return;
+    const v = text;
+    setText('');
+    send(v, 'text');
+  };
+
+  // ── voice ──────────────────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
-    setStep({ kind: 'recording' });
+    setNotice(null);
+    setVoice('recording');
     try {
       await recorder.start();
     } catch (e) {
-      setStep({ kind: 'error', message: e instanceof MicDeniedError ? t('capture.micDenied') : t('capture.failed') });
+      setVoice('idle');
+      setNotice(e instanceof MicDeniedError ? tg('capture.micDenied') : tg('capture.failed'));
     }
-  }, [recorder, t]);
+  }, [recorder, tg]);
 
-  // start listening as soon as the screen opens from the mic button
+  // opened from the mic button → start listening right away
   useEffect(() => {
-    if (source === 'voice' && !started.current) {
+    if (mode === 'voice' && !started.current) {
       started.current = true;
       startRecording();
     }
-  }, [source, startRecording]);
+  }, [mode, startRecording]);
 
   const stopRecording = async () => {
     const duration = recorder.durationMillis;
-    const uri = await recorder.stop();
+    const uri = await recorder.stop().catch(() => null);
     if (!uri || duration < 800) {
-      setStep({ kind: 'error', message: t('capture.tooShort') });
+      setVoice('idle');
+      setNotice(tg('capture.tooShort'));
       return;
     }
-    setVoiceMs(duration);
-    setStep({ kind: 'working', label: 'transcribing' });
+    setVoice('transcribing');
     try {
       const transcript = await transcribeAudio(uri);
-      await understand(transcript);
+      setVoice('idle');
+      if (transcript.trim()) await send(transcript, 'voice');
+      else setNotice(tg('capture.tooShort'));
     } catch (e) {
-      setStep({ kind: 'error', message: (e as Error).message || t('capture.failed') });
+      setVoice('idle');
+      setNotice((e as Error).message || tg('capture.failed'));
     }
   };
 
+  const cancelRecording = async () => {
+    if (recorder.isRecording) await recorder.stop().catch(() => {});
+    setVoice('idle');
+  };
+
+  // ── leaving ────────────────────────────────────────────────────────────────
   // opened from Home → go back; opened directly (deep link / web refresh) → land on Home
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/01-home'));
-
   const close = async () => {
     if (recorder.isRecording) await recorder.stop().catch(() => {});
     leave();
   };
 
-  const save = async (task: ParsedTask) => {
-    setSaving(true);
+  // ── task cards ─────────────────────────────────────────────────────────────
+  const messages = chat.data?.messages ?? [];
+  const liveTasks = chat.data?.tasks ?? {};
+
+  // only the newest card per task is shown (it carries the latest state)
+  const latestCardFor = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const msg of messages) if (msg.payload && msg.task_id) m.set(msg.task_id, msg.id);
+    return m;
+  }, [messages]);
+
+  const undo = async (taskId: string) => {
+    setUndone((s) => new Set(s).add(taskId));
     try {
-      await createTask(task, source);
-      await Promise.all([
-        qc.invalidateQueries({ queryKey: ['tasks'] }),
-        qc.invalidateQueries({ queryKey: ['homeStats'] }),
-        qc.invalidateQueries({ queryKey: ['activity'] }),
-      ]);
-      leave();
-    } catch (e) {
-      setSaving(false);
-      setStep({ kind: 'error', message: (e as Error).message || t('capture.failed') });
+      await undoChatTask(taskId);
+      await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
+    } catch {
+      setUndone((s) => {
+        const n = new Set(s);
+        n.delete(taskId);
+        return n;
+      });
+      setNotice(t('undoFailed'));
     }
   };
 
-  const title =
-    step.kind === 'recording'
-      ? t('capture.listening')
-      : step.kind === 'typing'
-        ? t('capture.typeTitle')
-        : step.kind === 'edit'
-          ? t('capture.edit')
-          : t('capture.gotIt');
+  const saveEdit = async (taskId: string, patch: TaskPatch) => {
+    await updateTaskFromChat(taskId, patch);
+    await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
+  };
 
-  const hasCTA = step.kind === 'review' || step.kind === 'edit';
+  const fillMissing = (item: MissingItem) => {
+    setText(t(`s_${item}`));
+    setTimeout(() => input.current?.focus(), 50);
+  };
+
+  const firstName = me.data ? personName(me.data, lang).split(' ')[0] : '';
+  const empty = !chat.isLoading && !chat.isError && messages.length === 0 && !pending;
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: spacing.screen,
-            paddingTop: 24,
-            paddingBottom: hasCTA ? BOTTOM_CTA_SPACE + 16 : 32,
-            gap: spacing.xl,
-          }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 1 }}>
-              {(step.kind === 'review' || step.kind === 'edit') && (
-                <IconBadge size={36} gradient="success">
-                  <Check color={colors.onDark} size={18} strokeWidth={2.4} />
-                </IconBadge>
-              )}
-              <AppText variant="titleLg" numberOfLines={1}>
-                {title}
-              </AppText>
-            </View>
-            <IconButton label={t('capture.close')} onPress={close}>
-              <X color={colors.text} size={20} strokeWidth={1.9} />
-            </IconButton>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Header */}
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderBottomLeftRadius: 24,
+          borderBottomRightRadius: 24,
+          boxShadow: shadows.card,
+          paddingTop: insets.top + 4,
+          paddingBottom: spacing.xl,
+          paddingStart: spacing.screen,
+          paddingEnd: 18,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: spacing.lg,
+          zIndex: 1,
+        }}
+      >
+        <View style={{ width: 46, height: 46, borderRadius: 23, boxShadow: shadows.primary }}>
+          <MuntejAvatar size={46} />
+          <View
+            style={{
+              position: 'absolute',
+              end: 0,
+              bottom: 1,
+              width: 11,
+              height: 11,
+              borderRadius: 6,
+              backgroundColor: colors.green,
+              borderWidth: 2,
+              borderColor: colors.surface,
+            }}
+          />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText variant="title" display>
+            {t('title')}
+          </AppText>
+          <AppText variant="caption" color="textMuted" numberOfLines={1}>
+            {t('subtitle')}
+          </AppText>
+        </View>
+        <IconButton label={t('close')} onPress={close}>
+          <X color={colors.text} size={20} strokeWidth={1.9} />
+        </IconButton>
+      </View>
+
+      {/* Messages */}
+      <ScrollView
+        ref={scroll}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: spacing.xxl, paddingTop: spacing.xxl, paddingBottom: spacing.xxl, gap: spacing.lg }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
+      >
+        {chat.isLoading && (
+          <View style={{ alignItems: 'center', gap: spacing.sm, marginTop: 40 }}>
+            <ActivityIndicator color={colors.primary} />
+            <AppText color="textMuted">{t('loading')}</AppText>
           </View>
+        )}
 
-          {step.kind === 'recording' && (
-            <View style={{ alignItems: 'center', gap: spacing.xxl, marginTop: 40 }}>
-              <Waveform level={recorder.isRecording ? recorder.level : 0} />
-              <AppText variant="hero" color="text" style={{ fontSize: 34 }}>
-                {formatClock(recorder.durationMillis)}
+        {chat.isError && (
+          <NoticeBubble text={t('loadFailed')} retryLabel={t('retry')} onRetry={() => chat.refetch()} />
+        )}
+
+        {empty && (
+          <>
+            <MuntejBubble>
+              <MuntejText text={firstName ? t('welcomeName', { name: firstName }) : t('welcome')} />
+            </MuntejBubble>
+            <View style={{ gap: spacing.sm, paddingStart: 38 }}>
+              <AppText variant="caption" weight="bold" color="textMuted">
+                {t('tryOne')}
               </AppText>
-              <MicButton label={t('capture.tapToStop')} active={recorder.isRecording} onPress={stopRecording} />
-              <AppText color="textMuted">{t('capture.tapToStop')}</AppText>
-              <Button
-                label={t('capture.typeInstead')}
-                variant="outline"
-                size="md"
-                onPress={async () => {
-                  if (recorder.isRecording) await recorder.stop().catch(() => {});
-                  setStep({ kind: 'typing' });
-                }}
-              />
+              {EXAMPLES.map((k) => (
+                <Pressable
+                  key={k}
+                  onPress={() => send(t(k), 'text')}
+                  accessibilityRole="button"
+                  style={({ pressed }) => ({
+                    alignSelf: 'flex-start',
+                    minHeight: sizes.touch,
+                    justifyContent: 'center',
+                    paddingHorizontal: 18,
+                    borderRadius: radius.pill,
+                    borderWidth: 1,
+                    borderColor: colors.borderBlue,
+                    backgroundColor: colors.surface,
+                    boxShadow: shadows.tile,
+                    opacity: pressed ? 0.85 : 1,
+                  })}
+                >
+                  <AppText weight="bold" color="primary">
+                    {t(k)}
+                  </AppText>
+                </Pressable>
+              ))}
             </View>
-          )}
+          </>
+        )}
 
-          {step.kind === 'typing' && (
-            <View style={{ gap: spacing.xl }}>
-              <TextField
-                value={text}
-                onChangeText={setText}
-                placeholder={t('capture.typePlaceholder')}
-                multiline
-                autoFocus
-                style={{ minHeight: 120, textAlignVertical: 'top' }}
+        {messages.map((m) => {
+          if (m.role === 'user') return <UserBubble key={m.id} text={m.content} time={timeFmt(m.created_at)} />;
+          const showCard = !!m.payload && !!m.task_id && latestCardFor.get(m.task_id) === m.id;
+          let card = null;
+          if (showCard && m.payload) {
+            const task = mergeTask(m.payload, liveTasks[m.payload.id]);
+            const isUndone = undone.has(task.id) || task.status === 'cancelled' || m.action === 'undone';
+            card = (
+              <TaskCard
+                task={task}
+                action={m.action}
+                team={team.data ?? []}
+                undone={isUndone}
+                onUndo={() => undo(task.id)}
+                onEdit={() => setEditing(task)}
+                onMissing={fillMissing}
               />
-              <Button label={t('capture.understand')} disabled={!text.trim()} onPress={() => {
-                  setVoiceMs(null);
-                  understand(text.trim());
-                }}
-              />
-            </View>
-          )}
+            );
+          }
+          return (
+            <MuntejBubble key={m.id} time={timeFmt(m.created_at)} below={card}>
+              <MuntejText text={m.content} />
+            </MuntejBubble>
+          );
+        })}
 
-          {step.kind === 'working' && (
-            <View style={{ alignItems: 'center', gap: spacing.xxl, marginTop: 60 }}>
-              <Waveform />
-              <ActivityIndicator color={colors.primary} />
-              <AppText color="textMuted">{t(`capture.${step.label}`)}</AppText>
-            </View>
-          )}
-
-          {step.kind === 'review' && (
-            <TaskReview task={step.task} team={team.data ?? []} durationMs={voiceMs ?? undefined} />
-          )}
-
-          {step.kind === 'edit' && (
-            <EditTask
-              draft={step.draft}
-              team={team.data ?? []}
-              meId={me.data?.id}
-              onChange={(draft) => setStep({ ...step, draft })}
-            />
-          )}
-
-          {step.kind === 'error' && (
-            <Card style={{ marginTop: 24 }}>
-              <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
-                <IconBadge size={32} bg="redTint" round>
-                  <AlertTriangle color={colors.red} size={16} strokeWidth={2.1} />
-                </IconBadge>
-                <AppText color="textSoft" style={{ flex: 1 }}>
-                  {step.message}
-                </AppText>
-              </View>
-              <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                {source === 'voice' && (
-                  <Button label={t('capture.tryAgain')} size="md" style={{ flex: 1 }} onPress={startRecording} />
-                )}
-                <Button
-                  label={t('capture.typeInstead')}
-                  variant="outline"
-                  size="md"
-                  style={{ flex: 1 }}
-                  onPress={() => setStep({ kind: 'typing' })}
-                />
-              </View>
-            </Card>
-          )}
-        </ScrollView>
-
-        {step.kind === 'review' && (
-          <BottomCTA
-            primary={{
-              label: t('capture.doneForget'),
-              onPress: () => save(step.task),
-              loading: saving,
-              icon: <Check color={colors.onDark} size={18} strokeWidth={2.4} />,
-            }}
-            secondary={{ label: t('capture.edit'), onPress: () => setStep({ kind: 'edit', task: step.task, draft: step.task }) }}
+        {pending && (
+          <UserBubble
+            text={pending.content}
+            time={timeFmt(pending.at)}
+            failed={pending.status === 'error' ? t('notSent') : undefined}
           />
         )}
-        {step.kind === 'edit' && (
-          <BottomCTA
-            primary={{
-              label: t('capture.save'),
-              disabled: !step.draft.title.trim(),
-              onPress: () =>
-                setStep({
-                  kind: 'review',
-                  task: {
-                    ...step.draft,
-                    followup_plan: rescalePlan(step.draft.followup_plan, step.task.due_at, step.draft.due_at),
-                  },
-                }),
-            }}
-            secondary={{ label: t('capture.cancel'), onPress: () => setStep({ kind: 'review', task: step.task }) }}
+        {pending?.status === 'sending' && <TypingBubble label={t('thinking')} />}
+        {pending?.status === 'error' && (
+          <NoticeBubble
+            text={pending.error ?? t('failed')}
+            retryLabel={t('retry')}
+            onRetry={() => send(pending.content, pending.source)}
           />
         )}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        {notice && <NoticeBubble text={notice} />}
+      </ScrollView>
+
+      <Composer
+        value={text}
+        onChangeText={setText}
+        onSend={sendTyped}
+        onMic={startRecording}
+        busy={busy}
+        autoFocus={mode === 'text'}
+        inputRef={input}
+        voice={voice}
+        level={recorder.isRecording ? recorder.level : 0}
+        durationMs={recorder.durationMillis}
+        onStop={stopRecording}
+        onCancel={cancelRecording}
+        bottomInset={insets.bottom}
+      />
+
+      <EditSheet task={editing} team={team.data ?? []} onClose={() => setEditing(null)} onSave={saveEdit} />
+    </KeyboardAvoidingView>
   );
 }
