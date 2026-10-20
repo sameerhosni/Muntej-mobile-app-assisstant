@@ -1,23 +1,23 @@
 // Screen 01 · Manager Home — see design/v2/html/Main.dc.html (Arabic: MainAR.dc.html)
-import type { ComponentType } from 'react';
+// Simplified (pilot feedback "too crowded"): three blocks only —
+//   1. slim header: greeting + bell + avatar, and Saree3's one-line status in his colour
+//   2. "Needs you": max 3 (decisions waiting → reviews waiting → late team tasks), "See all" for the rest
+//   3. shortcuts: Your week (value receipt), Team, Objectives, Autopilot
+// The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import { Redirect, router, type Href } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Banknote, ChevronRight, Clock, Hand, Keyboard, Receipt, RotateCw, Users, type LucideProps } from 'lucide-react-native';
+import { Receipt, RotateCw, Target, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { AppText, Avatar, Card, Gradient, Hero, IconBadge, SectionTitle, StatTile } from '@/components/ui';
-import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
+import { AppText, Avatar, Hero } from '@/components/ui';
+import { colors, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
-import { useHomeStats, useMyProfile, usePendingDecisionCount } from '@/lib/api';
-import { formatNumber, hoursSaved, sarSaved } from '@/features/home/value';
+import { useScreenT } from '@/lib/i18n/register';
+import { useMyProfile } from '@/lib/api';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
-import { TeamEnergyCard } from '@/features/home/TeamEnergyCard';
-import { LatestTasks } from '@/features/tasks/LatestTasks';
-import { NS as TASKS_NS } from '@/features/tasks/strings';
-import { NS as TEAM_NS } from '@/features/org/strings';
-import { ObjectivesLinkCard } from '@/features/objectives/ObjectivesLinkCard';
-import { useScreenT } from '@/lib/i18n/register';
+import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
+import { NS } from '@/features/home/strings';
 
 function greetingKey(date = new Date()) {
   const h = date.getHours();
@@ -26,266 +26,61 @@ function greetingKey(date = new Date()) {
 
 export default function ManagerHome() {
   const { t } = useTranslation();
-  const { lang, isRTL } = useDirection();
+  const { t: th } = useScreenT(NS);
+  const { lang } = useDirection();
   const me = useMyProfile();
-  const stats = useHomeStats();
-  const pending = usePendingDecisionCount();
   const { active: protoActive } = useProto();
   const qc = useQueryClient();
-  const { t: tt } = useScreenT(TASKS_NS);
-  const { t: tteam } = useScreenT(TEAM_NS);
 
   if (me.data?.role === 'employee' && !protoActive) return <Redirect href="/25-employee-home" />;
 
   const firstName = (lang === 'ar' && me.data?.full_name_ar ? me.data.full_name_ar : me.data?.full_name ?? '').split(' ')[0];
-  const s = stats.data;
-  const hours = s ? hoursSaved(s.followupsSent, s.updatesReceived) : null;
-  const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
-          <RefreshControl
-            refreshing={stats.isRefetching}
-            onRefresh={() => {
-              stats.refetch();
-              qc.invalidateQueries({ queryKey: ['tasks'] });
-            }}
-            tintColor={colors.primary}
-          />
+          <RefreshControl refreshing={false} onRefresh={() => qc.invalidateQueries()} tintColor={colors.primary} />
         }
         showsVerticalScrollIndicator={false}
       >
-        <Hero overlap={22}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ gap: 2, flexShrink: 1 }}>
-              <AppText color="onDarkMuted">{t(greetingKey())}</AppText>
-              <AppText variant="titleLg" color="onDark" numberOfLines={1}>
-                {firstName || ' '}
-              </AppText>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  backgroundColor: colors.glass,
-                  borderWidth: 1,
-                  borderColor: colors.glassBorder,
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: 6,
-                  borderRadius: radius.pill,
-                }}
-              >
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.mint }} />
-                <AppText variant="caption" weight="bold" color="onDark">
-                  {t('home.muntejOn')}
+        {/* 1. slim header + Saree3's status line */}
+        <Hero>
+          <View style={{ gap: spacing.lg }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View style={{ gap: 2, flexShrink: 1 }}>
+                <AppText color="onDarkMuted">{t(greetingKey())}</AppText>
+                <AppText variant="titleLg" color="onDark" numberOfLines={1}>
+                  {firstName || ' '}
                 </AppText>
               </View>
-              <AlertsBell />
-              <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('settings.open')}>
-                <Avatar name={me.data?.full_name ?? '?'} size={42} gradient="avatarOrange" ring />
-              </Pressable>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+                <AlertsBell />
+                <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('settings.open')}>
+                  <Avatar name={me.data?.full_name ?? '?'} size={42} gradient="avatarOrange" ring />
+                </Pressable>
+              </View>
             </View>
-          </View>
-
-          <View style={{ gap: 2, marginTop: 6 }}>
-            <AppText color="onDarkMuted">{t('home.handlingNow')}</AppText>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: spacing.md }}>
-              <AppText variant="hero" color="onDark" style={{ lineHeight: 64 }}>
-                {s ? formatNumber(s.handling, lang) : '–'}
-              </AppText>
-              <AppText variant="title" color="onDark" style={{ fontSize: 19 }}>
-                {t('home.tasksForYou')}
-              </AppText>
-            </View>
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <StatTile variant="glass" iconBg="primaryLight" icon={<Clock color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={hours === null ? '–' : formatNumber(hours, lang, 1)} label={t('home.hoursSaved')} />
-            <StatTile variant="glass" iconBg="green" icon={<Banknote color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={hours === null ? '–' : formatNumber(sarSaved(hours), lang)} label={t('home.sarSaved')} />
-            <StatTile variant="glass" iconBg="orange" icon={<Hand color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={s ? formatNumber(s.timesAsked, lang) : '–'} label={t('home.chasesNeeded')} />
+            <SareeLine />
           </View>
         </Hero>
 
-        <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 2, marginTop: -22 }}>
-          {pending > 0 && (
-            <Card
-              elevation="raised"
-              padding={spacing.lg}
-              onPress={() => router.push('/04-decisions')}
-              accessibilityLabel={t('home.decisionsTitle', { count: pending })}
-              style={{ flexDirection: 'row', alignItems: 'center' }}
-            >
-              <Gradient name="warning" style={{ width: 44, height: 44, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}>
-                <AppText variant="stat" color="onDark">
-                  {formatNumber(pending, lang)}
-                </AppText>
-              </Gradient>
-              <View style={{ flex: 1, gap: 2 }}>
-                <AppText variant="cardTitle">{t('home.decisionsTitle', { count: pending })}</AppText>
-                <AppText variant="caption" color="textMuted">
-                  {t('home.decisionsSub')}
-                </AppText>
-              </View>
-              <IconBadge size={32} bg="amberTint" round>
-                <ChevronRight color={colors.amberText} size={16} strokeWidth={2.2} style={flip} />
-              </IconBadge>
-            </Card>
-          )}
+        <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
+          {/* 2. what needs you, max 3 */}
+          <NeedsYou />
 
-          {/* The design always has a card overlapping the hero edge: decisions when pending, else this one. */}
-          <TeamEnergyCard raised={pending === 0} />
-
-          <View style={{ gap: spacing.md }}>
-            <SectionTitle title={t('home.askMuntej')} />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginHorizontal: -spacing.screen }}
-              contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingVertical: 2, gap: spacing.sm }}
-            >
-              <AskChip label={t('home.askLate')} Icon={Clock} bg="redTint" fg="red" href="/04-decisions" />
-              <AskChip label={t('home.askRisk')} Icon={AlertTriangle} bg="amberTint" fg="amberText" href="/24-roadmap" />
-              <AskChip label={t('home.askReceipt')} Icon={Receipt} bg="greenTint" fg="green" href="/32-receipt" />
-            </ScrollView>
-          </View>
-
-          <View
-            style={{
-              minHeight: 56,
-              borderRadius: radius.button,
-              backgroundColor: colors.surface,
-              borderWidth: 1.5,
-              borderStyle: 'dashed',
-              borderColor: colors.borderDashed,
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}
-          >
-            <Pressable
-              onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'voice' } })}
-              accessibilityRole="button"
-              accessibilityLabel={t('home.sayBar')}
-              style={{ flex: 1, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xxl }}
-            >
-              <WaveGlyph />
-              <AppText color="textMuted">{t('home.sayBar')}</AppText>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })}
-              accessibilityRole="button"
-              accessibilityLabel={t('home.typeInsteadLabel')}
-              style={{ width: sizes.touch + 8, minHeight: 56, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Keyboard color={colors.primary} size={20} strokeWidth={1.9} />
-            </Pressable>
-          </View>
-
-          <LatestTasks filter="all" role="manager" />
-
-          {/* Autopilot left the tab bar (Tasks took its place); it stays one tap away from Home. */}
-          <Card
-            padding={spacing.lg}
-            onPress={() => router.push('/03-autopilot')}
-            accessibilityLabel={`${tt('autopilot')} · ${tt('autopilotSub')}`}
-            style={{ flexDirection: 'row', alignItems: 'center', minHeight: sizes.touch + 12, marginTop: -spacing.sm }}
-          >
-            <IconBadge size={36} bg="primaryTint">
-              <RotateCw color={colors.primary} size={17} strokeWidth={2} />
-            </IconBadge>
-            <AppText variant="small" color="textMuted" numberOfLines={1} style={{ flex: 1 }}>
-              <AppText variant="small" weight="bold">
-                {tt('autopilot')}
-              </AppText>
-              {' · '}
-              {tt('autopilotSub')}
-            </AppText>
-            <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
-          </Card>
-
-          {/* Org structure (screen 39): who reports to whom, skills, contacts. */}
-          <Card
-            padding={spacing.lg}
-            onPress={() => router.push('/39-team')}
-            accessibilityLabel={`${tteam('title')} · ${tteam('linkSub')}`}
-            style={{ flexDirection: 'row', alignItems: 'center', minHeight: sizes.touch + 12, marginTop: -spacing.sm }}
-          >
-            <IconBadge size={36} bg="primaryTint">
-              <Users color={colors.primary} size={17} strokeWidth={2} />
-            </IconBadge>
-            <AppText variant="small" color="textMuted" numberOfLines={1} style={{ flex: 1 }}>
-              <AppText variant="small" weight="bold">
-                {tteam('title')}
-              </AppText>
-              {' · '}
-              {tteam('linkSub')}
-            </AppText>
-            <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
-          </Card>
-
-          {/* Objectives (screen 40): goals the tasks add up to, with "N at risk". */}
-          <ObjectivesLinkCard />
+          {/* 3. everything else, one tap away */}
+          <Shortcuts
+            items={[
+              { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
+              { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
+              { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
+              { key: 'auto', label: th('sc_autopilot'), Icon: RotateCw, href: '/03-autopilot', bg: 'amberTint', fg: colors.amberText },
+            ]}
+          />
         </View>
       </ScrollView>
-    </View>
-  );
-}
-
-function AskChip({
-  label,
-  Icon,
-  bg,
-  fg,
-  href,
-}: {
-  label: string;
-  Icon: ComponentType<LucideProps>;
-  bg: ColorToken;
-  fg: ColorToken;
-  href: Href;
-}) {
-  return (
-    <Pressable
-      onPress={() => router.push(href)}
-      accessibilityRole="button"
-      style={({ pressed }) => ({
-        minHeight: sizes.touch - 6,
-        paddingStart: 6,
-        paddingEnd: spacing.lg,
-        borderRadius: radius.pill,
-        backgroundColor: colors.surface,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        boxShadow: shadows.tile,
-        opacity: pressed ? 0.85 : 1,
-      })}
-    >
-      <IconBadge size={26} bg={bg} round>
-        <Icon color={colors[fg]} size={14} strokeWidth={2.2} />
-      </IconBadge>
-      <AppText variant="small" weight="semibold">
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
-
-/** Static blue voice bars from the "Say a task" bar. */
-function WaveGlyph() {
-  const bars = [4, 10, 16, 8, 14, 6, 10, 4];
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, height: 20, direction: 'ltr' }} accessibilityElementsHidden>
-      {bars.map((h, i) => (
-        <View key={i} style={{ width: 2.4, height: h, borderRadius: 1.2, backgroundColor: colors.primary }} />
-      ))}
     </View>
   );
 }

@@ -1,6 +1,7 @@
 // Screen 14 · Task detail — see design/v2/html/TaskDetail.dc.html (Arabic: TaskDetailAR.dc.html)
 // With ?id= → live task (useTask: subtasks, evidence). Without → the design's demo task "Prepare SPL pitch".
 // "Ask <assigner>" and "Split with AI" are local demo actions; ticking a live subtask writes subtasks.done.
+// "Change with Muntej" (bottom bar) opens the chat locked on this task — the one place changes are made.
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -368,6 +369,15 @@ export default function TaskDetailScreen() {
       </ScrollView>
 
       <BottomCTA
+        secondary={
+          id
+            ? {
+                label: t('changeWithMuntej'),
+                onPress: () => router.push({ pathname: '/02-capture', params: { mode: 'text', focus: id } }),
+                icon: <MessageSquare color={colors.primary} size={18} strokeWidth={2.2} />,
+              }
+            : undefined
+        }
         primary={{
           label: t('submit'),
           onPress: () => router.push(id ? { pathname: '/15-review', params: { id } } : '/15-review'),

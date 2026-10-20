@@ -3,10 +3,14 @@ import { useMyProfile, useTasks, type TaskPriority, type TaskWithPeople } from '
 import { matchesSearch } from '@/lib/search';
 
 export type SortMode = 'newest' | 'priority';
-export type TaskListFilter = 'all' | 'mine' | 'assigned' | 'late' | 'unassigned' | 'unlinked' | 'cancelled';
+/** mine / team / done = the three tabs (open work for you, open work for others, finished); the rest live in "⋯". */
+export type TaskListFilter = 'mine' | 'team' | 'done' | 'all' | 'assigned' | 'late' | 'unassigned' | 'unlinked' | 'cancelled';
 
 export const SORT_MODES: SortMode[] = ['newest', 'priority'];
-export const FILTERS: TaskListFilter[] = ['all', 'mine', 'assigned', 'late', 'unassigned', 'unlinked', 'cancelled'];
+export const FILTERS: TaskListFilter[] = ['mine', 'team', 'done', 'all', 'assigned', 'late', 'unassigned', 'unlinked', 'cancelled'];
+export const TABS: TaskListFilter[] = ['mine', 'team', 'done'];
+/** the extra filters behind "⋯" */
+export const MORE_FILTERS: TaskListFilter[] = ['all', 'assigned', 'late', 'unassigned', 'unlinked', 'cancelled'];
 
 const PRIORITY_RANK: Record<TaskPriority, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
@@ -29,9 +33,15 @@ export function isLate(task: Pick<TaskWithPeople, 'due_at' | 'status'>, now = Da
 export function inFilter(task: TaskWithPeople, filter: TaskListFilter, meId: string | undefined, now = Date.now()): boolean {
   if (filter === 'cancelled') return task.status === 'cancelled';
   if (task.status === 'cancelled') return false;
+  // finished for the person: done, or (their own) handed in for review
+  const finishedForMe = task.status === 'done' || (task.status === 'submitted' && !!meId && task.owner_id === meId);
   switch (filter) {
     case 'mine':
-      return !!meId && task.owner_id === meId;
+      return !!meId && task.owner_id === meId && !finishedForMe;
+    case 'team':
+      return task.owner_id !== meId && task.status !== 'done';
+    case 'done':
+      return finishedForMe;
     case 'assigned':
       return !!meId && task.assigner_id === meId;
     case 'late':
@@ -88,10 +98,12 @@ export function useTaskList(filter: TaskListFilter, sort: SortMode, search = '')
     const counts = Object.fromEntries(
       FILTERS.map((f) => [f, searched.filter((x) => inFilter(x, f, meId, now)).length]),
     ) as Record<TaskListFilter, number>;
-    const rows = sortTasks(
+    const sorted = sortTasks(
       searched.filter((x) => inFilter(x, filter, meId, now)),
       sort,
     );
+    // open lists: late ones always on top (no separate "Late" filter needed)
+    const rows = filter === 'mine' || filter === 'team' ? [...sorted.filter((x) => isLate(x, now)), ...sorted.filter((x) => !isLate(x, now))] : sorted;
     return { rows, counts };
   }, [query.data, filter, meId, sort, search]);
   return { me, query, rows, counts, role: me.data?.role === 'employee' ? ('employee' as const) : ('manager' as const) };

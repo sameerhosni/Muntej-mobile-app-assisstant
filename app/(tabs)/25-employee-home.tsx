@@ -1,253 +1,106 @@
 // Screen 25 · Employee Home — see design/v2/html/EmployeeHome.dc.html (Arabic: EmployeeHomeAR.dc.html)
-// Live: profile, "less reporting" hours (useHomeStats), "Today's tasks" (real tasks; ticking marks them done) and
-// "Latest tasks" (Mine; tasks, RLS-scoped).
-// Demo: level, XP, streak, badges, points and rewards (shared demo wallet) — no gamification backend yet.
-import { Fragment, useState, type ReactNode } from 'react';
+// Simplified (pilot feedback "too crowded"): three blocks only —
+//   1. slim header: greeting, one compact progress pill (level · streak · points → Rewards), bell, avatar,
+//      and Saree3's one-line status in his colour
+//   2. Today's tasks: the real ones (max 3), one tap marks them done / sends them for review
+//   3. shortcuts: Your week (value receipt), Rewards, Team quest, Objectives
+// Demo: level, streak and points come from the shared demo wallet — no gamification backend yet.
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Award, Banknote, Check, ChevronRight, Clock, Flame, Gift, Hand, Trophy } from 'lucide-react-native';
-import { AppText, Avatar, Card, Gradient, Hero, IconBadge, PointsCoin, PointsPill, ProgressBar } from '@/components/ui';
-import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
+import { Gift, Receipt, Target, Trophy } from 'lucide-react-native';
+import { AppText, Avatar, Hero, PointsCoin } from '@/components/ui';
+import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useHomeStats, useMyProfile } from '@/lib/api';
-import { formatNumber, hoursSaved } from '@/features/home/value';
-import { LatestTasks } from '@/features/tasks/LatestTasks';
-import { ObjectivesLinkCard } from '@/features/objectives/ObjectivesLinkCard';
+import { useMyProfile } from '@/lib/api';
+import { formatNumber } from '@/features/home/value';
 import { person, personLabel } from '@/features/demo/team';
-import { LEVEL, NEXT_LEVEL_XP, useWallet, wallet } from '@/features/rewards/wallet';
-import { NEXT_REWARD } from '@/features/rewards/demo';
-import { Confetti } from '@/features/rewards/Confetti';
-import { BADGE_COUNT, STREAK_DAYS, TEAM_QUEST } from '@/features/employee-home/demo';
+import { LEVEL, useWallet } from '@/features/rewards/wallet';
+import { STREAK_DAYS } from '@/features/employee-home/demo';
 import { TodayTasks } from '@/features/employee-home/TodayTasks';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
-import { LevelRing } from '@/features/employee-home/LevelRing';
+import { SareeLine, Shortcuts } from '@/features/home/SimpleHome';
+import { NS as HOME_NS } from '@/features/home/strings';
 import { NS } from '@/features/employee-home/strings';
 
 export default function EmployeeHome() {
   const { t } = useScreenT(NS);
-  const { lang, isRTL } = useDirection();
+  const { t: th } = useScreenT(HOME_NS);
+  const { lang } = useDirection();
   const me = useMyProfile();
-  const stats = useHomeStats();
   const qc = useQueryClient();
-  const [refreshing, setRefreshing] = useState(false);
   const w = useWallet();
 
   const n = (v: number) => formatNumber(v, lang);
   const fullName = me.data ? (lang === 'ar' && me.data.full_name_ar ? me.data.full_name_ar : me.data.full_name) : personLabel(person('faisal'), lang);
   const firstName = fullName.split(' ')[0];
-  // employee view of "time saved": updates they gave in one tap instead of writing reports
-  const hours = stats.data ? hoursSaved(0, stats.data.updatesReceived) : null;
-  const toGo = Math.max(NEXT_REWARD.cost - w.balance, 0);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              Promise.all([qc.invalidateQueries({ queryKey: ['tasks'] }), stats.refetch()]).finally(() => setRefreshing(false));
-            }}
-            tintColor={colors.purple}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={false} onRefresh={() => qc.invalidateQueries()} tintColor={colors.purple} />}
         showsVerticalScrollIndicator={false}
       >
-        <Hero variant="employee" overlap={30}>
-          <Confetti
-            pieces={[
-              { kind: 'diamond', x: '43%', y: 118, size: 12, color: colors.mint },
-              { kind: 'triangle', x: '90%', y: 104, size: 12, color: colors.gold },
-              { kind: 'star', x: '77%', y: 226, size: 14, color: colors.goldLight },
-              { kind: 'dot', x: '40%', y: 222, size: 8, color: colors.purpleLight },
-              { kind: 'bar', x: '67%', y: 246, size: 10, color: colors.onDarkMuted, rotate: -30 },
-              { kind: 'bar', x: '50%', y: 234, size: 10, color: colors.mint, rotate: 40 },
-            ]}
-          />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <View style={{ gap: 2, flexShrink: 1 }}>
-              <AppText color="onDarkMuted">{t('morning')}</AppText>
-              <AppText variant="titleLg" color="onDark" numberOfLines={1}>
-                {firstName}
-              </AppText>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <Pressable
-                onPress={() => router.navigate('/26-rewards')}
-                accessibilityRole="link"
-                accessibilityLabel={t('balanceA11y', { pts: n(w.balance) })}
-                hitSlop={{ top: 4, bottom: 4 }}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  height: 36,
-                  paddingStart: 5,
-                  paddingEnd: spacing.lg,
-                  borderRadius: radius.pill,
-                  backgroundColor: colors.surface,
-                  boxShadow: '0px 6px 16px rgba(59,30,143,0.28)',
-                  opacity: pressed ? 0.88 : 1,
-                })}
-              >
-                <PointsCoin size={26} />
-                <AppText weight="extrabold" color="orangeText">
-                  {n(w.balance)}
-                </AppText>
-              </Pressable>
-              <AlertsBell />
-              <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')} hitSlop={2}>
-                <Avatar name={fullName || '?'} size={42} gradient="avatarBlue" ring />
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xxl, marginTop: 2 }}>
-            <Pressable onPress={() => router.navigate('/29-badges')} accessibilityRole="link" accessibilityLabel={t('levelA11y', { level: LEVEL })}>
-              <LevelRing progress={w.xp / NEXT_LEVEL_XP} level={LEVEL} label={t('level')} />
-            </Pressable>
-            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              <View style={{ gap: 2 }}>
-                <AppText variant="cardTitle" weight="bold" color="onDark">
-                  {t('title')}
-                </AppText>
-                <AppText variant="small" weight="medium" color="onDarkMuted">
-                  {t('nextTitle', { xp: n(w.xp), max: n(NEXT_LEVEL_XP) })}
+        {/* 1. slim header + Saree3's status line */}
+        <Hero variant="employee">
+          <View style={{ gap: spacing.lg }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm }}>
+              <View style={{ gap: 2, flexShrink: 1 }}>
+                <AppText color="onDarkMuted">{t('morning')}</AppText>
+                <AppText variant="titleLg" color="onDark" numberOfLines={1}>
+                  {firstName}
                 </AppText>
               </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                <GlassChip icon={<Flame color={colors.goldLight} fill={colors.gold} size={13} strokeWidth={1.4} />} label={t('streak', { n: n(STREAK_DAYS) })} />
-                <GlassChip icon={<Award color={colors.goldLight} size={13} strokeWidth={2.2} />} label={t('badges', { n: n(BADGE_COUNT) })} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                {/* level · streak · points in one pill → Rewards */}
+                <Pressable
+                  onPress={() => router.navigate('/26-rewards')}
+                  accessibilityRole="link"
+                  accessibilityLabel={th('progressA11y', { level: n(LEVEL), streak: n(STREAK_DAYS), pts: n(w.balance) })}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    minHeight: sizes.touch - 8,
+                    paddingStart: 5,
+                    paddingEnd: spacing.md,
+                    borderRadius: radius.pill,
+                    backgroundColor: colors.surface,
+                    opacity: pressed ? 0.88 : 1,
+                  })}
+                >
+                  <PointsCoin size={22} />
+                  <AppText variant="caption" weight="extrabold" color="orangeText" style={{ writingDirection: 'ltr' }}>
+                    {`Lv ${n(LEVEL)} · 🔥${n(STREAK_DAYS)} · ${n(w.balance)}`}
+                  </AppText>
+                </Pressable>
+                <AlertsBell />
+                <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')} hitSlop={2}>
+                  <Avatar name={fullName || '?'} size={40} gradient="avatarBlue" ring />
+                </Pressable>
               </View>
             </View>
+            <SareeLine />
           </View>
         </Hero>
 
-        <View style={{ paddingHorizontal: spacing.screen, marginTop: -30, gap: spacing.xl }}>
-          {/* Your week */}
-          <View
-            accessibilityLabel={t('yourWeek')}
-            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.card, paddingVertical: spacing.lg, paddingHorizontal: 4, boxShadow: shadows.raised }}
-          >
-            {[
-              { icon: <Clock color={colors.primary} size={16} strokeWidth={2} />, bg: 'primaryTint' as ColorToken, value: hours === null ? '–' : t('hours', { n: formatNumber(hours, lang, 1) }), label: t('lessReporting') },
-              { icon: <Banknote color={colors.green} size={16} strokeWidth={2} />, bg: 'greenTint' as ColorToken, value: n(w.sar), label: t('sarInPoints') },
-              { icon: <Hand color={colors.orange} size={16} strokeWidth={2} />, bg: 'orangeTint' as ColorToken, value: n(0), label: t('statusMeetings') },
-            ].map((s, i) => (
-              <Fragment key={i}>
-                {i > 0 && <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: colors.border }} />}
-                <View style={{ flex: 1, gap: 3, paddingHorizontal: spacing.md }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <IconBadge size={30} bg={s.bg}>
-                      {s.icon}
-                    </IconBadge>
-                    <AppText variant="stat" numberOfLines={1} style={{ flexShrink: 1 }}>
-                      {s.value}
-                    </AppText>
-                  </View>
-                  <AppText variant="micro" color="textMuted" numberOfLines={1}>
-                    {s.label}
-                  </AppText>
-                </View>
-              </Fragment>
-            ))}
-          </View>
-
-          {/* Today's tasks: the real ones, ticking marks them done (or sends them for review) */}
+        <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.lg }}>
+          {/* 2. today's real tasks (max 3) */}
           <TodayTasks />
 
-          {/* Next reward */}
-          <Card
-            onPress={() => router.navigate('/26-rewards')}
-            accessibilityLabel={t('rewardA11y', { name: t('nextReward') })}
-            padding={spacing.lg}
-            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl }}
-          >
-            <IconBadge size={40} bg="orangeTint">
-              <Gift color={colors.orange} size={20} strokeWidth={1.8} />
-            </IconBadge>
-            <View style={{ flex: 1, minWidth: 0, gap: spacing.sm }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm }}>
-                <AppText variant="small" color="textMuted" numberOfLines={1} style={{ flexShrink: 1 }}>
-                  <AppText variant="small" weight="bold">
-                    {t('nextReward')}
-                  </AppText>
-                  {' · '}
-                  <AppText variant="small" weight="bold" color="green">
-                    {t('nextRewardSar', { n: n(NEXT_REWARD.cost / 10) })}
-                  </AppText>
-                </AppText>
-                <AppText variant="small" weight="extrabold" color="orangeText" numberOfLines={1}>
-                  {toGo > 0 ? t('toGo', { n: n(toGo) }) : t('unlocked')}
-                </AppText>
-              </View>
-              <ProgressBar value={w.balance / NEXT_REWARD.cost} gradient="points" />
-            </View>
-          </Card>
-
-          {/* Team quest */}
-          <Card
-            onPress={() => router.push('/30-team-quests')}
-            accessibilityLabel={t('teamA11y', { done: n(TEAM_QUEST.done), goal: n(TEAM_QUEST.goal) })}
-            padding={spacing.md}
-            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, marginTop: -2 }}
-          >
-            <IconBadge size={40} bg="primaryTint">
-              <Trophy color={colors.primary} size={20} strokeWidth={1.8} />
-            </IconBadge>
-            <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
-                <AppText variant="small" weight="bold" numberOfLines={1}>
-                  {t('teamQuest', { done: n(TEAM_QUEST.done), goal: n(TEAM_QUEST.goal) })}
-                </AppText>
-                <AppText variant="small" weight="bold" color="primary" numberOfLines={1}>
-                  {t('teamPrize')}
-                </AppText>
-              </View>
-              <ProgressBar value={TEAM_QUEST.done / TEAM_QUEST.goal} gradient="avatarBlue" />
-            </View>
-            <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
-          </Card>
-
-          {/* My objectives (screen 40) */}
-          <View style={{ marginTop: spacing.sm }}>
-            <ObjectivesLinkCard variant="employee" />
-          </View>
-
-          {/* Latest tasks (live, mine) */}
-          <View style={{ marginTop: 6 }}>
-            <LatestTasks filter="mine" role="employee" />
-          </View>
+          {/* 3. everything else, one tap away */}
+          <Shortcuts
+            items={[
+              { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
+              { key: 'rewards', label: th('sc_rewards'), Icon: Gift, href: '/26-rewards', bg: 'orangeTint', fg: colors.orange },
+              { key: 'quest', label: th('sc_quest'), Icon: Trophy, href: '/30-team-quests', bg: 'primaryTint', fg: colors.primary },
+              { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
+            ]}
+          />
         </View>
       </ScrollView>
-    </View>
-  );
-}
-
-function GlassChip({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-        backgroundColor: colors.glass,
-        borderWidth: 1,
-        borderColor: colors.glassBorder,
-        borderRadius: radius.pill,
-        paddingVertical: 5,
-        paddingStart: spacing.sm,
-        paddingEnd: spacing.md,
-      }}
-    >
-      {icon}
-      <AppText variant="caption" weight="bold" color="onDark" numberOfLines={1}>
-        {label}
-      </AppText>
     </View>
   );
 }

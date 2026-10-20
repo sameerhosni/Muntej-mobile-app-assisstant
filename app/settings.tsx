@@ -1,4 +1,5 @@
 // Screen · Settings — profile, language, sign out, all-screens dev index; no mockup, v2 style per design/TOKENS.md
+// The prototype tour and the all-screens list are for admins only (pilot users never see the prototype bulb).
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -30,6 +31,7 @@ export default function SettingsScreen() {
   const { t: tm } = useScreenT(MUNTI_NS);
   const { t: ta } = useScreenT(ALERTS_NS);
   const muntiState = useMunti();
+  const isAdmin = me?.role === 'admin' || me?.role === 'super_admin';
   const twoStep = useTotpFactor();
   const push = usePushStatus();
   const [testing, setTesting] = useState(false);
@@ -55,6 +57,7 @@ export default function SettingsScreen() {
         <AppText variant="titleLg">{t('settings.title')}</AppText>
       </View>
 
+      {isAdmin && (
       <Card
         onPress={() => router.push('/prototype')}
         accessibilityLabel={tp('open')}
@@ -71,6 +74,7 @@ export default function SettingsScreen() {
         </View>
         <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
       </Card>
+      )}
 
       {me && (
         <Card>
@@ -219,6 +223,8 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
+      {isAdmin && (
+        <>
       <SectionTitle title={t('settings.allScreens')} />
       <AppText variant="caption" color="textMuted">
         {t('settings.allScreensHint')}
@@ -247,6 +253,8 @@ export default function SettingsScreen() {
           </Pressable>
         ))}
       </Card>
+        </>
+      )}
     </Screen>
   );
 }

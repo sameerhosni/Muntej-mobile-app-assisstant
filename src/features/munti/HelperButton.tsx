@@ -33,7 +33,10 @@ import { wallet } from '@/features/rewards/wallet';
 const FAB = MUNTI_SIZES.md;
 const POP_DELAY_MS = 1000;
 const POP_SHOW_MS = 6500;
-const POP_AGAIN_MS = 10 * 60_000;
+// pops up by himself at most once per screen per day (remembered on the phone)
+const todayKey = () => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+// "Ask Saree3" label: first 7 days, or until it has been tapped once
+const ASK_DAYS = 7;
 // when each screen last popped up by itself (this app session)
 const lastPop = new Map<string, number>();
 // auto pop-ups alternate: how it's going / the value this week
@@ -178,23 +181,47 @@ export function HelperButton() {
   const [popKind, setPopKind] = useState<'perf' | 'value'>('perf');
   const active = s.enabled && !s.hidden;
 
-  // new main screen → pop up by himself after a moment, then close again
+  // new main screen → pop up by himself after a moment (once per screen per day), then close again
   useEffect(() => {
     setOpen(false);
-    if (!active || !ROUTE_TIPS[pathname]?.fab) return;
-    if (Date.now() - (lastPop.get(pathname) ?? 0) < POP_AGAIN_MS) return;
+    if (!active || !ROUTE_TIPS[pathname]?.fab || lastPop.has(pathname)) return;
     let close: ReturnType<typeof setTimeout> | undefined;
-    const pop = setTimeout(() => {
+    let cancelled = false;
+    const pop = setTimeout(async () => {
+      if (!(await firstTime(`munti.pop.${pathname}.${todayKey()}`)) || cancelled) return;
       lastPop.set(pathname, Date.now());
       setPopKind(popCount++ % 2 === 0 ? 'perf' : 'value');
       setOpen('auto');
       close = setTimeout(() => setOpen((o) => (o === 'auto' ? false : o)), POP_SHOW_MS);
     }, POP_DELAY_MS);
     return () => {
+      cancelled = true;
       clearTimeout(pop);
       clearTimeout(close);
     };
   }, [pathname, active]);
+
+  // "Ask Saree3" label only while it's new: first 7 days, or until tapped once
+  const [showAsk, setShowAsk] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        if (await AsyncStorage.getItem('munti.ask.used')) return;
+        let since = await AsyncStorage.getItem('munti.ask.since');
+        if (!since) {
+          since = String(Date.now());
+          await AsyncStorage.setItem('munti.ask.since', since);
+        }
+        setShowAsk(Date.now() - Number(since) < ASK_DAYS * 86_400_000);
+      } catch {
+        setShowAsk(false);
+      }
+    })();
+  }, []);
+  const askUsed = () => {
+    setShowAsk(false);
+    AsyncStorage.setItem('munti.ask.used', '1').catch(() => {});
+  };
 
   if (!active) return null;
 
@@ -223,12 +250,13 @@ export function HelperButton() {
   const vLine = valueLine(value);
   const valueTurn = open === 'auto' && popKind === 'value' && !!vLine;
   const bubbleText = toast ? toast.text : open && route ? (valueTurn ? vLine : (perfText ?? t(route.tip))) : null;
+  // max 2 lines: the status + ONE action (the second fact if there is one, else how to cheer me up)
   const subLines: string[] =
     toast || !open || !route
       ? []
       : valueTurn
-        ? [onTimeLine(value)].filter((x): x is string => !!x)
-        : [say(perf?.extra), perf ? say(perf.cheer) : t(route.tip), open === 'tap' ? vLine : null].filter((x): x is string => !!x);
+        ? []
+        : [perf ? (say(perf.extra) ?? say(perf.cheer)) : t(route.tip)].filter((x): x is string => !!x);
   const showMe = toast
     ? toast.action
     : !open
@@ -339,10 +367,13 @@ export function HelperButton() {
         </Pressable>
       )}
 
-      {/* "Ask Saree3": always there next to him (hidden while a bubble is open) → the chat */}
-      {showFab && !bubbleText && (
+      {/* "Ask Saree3": next to him while it's new (hidden while a bubble is open) → the chat */}
+      {showFab && showAsk && !bubbleText && (
         <Pressable
-          onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })}
+          onPress={() => {
+            askUsed();
+            router.push({ pathname: '/02-capture', params: { mode: 'text' } });
+          }}
           accessibilityRole="button"
           accessibilityLabel={t('askA11y')}
           style={({ pressed }) => ({

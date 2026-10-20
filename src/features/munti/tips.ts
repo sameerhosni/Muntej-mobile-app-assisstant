@@ -187,8 +187,9 @@ export type RouteTip = {
 
 /** Main screens (usePathname values) → Munti's tip. */
 export const ROUTE_TIPS: Record<string, RouteTip> = {
-  '/01-home': { tip: 'tip_home', showMe: { pathname: '/02-capture', params: { mode: 'text' } }, fab: true, tabBar: true },
-  '/25-employee-home': { tip: 'tip_employeeHome', showMe: '/38-tasks', fab: true, tabBar: true },
+  // Homes: Saree3 is the status line in the header, so no floating character there
+  '/01-home': { tip: 'tip_home', showMe: { pathname: '/02-capture', params: { mode: 'text' } }, fab: false, tabBar: true },
+  '/25-employee-home': { tip: 'tip_employeeHome', showMe: '/38-tasks', fab: false, tabBar: true },
   '/38-tasks': { tip: 'tip_tasks', showMe: { pathname: '/02-capture', params: { mode: 'text' } }, fab: true, tabBar: true },
   '/39-team': { tip: 'tip_team', fab: true, tabBar: false },
   '/02-capture': { tip: 'tip_chat', fab: false, tabBar: false },

@@ -43,6 +43,7 @@ const en = {
   voiceShort: 'Voice',
   link: 'Link',
   submit: 'Submit for review',
+  changeWithMuntej: 'Change with Muntej',
   notFound: 'Couldn’t load this task.',
   saveFailed: 'Couldn’t save that. Try again.',
   demoSubs: {
@@ -104,6 +105,7 @@ const ar: typeof en = {
   voiceShort: 'صوتية',
   link: 'رابط',
   submit: 'أرسلها للمراجعة',
+  changeWithMuntej: 'غيّرها مع منتج',
   notFound: 'ما قدرنا نجيب المهمة.',
   saveFailed: 'ما انحفظت. جرّب مرة ثانية.',
   demoSubs: {

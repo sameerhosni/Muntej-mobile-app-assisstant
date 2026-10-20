@@ -3,9 +3,10 @@
 // (submitted); self-assigned → done. Points go to the (demo) wallet and Munti cheers. Ticking again reopens it.
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
+import { router } from 'expo-router';
 import { Check } from 'lucide-react-native';
 import { AppText, Gradient, PointsPill } from '@/components/ui';
-import { colors, radius, shadows, spacing } from '@/theme/tokens';
+import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTasks, useTeam, type TaskWithPeople } from '@/lib/api';
@@ -17,7 +18,7 @@ import { contentDirection } from '@/features/chat/Bubbles';
 import { NS } from './strings';
 
 const DAY = 86_400_000;
-const MAX = 4;
+const MAX = 3;
 
 export function TodayTasks() {
   const { t } = useScreenT(NS);
@@ -30,7 +31,7 @@ export function TodayTasks() {
   const n = (v: number) => formatNumber(v, lang);
   const meId = me.data?.id;
 
-  // open ones (late first, then soonest due), plus the ones finished in the last day so the tick stays visible
+  // open ones first (late, then soonest due); then the ones finished in the last day so the tick stays visible
   const rows = useMemo(() => {
     if (!meId) return [];
     const now = Date.now();
@@ -38,8 +39,9 @@ export function TodayTasks() {
     const dueMs = (x: TaskWithPeople) => (x.due_at ? Date.parse(x.due_at) : Number.MAX_SAFE_INTEGER);
     const open = mine.filter((x) => x.status !== 'done' && x.status !== 'submitted').sort((a, b) => dueMs(a) - dueMs(b));
     const finished = mine.filter((x) => (x.status === 'done' || x.status === 'submitted') && now - Date.parse(x.updated_at) < DAY);
-    return [...finished, ...open].slice(0, MAX);
+    return [...open, ...finished];
   }, [tasks.data, meId]);
+  const shown = rows.slice(0, MAX);
 
   const nameOf = (id: string | null | undefined) => {
     const p = id ? (team.data ?? []).find((x) => x.id === id) : null;
@@ -61,7 +63,7 @@ export function TodayTasks() {
         <AppText color="textMuted">{t('tt_empty')}</AppText>
       )}
 
-      {rows.map((x) => {
+      {shown.map((x) => {
         const on = x.status === 'done' || x.status === 'submitted';
         const pts = PTS[x.priority] ?? 15;
         const late = !on && !!x.due_at && Date.parse(x.due_at) < now;
@@ -129,6 +131,17 @@ export function TodayTasks() {
         );
       })}
 
+      {rows.length > MAX && (
+        <Pressable
+          onPress={() => router.push('/38-tasks')}
+          accessibilityRole="link"
+          style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <AppText variant="small" weight="bold" color="purpleText">
+            {t('seeAllTasks', { count: rows.length })}
+          </AppText>
+        </Pressable>
+      )}
     </View>
   );
 }
