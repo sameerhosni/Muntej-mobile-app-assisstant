@@ -6,15 +6,30 @@
 //    - task_done_on_time  closed in the last 24h on/before due_at → owner + owner's manager
 //    - task_done_early    same, but ≥24h before due_at
 //    - five_star          review rated 5 decided in the last 24h → owner + owner's manager
-//    Every alert row has a dedupe_key; rows are inserted with ON CONFLICT DO NOTHING and only the newly inserted ones
-//    are delivered (push, WhatsApp) and written to activity_log.
+//    - objective_at_risk  progress well behind time used, or late linked tasks → objective owner + their manager (weekly)
+//    - objective_missed   the objective's end passed before all its tasks were done → owner + their manager (once)
+//    - no_reply           a follow-up was sent N h ago (escalation.no_reply_hours, default 24) and nothing moved → owner
+//    - escalated          still nothing after 2×N h → the owner's manager (escalation.alert_manager)
+//    Every alert row has a dedupe_key; rows are inserted with ON CONFLICT DO NOTHING, then delivered by the shared
+//    pipeline (_shared/notify.ts: settings, quiet hours, push + WhatsApp, activity_log).
 // 2) Called by a signed-in user with { test: true }: creates one sample achievement alert for that user (deduped per
 //    minute) and delivers it, so the flow can be tried from the phone.
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
-import { adminClient, sendPush } from '../_shared/push.ts';
+import { adminClient } from '../_shared/push.ts';
+import { deliverPending, loadPrefs, RULE_FOR } from '../_shared/notify.ts';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
-type Kind = 'task_late' | 'task_at_risk' | 'overload' | 'task_done_on_time' | 'task_done_early' | 'five_star';
+type Kind =
+  | 'task_late'
+  | 'task_at_risk'
+  | 'overload'
+  | 'task_done_on_time'
+  | 'task_done_early'
+  | 'five_star'
+  | 'objective_at_risk'
+  | 'objective_missed'
+  | 'no_reply'
+  | 'escalated';
 
 type Person = {
   id: string;
@@ -56,8 +71,6 @@ type AlertRow = {
 
 type Inserted = AlertRow & { id: string };
 
-type Prefs = { channels?: Record<string, boolean>; rules?: Record<string, { enabled?: boolean; channels?: string[] }> };
-
 /** Statuses where the owner still has the ball (submitted = waiting on the reviewer, so not "late" on the owner). */
 const ACTIVE = ['assigned', 'in_progress', 'blocked', 'returned'];
 /** Statuses that still count as open work for capacity. */
@@ -66,18 +79,19 @@ const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const DEFAULT_TASK_HOURS = 4;
 
-/** Which Alerts-screen rule (notification_prefs.rules) switches each kind. Missing prefs = on. */
-const RULE_FOR: Record<Kind, string> = {
-  task_late: 'task_overdue',
-  task_at_risk: 'task_at_risk',
-  overload: 'task_at_risk',
-  task_done_on_time: 'kudos',
-  task_done_early: 'kudos',
-  five_star: 'kudos',
-};
-
 // ─── texts (EN + Saudi Arabic) ────────────────────────────────────────────────
-type Ctx = { task?: string; name: string; nameAr: string; self: boolean; pct?: number; progress?: number; hours?: number; cap?: number; early?: number };
+type Ctx = {
+  task?: string;
+  name: string;
+  nameAr: string;
+  self: boolean;
+  pct?: number;
+  progress?: number;
+  hours?: number;
+  cap?: number;
+  early?: number;
+  late?: number;
+};
 
 function texts(kind: Kind, c: Ctx): { title: string; body: string; title_ar: string; body_ar: string } {
   switch (kind) {
@@ -120,6 +134,34 @@ function texts(kind: Kind, c: Ctx): { title: string; body: string; title_ar: str
         title_ar: `خلصت قبل موعدها: ${c.task}`,
         body_ar: c.self ? `خلّصت قبل الموعد بـ ${c.early} ساعة، ما شاء الله!` : `${c.nameAr} خلّص قبل الموعد بـ ${c.early} ساعة 🚀`,
       };
+    case 'objective_at_risk':
+      return {
+        title: `Objective at risk: ${c.task}`,
+        body: `${c.progress}% done with ${c.pct}% of the time gone${c.late ? `, ${c.late} late task(s)` : ''}.`,
+        title_ar: `هدف ممكن يتأخر: ${c.task}`,
+        body_ar: `الإنجاز ${c.progress}% وراح ${c.pct}% من الوقت${c.late ? `، و${c.late} مهام متأخرة` : ''}.`,
+      };
+    case 'objective_missed':
+      return {
+        title: `Objective missed: ${c.task}`,
+        body: 'Its end date passed before all its tasks were done.',
+        title_ar: `هدف فات موعده: ${c.task}`,
+        body_ar: 'خلص وقته وللحين فيه مهام ما خلصت.',
+      };
+    case 'no_reply':
+      return {
+        title: `Waiting for your update: ${c.task}`,
+        body: "Muntej asked for an update and hasn't heard back. One line is enough.",
+        title_ar: `ننتظر تحديثك: ${c.task}`,
+        body_ar: 'منتج سأل عن التحديث وما وصله رد. سطر واحد يكفي.',
+      };
+    case 'escalated':
+      return {
+        title: `${c.name} hasn't replied: ${c.task}`,
+        body: `No answer to Muntej's follow-up for ${c.hours} h. Maybe check in?`,
+        title_ar: `${c.nameAr} ما رد: ${c.task}`,
+        body_ar: `ما رد على متابعة منتج من ${c.hours} ساعة. يمكن تتطمن عليه؟`,
+      };
     case 'five_star':
       return {
         title: `5 stars ⭐ ${c.task}`,
@@ -140,68 +182,7 @@ function isoWeek(d: Date): string {
   return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-// ─── delivery ─────────────────────────────────────────────────────────────────
-async function sendWhatsApp(phone: string, text: string): Promise<boolean> {
-  const token = Deno.env.get('WHATSAPP_TOKEN');
-  const phoneId = Deno.env.get('WHATSAPP_PHONE_ID');
-  if (!token || !phoneId) return false;
-  // Note: Meta only delivers free-form text inside the 24h customer-service window; outside it a template is needed.
-  const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messaging_product: 'whatsapp', to: phone.replace(/\D/g, ''), type: 'text', text: { body: text } }),
-  });
-  if (!res.ok) console.error('WhatsApp send error', res.status, (await res.text()).slice(0, 300));
-  return res.ok;
-}
-
-async function deliver(admin: SupabaseClient, rows: Inserted[], people: Map<string, Person>, prefs: Map<string, Prefs>) {
-  const waConfigured = !!Deno.env.get('WHATSAPP_TOKEN') && !!Deno.env.get('WHATSAPP_PHONE_ID');
-  let pushed = 0;
-  let whatsapped = 0;
-  for (const a of rows) {
-    const r = people.get(a.profile_id);
-    const ar = r?.locale === 'ar';
-    const title = ar ? a.title_ar : a.title;
-    const body = ar ? a.body_ar : a.body;
-    const p = prefs.get(a.profile_id);
-    const rule = p?.rules?.[RULE_FOR[a.kind]];
-
-    // push (default on)
-    let sentPush = false;
-    if (p?.channels?.push !== false) {
-      sentPush = (await sendPush([a.profile_id], { title, body, data: { alertId: a.id, kind: a.kind, ...(a.task_id && { taskId: a.task_id }) } }, admin)) > 0;
-      if (sentPush) pushed++;
-    }
-
-    // WhatsApp: the person must have it connected and not have switched it off (globally or for this rule).
-    let waStatus: string;
-    let sentWa = false;
-    const waWanted = p?.channels?.whatsapp !== false && (!rule?.channels || rule.channels.includes('whatsapp'));
-    if (!waConfigured) waStatus = 'not_configured';
-    else if (!r?.whatsapp_connected || !r.phone) waStatus = 'not_connected';
-    else if (!waWanted) waStatus = 'off';
-    else {
-      sentWa = await sendWhatsApp(r.phone, `*${title}*\n${body}`);
-      waStatus = sentWa ? 'sent' : 'error';
-      if (sentWa) whatsapped++;
-    }
-    // TODO(telegram): deliver via a Telegram bot once one is set up (profiles.telegram_connected / telegram_handle).
-
-    await admin.from('alerts').update({ sent_push: sentPush, sent_whatsapp: sentWa, whatsapp_status: waStatus }).eq('id', a.id);
-    await admin.from('activity_log').insert({
-      actor_type: 'muntej',
-      subject_id: a.subject_id ?? a.profile_id,
-      task_id: a.task_id,
-      action: 'alert_sent',
-      summary: `Alert to ${r?.full_name ?? 'someone'}: ${a.title}`,
-      summary_ar: `تنبيه لـ ${r?.full_name_ar ?? r?.full_name ?? 'شخص'}: ${a.title_ar}`,
-      reason: `${a.kind} (push: ${sentPush ? 'sent' : 'not sent'}, WhatsApp: ${waStatus})`,
-    });
-  }
-  return { pushed, whatsapped };
-}
-
+// ─── storing (delivery is shared: _shared/notify.ts) ──────────────────────────
 async function insertNew(admin: SupabaseClient, rows: AlertRow[]): Promise<Inserted[]> {
   const out: Inserted[] = [];
   for (let i = 0; i < rows.length; i += 200) {
@@ -213,15 +194,6 @@ async function insertNew(admin: SupabaseClient, rows: AlertRow[]): Promise<Inser
     out.push(...((data ?? []) as Inserted[]));
   }
   return out;
-}
-
-async function loadPrefs(admin: SupabaseClient, ids: string[]): Promise<Map<string, Prefs>> {
-  const map = new Map<string, Prefs>();
-  if (!ids.length) return map;
-  const { data, error } = await admin.from('notification_prefs').select('profile_id, channels, rules').in('profile_id', ids);
-  if (error) throw error;
-  for (const row of data ?? []) map.set(row.profile_id as string, { channels: row.channels ?? undefined, rules: row.rules ?? undefined });
-  return map;
 }
 
 const PERSON_COLS = 'id, full_name, full_name_ar, role, manager_id, status, locale, phone, whatsapp_connected, weekly_capacity_hours';
@@ -243,8 +215,7 @@ serve(async (req) => {
     const rows = await insertNew(admin, [
       { profile_id: profileId, kind: 'task_done_early', subject_id: profileId, task_id: null, ...t, dedupe_key: `test:${profileId}:${minute}` },
     ]);
-    const prefs = await loadPrefs(admin, [profileId]);
-    const res = await deliver(admin, rows, new Map([[profileId, person]]), prefs);
+    const res = await deliverPending(admin, { only: rows.map((r) => r.id), ignoreQuiet: true });
     return json({ created: rows.length, ...res });
   }
 
@@ -359,11 +330,72 @@ serve(async (req) => {
     add('five_star', [owner.id, ...managersOf(owner.id)], owner, task, {}, `five_star:${r.id}`);
   }
 
+  // objectives: at risk (weekly) / missed (once)
+  const [objRes, linkedRes] = await Promise.all([
+    admin.from('objectives').select('id, title, owner_id, start_at, due_at, status').in('status', ['active', 'missed']),
+    admin.from('tasks').select('id, objective_id, status, due_at').not('objective_id', 'is', null).neq('status', 'cancelled'),
+  ]);
+  if (!objRes.error && !linkedRes.error) {
+    const linkedBy = new Map<string, { status: string; due_at: string | null }[]>();
+    for (const t of linkedRes.data ?? []) linkedBy.set(t.objective_id as string, [...(linkedBy.get(t.objective_id as string) ?? []), t]);
+    for (const o of objRes.data ?? []) {
+      const owner = active(o.owner_id as string | null);
+      if (!owner) continue;
+      const linked = linkedBy.get(o.id as string) ?? [];
+      const done = linked.filter((t) => t.status === 'done').length;
+      const late = linked.filter((t) => t.status !== 'done' && t.due_at && new Date(t.due_at).getTime() < nowMs).length;
+      const start = new Date(o.start_at as string).getTime();
+      const end = new Date(o.due_at as string).getTime();
+      const progress = linked.length ? Math.round((done / linked.length) * 100) : 0;
+      const timeUsed = Math.min(100, Math.max(0, Math.round(((nowMs - start) / Math.max(end - start, 1)) * 100)));
+      const objTask = { id: null as unknown as string, title: o.title as string };
+      if (o.status === 'missed' || (end < nowMs && (linked.length === 0 || done < linked.length))) {
+        add('objective_missed', [owner.id, ...managersOf(owner.id)], owner, null, {}, `objective_missed:${o.id}`);
+      } else if (late > 0 || (linked.length ? timeUsed - progress >= 25 : timeUsed >= 30)) {
+        add('objective_at_risk', [owner.id, ...managersOf(owner.id)], owner, null, { progress, pct: timeUsed, late }, `objective_at_risk:${o.id}:${week}`);
+      }
+      // the objective title rides in the text, not as a task link
+      for (const r of rows) if (r.dedupe_key.startsWith(`objective_`) && r.dedupe_key.includes(o.id as string)) {
+        const t = texts(r.kind, { task: objTask.title, name: owner.full_name, nameAr: owner.full_name_ar ?? owner.full_name, self: r.profile_id === owner.id, progress, pct: timeUsed, late });
+        Object.assign(r, t);
+      }
+    }
+  } else console.error('objective check failed', objRes.error ?? linkedRes.error);
+
+  // escalation: a follow-up got no answer (nothing moved on the task since) → remind the owner, then tell the manager
+  const { data: sentFollowups } = await admin
+    .from('followups')
+    .select('id, task_id, recipient_id, sent_at, task:tasks(id, title, status, updated_at)')
+    .eq('status', 'sent')
+    .gte('sent_at', new Date(nowMs - 7 * DAY).toISOString())
+    .lte('sent_at', new Date(nowMs - 2 * HOUR).toISOString())
+    .limit(500);
+  const recipients = [...new Set((sentFollowups ?? []).map((f) => f.recipient_id as string).filter(Boolean))];
+  const { data: escRows } = recipients.length
+    ? await admin.from('notification_prefs').select('profile_id, escalation').in('profile_id', recipients)
+    : { data: [] as { profile_id: string; escalation: Record<string, unknown> | null }[] };
+  const escOf = new Map((escRows ?? []).map((e) => [e.profile_id as string, (e.escalation ?? {}) as { no_reply_hours?: number; alert_manager?: boolean }]));
+  for (const f of sentFollowups ?? []) {
+    const task = f.task as unknown as { id: string; title: string; status: string; updated_at: string } | null;
+    const owner = active(f.recipient_id as string | null);
+    if (!task || !owner || !ACTIVE.includes(task.status)) continue;
+    const sentAt = new Date(f.sent_at as string).getTime();
+    if (new Date(task.updated_at).getTime() > sentAt + 5 * 60_000) continue; // something moved since: answered
+    const esc = escOf.get(owner.id) ?? {};
+    const h = Math.max(1, Number(esc.no_reply_hours ?? 24));
+    const waited = (nowMs - sentAt) / HOUR;
+    if (waited >= h) add('no_reply', [owner.id], owner, task, {}, `no_reply:${f.id}`);
+    if (waited >= 2 * h && esc.alert_manager !== false) add('escalated', managersOf(owner.id), owner, task, { hours: Math.round(waited) }, `escalated:${f.id}`);
+  }
+
   // respect each recipient's Alerts-screen switch for the matching rule (no prefs row = everything on)
   const prefs = await loadPrefs(admin, [...new Set(rows.map((r) => r.profile_id))]);
-  const allowed = rows.filter((r) => prefs.get(r.profile_id)?.rules?.[RULE_FOR[r.kind]]?.enabled !== false);
+  const allowed = rows.filter((r) => {
+    const rule = RULE_FOR[r.kind];
+    return !rule || prefs.get(r.profile_id)?.rules?.[rule]?.enabled !== false;
+  });
 
   const inserted = await insertNew(admin, allowed);
-  const res = await deliver(admin, inserted, people, prefs);
+  const res = await deliverPending(admin);
   return json({ candidates: rows.length, allowed: allowed.length, created: inserted.length, ...res });
 });

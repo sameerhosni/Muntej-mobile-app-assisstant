@@ -37,7 +37,7 @@ export const usePushStatus = () =>
 const Notifications = loadNotifications();
 // show banners while the app is open too
 Notifications?.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }),
+  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }),
 });
 
 async function register() {
@@ -69,9 +69,22 @@ async function register() {
   }
 }
 
+/** A tapped notification opens its task; anything else (grouped updates, decisions, overload, a test) opens Alerts.
+ *  The alert it came from is marked read. */
 function openFrom(data: unknown) {
-  const taskId = (data as { taskId?: string } | undefined)?.taskId;
-  if (taskId) router.push({ pathname: '/14-task-detail', params: { id: taskId } } as Href);
+  const d = (data ?? {}) as { taskId?: string; alertId?: string; kind?: string; screen?: string };
+  if (d.alertId) {
+    const loose = supabase as unknown as { from: (t: string) => { update: (v: object) => { eq: (c: string, v: string) => PromiseLike<unknown> } } };
+    Promise.resolve(loose.from('alerts').update({ read_at: new Date().toISOString() }).eq('id', d.alertId)).catch(() => {});
+  }
+  if (d.taskId) router.push({ pathname: '/14-task-detail', params: { id: d.taskId } } as Href);
+  else if (d.kind === 'decision_waiting') router.push('/04-decisions' as Href);
+  else router.push('/18-alerts' as Href);
+}
+
+/** The number on the app icon (unread alerts). No-op where push isn't available. */
+export function setAppBadge(n: number) {
+  Notifications?.setBadgeCountAsync(n).catch(() => {});
 }
 
 /** Registers this device once signed in, and opens the task when a notification is tapped. */

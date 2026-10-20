@@ -21,6 +21,7 @@ import { NEXT_REWARD } from '@/features/rewards/demo';
 import { Confetti } from '@/features/rewards/Confetti';
 import { BADGE_COUNT, STREAK_DAYS, TEAM_QUEST } from '@/features/employee-home/demo';
 import { TodayTasks } from '@/features/employee-home/TodayTasks';
+import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { LevelRing } from '@/features/employee-home/LevelRing';
 import { NS } from '@/features/employee-home/strings';
 
@@ -98,6 +99,7 @@ export default function EmployeeHome() {
                   {n(w.balance)}
                 </AppText>
               </Pressable>
+              <AlertsBell />
               <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')} hitSlop={2}>
                 <Avatar name={fullName || '?'} size={42} gradient="avatarBlue" ring />
               </Pressable>

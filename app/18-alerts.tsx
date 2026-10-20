@@ -1,6 +1,7 @@
 // Screen 18 · Alerts — see design/v2/html/Alerts.dc.html (Arabic: AlertsAR.dc.html)
 // Live data: notification_prefs (own row, RLS). Toggles save optimistically via src/features/alerts/useAlertPrefs.
-// Recent alerts: table alerts (own rows, written by the team-alerts Edge Function) via src/features/alerts/useAlerts.
+// Recent alerts: table alerts (own rows; team-alerts, muntej-chat and DB triggers write them, the server pushes each once)
+// via src/features/alerts/useAlerts, with "Mark all read". Value tiles: real counts for the last 7 days (useAlertStats).
 import { Fragment, type ComponentType } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
@@ -8,6 +9,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowUp,
   BellOff,
+  CalendarX,
+  ClipboardCheck,
+  Gavel,
+  Inbox,
+  MessageCircleQuestion,
+  Siren,
+  Target,
+  Trophy,
+  UserPlus,
   ChartColumn,
   ChevronLeft,
   ChevronRight,
@@ -35,7 +45,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { NS } from '@/features/alerts/strings';
 import { ageParts } from '@/features/decisions/people';
-import { useRecentAlerts, type AlertItem, type AlertKind } from '@/features/alerts/useAlerts';
+import { useAlertStats, useRecentAlerts, type AlertItem, type AlertKind } from '@/features/alerts/useAlerts';
 import { CHANNELS, RULE_KEYS, useAlertPrefs, type Channel, type Rule, type RuleKey } from '@/features/alerts/useAlertPrefs';
 
 const CHANNEL_ICON: Record<Channel, ComponentType<LucideProps>> = {
@@ -67,21 +77,31 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   task_done_early: { Icon: Rocket, bg: 'green' },
   five_star: { Icon: Star, bg: 'green' },
   changed_for_you: { Icon: UserPen, bg: 'primary' },
+  task_assigned: { Icon: UserPlus, bg: 'primary' },
+  new_submission: { Icon: ClipboardCheck, bg: 'purple' },
+  decision_waiting: { Icon: Gavel, bg: 'purple' },
+  objective_achieved: { Icon: Trophy, bg: 'green' },
+  objective_at_risk: { Icon: Target, bg: 'amberText' },
+  objective_missed: { Icon: CalendarX, bg: 'red' },
+  no_reply: { Icon: MessageCircleQuestion, bg: 'amberText' },
+  escalated: { Icon: Siren, bg: 'red' },
 };
 
 function RecentAlerts() {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
-  const { alerts, isLoading, isError, markRead } = useRecentAlerts();
+  const { alerts, isLoading, isError, markRead, markAllRead, markingAll } = useRecentAlerts();
+  const unread = (alerts ?? []).filter((a) => !a.read_at).length;
 
   const open = (a: AlertItem) => {
     if (!a.read_at) markRead(a.id);
     if (a.task_id) router.push({ pathname: '/14-task-detail', params: { id: a.task_id } });
+    else if (a.kind === 'decision_waiting') router.push('/04-decisions');
   };
 
   return (
     <Card padding={spacing.xl} style={{ gap: spacing.sm }}>
-      <SectionTitle title={t('recent')} />
+      <SectionTitle title={t('recent')} actionLabel={unread > 0 && !markingAll ? t('markAll') : undefined} onAction={markAllRead} />
       {isLoading && <ActivityIndicator color={colors.primary} style={{ alignSelf: 'flex-start' }} />}
       {isError && !alerts && (
         <AppText variant="small" color="red">
@@ -148,6 +168,7 @@ function RecentAlerts() {
 }
 
 export default function AlertsScreen() {
+  const stats = useAlertStats();
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
   const { prefs, isLoading, isError, isRefetching, refetch, saveError, toggleChannel, toggleRule, toggleQuietHours } =
@@ -398,24 +419,24 @@ export default function AlertsScreen() {
             </Card>
           )}
 
-          {/* Value tiles (demo figures from the design) */}
+          {/* Value tiles: real counts for the last 7 days */}
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <StatTile
               icon={<BellOff color={colors.primary} size={15} strokeWidth={2} />}
               iconBg="primaryTint"
-              value={t('pingsValue', { n: formatNumber(4, lang) })}
+              value={t('pingsValue', { n: formatNumber(stats.data?.perDay ?? 0, lang, 1) })}
               label={t('pings')}
             />
             <StatTile
               icon={<Clock color={colors.green} size={15} strokeWidth={2} />}
               iconBg="greenTint"
-              value={t('focusValue', { n: formatNumber(1.5, lang, 1) })}
+              value={t('focusValue', { n: formatNumber(stats.data?.focusHours ?? 0, lang, 1) })}
               label={t('focus')}
             />
             <StatTile
               icon={<Hand color={colors.orange} size={15} strokeWidth={2} />}
               iconBg="orangeTint"
-              value={formatNumber(0, lang)}
+              value={formatNumber(stats.data?.chases ?? 0, lang)}
               label={t('chases')}
             />
           </View>

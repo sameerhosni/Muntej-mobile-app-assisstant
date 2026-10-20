@@ -10,6 +10,7 @@ import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/them
 import { useDirection } from '@/lib/i18n';
 import { useHomeStats, useMyProfile, usePendingDecisionCount } from '@/lib/api';
 import { formatNumber, hoursSaved, sarSaved } from '@/features/home/value';
+import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
 import { TeamEnergyCard } from '@/features/home/TeamEnergyCard';
 import { LatestTasks } from '@/features/tasks/LatestTasks';
@@ -84,6 +85,7 @@ export default function ManagerHome() {
                   {t('home.muntejOn')}
                 </AppText>
               </View>
+              <AlertsBell />
               <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('settings.open')}>
                 <Avatar name={me.data?.full_name ?? '?'} size={42} gradient="avatarOrange" ring />
               </Pressable>

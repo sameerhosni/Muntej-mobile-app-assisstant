@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import { Bell, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Users } from 'lucide-react-native';
+import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Users } from 'lucide-react-native';
 import { AppText, Avatar, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle, Toggle } from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
 import { PROTO_NS } from '@/features/prototype/strings';
@@ -17,6 +17,7 @@ import { NS as TEAM_NS } from '@/features/org/strings';
 import { Munti } from '@/features/munti/Munti';
 import { munti, useMunti } from '@/features/munti/store';
 import { MUNTI_NS } from '@/features/munti/tips';
+import { NS as ALERTS_NS } from '@/features/alerts/strings';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -27,6 +28,7 @@ export default function SettingsScreen() {
   const { t: tp } = useScreenT(PROTO_NS);
   const { t: tt } = useScreenT(TEAM_NS);
   const { t: tm } = useScreenT(MUNTI_NS);
+  const { t: ta } = useScreenT(ALERTS_NS);
   const muntiState = useMunti();
   const twoStep = useTotpFactor();
   const push = usePushStatus();
@@ -124,6 +126,23 @@ export default function SettingsScreen() {
           <AppText variant="cardTitle">{t('security.row')}</AppText>
           <AppText variant="caption" color={twoStep.data ? 'greenText' : 'textMuted'}>
             {t(twoStep.data ? 'security.rowOn' : 'security.rowOff')}
+          </AppText>
+        </View>
+        <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
+      </Card>
+
+      <Card
+        onPress={() => router.push('/18-alerts')}
+        accessibilityLabel={`${ta('settingsRow')} · ${ta('settingsHint')}`}
+        style={{ flexDirection: 'row', alignItems: 'center' }}
+      >
+        <IconBadge size={44} bg="primaryTint">
+          <BellRing color={colors.primary} size={20} strokeWidth={2} />
+        </IconBadge>
+        <View style={{ flex: 1, gap: 2 }}>
+          <AppText variant="cardTitle">{ta('settingsRow')}</AppText>
+          <AppText variant="caption" color="textMuted">
+            {ta('settingsHint')}
           </AppText>
         </View>
         <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />

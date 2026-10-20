@@ -22,7 +22,14 @@
 // When the owner's Muntej engine API is ready, this function is the one place to swap it in.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve, type Caller } from '../_shared/http.ts';
-import { sendPush } from '../_shared/push.ts';
+import { adminClient } from '../_shared/push.ts';
+import { deliverPending } from '../_shared/notify.ts';
+
+/** Push the alerts this request just created (assignments, reviews, changes for someone else) right away
+ *  instead of waiting for the every-minute job; settings and quiet hours apply. Never fails the request. */
+async function deliverNow() {
+  await deliverPending(adminClient()).catch((e) => console.error('alert delivery failed', e));
+}
 import { buildPlan } from '../_shared/followup-plan.ts';
 
 const Priority = z.enum(['low', 'medium', 'high', 'urgent']);
@@ -1012,16 +1019,6 @@ ${message}` : message },
       for (const b of batches) {
         const id = await createOne(b, wantObjective);
         createdList.push({ id, title: b.title, owner_name: displayName(b.owner_id), due_at: b.due_at });
-        if (b.owner_id && b.owner_id !== profileId) {
-          const o = team.find((p) => p.id === b.owner_id);
-          const oar = o?.locale === 'ar';
-          const from = ((oar ? meRow?.full_name_ar : null) ?? meRow?.full_name)?.split(' ')[0] ?? 'Muntej';
-          await sendPush([b.owner_id], {
-            title: oar ? `${from} سند لك مهمة` : `${from} assigned you a task`,
-            body: b.title,
-            data: { taskId: id },
-          }).catch((e) => console.error('assign push failed', e));
-        }
       }
       taskId = createdList[0]?.id ?? null;
       action = 'created';
@@ -1175,30 +1172,8 @@ ${message}` : message },
       const r = replies[result] ?? [`Done, "${title}" is open again.`, `تم، «${title}» رجعت مفتوحة.`];
       parsed.reply = ar0 ? r[1] : r[0];
       parsed.suggestions = [];
-      // someone else's task (e.g. a manager closing it): its owner hears about it
-      if (t.owner_id && t.owner_id !== profileId) {
-        const o = team.find((p) => p.id === t.owner_id);
-        const oar = o?.locale === 'ar';
-        const from = ((oar ? meRow?.full_name_ar : null) ?? meRow?.full_name)?.split(' ')[0] ?? 'Muntej';
-        const what = oar
-          ? { done: 'قفل', blocked: 'علّم إنها واقفة', in_progress: 'حط قيد التنفيذ', returned: 'رجّع' }[result] ?? 'عدّل'
-          : { done: 'closed', blocked: 'marked blocked', in_progress: 'marked in progress', returned: 'sent back' }[result] ?? 'changed';
-        await sendPush([t.owner_id], { title: `${from} ${what}: ${title}`, body: sc.note ?? '', data: { taskId: t.id } }).catch((e) =>
-          console.error('owner push failed', e),
-        );
-      }
-      // the reviewer hears about it (never the user themself)
-      const reviewerId = t.assigner_id !== profileId ? t.assigner_id : (meRow?.manager_id ?? null);
-      if (result === 'submitted' && reviewerId && reviewerId !== profileId) {
-        const rv = team.find((p) => p.id === reviewerId);
-        const rar = rv?.locale === 'ar';
-        const from = ((rar ? meRow?.full_name_ar : null) ?? meRow?.full_name)?.split(' ')[0] ?? 'Muntej';
-        await sendPush([reviewerId], {
-          title: rar ? `${from} خلّص مهمة وتنتظر مراجعتك` : `${from} finished a task for your review`,
-          body: title,
-          data: { taskId: t.id },
-        }).catch((e) => console.error('review push failed', e));
-      }
+      // the owner (when it's someone else's task) and the reviewer (submitted) are told through alerts:
+      // the activity_log and reviews triggers write them, deliverNow() below pushes them
     }
   }
 
@@ -1459,23 +1434,8 @@ ${message}` : message },
     .single();
   if (e2) throw new HttpError(500, e2.message);
 
-  // ── tell the new owner (never the user themself); a failed push must not fail the chat ──
-  const ownerId = payload?.owner_id as string | null | undefined;
-  if (ownerChanged && ownerId && ownerId !== profileId) {
-    const owner = team.find((p) => p.id === ownerId);
-    const ar = owner?.locale === 'ar';
-    const me = team.find((p) => p.id === profileId);
-    const from = ((ar ? me?.full_name_ar : null) ?? me?.full_name)?.split(' ')[0] ?? 'Muntej';
-    const due = payload?.due_at
-      ? new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(payload.due_at as string))
-      : null;
-    const title = payload?.title as string;
-    await sendPush([ownerId], {
-      title: ar ? `${from} سند لك مهمة` : `${from} assigned you a task`,
-      body: due ? (ar ? `${title} · التسليم ${due}` : `${title} · due ${due}`) : title,
-      data: { taskId },
-    }).catch((e) => console.error('assign push failed', e));
-  }
+  // ── tell the people this changed things for (new owner, reviewer, …): alerts written by the triggers ──
+  await deliverNow();
 
   return json({ messages: userMsg ? [userMsg, botMsg] : [botMsg] });
 });
@@ -1708,6 +1668,7 @@ async function applyRecurring(
 
   const { data: id, error } = await db.rpc('upsert_recurring', { p: patch });
   if (error) throw new HttpError(400, error.message);
+  await deliverNow();
   const { data: row } = await db.from('recurring_tasks').select(RECURRING_COLS).eq('id', id as string).single();
   const r = row as RecurringRow | null;
   const next = r?.next_due_at ? fmtRiyadh(r.next_due_at, ar) : null;
@@ -1779,24 +1740,8 @@ async function applyBulk(
   };
   const submitted = r.ok.filter((x) => x.status === 'submitted').length;
 
-  // the people whose tasks someone else changed hear about it (each change is also in their Alerts screen)
-  const byOwner = new Map<string, string[]>();
-  for (const x of r.ok) if (x.owner_id && x.owner_id !== profileId) byOwner.set(x.owner_id, [...(byOwner.get(x.owner_id) ?? []), x.title]);
-  if (byOwner.size) {
-    const { data: ppl } = await db.from('profiles').select('id, full_name, full_name_ar, locale').in('id', [profileId, ...byOwner.keys()]);
-    const me = (ppl ?? []).find((p) => p.id === profileId);
-    await Promise.all(
-      [...byOwner].map(([owner, titles]) => {
-        const oar = (ppl ?? []).find((p) => p.id === owner)?.locale === 'ar';
-        const from = ((oar ? me?.full_name_ar : null) ?? me?.full_name ?? 'Muntej').split(' ')[0];
-        return sendPush([owner], {
-          title: oar ? `${from} عدّل ${titles.length} من مهامك` : `${from} changed ${titles.length} of your tasks`,
-          body: titles.slice(0, 3).join(' · '),
-          data: {},
-        }).catch((e) => console.error('bulk push failed', e));
-      }),
-    );
-  }
+  // the people whose tasks someone else changed are told through alerts (one per task, grouped into one push)
+  await deliverNow();
   const changed = r.ok.length - submitted;
 
   const parts: string[] = [];
@@ -2078,6 +2023,7 @@ async function applyOrg(db: Caller['db'], profileId: string, raw: unknown, ar: b
 
   const { data: id, error } = await db.rpc('upsert_person', { p: patch });
   if (error) throw new HttpError(400, error.message);
+  await deliverNow();
 
   const { data: person } = await db.from('profiles').select('full_name, full_name_ar').eq('id', id as string).single();
   const name = person ? ((ar ? person.full_name_ar : null) ?? person.full_name) : '';

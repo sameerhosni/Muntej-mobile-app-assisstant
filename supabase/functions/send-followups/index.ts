@@ -2,10 +2,13 @@
 // 1) Called every minute by pg_cron (header x-cron-secret = CRON_SECRET): sends follow-ups that came due in the
 //    last hour, marks them sent (or skipped when the person has no device yet) and logs each one in activity_log.
 //    Older overdue rows are left alone so turning this on never sends a burst of stale reminders.
+//    Follow-ups respect the person's settings: push switched off → skipped; quiet hours (after-hours, Friday,
+//    prayer times) → moved to when they end. The same run then delivers every new alert (_shared/notify.ts).
 // 2) Called by a signed-in user with { test: true }: sends a test notification to that user's own devices only.
-// WhatsApp arrives in Sprint 2; until then every channel is delivered as a push.
+// WhatsApp arrives in Sprint 2; until then every follow-up channel is delivered as a push.
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
+import { deliverPending, followupHold, loadPrefs } from '../_shared/notify.ts';
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
@@ -19,7 +22,7 @@ serve(async (req) => {
     const sent = await sendPush([profileId], {
       title: ar ? 'منتج' : 'Muntej',
       body: ar ? 'تمام! الإشعارات شغالة على جوالك 🎉' : 'All set! Notifications work on this phone 🎉',
-      data: { test: true },
+      data: { test: true, screen: 'alerts' },
     });
     return json({ sent });
   }
@@ -43,6 +46,8 @@ serve(async (req) => {
 
   let sentCount = 0;
   let skipped = 0;
+  let held = 0;
+  const prefs = await loadPrefs(admin, [...new Set((due ?? []).map((f) => f.recipient_id).filter((x): x is string => !!x))]);
   for (const f of due ?? []) {
     const task = f.task as unknown as { title: string; status: string } | null;
     const locale = (f.recipient as unknown as { locale?: string } | null)?.locale;
@@ -50,6 +55,18 @@ serve(async (req) => {
     if (!task || ['done', 'cancelled'].includes(task.status) || !f.recipient_id) {
       await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
       skipped++;
+      continue;
+    }
+    // the person's settings: push off → skip; quiet hours → try again when they end
+    const hold = followupHold(prefs.get(f.recipient_id), now);
+    if (hold.skip) {
+      await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
+      skipped++;
+      continue;
+    }
+    if (hold.until) {
+      await admin.from('followups').update({ scheduled_at: hold.until.toISOString() }).eq('id', f.id);
+      held++;
       continue;
     }
     const text = locale === 'ar' && f.message_ar ? f.message_ar : f.message;
@@ -73,5 +90,10 @@ serve(async (req) => {
       skipped++;
     }
   }
-  return json({ due: due?.length ?? 0, sent: sentCount, skipped });
+  // every new alert (assignments, reviews, decisions, changes, team alerts) goes out from here too
+  const alerts = await deliverPending(admin).catch((e) => {
+    console.error('alert delivery failed', e);
+    return null;
+  });
+  return json({ due: due?.length ?? 0, sent: sentCount, skipped, held, alerts });
 });
