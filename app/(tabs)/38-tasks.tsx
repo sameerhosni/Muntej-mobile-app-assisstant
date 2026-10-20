@@ -1,9 +1,9 @@
 // Screen 38 · Tasks — no mockup; v2 light style per design/TOKENS.md
 // Live: every task the user may see (RLS), newest or by priority. Changes go through the Muntej chat (02-capture).
 // One search box + one chip row (All · Mine · I assigned · Late · Unassigned · Cancelled), counts follow the search.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText, Button, Card, Chip, FilterChips, SearchField } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -22,7 +22,13 @@ export default function TasksScreen() {
   const { t: tm } = useScreenT(MUNTI_NS);
   const { lang } = useDirection();
   const [sort, setSort] = useState<SortMode>('newest');
-  const [filter, setFilter] = useState<TaskListFilter>('all');
+  // ?filter=late (e.g. Munti's "Show me") opens the list on that filter
+  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
+  const wanted = FILTERS.find((f) => f === filterParam);
+  const [filter, setFilter] = useState<TaskListFilter>(wanted ?? 'all');
+  useEffect(() => {
+    if (wanted) setFilter(wanted);
+  }, [wanted]);
   const [search, setSearch] = useState('');
   const { query, rows, counts, role } = useTaskList(filter, sort, search);
   const accent = role === 'employee' ? colors.purple : colors.primary;
