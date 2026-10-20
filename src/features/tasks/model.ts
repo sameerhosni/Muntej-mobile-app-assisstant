@@ -19,9 +19,9 @@ export function sortTasks(tasks: TaskWithPeople[], mode: SortMode): TaskWithPeop
   return out.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || newestFirst(a, b));
 }
 
-/** Past its due date and not done/cancelled. */
-export function isLate(task: TaskWithPeople, now = Date.now()): boolean {
-  if (!task.due_at || task.status === 'done' || task.status === 'cancelled') return false;
+/** Past its due date and still on the owner (not done, cancelled, or handed in for review). */
+export function isLate(task: Pick<TaskWithPeople, 'due_at' | 'status'>, now = Date.now()): boolean {
+  if (!task.due_at || task.status === 'done' || task.status === 'cancelled' || task.status === 'submitted') return false;
   return new Date(task.due_at).getTime() < now;
 }
 

@@ -31,14 +31,16 @@ export function usePerformance(lang: 'en' | 'ar'): Performance | null {
     const employee = me.data.role === 'employee';
     const mine = employee ? tasks.data.filter((x) => x.owner_id === me.data!.id) : tasks.data;
     const now = Date.now();
-    const open = mine.filter((x) => x.status !== 'done' && x.status !== 'cancelled');
+    // handed in for review = finished as far as the owner is concerned
+    const finished = (x: { status: string }) => x.status === 'done' || x.status === 'submitted';
+    const open = mine.filter((x) => !finished(x) && x.status !== 'cancelled');
     const late = open.filter((x) => isLate(x, now)).length;
     const soon = open.filter((x) => {
       if (!x.due_at) return false;
       const due = new Date(x.due_at).getTime();
       return due >= now && due - now < DAY;
     }).length;
-    const done = mine.filter((x) => x.status === 'done' && now - new Date(x.updated_at).getTime() < 7 * DAY).length;
+    const done = mine.filter((x) => finished(x) && now - new Date(x.updated_at).getTime() < 7 * DAY).length;
 
     const status: PerfStatus =
       late >= 3 ? 'behind' : late > 0 || soon >= 3 ? 'watch' : open.length === 0 && done === 0 ? 'quiet' : done >= 3 ? 'great' : 'good';

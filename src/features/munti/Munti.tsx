@@ -440,8 +440,9 @@ function Eyes({ mood, S }: { mood: MuntiMood; S: number }) {
       ))}
       {mood === 'oops' && (
         <>
-          <Path d="M30 42 L44 46" stroke={colors.navy} strokeWidth={3} strokeLinecap="round" />
-          <Path d="M70 42 L56 46" stroke={colors.navy} strokeWidth={3} strokeLinecap="round" />
+          {/* worried: inner ends raised (inner ends down would read as angry) */}
+          <Path d="M30 44 Q37 42 44 39" stroke={colors.navy} strokeWidth={3} strokeLinecap="round" fill="none" />
+          <Path d="M70 44 Q63 42 56 39" stroke={colors.navy} strokeWidth={3} strokeLinecap="round" fill="none" />
         </>
       )}
       {mood === 'sad' && (
