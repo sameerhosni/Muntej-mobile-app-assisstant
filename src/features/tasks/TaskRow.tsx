@@ -1,6 +1,6 @@
-import { Pressable, View } from 'react-native';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
-import { CircleCheck, Info, Mic } from 'lucide-react-native';
+import { Check, CircleCheck, Info, Mic } from 'lucide-react-native';
 import { AppText, Avatar, Card, Chip } from '@/components/ui';
 import type { ChipTone } from '@/components/ui/Chip';
 import { colors, sizes, spacing } from '@/theme/tokens';
@@ -10,6 +10,7 @@ import type { TaskPriority, TaskStatus, TaskWithPeople } from '@/lib/api';
 import { formatDue } from '@/features/capture/format';
 import { ObjectiveChip } from '@/features/objectives/ObjectiveChip';
 import { missingFields } from './model';
+import { isFinished, useCompleteTask } from './useCompleteTask';
 import { NS } from './strings';
 
 const priorityTone: Record<TaskPriority, ChipTone> = { low: 'neutral', medium: 'primary', high: 'amber', urgent: 'red' };
@@ -39,11 +40,51 @@ export function TaskRow({ task, hideObjective }: { task: TaskWithPeople; hideObj
   const cancelled = task.status === 'cancelled';
   const ownerName = task.owner ? ((lang === 'ar' && task.owner.full_name_ar) || task.owner.full_name).split(' ')[0] : null;
   const missing = missingFields(task);
+  const { toggle, canTick, busyId } = useCompleteTask();
+  const finished = isFinished(task.status);
 
   return (
     // the row and the info button are siblings: a pressable can't sit inside another (nested <button> on web)
     <Card padding={spacing.lg} style={{ gap: spacing.xs, paddingEnd: spacing.xs }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+        {/* one tap: done (or sent for review); tap again to reopen */}
+        {canTick(task) && (
+          <Pressable
+            onPress={() => toggle(task)}
+            disabled={busyId === task.id}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: finished, busy: busyId === task.id }}
+            accessibilityLabel={t(finished ? 'tickReopen' : 'tickDone', { title: task.title })}
+            style={({ pressed }) => ({
+              width: sizes.touch,
+              height: sizes.touch,
+              marginTop: -8,
+              marginStart: -8,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            {busyId === task.id ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : finished ? (
+              <View
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  backgroundColor: task.status === 'done' ? colors.green : colors.purple,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Check color={colors.onDark} size={15} strokeWidth={3} />
+              </View>
+            ) : (
+              <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.borderDashed }} />
+            )}
+          </Pressable>
+        )}
         <Pressable
           onPress={() => openTaskChat(task.id, 'text')}
           accessibilityRole="button"
@@ -51,12 +92,12 @@ export function TaskRow({ task, hideObjective }: { task: TaskWithPeople; hideObj
           style={({ pressed }) => ({ flex: 1, minWidth: 0, gap: 6, opacity: pressed ? 0.75 : 1 })}
         >
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
-            {done && <CircleCheck color={colors.green} size={18} strokeWidth={2.2} style={{ marginTop: 1 }} />}
+            {done && !canTick(task) && <CircleCheck color={colors.green} size={18} strokeWidth={2.2} style={{ marginTop: 1 }} />}
             <AppText
               weight="bold"
               numberOfLines={2}
-              color={done || cancelled ? 'textMuted' : 'text'}
-              style={{ flexShrink: 1, textDecorationLine: cancelled ? 'line-through' : 'none' }}
+              color={finished || cancelled ? 'textMuted' : 'text'}
+              style={{ flexShrink: 1, textDecorationLine: cancelled || finished ? 'line-through' : 'none' }}
             >
               {task.title}
             </AppText>

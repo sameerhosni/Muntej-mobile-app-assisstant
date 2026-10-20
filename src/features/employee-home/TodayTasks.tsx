@@ -1,37 +1,32 @@
 // Screen 25 · Employee Home — "Today's tasks": the person's real open tasks (late first, then soonest due) as a checklist.
 // Ticking one marks it done for real (set_task_status): someone else assigned it → it goes to them for review
 // (submitted); self-assigned → done. Points go to the (demo) wallet and Munti cheers. Ticking again reopens it.
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
 import { Check } from 'lucide-react-native';
 import { AppText, Gradient, PointsPill } from '@/components/ui';
 import { colors, radius, shadows, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useMyProfile, useTasks, useTeam, type TaskPriority, type TaskWithPeople } from '@/lib/api';
+import { useMyProfile, useTasks, useTeam, type TaskWithPeople } from '@/lib/api';
 import { formatDue } from '@/features/capture/format';
-import { invalidateTaskData, setTaskStatus } from '@/features/chat/api';
 import { formatNumber } from '@/features/home/value';
-import { useWallet, wallet } from '@/features/rewards/wallet';
-import { munti } from '@/features/munti/store';
+import { useWallet } from '@/features/rewards/wallet';
+import { TASK_POINTS as PTS, useCompleteTask } from '@/features/tasks/useCompleteTask';
 import { contentDirection } from '@/features/chat/Bubbles';
 import { NS } from './strings';
 
-const PTS: Record<TaskPriority, number> = { urgent: 70, high: 40, medium: 15, low: 5 };
 const DAY = 86_400_000;
 const MAX = 4;
 
 export function TodayTasks() {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
-  const qc = useQueryClient();
   const me = useMyProfile();
   const team = useTeam();
   const tasks = useTasks();
   const w = useWallet();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { toggle, busyId: busy } = useCompleteTask();
   const n = (v: number) => formatNumber(v, lang);
   const meId = me.data?.id;
 
@@ -52,34 +47,6 @@ export function TodayTasks() {
   };
   // who reviews: the person who assigned it, or my manager when I assigned it to myself
   const reviewerOf = (x: TaskWithPeople) => nameOf(x.assigner_id !== meId ? x.assigner_id : me.data?.manager_id);
-
-  const toggle = async (x: TaskWithPeople) => {
-    const finished = x.status === 'done' || x.status === 'submitted';
-    const key = `task:${x.id}`;
-    const pts = PTS[x.priority] ?? 15;
-    setBusy(x.id);
-    setError(null);
-    try {
-      const result = await setTaskStatus(x.id, finished ? 'reopen' : 'done');
-      if (finished) {
-        wallet.unearn(key);
-        munti.say(t('tt_reopenToast', { title: x.title }), 'think');
-      } else {
-        wallet.earn(key, pts);
-        munti.celebrate(
-          result === 'submitted'
-            ? t('tt_sentToast', { title: x.title, name: reviewerOf(x) ?? '…', pts: n(pts) })
-            : t('tt_doneToast', { title: x.title, pts: n(pts) }),
-        );
-      }
-      await invalidateTaskData(qc);
-    } catch (e) {
-      setError(t('tt_failed', { reason: (e as Error).message }));
-      munti.say(t('tt_failed', { reason: (e as Error).message }), 'oops');
-    } finally {
-      setBusy(null);
-    }
-  };
 
   const now = Date.now();
   return (
@@ -162,11 +129,6 @@ export function TodayTasks() {
         );
       })}
 
-      {!!error && (
-        <AppText variant="small" weight="bold" color="red">
-          {error}
-        </AppText>
-      )}
     </View>
   );
 }
