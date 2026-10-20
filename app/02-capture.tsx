@@ -7,7 +7,8 @@
 // Team changes ("add Reem under Khalid", "Noura left") always come as an OrgProposalCard: saved only on Confirm.
 // Status ("I finished it") changes the task right away with Undo; "mark all my tasks done" and other changes to many
 // tasks come as a BulkCard (untick any, Apply, then Undo for 5 minutes). A new task for several people or one that
-// looks like an open task asks first (PeopleCard / DuplicateCard).
+// looks like an open task asks first (PeopleCard / DuplicateCard). Repeating work ("standup every Monday") comes as a
+// RecurringCard to confirm. Task cards show the estimate and Muntej's predicted finish.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -29,6 +30,7 @@ import {
   applyBulkChange,
   confirmChange,
   confirmOrg,
+  confirmRecurring,
   createHeldTask,
   payloadPart,
   undoTaskChange,
@@ -67,7 +69,16 @@ import { Candidates } from '@/features/chat/Candidates';
 import { FocusBar } from '@/features/chat/FocusBar';
 import { Composer, type VoiceState } from '@/features/chat/Composer';
 import { NS } from '@/features/chat/strings';
-import { BulkCard, BulkDoneCard, CreatedListCard, DuplicateCard, PeopleCard, UndoRow, type AskState } from '@/features/chat/ActionCards';
+import {
+  BulkCard,
+  BulkDoneCard,
+  CreatedListCard,
+  DuplicateCard,
+  PeopleCard,
+  RecurringCard,
+  UndoRow,
+  type AskState,
+} from '@/features/chat/ActionCards';
 import { munti } from '@/features/munti/store';
 import { MUNTI_NS } from '@/features/munti/tips';
 
@@ -297,8 +308,9 @@ export default function MuntejChatScreen() {
   );
   const askState = (index: number, msgId: string, doneWhen: (next: ChatMessage) => boolean): AskState => {
     if (rejected[msgId]) return 'rejected';
-    const next = messages.slice(index + 1).find((x) => x.role === 'assistant');
-    if (next && doneWhen(next)) return 'done';
+    // a tap on the card sends no user message, so its result is the very next message
+    const next = messages[index + 1];
+    if (next?.role === 'assistant' && doneWhen(next)) return 'done';
     return msgId === lastAssistantId && !pending ? 'open' : 'stale';
   };
   /** run a card action, show its reply, refresh tasks; errors go back to the card */
@@ -312,6 +324,7 @@ export default function MuntejChatScreen() {
   const undo = (logId: string) => runCard(undoTaskChange(logId, lang));
   const createHeld = (task: HeldTask, opts: Parameters<typeof createHeldTask>[1]) => runCard(createHeldTask(task, opts, lang));
   const updateExisting = (taskId: string, patch: ProposedPatch) => runCard(confirmChange(taskId, patch, lang));
+  const saveRecurring = (id: string | null, patch: Record<string, unknown>) => runCard(confirmRecurring(id, patch, lang));
 
   const focusComposer = () => setTimeout(() => input.current?.focus(), 50);
 
@@ -487,9 +500,20 @@ export default function MuntejChatScreen() {
           const people = payloadPart(m.payload, 'people_choice');
           const dup = payloadPart(m.payload, 'duplicate');
           const createdList = payloadPart(m.payload, 'created_list');
+          const rec = payloadPart(m.payload, 'recurring_proposal');
           const isLatest = m.id === lastAssistantId && !pending;
           let card = null;
-          if (bulk) {
+          if (rec) {
+            card = (
+              <RecurringCard
+                key={`r-${m.id}`}
+                proposal={rec}
+                state={askState(i, m.id, (n) => !!payloadPart(n.payload, 'recurring_done'))}
+                onConfirm={() => saveRecurring(rec.recurring_id, rec.patch)}
+                onReject={() => rejectProposal(m.id)}
+              />
+            );
+          } else if (bulk) {
             card = (
               <BulkCard
                 key={`b-${m.id}`}
@@ -582,6 +606,8 @@ export default function MuntejChatScreen() {
                 onDelete={() => end(task.id, 'deleted')}
                 onMissing={fillMissing}
                 onTalkAbout={focusTaskId === task.id ? undefined : () => talkAbout(task.id)}
+                estimateHours={snap.estimate_hours}
+                prediction={snap.prediction}
               />
             );
             // status just changed here: Undo for 5 minutes

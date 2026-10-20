@@ -15,6 +15,10 @@
 // → bulk_update_tasks, and { undo_log_id } puts them back within 5 minutes.
 // A new task for several people asks first (payload.people_choice → { apply_create: { task, owner_ids, mode } });
 // one that looks like an open task asks first too (payload.duplicate → { apply_create: { task, force: true } }).
+// Repeating work ("standup every Monday") comes as payload.recurring_proposal; Confirm → { apply_recurring } →
+// upsert_recurring (a pg_cron job creates each task ahead of time). Skip / pause / resume / stop run right away.
+// "8 hours of work" sets estimate_hours and, with no date said, a due date in working days (Sun–Thu).
+// Every open task carries a predicted finish (owner's queue ÷ daily hours × their past speed) on its card.
 // When the owner's Muntej engine API is ready, this function is the one place to swap it in.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve, type Caller } from '../_shared/http.ts';
@@ -37,6 +41,7 @@ const NewTask = z.object({
   workspace_id: z.string().nullable(),
   objective_id: z.string().nullable().describe('id from objectives (status active) when the task clearly belongs to one, else null'),
   also_for_ids: z.array(z.string()).describe('Other people named for this same work besides owner_id (ids from team); [] when one person'),
+  estimate_hours: z.number().nullable().describe('Hours of work when the user says it ("8 hours of work", "takes two days" = 16), else null'),
 });
 
 const TaskUpdate = z.object({
@@ -52,6 +57,7 @@ const TaskUpdate = z.object({
   budget: z.string().nullable(),
   objective_id: z.string().nullable().describe('Link the task to this objective (id from objectives); null = unchanged'),
   unlink_objective: z.boolean().describe('true only when the user wants the task taken out of its objective'),
+  estimate_hours: z.number().nullable().describe('New estimate in hours ("it takes 12 hours"); null = unchanged'),
 });
 
 const Role = z.enum(['super_admin', 'admin', 'manager', 'employee']);
@@ -106,6 +112,30 @@ const ObjectiveChange = z.object({
 
 const TaskStatusChange = z.enum(['done', 'in_progress', 'blocked', 'reopen']);
 
+// every key is required by strict mode; null / [] = "not said" (create) or "unchanged" (update)
+const RecurringFields = z.object({
+  title: z.string().nullable(),
+  owner_id: z.string().nullable().describe('id from team'),
+  rotation_ids: z.array(z.string()).describe('People who take turns, in order (ids from team); [] = no rotation'),
+  freq: z.enum(['daily', 'weekdays', 'weekly', 'monthly']).nullable().describe('weekdays = every working day Sun–Thu'),
+  every: z.number().nullable().describe('Every N days/weeks/months (2 = every other); null = 1'),
+  weekdays: z.array(z.number()).describe('weekly: 0 = Sunday … 6 = Saturday; [] = unchanged / the start day'),
+  month_day: z.number().nullable().describe('monthly: 1-31, -1 = last day'),
+  time_of_day: z.string().nullable().describe('"HH:MM" 24h Riyadh time; null = 17:00'),
+  starts_on: z.string().nullable().describe('YYYY-MM-DD'),
+  ends_on: z.string().nullable().describe('YYYY-MM-DD'),
+  priority: Priority.nullable(),
+  definition_of_done: z.string().nullable(),
+  estimate_hours: z.number().nullable(),
+});
+
+const RecurringChange = z.object({
+  op: z.enum(['create', 'update', 'skip_next', 'pause', 'resume', 'stop']),
+  recurring_id: z.string().nullable().describe('id from recurring; null only for create'),
+  fields: RecurringFields,
+  pause_until: z.string().nullable().describe('YYYY-MM-DD, only for pause'),
+});
+
 const StatusChange = z.object({
   task_id: z.string(),
   status: TaskStatusChange,
@@ -139,7 +169,7 @@ const BulkChange = z.object({
 const ChatOutput = z.object({
   language: z.enum(['en', 'ar']),
   reply: z.string(),
-  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'cancel', 'delete', 'org', 'objective']),
+  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'recurring', 'cancel', 'delete', 'org', 'objective']),
   task: NewTask.nullable().describe('Only when action = create'),
   update: TaskUpdate.nullable().describe('Only when action = update; null fields mean "unchanged"'),
   target_task_id: z.string().nullable().describe('Only when action = cancel or delete'),
@@ -147,6 +177,7 @@ const ChatOutput = z.object({
   objective: ObjectiveChange.nullable().describe('Only when action = objective'),
   status_change: StatusChange.nullable().describe('Only when action = status'),
   bulk: BulkChange.nullable().describe('Only when action = bulk'),
+  recurring: RecurringChange.nullable().describe('Only when action = recurring'),
   suggestions: z.array(z.string()).describe('0-3 optional next steps, each a short ready-to-send message in the user language'),
   candidates: z.array(z.string()).describe('Only with action none: 2-3 task ids when the user wants to change a task but several tasks fit'),
 });
@@ -172,6 +203,8 @@ Each turn, choose ONE action:
 - "status": the user says ONE task's state changed: finished ("I finished the report", "خلصت", "mark it done", "it's done") → done; started ("I'm on it", "بديت فيها") → in_progress; stuck ("it's blocked, waiting for the client", "واقفة") → blocked (put the reason in note); "reopen it" / "not done yet" → reopen. Target = focused_task, else the task being discussed, else the one they describe (same WHICH ONE rules). Never use "update" or "none" for this. The server words the reply (closed vs sent for review), so keep yours short.
 - "bulk": the user wants the SAME change on several tasks at once: "mark all my tasks done", "خلص كل مهامي", "move all high-priority tasks to Sunday", "give all Faisal's tasks to Noura", "cancel all overdue tasks", "delete the security tasks". Fill bulk.filter (mine_only for "my tasks", owner_id for someone's tasks, assigned_by_me, priority, late_only, due_before, title_contains, objective_id) OR bulk.task_ids when they listed specific tasks, and bulk.change (kind status + status / due + due_at / priority + priority / owner + owner_id / cancel / delete). Nothing changes until the user confirms on a preview card that lists the tasks: the server writes the reply. Use "status"/"update"/"cancel" instead when exactly one task is meant.
 - SEVERAL PEOPLE: when a new task names more than one person ("for Ahmed, Sarah and Ali", "لفيصل وعبدالله"), use "create" with the first person as owner_id and the others in task.also_for_ids; the server asks the user whether it's one task each or one shared task. Otherwise also_for_ids = [].
+- "recurring": work that REPEATS ("standup every Monday 10:00 for Faisal", "monthly report on the 1st", "every other Tuesday", "كل يوم أحد", "rotate weekly between Faisal and Noura") → op "create" with fields (title, owner_id or rotation_ids, freq, every, weekdays, month_day, time_of_day, starts_on/ends_on when said, priority, definition_of_done, estimate_hours). Changing an existing schedule from recurring[] ("move all future standups to Tuesday", "make it 9am") → op "update" with only the changing fields (+ recurring_id). "Skip next Monday's standup" → skip_next; "pause the standup for 2 weeks" → pause + pause_until; "start it again" → resume; "stop the monthly report" → stop. Questions about them ("what repeats?") → "none" and answer from recurring[]. Nothing is created until the user confirms the schedule on a card: the server writes the reply.
+- ESTIMATES: when the user says how long work takes ("8 hours of work", "takes two days" = 16 h), put it in task.estimate_hours / update.estimate_hours; the server turns it into a due date in working days (after the owner's current workload) when no date was said — then leave due_at null (never work the date out yourself), do NOT call the due date missing and don't mention a date: the server adds it to your reply. Each open task has likely_done (Muntej's prediction from the owner's queue and past speed) and likely_late_days: use them for "when will X be done?" / "what will be late?" questions, saying it's an estimate.
 - "cancel": the user wants a task stopped ("cancel it", "الغها", "ما نحتاجها"). Put its id in target_task_id (most recent task unless another is meant).
 - "delete": the user wants a task removed completely ("delete it", "احذفها"). Put its id in target_task_id. Deleting needs one tap to confirm, so say you've shown it and they just need to confirm. Prefer "cancel" when they only mean it's no longer needed.
 
@@ -181,7 +214,7 @@ Writing rules:
 - suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. When the task has no objective and an active objective could fit, one suggestion may link it ("Link it to «X»" / "اربطها بهدف «X»"). Empty for small talk, questions, cancel, delete, org and objective.
 - PENDING CARDS: if the user just says "yes"/"confirm"/"تمام" to a change waiting on a card, use "none" and tell them to tap Confirm on the card.
 - ids (owner_id, helper_id, workspace_id, task_id, person_id, manager_id, objective_id) must come from the provided lists, else null.
-- task and update are null unless action is create / update; org is null unless action is org; objective is null unless action is objective; status_change only with status; bulk only with bulk.
+- task and update are null unless action is create / update; org is null unless action is org; objective is null unless action is objective; status_change only with status; bulk only with bulk; recurring only with recurring.
 - Dates: resolve relative dates against current_time_riyadh. Saudi work week is Sunday–Thursday. "Before Thursday" = Thursday 17:00; no time said → 17:00. ISO 8601 with +03:00.
 - priority: urgent only for today/ASAP/ضروري/عاجل; high for client or executive deadlines within a week; low if "no rush"; else medium.
 - definition_of_done: one concrete, checkable sentence only if it can be inferred; otherwise null (it becomes a missing item). goal: business goal/client in 1–4 words or null. budget: only if money/resources are mentioned.
@@ -305,6 +338,8 @@ serve(async (req) => {
     undo_log_id?: string;
     /** a choice on a people / duplicate card: create without asking again */
     apply_create?: { task: Record<string, unknown>; owner_ids?: string[]; mode?: 'separate' | 'shared'; force?: boolean };
+    /** Confirm tapped on a recurring schedule card: upsert_recurring as the caller */
+    apply_recurring?: { recurring_id: string | null; patch: Record<string, unknown> };
     lang?: string;
   };
   const message = (body.message ?? '').trim();
@@ -314,6 +349,7 @@ serve(async (req) => {
   if (body.apply_objective) return await applyObjective(db, profileId, body.apply_objective, body.lang === 'ar');
   if (body.apply_bulk) return await applyBulk(db, profileId, body.apply_bulk, body.lang === 'ar');
   if (body.undo_log_id) return await undoChange(db, profileId, body.undo_log_id, body.lang === 'ar');
+  if (body.apply_recurring) return await applyRecurring(db, profileId, body.apply_recurring, body.lang === 'ar');
   // no user message of its own: Confirm / a choice on a card
   const tapped = !!body.apply || !!body.apply_create;
 
@@ -331,12 +367,61 @@ serve(async (req) => {
     // RLS: only objectives the caller can see; a missing table (not migrated yet) just means none
     db.from('objectives').select(OBJECTIVE_COLS).neq('status', 'cancelled').order('due_at', { ascending: true }).limit(200),
   ]);
+  // repeating schedules the caller can see (a missing table just means none)
+  const { data: recurringRows } = await db.from('recurring_tasks').select(RECURRING_COLS).eq('status', 'active').limit(50);
+  const recurring = (recurringRows ?? []) as RecurringRow[];
   // everyone (incl. people who left) for names and org changes; `team` = people who can still get work
   const everyone = (people ?? []) as PersonRow[];
   const team = everyone.filter((p) => p.status !== 'deleted');
   const allTasks = (tasks ?? []) as TaskRow[];
   const nameOf = (id: string | null) => (id ? everyone.find((p) => p.id === id)?.full_name ?? null : null);
   const open = allTasks.filter((t) => ACTIVE.includes(t.status));
+
+  // ── predicted finish: the owner's queue (open tasks due earlier) + this one, at their daily hours × past speed ──
+  const perDayOf = (id: string | null) => {
+    const w = id ? everyone.find((p) => p.id === id)?.weekly_capacity_hours : null;
+    return w ? Math.max(1, Math.min(12, Number(w) / 5)) : 8;
+  };
+  const speedCache = new Map<string, { speed: number; samples: number; defaultHours: number }>();
+  const speedOf = (ownerId: string) => {
+    const hit = speedCache.get(ownerId);
+    if (hit) return hit;
+    const perDay = perDayOf(ownerId);
+    const cutoff120 = Date.now() - 120 * DAY;
+    const done = allTasks.filter((t) => t.owner_id === ownerId && t.status === 'done' && t.closed_at && Date.parse(t.closed_at) >= cutoff120);
+    const ratios = done
+      .filter((t) => t.estimate_hours && Number(t.estimate_hours) > 0)
+      .map((t) => workingHoursBetween(new Date(t.created_at), new Date(t.closed_at!), perDay) / Number(t.estimate_hours));
+    const ests = allTasks.filter((t) => t.owner_id === ownerId && t.estimate_hours).map((t) => Number(t.estimate_hours));
+    const r = {
+      speed: ratios.length >= 3 ? Math.min(3, Math.max(0.5, median(ratios))) : 1,
+      samples: ratios.length,
+      defaultHours: ests.length >= 3 ? median(ests) : 4,
+    };
+    speedCache.set(ownerId, r);
+    return r;
+  };
+  /** hours of open work already on someone's plate (estimates, else their usual size) */
+  const queueHoursOf = (ownerId: string | null, except?: string) => {
+    if (!ownerId) return 0;
+    const { defaultHours } = speedOf(ownerId);
+    return open
+      .filter((x) => x.owner_id === ownerId && x.id !== except && x.status !== 'submitted')
+      .reduce((sum, x) => sum + (x.estimate_hours ? Number(x.estimate_hours) : defaultHours), 0);
+  };
+  const predict = (t: TaskRow): { at: string; confidence: number; late_days: number } | null => {
+    if (!t.owner_id || !ACTIVE.includes(t.status) || t.status === 'submitted') return null;
+    const { speed, samples, defaultHours } = speedOf(t.owner_id);
+    const hoursOf = (x: TaskRow) => (x.estimate_hours ? Number(x.estimate_hours) : defaultHours);
+    const due = t.due_at ? Date.parse(t.due_at) : null;
+    const queue = open
+      .filter((x) => x.id !== t.id && x.owner_id === t.owner_id && x.status !== 'submitted' && x.due_at && (due == null || Date.parse(x.due_at) < due))
+      .reduce((sum, x) => sum + hoursOf(x), 0);
+    const at = addWorkingHours(new Date(), (queue + hoursOf(t)) * speed, perDayOf(t.owner_id));
+    const confidence = samples >= 5 && t.estimate_hours ? 80 : samples >= 2 || t.estimate_hours ? 60 : 40;
+    const late = due != null && at.getTime() > due ? Math.ceil((at.getTime() - due) / DAY) : 0;
+    return { at: at.toISOString(), confidence, late_days: late };
+  };
 
   // objectives the caller can see (not cancelled); `liveObjectives` = the ones tasks may still be linked to
   const objectives = (objectiveRows ?? []) as ObjectiveRow[];
@@ -538,9 +623,22 @@ serve(async (req) => {
       status: t.status,
       due_at: t.due_at,
       late: !!t.due_at && new Date(t.due_at) < now,
+      estimate_hours: t.estimate_hours,
+      likely_done: predict(t)?.at ?? null,
+      likely_late_days: predict(t)?.late_days ?? 0,
       ...objectiveOf(t),
     })),
     objectives: contextObjectives,
+    recurring: recurring.map((r) => ({
+      id: r.id,
+      title: r.title,
+      schedule: scheduleText(r, false),
+      owner: nameOf(r.owner_id),
+      rotation: r.rotation.map((id) => nameOf(id)),
+      next_due_at: r.next_due_at,
+      paused_until: r.paused_until,
+      skip_next: r.skip_next,
+    })),
     workspaces: workspaces ?? [],
   };
 
@@ -573,12 +671,14 @@ serve(async (req) => {
         budget: str('budget'),
         objective_id: str('objective_id'),
         unlink_objective: a.unlink_objective === true,
+        estimate_hours: typeof a.estimate_hours === 'number' ? a.estimate_hours : null,
       },
       target_task_id: null,
       org: null,
       objective: null,
       status_change: null,
       bulk: null,
+      recurring: null,
       suggestions: [],
       candidates: [],
     };
@@ -606,6 +706,7 @@ serve(async (req) => {
         workspace_id: str('workspace_id'),
         objective_id: str('objective_id'),
         also_for_ids: [],
+        estimate_hours: typeof a.estimate_hours === 'number' ? a.estimate_hours : null,
       },
       update: null,
       target_task_id: null,
@@ -613,6 +714,7 @@ serve(async (req) => {
       objective: null,
       status_change: null,
       bulk: null,
+      recurring: null,
       suggestions: [],
       candidates: [],
     };
@@ -677,6 +779,10 @@ ${message}` : message },
   let createdList: { id: string; title: string; owner_name: string | null; due_at: string | null }[] = [];
   // a status change done right away: the card offers Undo with this activity_log row
   let undoLogId: string | null = null;
+  // "8 hours → due Tue 17:00 (working days)", appended to the reply
+  let estimateNote: string | null = null;
+  // a repeating schedule waiting for Confirm
+  let recurringProposal: RecurringProposal | null = null;
   const ar0 = parsed.language === 'ar';
   const canClose = (t: TaskRow) =>
     t.assigner_id === profileId ||
@@ -696,6 +802,15 @@ ${message}` : message },
       hour: 'numeric',
       minute: '2-digit',
     }).format(new Date(iso));
+
+  const estimateLine = (hours: number, autoDue: string | null) =>
+    autoDue
+      ? ar0
+        ? `(${hours} ساعة شغل ← التسليم ${fmtDue(autoDue)} بأيام العمل)`
+        : `(${hours} h of work → due ${fmtDue(autoDue)}, working days)`
+      : ar0
+        ? `(سجلت التقدير: ${hours} ساعة)`
+        : `(Estimate saved: ${hours} h)`;
 
   /** the preview card for one change on many tasks; tasks the user may not change are left out (counted) */
   const buildBulk = (rows: TaskRow[], change: BulkChangeT['change']): BulkProposal | null => {
@@ -811,7 +926,7 @@ ${message}` : message },
   const linkable = (id: string | null) => (id && liveObjectives.some((o) => o.id === id) ? id : null);
 
   /** create one task as the caller (+ its follow-up plan, + objective link); returns its id */
-  const createOne = async (t: Omit<NewTaskT, 'objective_id' | 'also_for_ids'>, wantObjective: string | null) => {
+  const createOne = async (t: Omit<NewTaskT, 'objective_id' | 'also_for_ids' | 'estimate_hours'>, wantObjective: string | null) => {
     const owner = team.find((p) => p.id === t.owner_id);
     const helper = team.find((p) => p.id === t.helper_id);
     const ownerArabic = owner ? owner.locale === 'ar' || parsed.language === 'ar' : parsed.language === 'ar';
@@ -838,15 +953,18 @@ ${message}` : message },
   };
 
   if (parsed.action === 'create' && parsed.task) {
-    const { objective_id: wantObjective, also_for_ids: alsoFor, ...t } = parsed.task;
+    const { objective_id: wantObjective, also_for_ids: alsoFor, estimate_hours: estRaw, ...t } = parsed.task;
+    const est = estRaw && estRaw > 0 && estRaw <= 2000 ? estRaw : null;
+    const estDue = !!est && !t.due_at;
     t.owner_id = person(t.owner_id);
     t.helper_id = person(t.helper_id);
     if (t.workspace_id && !wsIds.has(t.workspace_id)) t.workspace_id = null;
     if (t.due_at && Number.isNaN(Date.parse(t.due_at))) t.due_at = null;
+    if (estDue) t.due_at = dueFromHours(est! + queueHoursOf(person(t.owner_id)), perDayOf(person(t.owner_id)));
     const ac = body.apply_create;
     const others = ac ? [] : [...new Set((alsoFor ?? []).map(person).filter((x): x is string => !!x && x !== t.owner_id))];
     const dup = ac ? null : findDuplicate(t.title, t.owner_id);
-    const proposed = { ...t, objective_id: wantObjective };
+    const proposed = { ...t, objective_id: wantObjective, estimate_hours: est };
     if (others.length && t.owner_id) {
       // several people: one task each, or one shared task? (nothing saved yet)
       const people = [t.owner_id, ...others].map((id) => ({ id, name: displayName(id) }));
@@ -918,6 +1036,11 @@ ${message}` : message },
       if (shared) createdList = [];
     } else {
       taskId = await createOne(t, wantObjective);
+      if (est) {
+        const { error } = await db.from('tasks').update({ estimate_hours: est }).eq('id', taskId);
+        if (error) console.error('estimate save failed', error);
+        estimateNote = estimateLine(est, estDue ? t.due_at : null);
+      }
       ownerReason = t.owner_reason;
       ownerChanged = !!t.owner_id;
       action = 'created';
@@ -935,6 +1058,16 @@ ${message}` : message },
     if (u.goal) patch.goal = u.goal;
     if (u.definition_of_done) patch.definition_of_done = u.definition_of_done;
     if (u.budget) patch.budget = u.budget;
+    // hours of work: saved on the task; with no due date (now or in this message) it also sets one in working days
+    const est = u.estimate_hours && u.estimate_hours > 0 && u.estimate_hours <= 2000 ? u.estimate_hours : null;
+    const target0 = taskById.get(u.task_id);
+    if (est) {
+      patch.estimate_hours = est;
+      if (!patch.due_at && !target0?.due_at) {
+        const who = (patch.owner_id as string) ?? target0?.owner_id ?? null;
+        patch.due_at = dueFromHours(est + queueHoursOf(who, u.task_id), perDayOf(who));
+      }
+    }
     // objective link: undefined = unchanged, string = link, null = take it out (applied with link_task, not the patch)
     const before = taskById.get(u.task_id);
     const currentObjective = before?.objective_id ?? null;
@@ -952,9 +1085,15 @@ ${message}` : message },
       };
       ownerReason = patch.owner_id ? u.owner_reason : null;
     } else if (changes) {
-      if (Object.keys(patch).length) {
-        const { error } = await db.rpc('update_task_from_chat', { p_task: u.task_id, patch });
+      const { estimate_hours: estPatch, ...rpcPatch } = patch;
+      if (Object.keys(rpcPatch).length) {
+        const { error } = await db.rpc('update_task_from_chat', { p_task: u.task_id, patch: rpcPatch });
         if (error) throw new HttpError(400, error.message);
+      }
+      if (estPatch) {
+        const { error } = await db.from('tasks').update({ estimate_hours: estPatch }).eq('id', u.task_id);
+        if (error) throw new HttpError(400, error.message);
+        estimateNote = estimateLine(estPatch as number, (rpcPatch.due_at as string) ?? null);
       }
       if (objectiveTarget !== undefined && before) {
         const failed = await linkTask(before, objectiveTarget, currentObjective, body.apply ? 'Confirmed in the chat' : 'Asked in the chat');
@@ -1108,6 +1247,40 @@ ${message}` : message },
     parsed.suggestions = [];
   }
 
+  // ── repeating work: create / change → a card to confirm; skip / pause / resume / stop → right away ──
+  if (parsed.action === 'recurring' && parsed.recurring) {
+    const rc = parsed.recurring;
+    const known = rc.recurring_id ? recurring.find((r) => r.id === rc.recurring_id) : null;
+    if (rc.op === 'create' || rc.op === 'update') {
+      const r = proposeRecurring(rc, known ?? null, { person, nameOf: displayName, ar: ar0 });
+      if ('error' in r) parsed.reply = r.error;
+      else {
+        recurringProposal = r.proposal;
+        parsed.reply = r.reply;
+      }
+    } else if (!known) {
+      parsed.reply = ar0 ? 'ما لقيت المهمة المتكررة اللي تقصدها.' : "I couldn't find that recurring task.";
+    } else {
+      const until = rc.op === 'pause' && rc.pause_until && /^\d{4}-\d{2}-\d{2}$/.test(rc.pause_until) ? rc.pause_until : null;
+      if (rc.op === 'pause' && !until) {
+        parsed.reply = ar0 ? 'أوقفها لين متى؟' : 'Pause it until when?';
+      } else {
+        const { error } = await db.rpc('recurring_action', { p_id: known.id, p_action: rc.op, p_until: until });
+        if (error) throw new HttpError(400, error.message);
+        const next = known.next_due_at ? fmtDue(known.next_due_at) : '';
+        const title = known.title;
+        const lines: Record<string, [string, string]> = {
+          skip_next: [`OK, I'll skip the next "${title}" (${next}).`, `تمام، بتخطى «${title}» الجاية (${next}).`],
+          pause: [`Paused "${title}" until ${until}.`, `وقّفت «${title}» لين ${until}.`],
+          resume: [`"${title}" is back on.`, `رجّعت «${title}» تشتغل.`],
+          stop: [`Stopped "${title}". No more new ones.`, `أوقفت «${title}». ما راح تنضاف مهام جديدة.`],
+        };
+        parsed.reply = ar0 ? lines[rc.op][1] : lines[rc.op][0];
+      }
+    }
+    parsed.suggestions = [];
+  }
+
   // cancel runs now; delete only shows the card in a confirm state (one tap in the app actually deletes it)
   const target = focus?.id ?? (parsed.target_task_id && taskIds.has(parsed.target_task_id) ? parsed.target_task_id : null);
   if ((parsed.action === 'cancel' || parsed.action === 'delete') && target) {
@@ -1165,7 +1338,9 @@ ${message}` : message },
 
   // ── task card snapshot ──
   let payload: Record<string, unknown> | null = null;
-  if (bulkProposal) {
+  if (recurringProposal) {
+    payload = { recurring_proposal: recurringProposal };
+  } else if (bulkProposal) {
     payload = { bulk_proposal: bulkProposal };
   } else if (peopleChoice) {
     payload = { people_choice: peopleChoice };
@@ -1183,6 +1358,8 @@ ${message}` : message },
       const t = row as TaskRow;
       const ar = parsed.language === 'ar';
       let suggestions = action === 'created' || action === 'updated' ? parsed.suggestions.slice(0, 3) : [];
+      // the date was just set from the estimate: don't offer to set one
+      if (estimateNote && t.due_at) suggestions = suggestions.filter((x) => !/deadline|due|موعد|تسليم/i.test(x));
       // no objective yet: offer one link when there is an obvious candidate and the model didn't already
       if (suggestions.length < 3 && (action === 'created' || action === 'updated') && !t.objective_id) {
         const active = liveObjectives.filter((o) => o.status === 'active');
@@ -1211,6 +1388,8 @@ ${message}` : message },
         missing: missingOf(t),
         objective_id: t.objective_id,
         objective_title: objectiveTitle(t.objective_id, ar),
+        estimate_hours: t.estimate_hours,
+        prediction: predict(t),
         suggestions,
         ...(confirmDelete ? { confirm_delete: true } : {}),
         ...(undoLogId ? { undo_log_id: undoLogId } : {}),
@@ -1259,6 +1438,8 @@ ${message}` : message },
       : `Do you mean "${t.title}"${owner ? ` (${owner})` : ''}? I'll change: ${parts.join(', ')}. Confirm and I'll do it.`;
   }
 
+  if (estimateNote && (action === 'created' || action === 'updated')) parsed.reply = `${parsed.reply} ${estimateNote}`;
+
   // ── save both messages (user first, so ordering is stable) ──
   // a Confirm tap / card choice has no user message of its own
   let userMsg: unknown = null;
@@ -1298,6 +1479,262 @@ ${message}` : message },
 
   return json({ messages: userMsg ? [userMsg, botMsg] : [botMsg] });
 });
+
+// ─── working hours (Riyadh, Sunday–Thursday, the day starts 08:00) ───────────────
+
+const RIYADH_MS = 3 * 3_600_000;
+const WORK_START_HOUR = 8;
+
+/** start + `hours` of work, counting only working time (perDay hours from 08:00, Sun–Thu). */
+function addWorkingHours(start: Date, hours: number, perDay: number): Date {
+  let t = start.getTime() + RIYADH_MS; // Riyadh wall clock, read with getUTC*
+  let left = Math.max(0, hours);
+  for (let i = 0; i < 2000; i++) {
+    const d = new Date(t);
+    const dayStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), WORK_START_HOUR);
+    const dayEnd = dayStart + perDay * 3_600_000;
+    const dow = d.getUTCDay();
+    if (dow === 5 || dow === 6 || t >= dayEnd) {
+      t = dayStart + DAY;
+      continue;
+    }
+    if (t < dayStart) t = dayStart;
+    const avail = (dayEnd - t) / 3_600_000;
+    if (left <= avail) return new Date(t + left * 3_600_000 - RIYADH_MS);
+    left -= avail;
+    t = dayStart + DAY;
+  }
+  return new Date(t - RIYADH_MS);
+}
+
+/** working hours between two moments (same rules as addWorkingHours) */
+function workingHoursBetween(a: Date, b: Date, perDay: number): number {
+  let t = a.getTime() + RIYADH_MS;
+  const end = b.getTime() + RIYADH_MS;
+  let sum = 0;
+  for (let i = 0; i < 400 && t < end; i++) {
+    const d = new Date(t);
+    const dayStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), WORK_START_HOUR);
+    const dayEnd = dayStart + perDay * 3_600_000;
+    const dow = d.getUTCDay();
+    if (dow !== 5 && dow !== 6) sum += Math.max(0, Math.min(end, dayEnd) - Math.max(t, dayStart)) / 3_600_000;
+    t = dayStart + DAY - WORK_START_HOUR * 3_600_000; // next midnight
+  }
+  return sum;
+}
+
+/** due date for `hours` of work starting now: 17:00 (Riyadh) on the working day it would be finished */
+function dueFromHours(hours: number, perDay: number): string {
+  const finish = new Date(addWorkingHours(new Date(), hours, perDay).getTime() + RIYADH_MS);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const endHour = Math.max(17, Math.ceil(WORK_START_HOUR + perDay));
+  return `${finish.getUTCFullYear()}-${pad(finish.getUTCMonth() + 1)}-${pad(finish.getUTCDate())}T${pad(Math.min(endHour, 23))}:00:00+03:00`;
+}
+
+function median(xs: number[]): number {
+  const a = [...xs].sort((x, y) => x - y);
+  const m = Math.floor(a.length / 2);
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+}
+
+function fmtRiyadh(iso: string, ar: boolean) {
+  return new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', {
+    timeZone: 'Asia/Riyadh',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(iso));
+}
+
+// ─── recurring tasks ──────────────────────────────────────────────────────────────
+
+const RECURRING_COLS =
+  'id, title, owner_id, rotation, freq, every, weekdays, month_day, time_of_day, starts_on, ends_on, next_due_at, paused_until, skip_next, priority, definition_of_done, estimate_hours, last_task_id';
+type RecurringRow = {
+  id: string;
+  title: string;
+  owner_id: string | null;
+  rotation: string[];
+  freq: 'daily' | 'weekdays' | 'weekly' | 'monthly';
+  every: number;
+  weekdays: number[];
+  month_day: number | null;
+  time_of_day: string;
+  starts_on: string;
+  ends_on: string | null;
+  next_due_at: string | null;
+  paused_until: string | null;
+  skip_next: boolean;
+  priority: string;
+  definition_of_done: string | null;
+  estimate_hours: number | null;
+  last_task_id: string | null;
+};
+type RecurringProposal = {
+  op: 'create' | 'update';
+  recurring_id: string | null;
+  title: string;
+  /** exactly what apply_recurring sends to upsert_recurring (minus id) */
+  patch: Record<string, unknown>;
+  summary_lines: string[];
+};
+/** keys upsert_recurring accepts from a chat proposal */
+const RECURRING_KEYS = [
+  'title', 'owner_id', 'rotation', 'priority', 'definition_of_done', 'estimate_hours',
+  'freq', 'every', 'weekdays', 'month_day', 'time_of_day', 'starts_on', 'ends_on',
+] as const;
+
+const DAY_NAMES = {
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  ar: ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+};
+
+/** "Every Monday at 10:00", "Every workday at 08:30", "Monthly on the 1st at 17:00" (+ Arabic) */
+function scheduleText(
+  r: Pick<RecurringRow, 'freq' | 'every' | 'weekdays' | 'month_day' | 'time_of_day'> & { starts_on?: string | null },
+  ar: boolean,
+): string {
+  const time = (r.time_of_day ?? '17:00').slice(0, 5);
+  const every = r.every && r.every > 1 ? r.every : 1;
+  const days = (r.weekdays ?? []).map((d) => DAY_NAMES[ar ? 'ar' : 'en'][d]).filter(Boolean);
+  const dayList = days.join(ar ? ' و' : ' & ');
+  if (r.freq === 'weekdays') return ar ? `كل يوم عمل (أحد–خميس) الساعة ${time}` : `Every workday (Sun–Thu) at ${time}`;
+  if (r.freq === 'daily') return ar ? (every > 1 ? `كل ${every} أيام الساعة ${time}` : `كل يوم الساعة ${time}`) : every > 1 ? `Every ${every} days at ${time}` : `Every day at ${time}`;
+  if (r.freq === 'monthly') {
+    const md = r.month_day ?? 1;
+    const dayTxt = md === -1 ? (ar ? 'آخر يوم' : 'the last day') : ar ? `يوم ${md}` : `the ${md}${md === 1 || md === 21 || md === 31 ? 'st' : md === 2 || md === 22 ? 'nd' : md === 3 || md === 23 ? 'rd' : 'th'}`;
+    return ar
+      ? `${every > 1 ? `كل ${every} شهور` : 'كل شهر'} ${dayTxt} الساعة ${time} (الجمعة والسبت ← الأحد)`
+      : `${every > 1 ? `Every ${every} months` : 'Monthly'} on ${dayTxt} at ${time} (Fri/Sat → Sunday)`;
+  }
+  const on = dayList || (ar ? 'نفس يوم البداية' : 'the start day');
+  return ar
+    ? `${every === 2 ? 'كل أسبوعين' : every > 2 ? `كل ${every} أسابيع` : 'كل أسبوع'} يوم ${on} الساعة ${time}`
+    : `${every === 2 ? 'Every other week' : every > 2 ? `Every ${every} weeks` : 'Every week'} on ${on} at ${time}`;
+}
+
+/** Turns the model's recurring change into a card; nothing is saved until Confirm (→ applyRecurring). */
+function proposeRecurring(
+  rc: z.infer<typeof RecurringChange>,
+  known: RecurringRow | null,
+  ctx: { person: (id: string | null) => string | null; nameOf: (id: string | null) => string | null; ar: boolean },
+): { proposal: RecurringProposal; reply: string } | { error: string } {
+  const { ar } = ctx;
+  const f = rc.fields;
+  if (rc.op === 'update' && !known) return { error: ar ? 'ما لقيت المهمة المتكررة اللي تقصدها.' : "I couldn't find that recurring task." };
+  const patch: Record<string, unknown> = {};
+  const title = (f.title?.trim() || known?.title || '').slice(0, 200);
+  if (!title) return { error: ar ? 'وش اسم المهمة اللي تتكرر؟' : "What's the repeating task called?" };
+  if (f.title?.trim() && f.title.trim() !== known?.title) patch.title = f.title.trim();
+  const owner = ctx.person(f.owner_id);
+  if (owner) patch.owner_id = owner;
+  const rotation = [...new Set(f.rotation_ids.map(ctx.person).filter((x): x is string => !!x))];
+  if (rotation.length >= 2) {
+    patch.rotation = rotation;
+    patch.owner_id = rotation[0];
+  }
+  const freq = f.freq ?? known?.freq ?? null;
+  if (!freq) return { error: ar ? 'كل كم مرة تتكرر؟ يومياً، أسبوعياً ولا شهرياً؟' : 'How often should it repeat: daily, weekly or monthly?' };
+  if (f.freq) patch.freq = f.freq;
+  if (f.every && f.every >= 1) patch.every = Math.min(12, Math.round(f.every));
+  const weekdays = [...new Set(f.weekdays.map((d) => Math.round(d)).filter((d) => d >= 0 && d <= 6))].sort();
+  if (weekdays.length) patch.weekdays = weekdays;
+  if (f.month_day && (f.month_day === -1 || (f.month_day >= 1 && f.month_day <= 31))) patch.month_day = Math.round(f.month_day);
+  else if (rc.op === 'create' && freq === 'monthly') patch.month_day = 1;
+  if (f.time_of_day && /^\d{1,2}:\d{2}$/.test(f.time_of_day)) patch.time_of_day = f.time_of_day.padStart(5, '0');
+  const isDate = (x: string | null) => !!x && /^\d{4}-\d{2}-\d{2}$/.test(x);
+  if (isDate(f.starts_on)) patch.starts_on = f.starts_on;
+  if (isDate(f.ends_on)) patch.ends_on = f.ends_on;
+  if (f.priority) patch.priority = f.priority;
+  if (f.definition_of_done) patch.definition_of_done = f.definition_of_done;
+  if (f.estimate_hours && f.estimate_hours > 0) patch.estimate_hours = f.estimate_hours;
+  if (rc.op === 'create') patch.title = title;
+  if (rc.op === 'update' && Object.keys(patch).length === 0) return { error: ar ? 'وش تبي تغيّر فيها؟' : 'What should I change about it?' };
+
+  const merged = {
+    freq,
+    every: (patch.every as number) ?? known?.every ?? 1,
+    weekdays: (patch.weekdays as number[]) ?? known?.weekdays ?? [],
+    month_day: (patch.month_day as number) ?? known?.month_day ?? null,
+    time_of_day: (patch.time_of_day as string) ?? known?.time_of_day ?? '17:00',
+  };
+  const schedule = scheduleText(merged, ar);
+  const rot = (patch.rotation as string[] | undefined) ?? (known?.rotation.length ? known.rotation : null);
+  const who = rot
+    ? (ar ? 'بالتناوب: ' : 'Taking turns: ') + rot.map((id) => ctx.nameOf(id)?.split(' ')[0]).join(ar ? ' ← ' : ' → ')
+    : (patch.owner_id ?? known?.owner_id)
+      ? (ar ? 'المسؤول: ' : 'Owner: ') + ctx.nameOf((patch.owner_id as string) ?? known!.owner_id)
+      : ar
+        ? 'بدون مسؤول (حدد واحد لاحقاً)'
+        : 'No owner yet (you can name one later)';
+  const lines = [schedule, who];
+  if (patch.starts_on) lines.push((ar ? 'تبدأ: ' : 'Starts: ') + patch.starts_on);
+  if (patch.ends_on) lines.push((ar ? 'تنتهي: ' : 'Ends: ') + patch.ends_on);
+  if (patch.estimate_hours) lines.push((ar ? 'التقدير: ' : 'Estimate: ') + patch.estimate_hours + (ar ? ' ساعة' : ' h'));
+  if (patch.definition_of_done) lines.push((ar ? 'تعتبر خالصة: ' : 'Done when: ') + patch.definition_of_done);
+  lines.push(
+    freq === 'daily' || freq === 'weekdays'
+      ? ar ? 'أسويها الليلة اللي قبلها وأذكّر المسؤول.' : 'I create each one the evening before and remind the owner.'
+      : ar ? 'أسوي كل وحدة قبل موعدها بـ٣ أيام وأذكّر المسؤول.' : 'I create each one 3 days ahead and remind the owner.',
+  );
+  const reply =
+    rc.op === 'create'
+      ? ar
+        ? `بسوي «${title}» تتكرر: ${schedule}. أكّد وأنا أتكفل فيها كل مرة.`
+        : `I'll set up "${title}" to repeat: ${schedule}. Confirm and I'll handle every one.`
+      : ar
+        ? `بعدّل «${title}»: ${schedule}. أكّد التعديل؟`
+        : `I'll change "${title}": ${schedule}. Confirm?`;
+  return { proposal: { op: rc.op === 'update' ? 'update' : 'create', recurring_id: known?.id ?? null, title, patch, summary_lines: lines }, reply };
+}
+
+/** Confirm on a recurring card: upsert_recurring as the caller, then say when the next one is. */
+async function applyRecurring(
+  db: Caller['db'],
+  profileId: string,
+  raw: { recurring_id: string | null; patch: Record<string, unknown> },
+  ar: boolean,
+): Promise<Response> {
+  const src = raw?.patch ?? {};
+  const patch: Record<string, unknown> = {};
+  for (const k of RECURRING_KEYS) if (k in src) patch[k] = src[k];
+  if (raw?.recurring_id) {
+    if (!UUID.test(raw.recurring_id)) throw new HttpError(400, 'Nothing to save');
+    patch.id = raw.recurring_id;
+  }
+  if (Object.keys(patch).length <= (patch.id ? 1 : 0)) throw new HttpError(400, 'Nothing to save');
+
+  const { data: id, error } = await db.rpc('upsert_recurring', { p: patch });
+  if (error) throw new HttpError(400, error.message);
+  const { data: row } = await db.from('recurring_tasks').select(RECURRING_COLS).eq('id', id as string).single();
+  const r = row as RecurringRow | null;
+  const next = r?.next_due_at ? fmtRiyadh(r.next_due_at, ar) : null;
+  const made = !!r?.last_task_id;
+  const reply = r
+    ? ar
+      ? `تم ✅ «${r.title}» تتكرر ${scheduleText(r, true)}.${made ? ' أول وحدة انضافت للمهام.' : ''}${next ? ` الجاية: ${next}.` : ''}`
+      : `Done ✅ "${r.title}" repeats ${scheduleText(r, false).replace(/^E/, 'e')}.${made ? ' The first one is already in the task list.' : ''}${next ? ` Next: ${next}.` : ''}`
+    : ar
+      ? 'تم، انحفظت.'
+      : 'Done, saved.';
+
+  const { data: botMsg, error: e2 } = await db
+    .from('chat_messages')
+    .insert({
+      profile_id: profileId,
+      role: 'assistant',
+      content: reply,
+      task_id: null,
+      action: 'none',
+      payload: { recurring_done: { id, title: r?.title ?? '', next_due_at: r?.next_due_at ?? null } },
+    })
+    .select()
+    .single();
+  if (e2) throw new HttpError(500, e2.message);
+  return json({ messages: [botMsg] });
+}
 
 // ─── status + bulk changes ───────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { ArrowLeft, ArrowRight, Ban, Calendar, CircleAlert, CircleCheck, Crosshair, Plus, Trash2, Users } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Ban, Calendar, CircleAlert, CircleCheck, Crosshair, Hourglass, Plus, Trash2, TrendingUp, Users } from 'lucide-react-native';
 import { AppText, Avatar } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -35,10 +35,27 @@ type Props = {
   onMissing: (item: MissingItem) => void;
   /** lock the chat on this task */
   onTalkAbout?: () => void;
+  /** hours of work, when known */
+  estimateHours?: number | null;
+  /** Muntej's predicted finish (owner's queue × past speed) */
+  prediction?: { at: string; confidence: number; late_days: number } | null;
 };
 
 /** The task Muntej just created/updated, under its chat message. */
-export function TaskCard({ task, action, team, state, canDelete, askDelete, onCancel, onDelete, onMissing, onTalkAbout }: Props) {
+export function TaskCard({
+  task,
+  action,
+  team,
+  state,
+  canDelete,
+  askDelete,
+  onCancel,
+  onDelete,
+  onMissing,
+  onTalkAbout,
+  estimateHours,
+  prediction,
+}: Props) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const [confirm, setConfirm] = useState<'cancel' | 'delete' | null>(askDelete && canDelete ? 'delete' : null);
@@ -141,7 +158,38 @@ export function TaskCard({ task, action, team, state, canDelete, askDelete, onCa
                 </AppText>
               </Pill>
             )}
+            {!!estimateHours && (
+              <Pill bg="chip">
+                <Hourglass color={colors.textSoft} size={12} strokeWidth={2.2} />
+                <AppText variant="caption" weight="semibold" color="textSoft">
+                  {t('estimate', { n: estimateHours })}
+                </AppText>
+              </Pill>
+            )}
           </View>
+
+          {/* Muntej's predicted finish (not for done / in-review tasks) */}
+          {!!prediction && task.status !== 'done' && task.status !== 'submitted' && (
+            <View
+              accessible
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                alignSelf: 'flex-start',
+                paddingVertical: 4,
+                paddingHorizontal: spacing.sm,
+                borderRadius: radius.pill,
+                backgroundColor: prediction.late_days > 0 ? colors.redTint : colors.greenTint,
+              }}
+            >
+              <TrendingUp color={prediction.late_days > 0 ? colors.red : colors.greenText} size={12} strokeWidth={2.2} />
+              <AppText variant="caption" weight="semibold" color={prediction.late_days > 0 ? 'red' : 'greenText'}>
+                {t('likely', { date: formatDue(prediction.at, lang), pct: prediction.confidence })}
+                {prediction.late_days > 0 ? ` · ${t('likelyLate', { count: prediction.late_days })}` : ''}
+              </AppText>
+            </View>
+          )}
 
           {task.missing.length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>

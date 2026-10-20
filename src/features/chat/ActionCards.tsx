@@ -5,14 +5,15 @@
 //   PeopleCard      — a new task for several people: one each / one shared / only the first
 //   DuplicateCard   — a new task that looks like an open one: create anyway / update the existing / never mind
 //   CreatedListCard — several tasks created at once
+//   RecurringCard   — a repeating schedule to confirm (nothing saved before that)
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { CircleCheck, Copy, Layers, ListChecks, RotateCcw, Square, SquareCheck, Users } from 'lucide-react-native';
+import { CircleCheck, Copy, Layers, ListChecks, Repeat, RotateCcw, Square, SquareCheck, Users } from 'lucide-react-native';
 import { AppText } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import type { BulkDone, BulkProposal, CreatedItem, Duplicate, PeopleChoice } from './api';
+import type { BulkDone, BulkProposal, CreatedItem, Duplicate, PeopleChoice, RecurringProposal } from './api';
 import { contentDirection } from './Bubbles';
 import { CardButton } from './TaskCard';
 import { NS } from './strings';
@@ -367,6 +368,71 @@ export function DuplicateCard({
           {canUpdate && <CardButton label={t('dupUpdate')} onPress={() => run('update', onUpdate)} busy={working === 'update'} tone="green" />}
           <CardButton label={t('dupNew')} onPress={() => run('new', onNew)} busy={working === 'new'} tone={canUpdate ? undefined : 'green'} />
           <CardButton label={t('dupCancel')} onPress={onReject} />
+        </View>
+      )}
+    </Shell>
+  );
+}
+
+/** A repeating schedule Muntej proposes: nothing is saved until Confirm. */
+export function RecurringCard({
+  proposal,
+  state,
+  onConfirm,
+  onReject,
+}: {
+  proposal: RecurringProposal;
+  state: AskState;
+  /** throws with a readable reason */
+  onConfirm: () => Promise<void>;
+  onReject: () => void;
+}) {
+  const { t } = useScreenT(NS);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const open = state === 'open';
+  const confirm = async () => {
+    setWorking(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (e) {
+      setError(t('recFailed', { reason: (e as Error).message || t('confirmFailed') }));
+    } finally {
+      setWorking(false);
+    }
+  };
+  const label = state === 'done' ? t('recSaved') : open ? t(proposal.op === 'create' ? 'recNew' : 'recUpdate') : t('recSkipped');
+  return (
+    <Shell open={open} done={state === 'done'}>
+      <Header
+        icon={
+          state === 'done' ? (
+            <CircleCheck color={colors.greenText} size={13} strokeWidth={2.4} />
+          ) : (
+            <Repeat color={open ? colors.amberStrong : colors.textMuted} size={13} strokeWidth={2.4} />
+          )
+        }
+        label={label}
+        color={open ? 'amberStrong' : state === 'done' ? 'greenText' : 'textMuted'}
+      />
+      <AppText variant="cardTitle" weight="bold" color={open ? 'text' : 'textMuted'} style={{ writingDirection: contentDirection(proposal.title) }}>
+        {proposal.title}
+      </AppText>
+      {state !== 'rejected' && (
+        <View style={{ gap: 6 }}>
+          {proposal.summary_lines.map((line, i) => (
+            <AppText key={i} variant="small" color={open ? 'textSoft' : 'textMuted'} style={{ writingDirection: contentDirection(line) }}>
+              {line}
+            </AppText>
+          ))}
+        </View>
+      )}
+      {!!error && <ErrorBox text={error} />}
+      {open && (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <CardButton label={t('recNotNow')} onPress={onReject} />
+          <CardButton label={t('recConfirm')} onPress={confirm} busy={working} tone="green" />
         </View>
       )}
     </Shell>

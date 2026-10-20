@@ -42,6 +42,10 @@ export type TaskSnapshot = {
   proposed_objective_title?: string | null;
   /** the status was just changed in the chat: Undo (5 minutes) puts it back */
   undo_log_id?: string;
+  /** hours of work, when known */
+  estimate_hours?: number | null;
+  /** Muntej's predicted finish when the card was made */
+  prediction?: { at: string; confidence: number; late_days: number } | null;
 };
 
 /** Fields Muntej may propose to change on a described (not focused) task. */
@@ -159,7 +163,19 @@ export type Duplicate = {
 };
 export type CreatedItem = { id: string; title: string; owner_name: string | null; due_at: string | null };
 
+/** A repeating schedule Muntej proposes ("standup every Monday 10:00"): nothing is saved until Confirm. */
+export type RecurringProposal = {
+  op: 'create' | 'update';
+  recurring_id: string | null;
+  title: string;
+  patch: Record<string, unknown>;
+  /** ready-made lines in the conversation language (schedule, owner, …) */
+  summary_lines: string[];
+};
+
 type NoTask = { id?: undefined; suggestions?: undefined };
+export type RecurringProposalPayload = NoTask & { recurring_proposal: RecurringProposal };
+export type RecurringDonePayload = NoTask & { recurring_done: { id: string; title: string; next_due_at: string | null } };
 export type BulkProposalPayload = NoTask & { bulk_proposal: BulkProposal };
 export type BulkDonePayload = NoTask & { bulk_done: BulkDone };
 export type UndoDonePayload = NoTask & { undo_done: { log_id: string } };
@@ -179,10 +195,14 @@ export type ChatPayload =
   | UndoDonePayload
   | PeopleChoicePayload
   | DuplicatePayload
-  | CreatedListPayload;
+  | CreatedListPayload
+  | RecurringProposalPayload
+  | RecurringDonePayload;
 
 /** payload field of one card kind, or null */
-export function payloadPart<K extends 'bulk_proposal' | 'bulk_done' | 'undo_done' | 'people_choice' | 'duplicate' | 'created_list'>(
+export function payloadPart<
+  K extends 'bulk_proposal' | 'bulk_done' | 'undo_done' | 'people_choice' | 'duplicate' | 'created_list' | 'recurring_proposal' | 'recurring_done',
+>(
   p: ChatPayload | null | undefined,
   key: K,
 ): Extract<ChatPayload, Record<K, unknown>>[K] | null {
@@ -199,6 +219,11 @@ async function invokeChat(body: Record<string, unknown>): Promise<ChatMessage[]>
 /** Apply on a bulk preview: only the ticked tasks. Returns the stored result message. */
 export function applyBulkChange(ids: string[], change: BulkChange, lang: 'en' | 'ar') {
   return invokeChat({ apply_bulk: { ids, change }, lang });
+}
+
+/** Confirm on a recurring card: saves the schedule (the first task may be created right away). */
+export function confirmRecurring(recurringId: string | null, patch: Record<string, unknown>, lang: 'en' | 'ar') {
+  return invokeChat({ apply_recurring: { recurring_id: recurringId, patch }, lang });
 }
 
 /** Undo a status / bulk change (the server allows 5 minutes). */
