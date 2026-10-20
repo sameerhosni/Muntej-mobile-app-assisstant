@@ -6,6 +6,9 @@
 // handled for you, 5+ on time in a row) â€” each once a week.
 // His face follows that status: on fire = star eyes, good = happy, late = worried, way behind = sad, nothing = sleepy.
 // Tap → the same bubble again (+ "Show me"). Long-press → hidden until the app restarts.
+// He is called Saree3 / سريع on screen; the "Ask Saree3" label next to him opens the chat.
+// He also watches your finished tasks waiting for the manager and reacts to the answer (approved → cheer +
+// bonus points, sent back → encouragement), live through Realtime.
 import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AccessibilityInfo, Pressable, useWindowDimensions, View } from 'react-native';
@@ -22,6 +25,8 @@ import { munti, useMunti } from './store';
 import { usePerformance, type PerfStatus } from './performance';
 import { timeLabel, useWeekValue, type WeekValue } from './value';
 import { formatNumber } from '@/features/home/value';
+import { useMyProfile, useTasks, useTeam } from '@/lib/api';
+import { wallet } from '@/features/rewards/wallet';
 
 const FAB = MUNTI_SIZES.md;
 const POP_DELAY_MS = 1000;
@@ -34,6 +39,7 @@ let popCount = 0;
 const RECEIPT = '/32-receipt' as const;
 const HOMES = ['/01-home', '/25-employee-home'];
 const RECAP_MS = 9000;
+const APPROVAL_BONUS = 10;
 /** week number (weeks start Sunday, Riyadh time) for once-a-week moments */
 const weekKey = () => Math.floor((Date.now() + 3 * 3_600_000 + 4 * 86_400_000) / (7 * 86_400_000));
 const riyadhDay = () => new Date(Date.now() + 3 * 3_600_000).getUTCDay();
@@ -83,6 +89,37 @@ export function HelperButton() {
     v && v.onTime > 0 && (v.role === 'mgr' ? v.chases > 0 : v.reports > 0)
       ? t(v.role === 'mgr' ? 'val_mgr_ontime' : 'val_emp_ontime', { n: fmt(v.onTime) })
       : null;
+
+  // the manager's answer on what you finished: approved → cheer + bonus, sent back → encouragement
+  const me = useMyProfile();
+  const team = useTeam();
+  const tasks = useTasks();
+  const seen = useRef<Map<string, string> | null>(null);
+  useEffect(() => {
+    const meId = me.data?.id;
+    if (!meId || !tasks.data) return;
+    const mine = tasks.data.filter((x) => x.owner_id === meId);
+    const prev = seen.current;
+    seen.current = new Map(mine.map((x) => [x.id, x.status]));
+    if (!prev) return; // first load: nothing changed yet
+    for (const x of mine) {
+      if (prev.get(x.id) !== 'submitted') continue;
+      const who = x.assigner_id !== meId ? x.assigner_id : me.data?.manager_id;
+      const p = who ? (team.data ?? []).find((y) => y.id === who) : undefined;
+      const name = p ? ((lang === 'ar' && p.full_name_ar) || p.full_name).split(' ')[0] : '…';
+      const action = { pathname: '/14-task-detail', params: { id: x.id } } as const;
+      if (x.status === 'done') {
+        wallet.earn(`approved:${x.id}`, APPROVAL_BONUS);
+        munti.celebrate(t('rev_approved', { name, title: x.title, pts: fmt(APPROVAL_BONUS) }), { ms: RECAP_MS, action });
+        break;
+      }
+      if (x.status === 'returned') {
+        munti.say(t('rev_returned', { name, title: x.title }), 'talk', { ms: RECAP_MS, action });
+        break;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks.data, me.data?.id]);
 
   // Home: weekly recap (Sunday, once) and milestones (once a week each) â€” after the pop-up has had its turn
   const valueReady = !!value;
@@ -294,6 +331,39 @@ export function HelperButton() {
         >
           {/* new key per screen/toast → hops in again */}
           <Munti key={toast?.id ?? pathname} size="md" mood={fabMood} settleAfter={fabMood === 'talk' ? 2400 : undefined} />
+        </Pressable>
+      )}
+
+      {/* "Ask Saree3": always there next to him (hidden while a bubble is open) → the chat */}
+      {showFab && !bubbleText && (
+        <Pressable
+          onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })}
+          accessibilityRole="button"
+          accessibilityLabel={t('askA11y')}
+          style={({ pressed }) => ({
+            position: 'absolute',
+            start: spacing.lg + FAB - 4,
+            bottom: fabBottom + (FAB - sizes.touch) / 2,
+            minHeight: sizes.touch,
+            justifyContent: 'center',
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <View
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: spacing.md,
+              borderRadius: radius.pill,
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.borderBlue,
+              boxShadow: shadows.tile,
+            }}
+          >
+            <AppText variant="caption" weight="bold" color="primary">
+              {t('ask')}
+            </AppText>
+          </View>
         </Pressable>
       )}
     </>

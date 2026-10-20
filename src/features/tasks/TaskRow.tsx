@@ -6,7 +6,7 @@ import type { ChipTone } from '@/components/ui/Chip';
 import { colors, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import type { TaskPriority, TaskStatus, TaskWithPeople } from '@/lib/api';
+import { useMyProfile, useTeam, type TaskPriority, type TaskStatus, type TaskWithPeople } from '@/lib/api';
 import { formatDue } from '@/features/capture/format';
 import { ObjectiveChip } from '@/features/objectives/ObjectiveChip';
 import { missingFields } from './model';
@@ -42,6 +42,13 @@ export function TaskRow({ task, hideObjective }: { task: TaskWithPeople; hideObj
   const missing = missingFields(task);
   const { toggle, canTick, busyId } = useCompleteTask();
   const finished = isFinished(task.status);
+  // your own finished task waiting for the manager: for you it's done — the review isn't your status
+  const me = useMyProfile();
+  const team = useTeam();
+  const mineWaiting = task.status === 'submitted' && !!me.data && task.owner_id === me.data.id;
+  const reviewerId = mineWaiting ? (task.assigner_id !== me.data?.id ? task.assigner_id : me.data?.manager_id) : null;
+  const reviewer = reviewerId ? (team.data ?? []).find((x) => x.id === reviewerId) : undefined;
+  const reviewerName = reviewer ? ((lang === 'ar' && reviewer.full_name_ar) || reviewer.full_name).split(' ')[0] : null;
 
   return (
     // the row and the info button are siblings: a pressable can't sit inside another (nested <button> on web)
@@ -73,7 +80,7 @@ export function TaskRow({ task, hideObjective }: { task: TaskWithPeople; hideObj
                   width: 26,
                   height: 26,
                   borderRadius: 13,
-                  backgroundColor: task.status === 'done' ? colors.green : colors.purple,
+                  backgroundColor: task.status === 'done' || mineWaiting ? colors.green : colors.purple,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -126,8 +133,18 @@ export function TaskRow({ task, hideObjective }: { task: TaskWithPeople; hideObj
   
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             <Chip label={t(`p_${task.priority}`)} tone={priorityTone[task.priority]} />
-            <Chip label={t(`s_${task.status}`)} tone={statusTone[task.status]} dot />
+            {mineWaiting ? (
+              <Chip label={t('doneMine')} tone="green" dot />
+            ) : (
+              <Chip label={t(`s_${task.status}`)} tone={statusTone[task.status]} dot />
+            )}
           </View>
+
+          {mineWaiting && (
+            <AppText variant="caption" weight="semibold" color="greenText">
+              {reviewerName ? t('lookingMine', { name: reviewerName }) : t('lookingMineNoName')}
+            </AppText>
+          )}
   
           {missing.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

@@ -1,16 +1,19 @@
-// Munti's lines: one short tip per main screen, value toasts and the helper's own labels (EN + Saudi Arabic).
+// The helper character's lines — he is called Saree3 (EN) / سريع (AR); in code he is "Munti".
+// One short tip per main screen, value lines, review reactions and his own labels (EN + Saudi Arabic).
 import type { Href } from 'expo-router';
 import { registerStrings } from '@/lib/i18n/register';
 
 const en = {
-  name: 'Munti',
-  a11yHint: 'Tap for a tip. Long-press to hide Munti until you reopen the app.',
-  hide: 'Hide Munti for now',
+  name: 'Saree3',
+  ask: 'Ask Saree3',
+  askA11y: 'Ask Saree3 anything: opens the chat',
+  a11yHint: 'Tap for a tip. Long-press to hide Saree3 until you reopen the app.',
+  hide: 'Hide Saree3 for now',
   showMe: 'Show me',
   close: 'Close',
-  hidden: 'Munti is hiding. See you next time 👋',
+  hidden: 'Saree3 is hiding. See you next time 👋',
   // settings
-  settingTitle: 'Munti helper',
+  settingTitle: 'Saree3 helper',
   settingHint: 'Your little robot buddy with tips and good news',
   // tips, one per main screen
   tip_home: "Just tell me what needs doing — I'll chase it. You go have your coffee ☕",
@@ -41,7 +44,10 @@ const en = {
   perf_quiet_emp: 'Nothing on your plate, {{name}}… I’m so bored 😴',
   perf_quiet_mgr: 'Nothing to chase… give me something to do! 😴',
   // finishing a task (one tap) — with the value
-  complete_sent: 'Nice! "{{title}}" went to {{name}} for review. +{{pts}} pts · one less status report to write ✍️',
+  complete_sent: 'Done! 🎉 "{{title}}" +{{pts}} pts · {{name}} will take a quick look 👀 One less status report to write ✍️',
+  // the manager's answer on something you finished
+  rev_approved: '{{name}} approved "{{title}}"! 🎉 +{{pts}} bonus pts. Brilliant work!',
+  rev_returned: '{{name}} asked for a small tweak on "{{title}}". Nearly there, you’ve got this 💪',
   complete_done: '"{{title}}" is done! +{{pts}} pts · ~{{min}} min of follow-ups nobody has to send 😎',
   complete_closed: 'Closed "{{title}}" for {{name}}. I told them 👍',
   complete_reopen: '"{{title}}" is open again.',
@@ -64,13 +70,15 @@ const en = {
 };
 
 const ar: typeof en = {
-  name: 'منتي',
-  a11yHint: 'اضغط عشان تشوف نصيحة. اضغط مطوّل عشان تخفي منتي لين تفتح التطبيق مرة ثانية.',
-  hide: 'أخفِ منتي الحين',
+  name: 'سريع',
+  ask: 'اسأل سريع',
+  askA11y: 'اسأل سريع أي شي: يفتح المحادثة',
+  a11yHint: 'اضغط عشان تشوف نصيحة. اضغط مطوّل عشان تخفي سريع لين تفتح التطبيق مرة ثانية.',
+  hide: 'أخفِ سريع الحين',
   showMe: 'ورّني',
   close: 'إغلاق',
-  hidden: 'منتي راح يتخبّى. نشوفك المرة الجاية 👋',
-  settingTitle: 'المساعد منتي',
+  hidden: 'سريع راح يتخبّى. نشوفك المرة الجاية 👋',
+  settingTitle: 'المساعد سريع',
   settingHint: 'صاحبك الروبوت الصغير، يعطيك نصايح وأخبار حلوة',
   tip_home: 'بس قول لي وش المطلوب وأنا أتابعه. وأنت روح اشرب قهوتك ☕',
   tip_employeeHome: 'مهامك اليوم كلها هنا. خلّص وحدة وأنا أمدحك عند مديرك 😉',
@@ -97,7 +105,9 @@ const ar: typeof en = {
   perf_behind_mgr: 'فيه {{late}} مهام متأخرة 😰 خلنا نشوفها سوا ونفك الزحمة عن فريقك.',
   perf_quiet_emp: 'ما عندك شي يا {{name}}… طفشت 😴',
   perf_quiet_mgr: 'ما فيه شي أتابعه… عطني شغل! 😴',
-  complete_sent: 'حلو! «{{title}}» راحت لـ{{name}} يراجعها. +{{pts}} نقطة · تقرير حالة أقل تكتبه ✍️',
+  complete_sent: 'خلصت! 🎉 «{{title}}» +{{pts}} نقطة · {{name}} بيلقي نظرة سريعة 👀 وتقرير حالة أقل تكتبه ✍️',
+  rev_approved: '{{name}} اعتمد «{{title}}»! 🎉 +{{pts}} نقطة إضافية. شغل ممتاز!',
+  rev_returned: '{{name}} طلب تعديل بسيط على «{{title}}». قربت، وأنت قدها 💪',
   complete_done: '«{{title}}» خلصت! +{{pts}} نقطة · ~{{min}} دقيقة متابعات ما يحتاج أحد يرسلها 😎',
   complete_closed: 'قفلت «{{title}}» عن {{name}} وبلّغته 👍',
   complete_reopen: '«{{title}}» رجعت مفتوحة.',

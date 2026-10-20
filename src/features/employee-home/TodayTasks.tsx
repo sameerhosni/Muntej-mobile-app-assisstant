@@ -116,7 +116,7 @@ export function TodayTasks() {
               >
                 {x.title}
               </AppText>
-              <AppText variant="caption" color={late ? 'red' : x.status === 'submitted' ? 'purpleText' : 'textMuted'}>
+              <AppText variant="caption" color={late ? 'red' : on ? 'greenText' : 'textMuted'}>
                 {hint}
               </AppText>
             </View>
