@@ -5,6 +5,9 @@
 // Focus: opened with ?focus=<task id> (or "Talk about this" / picking a candidate) the chat is locked on that task and
 // every message changes it directly. Without focus, describing a task gives a proposed change the user must confirm.
 // Team changes ("add Reem under Khalid", "Noura left") always come as an OrgProposalCard: saved only on Confirm.
+// Status ("I finished it") changes the task right away with Undo; "mark all my tasks done" and other changes to many
+// tasks come as a BulkCard (untick any, Apply, then Undo for 5 minutes). A new task for several people or one that
+// looks like an open task asks first (PeopleCard / DuplicateCard).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -23,8 +26,12 @@ import { personName } from '@/features/capture/TaskReview';
 import {
   appendToChat,
   chatKey,
+  applyBulkChange,
   confirmChange,
   confirmOrg,
+  createHeldTask,
+  payloadPart,
+  undoTaskChange,
   confirmObjective,
   invalidateObjectiveData,
   objectiveDone,
@@ -40,7 +47,11 @@ import {
   deleteTask,
   taskSnapshot,
   useChat,
+  type BulkChange,
+  type ChatMessage,
   type ChatSource,
+  type HeldTask,
+  type ProposedPatch,
   type MissingItem,
   type OrgPatch,
   type ObjectiveOp,
@@ -56,6 +67,7 @@ import { Candidates } from '@/features/chat/Candidates';
 import { FocusBar } from '@/features/chat/FocusBar';
 import { Composer, type VoiceState } from '@/features/chat/Composer';
 import { NS } from '@/features/chat/strings';
+import { BulkCard, BulkDoneCard, CreatedListCard, DuplicateCard, PeopleCard, UndoRow, type AskState } from '@/features/chat/ActionCards';
 import { munti } from '@/features/munti/store';
 import { MUNTI_NS } from '@/features/munti/tips';
 
@@ -278,6 +290,29 @@ export default function MuntejChatScreen() {
     await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateObjectiveData(qc), invalidateTaskData(qc)]);
   };
 
+  // ── cards that ask first (bulk / several people / duplicate) and their results ──
+  const undoneLogs = useMemo(
+    () => new Set(messages.map((x) => payloadPart(x.payload, 'undo_done')?.log_id).filter((x): x is string => !!x)),
+    [messages],
+  );
+  const askState = (index: number, msgId: string, doneWhen: (next: ChatMessage) => boolean): AskState => {
+    if (rejected[msgId]) return 'rejected';
+    const next = messages.slice(index + 1).find((x) => x.role === 'assistant');
+    if (next && doneWhen(next)) return 'done';
+    return msgId === lastAssistantId && !pending ? 'open' : 'stale';
+  };
+  /** run a card action, show its reply, refresh tasks; errors go back to the card */
+  const runCard = async (call: Promise<ChatMessage[]>) => {
+    const rows = await call;
+    appendToChat(qc, rows);
+    markFresh(rows);
+    await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
+  };
+  const applyBulk = (ids: string[], change: BulkChange) => runCard(applyBulkChange(ids, change, lang));
+  const undo = (logId: string) => runCard(undoTaskChange(logId, lang));
+  const createHeld = (task: HeldTask, opts: Parameters<typeof createHeldTask>[1]) => runCard(createHeldTask(task, opts, lang));
+  const updateExisting = (taskId: string, patch: ProposedPatch) => runCard(confirmChange(taskId, patch, lang));
+
   const focusComposer = () => setTimeout(() => input.current?.focus(), 50);
 
   const rejectProposal = (msgId: string) => {
@@ -447,9 +482,56 @@ export default function MuntejChatScreen() {
           const snap = taskSnapshot(m.payload);
           const org = orgProposal(m.payload);
           const obj = objectiveProposal(m.payload);
+          const bulk = payloadPart(m.payload, 'bulk_proposal');
+          const bulkDone = payloadPart(m.payload, 'bulk_done');
+          const people = payloadPart(m.payload, 'people_choice');
+          const dup = payloadPart(m.payload, 'duplicate');
+          const createdList = payloadPart(m.payload, 'created_list');
           const isLatest = m.id === lastAssistantId && !pending;
           let card = null;
-          if (org) {
+          if (bulk) {
+            card = (
+              <BulkCard
+                key={`b-${m.id}`}
+                proposal={bulk}
+                state={askState(i, m.id, (n) => !!payloadPart(n.payload, 'bulk_done'))}
+                onApply={(ids) => applyBulk(ids, bulk.change)}
+                onReject={() => rejectProposal(m.id)}
+              />
+            );
+          } else if (bulkDone) {
+            card = (
+              <BulkDoneCard
+                key={`bd-${m.id}`}
+                done={bulkDone}
+                undone={!!bulkDone.log_id && undoneLogs.has(bulkDone.log_id)}
+                onUndo={() => undo(bulkDone.log_id!)}
+              />
+            );
+          } else if (people) {
+            card = (
+              <PeopleCard
+                key={`pc-${m.id}`}
+                choice={people}
+                state={askState(i, m.id, (n) => n.action === 'created')}
+                onPick={(mode, ids) => createHeld(people.task, { owner_ids: ids, mode })}
+                onReject={() => rejectProposal(m.id)}
+              />
+            );
+          } else if (dup) {
+            card = (
+              <DuplicateCard
+                key={`dp-${m.id}`}
+                dup={dup}
+                state={askState(i, m.id, (n) => n.action === 'created' || n.action === 'updated')}
+                onNew={() => createHeld(dup.task, { force: true })}
+                onUpdate={() => updateExisting(dup.existing.id, dup.patch)}
+                onReject={() => rejectProposal(m.id)}
+              />
+            );
+          } else if (createdList) {
+            card = <CreatedListCard key={`cl-${m.id}`} items={createdList} />;
+          } else if (org) {
             card = (
               <OrgProposalCard
                 key={`o-${m.id}`}
@@ -502,6 +584,16 @@ export default function MuntejChatScreen() {
                 onTalkAbout={focusTaskId === task.id ? undefined : () => talkAbout(task.id)}
               />
             );
+            // status just changed here: Undo for 5 minutes
+            const logId = snap.undo_log_id;
+            if (logId) {
+              card = (
+                <View key={`u-${m.id}`} style={{ gap: spacing.sm, alignSelf: 'stretch' }}>
+                  {card}
+                  <UndoRow until={Date.parse(m.created_at) + 5 * 60_000} undone={undoneLogs.has(logId)} onUndo={() => undo(logId)} />
+                </View>
+              );
+            }
           }
           const next = isLatest ? (m.payload?.suggestions ?? []) : [];
           const candidates = isLatest && isCandidates(m.payload) ? m.payload : null;

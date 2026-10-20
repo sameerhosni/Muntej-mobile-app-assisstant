@@ -9,6 +9,12 @@
 // One continuous chat per person (chat_messages). Each message is either small talk / a question (reply only),
 // a new task (created right away via create_task_with_plan, the card has Undo/Edit), or an update to a recent task
 // (update_task_from_chat). Everything runs as the caller (RLS), so Muntej only sees and touches what they can.
+// Status ("I finished it", "it's blocked", "reopen it") → set_task_status: done closes it for the assigner / anyone above
+// the owner, and sends it for review (submitted) when only the owner says it. Changes to many tasks at once ("mark all
+// my tasks done", "move all high-priority tasks to Sunday") come as payload.bulk_proposal; Confirm → { apply_bulk }
+// → bulk_update_tasks, and { undo_log_id } puts them back within 5 minutes.
+// A new task for several people asks first (payload.people_choice → { apply_create: { task, owner_ids, mode } });
+// one that looks like an open task asks first too (payload.duplicate → { apply_create: { task, force: true } }).
 // When the owner's Muntej engine API is ready, this function is the one place to swap it in.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve, type Caller } from '../_shared/http.ts';
@@ -30,6 +36,7 @@ const NewTask = z.object({
   budget: z.string().nullable(),
   workspace_id: z.string().nullable(),
   objective_id: z.string().nullable().describe('id from objectives (status active) when the task clearly belongs to one, else null'),
+  also_for_ids: z.array(z.string()).describe('Other people named for this same work besides owner_id (ids from team); [] when one person'),
 });
 
 const TaskUpdate = z.object({
@@ -97,15 +104,49 @@ const ObjectiveChange = z.object({
   fields: ObjectiveFields,
 });
 
+const TaskStatusChange = z.enum(['done', 'in_progress', 'blocked', 'reopen']);
+
+const StatusChange = z.object({
+  task_id: z.string(),
+  status: TaskStatusChange,
+  note: z.string().nullable().describe('What the user said about it (e.g. what is blocking it), else null'),
+});
+
+// every key is required by strict mode; false / null = "don't filter on this"
+const BulkFilter = z.object({
+  mine_only: z.boolean().describe('Only tasks the user owns ("my tasks")'),
+  owner_id: z.string().nullable().describe("Only this person's tasks (id from team)"),
+  assigned_by_me: z.boolean().describe('Only tasks the user assigned to others'),
+  priority: Priority.nullable(),
+  late_only: z.boolean(),
+  due_before: z.string().nullable().describe('ISO 8601; only tasks due before this'),
+  title_contains: z.string().nullable().describe('A word the task titles share, e.g. "security"'),
+  objective_id: z.string().nullable(),
+});
+
+const BulkChange = z.object({
+  filter: BulkFilter,
+  task_ids: z.array(z.string()).describe('Explicit task ids when the user listed the tasks; [] = use filter'),
+  change: z.object({
+    kind: z.enum(['status', 'due', 'priority', 'owner', 'cancel', 'delete']),
+    status: TaskStatusChange.nullable(),
+    due_at: z.string().nullable().describe('ISO 8601 datetime with +03:00 offset'),
+    priority: Priority.nullable(),
+    owner_id: z.string().nullable(),
+  }),
+});
+
 const ChatOutput = z.object({
   language: z.enum(['en', 'ar']),
   reply: z.string(),
-  action: z.enum(['none', 'create', 'update', 'cancel', 'delete', 'org', 'objective']),
+  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'cancel', 'delete', 'org', 'objective']),
   task: NewTask.nullable().describe('Only when action = create'),
   update: TaskUpdate.nullable().describe('Only when action = update; null fields mean "unchanged"'),
   target_task_id: z.string().nullable().describe('Only when action = cancel or delete'),
   org: OrgChange.nullable().describe('Only when action = org'),
   objective: ObjectiveChange.nullable().describe('Only when action = objective'),
+  status_change: StatusChange.nullable().describe('Only when action = status'),
+  bulk: BulkChange.nullable().describe('Only when action = bulk'),
   suggestions: z.array(z.string()).describe('0-3 optional next steps, each a short ready-to-send message in the user language'),
   candidates: z.array(z.string()).describe('Only with action none: 2-3 task ids when the user wants to change a task but several tasks fit'),
 });
@@ -128,6 +169,9 @@ Each turn, choose ONE action:
 - "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). "Put it under objective X" → update.objective_id; "take it out of the objective" → update.unlink_objective true (otherwise false). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null. The user may point at another task by its title, client or owner ("move the lease task to Thursday", "مهمة فيصل خلها بكرة"): match it in recent_chat_tasks or open_tasks.
 - FOCUS: when focused_task is given, the user opened the chat on that task: every change, cancel or delete targets focused_task (use its id), and questions are about it, unless they clearly name a different task.
 - WHICH ONE: when the user wants to change a task by describing it (title, client, owner, any detail) and two or more tasks in open_tasks fit equally, use action "none", put their ids in candidates (max 3) and ask which one in the reply. If exactly one fits, use "update" with its id (the app will ask the user to confirm when it is not the task being discussed). If NO task fits (e.g. it was cancelled or never existed), use "none" and say you couldn't find it; never pick an unrelated task.
+- "status": the user says ONE task's state changed: finished ("I finished the report", "خلصت", "mark it done", "it's done") → done; started ("I'm on it", "بديت فيها") → in_progress; stuck ("it's blocked, waiting for the client", "واقفة") → blocked (put the reason in note); "reopen it" / "not done yet" → reopen. Target = focused_task, else the task being discussed, else the one they describe (same WHICH ONE rules). Never use "update" or "none" for this. The server words the reply (closed vs sent for review), so keep yours short.
+- "bulk": the user wants the SAME change on several tasks at once: "mark all my tasks done", "خلص كل مهامي", "move all high-priority tasks to Sunday", "give all Faisal's tasks to Noura", "cancel all overdue tasks", "delete the security tasks". Fill bulk.filter (mine_only for "my tasks", owner_id for someone's tasks, assigned_by_me, priority, late_only, due_before, title_contains, objective_id) OR bulk.task_ids when they listed specific tasks, and bulk.change (kind status + status / due + due_at / priority + priority / owner + owner_id / cancel / delete). Nothing changes until the user confirms on a preview card that lists the tasks: the server writes the reply. Use "status"/"update"/"cancel" instead when exactly one task is meant.
+- SEVERAL PEOPLE: when a new task names more than one person ("for Ahmed, Sarah and Ali", "لفيصل وعبدالله"), use "create" with the first person as owner_id and the others in task.also_for_ids; the server asks the user whether it's one task each or one shared task. Otherwise also_for_ids = [].
 - "cancel": the user wants a task stopped ("cancel it", "الغها", "ما نحتاجها"). Put its id in target_task_id (most recent task unless another is meant).
 - "delete": the user wants a task removed completely ("delete it", "احذفها"). Put its id in target_task_id. Deleting needs one tap to confirm, so say you've shown it and they just need to confirm. Prefer "cancel" when they only mean it's no longer needed.
 
@@ -137,7 +181,7 @@ Writing rules:
 - suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. When the task has no objective and an active objective could fit, one suggestion may link it ("Link it to «X»" / "اربطها بهدف «X»"). Empty for small talk, questions, cancel, delete, org and objective.
 - PENDING CARDS: if the user just says "yes"/"confirm"/"تمام" to a change waiting on a card, use "none" and tell them to tap Confirm on the card.
 - ids (owner_id, helper_id, workspace_id, task_id, person_id, manager_id, objective_id) must come from the provided lists, else null.
-- task and update are null unless action is create / update; org is null unless action is org; objective is null unless action is objective.
+- task and update are null unless action is create / update; org is null unless action is org; objective is null unless action is objective; status_change only with status; bulk only with bulk.
 - Dates: resolve relative dates against current_time_riyadh. Saudi work week is Sunday–Thursday. "Before Thursday" = Thursday 17:00; no time said → 17:00. ISO 8601 with +03:00.
 - priority: urgent only for today/ASAP/ضروري/عاجل; high for client or executive deadlines within a week; low if "no rush"; else medium.
 - definition_of_done: one concrete, checkable sentence only if it can be inferred; otherwise null (it becomes a missing item). goal: business goal/client in 1–4 words or null. budget: only if money/resources are mentioned.
@@ -255,6 +299,12 @@ serve(async (req) => {
     apply_org?: { patch: Record<string, unknown> };
     /** the user tapped Confirm on a proposed objective change: run upsert/cancel/distribute as them */
     apply_objective?: { op: string; objective_id: string | null; patch: Record<string, unknown> | null };
+    /** Apply tapped on a bulk preview card: the ticked task ids + the change */
+    apply_bulk?: { ids: string[]; change: Record<string, unknown> };
+    /** Undo tapped after a status or bulk change (within 5 minutes) */
+    undo_log_id?: string;
+    /** a choice on a people / duplicate card: create without asking again */
+    apply_create?: { task: Record<string, unknown>; owner_ids?: string[]; mode?: 'separate' | 'shared'; force?: boolean };
     lang?: string;
   };
   const message = (body.message ?? '').trim();
@@ -262,8 +312,12 @@ serve(async (req) => {
 
   if (body.apply_org) return await applyOrg(db, profileId, body.apply_org.patch, body.lang === 'ar');
   if (body.apply_objective) return await applyObjective(db, profileId, body.apply_objective, body.lang === 'ar');
+  if (body.apply_bulk) return await applyBulk(db, profileId, body.apply_bulk, body.lang === 'ar');
+  if (body.undo_log_id) return await undoChange(db, profileId, body.undo_log_id, body.lang === 'ar');
+  // no user message of its own: Confirm / a choice on a card
+  const tapped = !!body.apply || !!body.apply_create;
 
-  if (!message && !body.apply) throw new HttpError(400, 'Say or type something first');
+  if (!message && !tapped) throw new HttpError(400, 'Say or type something first');
   if (message.length > 4000) throw new HttpError(413, 'That message is too long');
 
   // ── context (all RLS-scoped to the caller) ──
@@ -523,6 +577,42 @@ serve(async (req) => {
       target_task_id: null,
       org: null,
       objective: null,
+      status_change: null,
+      bulk: null,
+      suggestions: [],
+      candidates: [],
+    };
+  } else if (body.apply_create?.task) {
+    // a choice on a people / duplicate card: the task as proposed, created without asking again
+    const ar = body.lang === 'ar';
+    const a = body.apply_create.task;
+    const str = (k: string) => (typeof a[k] === 'string' && a[k] ? (a[k] as string) : null);
+    const pr = str('priority');
+    parsed = {
+      language: ar ? 'ar' : 'en',
+      reply: ar ? 'تم، سجلتها.' : 'Done, added.',
+      action: 'create',
+      task: {
+        title: str('title') ?? (ar ? 'مهمة جديدة' : 'New task'),
+        owner_id: str('owner_id'),
+        owner_reason: str('owner_reason'),
+        helper_id: str('helper_id'),
+        helper_reason: null,
+        due_at: str('due_at'),
+        priority: (pr === 'low' || pr === 'high' || pr === 'urgent' ? pr : 'medium') as 'low' | 'medium' | 'high' | 'urgent',
+        goal: str('goal'),
+        definition_of_done: str('definition_of_done'),
+        budget: str('budget'),
+        workspace_id: str('workspace_id'),
+        objective_id: str('objective_id'),
+        also_for_ids: [],
+      },
+      update: null,
+      target_task_id: null,
+      org: null,
+      objective: null,
+      status_change: null,
+      bulk: null,
       suggestions: [],
       candidates: [],
     };
@@ -579,6 +669,116 @@ ${message}` : message },
   let ownerChanged = false;
   // a change to a task picked by description waits for the user's Confirm
   let proposedPatch: Record<string, unknown> | null = null;
+  // cards that ask before anything is saved
+  let bulkProposal: BulkProposal | null = null;
+  let peopleChoice: Record<string, unknown> | null = null;
+  let duplicate: Record<string, unknown> | null = null;
+  // several tasks created at once (one task each)
+  let createdList: { id: string; title: string; owner_name: string | null; due_at: string | null }[] = [];
+  // a status change done right away: the card offers Undo with this activity_log row
+  let undoLogId: string | null = null;
+  const ar0 = parsed.language === 'ar';
+  const canClose = (t: TaskRow) =>
+    t.assigner_id === profileId ||
+    (!!t.owner_id && (amAdmin || isBelow(t.owner_id, profileId))) ||
+    (t.owner_id === profileId && t.assigner_id === profileId);
+  const canChange = (t: TaskRow) => t.owner_id === profileId || canClose(t);
+  const displayName = (id: string | null) => {
+    const p = id ? everyone.find((x) => x.id === id) : null;
+    return p ? ((ar0 ? p.full_name_ar : null) ?? p.full_name) : null;
+  };
+  const fmtDue = (iso: string) =>
+    new Intl.DateTimeFormat(ar0 ? 'ar-SA' : 'en-GB', {
+      timeZone: 'Asia/Riyadh',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(iso));
+
+  /** the preview card for one change on many tasks; tasks the user may not change are left out (counted) */
+  const buildBulk = (rows: TaskRow[], change: BulkChangeT['change']): BulkProposal | null => {
+    const kind = change.kind;
+    const items: BulkItem[] = [];
+    let skipped = 0;
+    for (const t of rows.slice(0, 100)) {
+      let to: string | null = null;
+      if (kind === 'status') {
+        if (change.status === 'done') {
+          if (canClose(t)) to = 'done';
+          else if (t.owner_id === profileId) to = 'submitted';
+        } else if (canChange(t)) to = change.status === 'reopen' ? 'in_progress' : change.status;
+      } else if (kind === 'delete') {
+        to = t.assigner_id === profileId || (!!t.owner_id && (amAdmin || isBelow(t.owner_id, profileId))) ? 'deleted' : null;
+      } else if (kind === 'cancel') to = canChange(t) ? 'cancelled' : null;
+      else to = canChange(t) ? t.status : null;
+      if (!to) {
+        skipped++;
+        continue;
+      }
+      items.push({ id: t.id, title: t.title, owner_name: displayName(t.owner_id), due_at: t.due_at, status: t.status, to_status: to });
+    }
+    if (!items.length) return null;
+    const c: Record<string, unknown> = { kind };
+    if (kind === 'status') c.status = change.status;
+    if (kind === 'due') c.due_at = change.due_at;
+    if (kind === 'priority') c.priority = change.priority;
+    if (kind === 'owner') c.owner_id = change.owner_id;
+    const statusLabel = ar0
+      ? { done: 'تعليمها خالصة', in_progress: 'قيد التنفيذ', blocked: 'واقفة', reopen: 'إعادة فتحها' }
+      : { done: 'Mark done', in_progress: 'Mark in progress', blocked: 'Mark blocked', reopen: 'Reopen' };
+    const label =
+      kind === 'status'
+        ? statusLabel[change.status ?? 'done']
+        : kind === 'due'
+          ? (ar0 ? 'الموعد ← ' : 'Due → ') + fmtDue(change.due_at!)
+          : kind === 'priority'
+            ? (ar0 ? 'الأولوية ← ' : 'Priority → ') + change.priority
+            : kind === 'owner'
+              ? (ar0 ? 'المسؤول ← ' : 'Owner → ') + (displayName(change.owner_id) ?? '')
+              : kind === 'cancel'
+                ? (ar0 ? 'إلغاؤها' : 'Cancel')
+                : ar0
+                  ? 'حذفها نهائياً (ما تقدر تتراجع)'
+                  : "Delete for good (can't be undone)";
+    return { change: c, label, items, skipped, review: items.filter((i) => i.to_status === 'submitted').length };
+  };
+  const bulkReply = (b: BulkProposal | null, found: number) => {
+    if (!b) {
+      if (found) return ar0 ? 'لقيت مهام بس ما تقدر تغيّرها، تخص غيرك.' : "I found matching tasks, but they're not yours to change.";
+      return ar0 ? 'ما لقيت مهام تطابق هذا.' : "I couldn't find any tasks matching that.";
+    }
+    const n = b.items.length;
+    const review = b.review ? (ar0 ? ` منها ${b.review} بتروح للمراجعة أول.` : ` ${b.review} of them will go for review first.`) : '';
+    const skip = b.skipped ? (ar0 ? ` وتركت ${b.skipped} ما تقدر تغيّرها.` : ` I left out ${b.skipped} you can't change.`) : '';
+    return ar0
+      ? `لقيت ${n} ${n === 1 ? 'مهمة' : 'مهام'} — ${b.label}. شيل الصح عن اللي تبي تخليها، وبعدين اضغط تطبيق.${review}${skip}`
+      : `I found ${n} task${n === 1 ? '' : 's'} — ${b.label}. Untick any you want to keep as they are, then tap Apply.${review}${skip}`;
+  };
+
+  /** same work already open? (word overlap on the title; a different named owner needs a closer match) */
+  const findDuplicate = (title: string, ownerId: string | null) => {
+    const words = (x: string) =>
+      new Set(
+        x
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+          .split(/\s+/)
+          .filter((w) => w.length > 1),
+      );
+    const a = words(title);
+    if (a.size === 0) return null;
+    let best: { t: TaskRow; score: number } | null = null;
+    for (const t of open) {
+      const b = words(t.title);
+      const inter = [...a].filter((w) => b.has(w)).length;
+      const score = inter / (a.size + b.size - inter || 1);
+      const need = ownerId && t.owner_id && ownerId !== t.owner_id ? 0.85 : 0.6;
+      if (score >= need && (!best || score > best.score)) best = { t, score };
+    }
+    return best?.t ?? null;
+  };
 
   /** link (or unlink, objectiveId null) a task as the caller and log it; `why` goes to activity_log.reason */
   const linkTask = async (
@@ -610,12 +810,8 @@ ${message}` : message },
   };
   const linkable = (id: string | null) => (id && liveObjectives.some((o) => o.id === id) ? id : null);
 
-  if (parsed.action === 'create' && parsed.task) {
-    const { objective_id: wantObjective, ...t } = parsed.task;
-    t.owner_id = person(t.owner_id);
-    t.helper_id = person(t.helper_id);
-    if (t.workspace_id && !wsIds.has(t.workspace_id)) t.workspace_id = null;
-    if (t.due_at && Number.isNaN(Date.parse(t.due_at))) t.due_at = null;
+  /** create one task as the caller (+ its follow-up plan, + objective link); returns its id */
+  const createOne = async (t: Omit<NewTaskT, 'objective_id' | 'also_for_ids'>, wantObjective: string | null) => {
     const owner = team.find((p) => p.id === t.owner_id);
     const helper = team.find((p) => p.id === t.helper_id);
     const ownerArabic = owner ? owner.locale === 'ar' || parsed.language === 'ar' : parsed.language === 'ar';
@@ -629,17 +825,102 @@ ${message}` : message },
       self: t.owner_id === profileId,
       helperFirstName: first(helper),
     });
-    const { data, error } = await db.rpc('create_task_with_plan', { p: { ...t, followup_plan, source, transcript: message } });
+    const { data, error } = await db.rpc('create_task_with_plan', { p: { ...t, followup_plan, source, transcript: message || null } });
     if (error) throw new HttpError(400, error.message);
-    taskId = data as string;
-    ownerReason = t.owner_reason;
-    ownerChanged = !!t.owner_id;
-    action = 'created';
+    const id = data as string;
     // only active objectives get new work (a missed one is linked by asking explicitly)
     const objective = wantObjective && liveObjectives.some((o) => o.id === wantObjective && o.status === 'active') ? wantObjective : null;
     if (objective) {
-      const failed = await linkTask({ id: taskId, title: t.title, owner_id: t.owner_id }, objective, null, 'Muntej matched the new task to this objective');
+      const failed = await linkTask({ id, title: t.title, owner_id: t.owner_id }, objective, null, 'Muntej matched the new task to this objective');
       if (failed) console.error('auto-link to objective failed', failed);
+    }
+    return id;
+  };
+
+  if (parsed.action === 'create' && parsed.task) {
+    const { objective_id: wantObjective, also_for_ids: alsoFor, ...t } = parsed.task;
+    t.owner_id = person(t.owner_id);
+    t.helper_id = person(t.helper_id);
+    if (t.workspace_id && !wsIds.has(t.workspace_id)) t.workspace_id = null;
+    if (t.due_at && Number.isNaN(Date.parse(t.due_at))) t.due_at = null;
+    const ac = body.apply_create;
+    const others = ac ? [] : [...new Set((alsoFor ?? []).map(person).filter((x): x is string => !!x && x !== t.owner_id))];
+    const dup = ac ? null : findDuplicate(t.title, t.owner_id);
+    const proposed = { ...t, objective_id: wantObjective };
+    if (others.length && t.owner_id) {
+      // several people: one task each, or one shared task? (nothing saved yet)
+      const people = [t.owner_id, ...others].map((id) => ({ id, name: displayName(id) }));
+      peopleChoice = { task: proposed, people, can_share: people.length === 2 };
+      const names = people.map((x) => x.name?.split(' ')[0]).filter(Boolean) as string[];
+      const list = names.length > 1 ? `${names.slice(0, -1).join(ar0 ? '، ' : ', ')}${ar0 ? ' و' : ' and '}${names.at(-1)}` : (names[0] ?? '');
+      // a task has one owner + one helper, so "shared" only exists for two people
+      const lead = names[0] ?? '';
+      parsed.reply =
+        people.length === 2
+          ? ar0
+            ? `«${t.title}» لـ${list}: تبيها مهمة لكل واحد، ولا مهمة وحدة يشتركون فيها؟`
+            : `"${t.title}" for ${list}: one task each, or one shared task?`
+          : ar0
+            ? `«${t.title}» لـ${list}: أسوي مهمة لكل واحد، ولا بس لـ${lead}؟`
+            : `"${t.title}" for ${list}: one task each, or only ${lead}?`;
+      parsed.suggestions = [];
+    } else if (dup) {
+      const dupRow = dup as unknown as Record<string, unknown>;
+      duplicate = {
+        task: proposed,
+        existing: { id: dup.id, title: dup.title, owner_name: displayName(dup.owner_id), due_at: dup.due_at, status: dup.status },
+        // "Update it instead": the new details that would change the open task
+        patch: Object.fromEntries(
+          Object.entries({
+            owner_id: t.owner_id,
+            due_at: t.due_at,
+            priority: t.priority !== 'medium' ? t.priority : null,
+            definition_of_done: t.definition_of_done,
+            budget: t.budget,
+            goal: t.goal,
+          }).filter(([k, v]) => v != null && v !== dupRow[k]),
+        ),
+      };
+      const who = dup.owner_id ? ` (${displayName(dup.owner_id)})` : '';
+      parsed.reply = ar0
+        ? `فيه مهمة مفتوحة تشبهها: «${dup.title}»${who}. أسوي وحدة جديدة، ولا أحدّث اللي موجودة؟`
+        : `There's already an open task like this: "${dup.title}"${who}. Create a new one anyway, or update the existing one?`;
+      parsed.suggestions = [];
+    } else if (ac?.owner_ids?.length) {
+      // chosen on the people card
+      const ids = ac.owner_ids.map(person).filter((x): x is string => !!x);
+      const shared = ac.mode === 'shared' && ids.length === 2;
+      const batches = shared ? [{ ...t, owner_id: ids[0], helper_id: ids[1] }] : ids.map((id) => ({ ...t, owner_id: id }));
+      for (const b of batches) {
+        const id = await createOne(b, wantObjective);
+        createdList.push({ id, title: b.title, owner_name: displayName(b.owner_id), due_at: b.due_at });
+        if (b.owner_id && b.owner_id !== profileId) {
+          const o = team.find((p) => p.id === b.owner_id);
+          const oar = o?.locale === 'ar';
+          const from = ((oar ? meRow?.full_name_ar : null) ?? meRow?.full_name)?.split(' ')[0] ?? 'Muntej';
+          await sendPush([b.owner_id], {
+            title: oar ? `${from} سند لك مهمة` : `${from} assigned you a task`,
+            body: b.title,
+            data: { taskId: id },
+          }).catch((e) => console.error('assign push failed', e));
+        }
+      }
+      taskId = createdList[0]?.id ?? null;
+      action = 'created';
+      parsed.reply = shared
+        ? ar0
+          ? `تم، سجلتها لـ${displayName(ids[0])} و${displayName(ids[1])} يساعده.`
+          : `Done: ${displayName(ids[0])} owns it and ${displayName(ids[1])} helps.`
+        : ar0
+          ? `تم، سويت ${batches.length} مهام، وحدة لكل واحد.`
+          : `Done: ${batches.length} tasks, one each.`;
+      // one shared task shows its normal card
+      if (shared) createdList = [];
+    } else {
+      taskId = await createOne(t, wantObjective);
+      ownerReason = t.owner_reason;
+      ownerChanged = !!t.owner_id;
+      action = 'created';
     }
   } else if (parsed.action === 'update' && parsed.update && (focus || taskIds.has(parsed.update.task_id))) {
     const u = parsed.update;
@@ -714,6 +995,119 @@ ${message}` : message },
     }
   }
 
+  // ── status of one task: changed right away (Undo on the card) ──
+  if (parsed.action === 'status' && parsed.status_change) {
+    const sc = parsed.status_change;
+    const tid = focus?.id ?? (taskIds.has(sc.task_id) ? sc.task_id : null);
+    const t = tid ? taskById.get(tid)! : null;
+    if (!t) {
+      parsed.reply = ar0 ? 'ما لقيت المهمة اللي تقصدها، وش اسمها؟' : "I couldn't find that task. What's it called?";
+    } else {
+      // one clear task: change it now (anyone allowed — owner, assigner, any manager above — no extra ask);
+      // the card offers Undo and the owner is told (push + Alerts)
+      const { data, error } = await db.rpc('set_task_status', { p_task: t.id, p_status: sc.status, p_note: sc.note });
+      if (error) throw new HttpError(400, error.message);
+      const result = data as string;
+      taskId = t.id;
+      action = 'updated';
+      const { data: log } = await db
+        .from('activity_log')
+        .select('id')
+        .eq('task_id', t.id)
+        .eq('action', 'task_status_changed')
+        .eq('actor_id', profileId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      undoLogId = (log?.id as string | undefined) ?? null;
+      const reviewer = displayName(t.assigner_id !== profileId ? t.assigner_id : (meRow?.manager_id ?? null));
+      const title = t.title;
+      const replies: Record<string, [string, string]> = {
+        done: [`Done ✅ "${title}" is closed.`, `تم ✅ قفلت «${title}».`],
+        submitted: [
+          `Nice! "${title}" is sent to ${reviewer ?? 'your manager'} for review. I'll tell you when it's approved.`,
+          `حلو! أرسلت «${title}» ${reviewer ? `لـ${reviewer} ` : ''}يراجعها، وأعلمك إذا اعتمدها.`,
+        ],
+        blocked: sc.note
+          ? [`Got it, "${title}" is blocked (${sc.note}). I've noted it so whoever can help sees it.`, `سجلت إن «${title}» واقفة (${sc.note}). كتبتها عشان يشوفها اللي يقدر يساعد.`]
+          : [`Got it, "${title}" is blocked. What's in the way? I'll tell whoever can help.`, `سجلت إن «${title}» واقفة. وش اللي موقفها؟ أبلّغ اللي يقدر يساعد.`],
+        in_progress: [`OK, "${title}" is in progress.`, `تمام، «${title}» صارت قيد التنفيذ.`],
+      };
+      const r = replies[result] ?? [`Done, "${title}" is open again.`, `تم، «${title}» رجعت مفتوحة.`];
+      parsed.reply = ar0 ? r[1] : r[0];
+      parsed.suggestions = [];
+      // someone else's task (e.g. a manager closing it): its owner hears about it
+      if (t.owner_id && t.owner_id !== profileId) {
+        const o = team.find((p) => p.id === t.owner_id);
+        const oar = o?.locale === 'ar';
+        const from = ((oar ? meRow?.full_name_ar : null) ?? meRow?.full_name)?.split(' ')[0] ?? 'Muntej';
+        const what = oar
+          ? { done: 'قفل', blocked: 'علّم إنها واقفة', in_progress: 'حط قيد التنفيذ', returned: 'رجّع' }[result] ?? 'عدّل'
+          : { done: 'closed', blocked: 'marked blocked', in_progress: 'marked in progress', returned: 'sent back' }[result] ?? 'changed';
+        await sendPush([t.owner_id], { title: `${from} ${what}: ${title}`, body: sc.note ?? '', data: { taskId: t.id } }).catch((e) =>
+          console.error('owner push failed', e),
+        );
+      }
+      // the reviewer hears about it (never the user themself)
+      const reviewerId = t.assigner_id !== profileId ? t.assigner_id : (meRow?.manager_id ?? null);
+      if (result === 'submitted' && reviewerId && reviewerId !== profileId) {
+        const rv = team.find((p) => p.id === reviewerId);
+        const rar = rv?.locale === 'ar';
+        const from = ((rar ? meRow?.full_name_ar : null) ?? meRow?.full_name)?.split(' ')[0] ?? 'Muntej';
+        await sendPush([reviewerId], {
+          title: rar ? `${from} خلّص مهمة وتنتظر مراجعتك` : `${from} finished a task for your review`,
+          body: title,
+          data: { taskId: t.id },
+        }).catch((e) => console.error('review push failed', e));
+      }
+    }
+  }
+
+  // ── the same change on many tasks: always a preview first ──
+  if (parsed.action === 'bulk' && parsed.bulk) {
+    const b = parsed.bulk;
+    const ch = b.change;
+    if (ch.kind === 'owner') ch.owner_id = person(ch.owner_id);
+    if (ch.due_at && Number.isNaN(Date.parse(ch.due_at))) ch.due_at = null;
+    const incomplete =
+      (ch.kind === 'status' && !ch.status) ||
+      (ch.kind === 'due' && !ch.due_at) ||
+      (ch.kind === 'priority' && !ch.priority) ||
+      (ch.kind === 'owner' && !ch.owner_id);
+    if (incomplete) {
+      parsed.reply = ar0 ? 'وش التغيير اللي تبيه بالضبط؟' : 'What exactly should I change on them?';
+    } else {
+      const pool = allTasks.filter((t) => {
+        if (ch.kind === 'status') {
+          if (ch.status === 'reopen') return t.status === 'done' || t.status === 'submitted';
+          if (ch.status === 'done') return t.status !== 'done' && t.status !== 'cancelled';
+          return ACTIVE.includes(t.status) && t.status !== ch.status;
+        }
+        if (ch.kind === 'delete') return true;
+        return ACTIVE.includes(t.status);
+      });
+      const f = b.filter;
+      const word = f.title_contains?.toLowerCase().trim();
+      const before = f.due_before && !Number.isNaN(Date.parse(f.due_before)) ? Date.parse(f.due_before) : null;
+      const picked = b.task_ids.length
+        ? pool.filter((t) => b.task_ids.includes(t.id))
+        : pool.filter(
+            (t) =>
+              (!f.mine_only || t.owner_id === profileId) &&
+              (!f.owner_id || t.owner_id === f.owner_id) &&
+              (!f.assigned_by_me || (t.assigner_id === profileId && t.owner_id !== profileId)) &&
+              (!f.priority || t.priority === f.priority) &&
+              (!f.late_only || (!!t.due_at && new Date(t.due_at) < now)) &&
+              (!before || (!!t.due_at && Date.parse(t.due_at) < before)) &&
+              (!word || t.title.toLowerCase().includes(word)) &&
+              (!f.objective_id || t.objective_id === f.objective_id),
+          );
+      bulkProposal = buildBulk(picked, ch);
+      parsed.reply = bulkReply(bulkProposal, picked.length);
+    }
+    parsed.suggestions = [];
+  }
+
   // cancel runs now; delete only shows the card in a confirm state (one tap in the app actually deletes it)
   const target = focus?.id ?? (parsed.target_task_id && taskIds.has(parsed.target_task_id) ? parsed.target_task_id : null);
   if ((parsed.action === 'cancel' || parsed.action === 'delete') && target) {
@@ -771,7 +1165,15 @@ ${message}` : message },
 
   // ── task card snapshot ──
   let payload: Record<string, unknown> | null = null;
-  if (orgProposal) {
+  if (bulkProposal) {
+    payload = { bulk_proposal: bulkProposal };
+  } else if (peopleChoice) {
+    payload = { people_choice: peopleChoice };
+  } else if (duplicate) {
+    payload = { duplicate };
+  } else if (createdList.length > 1) {
+    payload = { created_list: createdList };
+  } else if (orgProposal) {
     payload = { org_proposal: orgProposal };
   } else if (objectiveProposal) {
     payload = { objective_proposal: objectiveProposal };
@@ -811,6 +1213,7 @@ ${message}` : message },
         objective_title: objectiveTitle(t.objective_id, ar),
         suggestions,
         ...(confirmDelete ? { confirm_delete: true } : {}),
+        ...(undoLogId ? { undo_log_id: undoLogId } : {}),
         ...(proposedPatch
           ? {
               confirm_update: true,
@@ -857,9 +1260,9 @@ ${message}` : message },
   }
 
   // ── save both messages (user first, so ordering is stable) ──
-  // a Confirm tap has no user message of its own
+  // a Confirm tap / card choice has no user message of its own
   let userMsg: unknown = null;
-  if (!body.apply) {
+  if (!tapped) {
     const { data, error: e1 } = await db
       .from('chat_messages')
       .insert({ profile_id: profileId, role: 'user', content: message })
@@ -895,6 +1298,121 @@ ${message}` : message },
 
   return json({ messages: userMsg ? [userMsg, botMsg] : [botMsg] });
 });
+
+// ─── status + bulk changes ───────────────────────────────────────────────────────
+
+type NewTaskT = z.infer<typeof NewTask>;
+type BulkChangeT = z.infer<typeof BulkChange>;
+type BulkItem = { id: string; title: string; owner_name: string | null; due_at: string | null; status: string; to_status: string };
+type BulkProposal = {
+  /** exactly what apply_bulk sends to bulk_update_tasks */
+  change: Record<string, unknown>;
+  /** one line for the card, in the conversation language */
+  label: string;
+  items: BulkItem[];
+  /** matching tasks left out because the user may not change them */
+  skipped: number;
+  /** how many go to review (submitted) instead of closing */
+  review: number;
+};
+
+const BULK_KINDS = ['status', 'due', 'priority', 'owner', 'cancel', 'delete'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Apply tapped on a bulk preview: run bulk_update_tasks as the caller and report what happened (Undo for 5 min). */
+async function applyBulk(
+  db: Caller['db'],
+  profileId: string,
+  raw: { ids: string[]; change: Record<string, unknown> },
+  ar: boolean,
+): Promise<Response> {
+  const ids = Array.isArray(raw?.ids) ? raw.ids.filter((x) => typeof x === 'string' && UUID.test(x)).slice(0, 100) : [];
+  const src = raw?.change ?? {};
+  const kind = typeof src.kind === 'string' ? src.kind : '';
+  if (!ids.length || !BULK_KINDS.includes(kind)) throw new HttpError(400, 'Nothing to change');
+  const change: Record<string, unknown> = { kind };
+  for (const k of ['status', 'due_at', 'priority', 'owner_id']) if (typeof src[k] === 'string') change[k] = src[k];
+
+  const { data, error } = await db.rpc('bulk_update_tasks', { p_ids: ids, p_change: change });
+  if (error) throw new HttpError(400, error.message);
+  const r = data as {
+    log_id: string | null;
+    ok: { id: string; title: string; status: string; owner_id: string | null }[];
+    failed: { id: string; title: string | null; error: string }[];
+  };
+  const submitted = r.ok.filter((x) => x.status === 'submitted').length;
+
+  // the people whose tasks someone else changed hear about it (each change is also in their Alerts screen)
+  const byOwner = new Map<string, string[]>();
+  for (const x of r.ok) if (x.owner_id && x.owner_id !== profileId) byOwner.set(x.owner_id, [...(byOwner.get(x.owner_id) ?? []), x.title]);
+  if (byOwner.size) {
+    const { data: ppl } = await db.from('profiles').select('id, full_name, full_name_ar, locale').in('id', [profileId, ...byOwner.keys()]);
+    const me = (ppl ?? []).find((p) => p.id === profileId);
+    await Promise.all(
+      [...byOwner].map(([owner, titles]) => {
+        const oar = (ppl ?? []).find((p) => p.id === owner)?.locale === 'ar';
+        const from = ((oar ? me?.full_name_ar : null) ?? me?.full_name ?? 'Muntej').split(' ')[0];
+        return sendPush([owner], {
+          title: oar ? `${from} عدّل ${titles.length} من مهامك` : `${from} changed ${titles.length} of your tasks`,
+          body: titles.slice(0, 3).join(' · '),
+          data: {},
+        }).catch((e) => console.error('bulk push failed', e));
+      }),
+    );
+  }
+  const changed = r.ok.length - submitted;
+
+  const parts: string[] = [];
+  if (kind === 'delete') parts.push(ar ? `حذفت ${r.ok.length}` : `${r.ok.length} deleted`);
+  else if (changed) parts.push(ar ? `تم تعديل ${changed}` : `${changed} updated`);
+  if (submitted) parts.push(ar ? `${submitted} راحت للمراجعة` : `${submitted} sent for review`);
+  if (r.failed.length) parts.push(ar ? `${r.failed.length} ما تعدّلت` : `${r.failed.length} couldn't be changed`);
+  const reply = r.ok.length
+    ? (ar ? 'تم ✅ ' : 'Done ✅ ') + parts.join(ar ? '، ' : ', ') + '.'
+    : ar
+      ? 'ما قدرت أعدّل ولا وحدة منها.'
+      : "I couldn't change any of them.";
+
+  const { data: botMsg, error: e2 } = await db
+    .from('chat_messages')
+    .insert({
+      profile_id: profileId,
+      role: 'assistant',
+      content: reply,
+      task_id: null,
+      action: 'none',
+      payload: {
+        bulk_done: {
+          log_id: kind === 'delete' ? null : r.log_id,
+          kind,
+          ok: r.ok.length,
+          submitted,
+          failed: r.failed.map((f) => ({ title: f.title, error: f.error })),
+          undo_until: new Date(Date.now() + 5 * 60_000).toISOString(),
+        },
+      },
+    })
+    .select()
+    .single();
+  if (e2) throw new HttpError(500, e2.message);
+  return json({ messages: [botMsg] });
+}
+
+/** Undo tapped on a status / bulk result: undo_task_changes as the caller (its own 5-minute check). */
+async function undoChange(db: Caller['db'], profileId: string, logId: string, ar: boolean): Promise<Response> {
+  if (!UUID.test(logId)) throw new HttpError(400, 'Nothing to undo');
+  const { data, error } = await db.rpc('undo_task_changes', { p_log: logId });
+  if (error) throw new HttpError(400, error.message);
+  const n = data as number;
+  const reply = ar ? `رجّعتها زي ما كانت (${n} ${n === 1 ? 'مهمة' : 'مهام'}).` : `Undone: ${n} task${n === 1 ? '' : 's'} back as they were.`;
+  const { data: botMsg, error: e2 } = await db
+    .from('chat_messages')
+    .insert({ profile_id: profileId, role: 'assistant', content: reply, task_id: null, action: 'none', payload: { undo_done: { log_id: logId } } })
+    .select()
+    .single();
+  if (e2) throw new HttpError(500, e2.message);
+  return json({ messages: [botMsg] });
+}
 
 // ─── team changes by conversation ───────────────────────────────────────────────
 

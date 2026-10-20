@@ -40,6 +40,8 @@ export type TaskSnapshot = {
   proposed_owner_name?: string | null;
   /** title of proposed_patch.objective_id */
   proposed_objective_title?: string | null;
+  /** the status was just changed in the chat: Undo (5 minutes) puts it back */
+  undo_log_id?: string;
 };
 
 /** Fields Muntej may propose to change on a described (not focused) task. */
@@ -118,13 +120,100 @@ export type ObjectiveDonePayload = {
   objective_done: { objective_id: string; title: string; op: ObjectiveOp; count?: number };
 };
 
+/** The same change on many tasks ("mark all my tasks done"): nothing changes until Apply. */
+export type BulkChange = {
+  kind: 'status' | 'due' | 'priority' | 'owner' | 'cancel' | 'delete';
+  status?: 'done' | 'in_progress' | 'blocked' | 'reopen';
+  due_at?: string;
+  priority?: TaskPriority;
+  owner_id?: string;
+};
+export type BulkItem = {
+  id: string;
+  title: string;
+  owner_name: string | null;
+  due_at: string | null;
+  status: string;
+  /** what it becomes: done / submitted (review) / in_progress / blocked / cancelled / deleted, or unchanged status */
+  to_status: string;
+};
+export type BulkProposal = { change: BulkChange; label: string; items: BulkItem[]; skipped: number; review: number };
+export type BulkDone = {
+  /** null when nothing can be undone (delete) */
+  log_id: string | null;
+  kind: BulkChange['kind'];
+  ok: number;
+  submitted: number;
+  failed: { title: string | null; error: string }[];
+  undo_until: string;
+};
+
+/** Fields of a new task Muntej held back to ask first (several people / looks like a duplicate). */
+export type HeldTask = Record<string, unknown> & { title: string; owner_id: string | null };
+export type PeopleChoice = { task: HeldTask; people: { id: string; name: string | null }[]; can_share: boolean };
+export type Duplicate = {
+  task: HeldTask;
+  existing: { id: string; title: string; owner_name: string | null; due_at: string | null; status: string };
+  /** what "Update the existing one" changes on it */
+  patch: ProposedPatch;
+};
+export type CreatedItem = { id: string; title: string; owner_name: string | null; due_at: string | null };
+
+type NoTask = { id?: undefined; suggestions?: undefined };
+export type BulkProposalPayload = NoTask & { bulk_proposal: BulkProposal };
+export type BulkDonePayload = NoTask & { bulk_done: BulkDone };
+export type UndoDonePayload = NoTask & { undo_done: { log_id: string } };
+export type PeopleChoicePayload = NoTask & { people_choice: PeopleChoice };
+export type DuplicatePayload = NoTask & { duplicate: Duplicate };
+export type CreatedListPayload = NoTask & { created_list: CreatedItem[] };
+
 export type ChatPayload =
   | TaskSnapshot
   | CandidatesPayload
   | OrgProposalPayload
   | OrgDonePayload
   | ObjectiveProposalPayload
-  | ObjectiveDonePayload;
+  | ObjectiveDonePayload
+  | BulkProposalPayload
+  | BulkDonePayload
+  | UndoDonePayload
+  | PeopleChoicePayload
+  | DuplicatePayload
+  | CreatedListPayload;
+
+/** payload field of one card kind, or null */
+export function payloadPart<K extends 'bulk_proposal' | 'bulk_done' | 'undo_done' | 'people_choice' | 'duplicate' | 'created_list'>(
+  p: ChatPayload | null | undefined,
+  key: K,
+): Extract<ChatPayload, Record<K, unknown>>[K] | null {
+  if (!p || !(key in p)) return null;
+  return ((p as Record<string, unknown>)[key] ?? null) as Extract<ChatPayload, Record<K, unknown>>[K] | null;
+}
+
+async function invokeChat(body: Record<string, unknown>): Promise<ChatMessage[]> {
+  const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', { body });
+  if (error) throw await toError(error);
+  return data?.messages ?? [];
+}
+
+/** Apply on a bulk preview: only the ticked tasks. Returns the stored result message. */
+export function applyBulkChange(ids: string[], change: BulkChange, lang: 'en' | 'ar') {
+  return invokeChat({ apply_bulk: { ids, change }, lang });
+}
+
+/** Undo a status / bulk change (the server allows 5 minutes). */
+export function undoTaskChange(logId: string, lang: 'en' | 'ar') {
+  return invokeChat({ undo_log_id: logId, lang });
+}
+
+/** A choice on a people / duplicate card: create without asking again. */
+export function createHeldTask(
+  task: HeldTask,
+  opts: { owner_ids?: string[]; mode?: 'separate' | 'shared'; force?: boolean },
+  lang: 'en' | 'ar',
+) {
+  return invokeChat({ apply_create: { task, ...opts }, lang });
+}
 
 export function objectiveProposal(p: ChatPayload | null | undefined): ObjectiveProposal | null {
   return p && 'objective_proposal' in p && p.objective_proposal ? p.objective_proposal : null;

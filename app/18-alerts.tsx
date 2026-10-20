@@ -25,6 +25,7 @@ import {
   Sun,
   TriangleAlert,
   Users,
+  UserPen,
   type LucideProps,
 } from 'lucide-react-native';
 import { AppText, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, Toggle } from '@/components/ui';
@@ -65,6 +66,7 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   task_done_on_time: { Icon: CircleCheck, bg: 'green' },
   task_done_early: { Icon: Rocket, bg: 'green' },
   five_star: { Icon: Star, bg: 'green' },
+  changed_for_you: { Icon: UserPen, bg: 'primary' },
 };
 
 function RecentAlerts() {

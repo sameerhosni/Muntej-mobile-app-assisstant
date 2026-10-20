@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useMyProfile } from '@/lib/api';
 
-export type AlertKind = 'task_late' | 'task_at_risk' | 'overload' | 'task_done_on_time' | 'task_done_early' | 'five_star';
+/** changed_for_you = someone else (e.g. your manager) changed your task or profile; written by a trigger on activity_log */
+export type AlertKind = 'task_late' | 'task_at_risk' | 'overload' | 'task_done_on_time' | 'task_done_early' | 'five_star' | 'changed_for_you';
 
 export type AlertItem = {
   id: string;
