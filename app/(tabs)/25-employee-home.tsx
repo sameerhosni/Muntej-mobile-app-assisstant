@@ -1,6 +1,7 @@
 // Screen 25 · Employee Home — see design/v2/html/EmployeeHome.dc.html (Arabic: EmployeeHomeAR.dc.html)
-// Live: profile, "less reporting" hours (useHomeStats) and "Latest tasks" (Mine; tasks, RLS-scoped).
-// Demo: level, XP, streak, badges, quests, points and rewards (shared demo wallet) — no gamification backend yet.
+// Live: profile, "less reporting" hours (useHomeStats), "Today's tasks" (real tasks; ticking marks them done) and
+// "Latest tasks" (Mine; tasks, RLS-scoped).
+// Demo: level, XP, streak, badges, points and rewards (shared demo wallet) — no gamification backend yet.
 import { Fragment, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
@@ -18,7 +19,8 @@ import { person, personLabel } from '@/features/demo/team';
 import { LEVEL, NEXT_LEVEL_XP, useWallet, wallet } from '@/features/rewards/wallet';
 import { NEXT_REWARD } from '@/features/rewards/demo';
 import { Confetti } from '@/features/rewards/Confetti';
-import { BADGE_COUNT, QUESTS, STREAK_DAYS, TEAM_QUEST } from '@/features/employee-home/demo';
+import { BADGE_COUNT, STREAK_DAYS, TEAM_QUEST } from '@/features/employee-home/demo';
+import { TodayTasks } from '@/features/employee-home/TodayTasks';
 import { LevelRing } from '@/features/employee-home/LevelRing';
 import { NS } from '@/features/employee-home/strings';
 
@@ -153,61 +155,8 @@ export default function EmployeeHome() {
             ))}
           </View>
 
-          {/* Today's quests */}
-          <View style={{ gap: spacing.md, marginTop: 6 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <AppText variant="section">{t('quests')}</AppText>
-              <PointsPill size="sm" label={t('ptsToday', { n: n(w.earnedToday) })} />
-            </View>
-            {QUESTS.map((q) => {
-              const on = w.earned[`quest:${q.id}`] !== undefined;
-              const name = t(`q_${q.id}`);
-              return (
-                <Pressable
-                  key={q.id}
-                  onPress={() => (on ? wallet.unearn(`quest:${q.id}`) : wallet.earn(`quest:${q.id}`, q.pts))}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: on }}
-                  accessibilityLabel={t('questA11y', { name, n: n(q.pts) })}
-                  style={({ pressed }) => ({
-                    minHeight: 58,
-                    borderRadius: radius.button,
-                    borderWidth: 1,
-                    borderColor: on ? colors.purpleBorder : colors.border,
-                    backgroundColor: colors.surface,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: spacing.lg,
-                    paddingHorizontal: spacing.xl,
-                    paddingVertical: spacing.sm,
-                    boxShadow: shadows.tile,
-                    opacity: pressed ? 0.9 : 1,
-                  })}
-                >
-                  {on ? (
-                    <Gradient name="purple" style={{ width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
-                      <Check color={colors.onDark} size={15} strokeWidth={3} />
-                    </Gradient>
-                  ) : (
-                    <View style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderColor: colors.borderDashed }} />
-                  )}
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <AppText weight="bold" style={{ textDecorationLine: on ? 'line-through' : 'none' }}>
-                      {name}
-                    </AppText>
-                    <AppText variant="caption" color="textMuted">
-                      {t(`q_${q.id}_hint`)}
-                    </AppText>
-                  </View>
-                  <View style={{ backgroundColor: colors.orangeTint, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
-                    <AppText weight="extrabold" color="orangeText" style={{ writingDirection: 'ltr' }}>
-                      +{n(q.pts)}
-                    </AppText>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
+          {/* Today's tasks: the real ones, ticking marks them done (or sends them for review) */}
+          <TodayTasks />
 
           {/* Next reward */}
           <Card

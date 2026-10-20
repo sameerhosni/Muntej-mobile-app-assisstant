@@ -3,7 +3,7 @@
 // how things are going (performance.ts) + this screen's tip, then closes after a few seconds.
 // His face follows that status: on fire = star eyes, good = happy, late = worried, way behind = sad, nothing = sleepy.
 // Tap → the same bubble again (+ "Show me"). Long-press → hidden until the app restarts.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, useWindowDimensions, View } from 'react-native';
 import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +27,8 @@ const lastPop = new Map<string, number>();
 /** Face while the bubble is closed / open. */
 const REST: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'idle', watch: 'oops', behind: 'sad', quiet: 'sleep' };
 const SPEAK: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'talk', watch: 'oops', behind: 'sad', quiet: 'sleep' };
+/** worse → better, for "did it improve?" */
+const RANK: Record<PerfStatus, number> = { behind: 0, watch: 1, quiet: 2, good: 3, great: 4 };
 
 export function HelperButton() {
   const { t } = useScreenT(MUNTI_NS);
@@ -37,6 +39,22 @@ export function HelperButton() {
   const s = useMunti();
   const route = ROUTE_TIPS[pathname];
   const perf = usePerformance(lang);
+
+  // status changed (a task finished, one went late): say so right away, cheering when it got better.
+  // Waits a moment so a toast that caused it (e.g. "+15 pts") is seen first.
+  const prevStatus = useRef<PerfStatus | null>(null);
+  const perfStatus = perf?.status;
+  useEffect(() => {
+    if (!perf) return;
+    const prev = prevStatus.current;
+    prevStatus.current = perf.status;
+    if (!prev || prev === perf.status) return;
+    const better = RANK[perf.status] > RANK[prev];
+    const text = t(perf.message, perf.vars);
+    const id = setTimeout(() => munti.say(text, better ? 'celebrate' : perf.mood), 4800);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfStatus]);
 
   // 'auto' = popped up by himself (closes itself), 'tap' = opened by the user
   const [open, setOpen] = useState<false | 'auto' | 'tap'>(false);

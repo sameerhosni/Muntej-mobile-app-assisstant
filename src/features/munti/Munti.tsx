@@ -16,7 +16,7 @@ export const MUNTI_SIZES: Record<MuntiSize, number> = { sm: 28, md: 56, lg: 120 
 
 const native = Platform.OS !== 'web';
 const CONFETTI = [colors.gold, colors.mint, colors.purpleLight, colors.orange, colors.red, colors.cyan, colors.greenLight, colors.goldLight];
-const FIDGET_MOODS: MuntiMood[] = ['idle', 'talk', 'star', 'wave'];
+const FIDGET_MOODS: MuntiMood[] = ['idle', 'talk', 'star', 'wave', 'sad'];
 const CONFETTI_MOODS: MuntiMood[] = ['celebrate', 'star'];
 
 /** True while the OS "reduce motion" setting is on. */
@@ -154,13 +154,19 @@ export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, hyper =
     const { jump, look, arm, light, wiggle } = v;
     let timer: ReturnType<typeof setTimeout>;
     let current: Animated.CompositeAnimation | undefined;
-    const moves: (() => Animated.CompositeAnimation)[] = [
-      () => Animated.sequence([t(jump, 0.45, 200, Easing.out(Easing.quad)), t(jump, 0, 260, Easing.bounce)]),
-      () => Animated.sequence([t(look, -1, 180), Animated.delay(380), t(look, 1, 260), Animated.delay(300), t(look, 0, 180)]),
-      () => Animated.sequence([t(light, 1, 120), t(light, 0, 120), t(light, 1, 120), t(light, 0, 160)]),
-      () => Animated.sequence([t(wiggle, 1, 110), t(wiggle, -1, 160), t(wiggle, 1, 160), t(wiggle, 0, 110)]),
-    ];
-    if (mood !== 'wave')
+    const lookAround = () => Animated.sequence([t(look, -1, 180), Animated.delay(380), t(look, 1, 260), Animated.delay(300), t(look, 0, 180)]);
+    const flash = () => Animated.sequence([t(light, 1, 120), t(light, 0, 120), t(light, 1, 120), t(light, 0, 160)]);
+    // sad = slow, small moves only (looks around, antenna blinks); the others get the whole set
+    const moves: (() => Animated.CompositeAnimation)[] =
+      mood === 'sad'
+        ? [lookAround, flash]
+        : [
+            () => Animated.sequence([t(jump, 0.45, 200, Easing.out(Easing.quad)), t(jump, 0, 260, Easing.bounce)]),
+            lookAround,
+            flash,
+            () => Animated.sequence([t(wiggle, 1, 110), t(wiggle, -1, 160), t(wiggle, 1, 160), t(wiggle, 0, 110)]),
+          ];
+    if (mood !== 'wave' && mood !== 'sad')
       moves.push(() => Animated.sequence([t(arm, 1, 180), t(arm, 0.7, 150), t(arm, 1, 150), t(arm, 0.7, 150), t(arm, 1, 150), t(arm, 0, 200)]));
     const next = () => {
       timer = setTimeout(() => {

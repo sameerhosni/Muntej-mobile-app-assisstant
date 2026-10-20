@@ -397,6 +397,14 @@ export function appendToChat(qc: QueryClient, rows: ChatMessage[]) {
   });
 }
 
+/** Mark a task done / reopen it (set_task_status). Done by its owner when someone else assigned it → 'submitted'
+ *  (goes to that person for review); by the assigner, a manager above, or on a self-assigned task → 'done'. */
+export async function setTaskStatus(taskId: string, status: 'done' | 'reopen' | 'in_progress' | 'blocked'): Promise<string> {
+  const { data, error } = await untyped.rpc('set_task_status', { p_task: taskId, p_status: status });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
 /** Cancel: the task stays (status cancelled) and its pending follow-ups stop. */
 export async function cancelTask(taskId: string): Promise<void> {
   const { error } = await untyped.rpc('cancel_task', { p_task: taskId });
