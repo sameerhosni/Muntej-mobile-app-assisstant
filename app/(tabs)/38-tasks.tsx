@@ -1,6 +1,7 @@
 // Screen 38 · Tasks — no mockup; v2 light style per design/TOKENS.md
 // Live: every task the user may see (RLS), newest or by priority. Changes go through the Muntej chat (02-capture).
 // One search box + one chip row (All · Mine · I assigned · Late · Unassigned · Cancelled), counts follow the search.
+// ?ids=a,b,c (Saree3's "Show me") shows exactly those tasks, with a banner to go back to the full list.
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -22,15 +23,19 @@ export default function TasksScreen() {
   const { t: tm } = useScreenT(MUNTI_NS);
   const { lang } = useDirection();
   const [sort, setSort] = useState<SortMode>('newest');
-  // ?filter=late (e.g. Munti's "Show me") opens the list on that filter
-  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
+  // ?filter=late opens the list on that filter; ?ids= shows exactly the tasks Saree3 named
+  const { filter: filterParam, ids: idsParam } = useLocalSearchParams<{ filter?: string; ids?: string }>();
+  const onlyIds = typeof idsParam === 'string' && idsParam ? new Set(idsParam.split(',')) : null;
   const wanted = FILTERS.find((f) => f === filterParam);
   const [filter, setFilter] = useState<TaskListFilter>(wanted ?? 'all');
   useEffect(() => {
     if (wanted) setFilter(wanted);
   }, [wanted]);
   const [search, setSearch] = useState('');
-  const { query, rows, counts, role } = useTaskList(filter, sort, search);
+  const list = useTaskList(onlyIds ? 'all' : filter, sort, search);
+  const { query, counts, role } = list;
+  const rows = onlyIds ? list.rows.filter((x) => onlyIds.has(x.id)) : list.rows;
+  const clearIds = () => router.setParams({ ids: undefined });
   const accent = role === 'employee' ? colors.purple : colors.primary;
   const hasAnyTask = (query.data?.length ?? 0) > 0;
 
@@ -66,6 +71,15 @@ export default function TasksScreen() {
       <SortToggle value={sort} onChange={setSort} role={role} />
 
       <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
+
+      {onlyIds && (
+        <Card tone="primary" padding={spacing.md} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <AppText variant="small" weight="bold" color="primary" style={{ flex: 1 }}>
+            {t('fromSaree3', { count: rows.length })}
+          </AppText>
+          <Chip label={t('showAll')} onPress={clearIds} />
+        </Card>
+      )}
 
       <View accessibilityLabel={t('filtersA11y')}>
         <FilterChips

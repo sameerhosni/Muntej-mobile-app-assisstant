@@ -1,10 +1,12 @@
 // Floating Munti (bottom-start, above the tab bar) on the main screens + the toast bubble for munti.say/celebrate.
 // He pops up by himself ~1 s after a main screen opens (at most once per screen every 10 min) with a line about
 // how things are going (performance.ts) + this screen's tip, then closes after a few seconds. Every other pop-up is
-// about the value Muntej gave you this week (value.ts) with "Show me" â†’ the weekly receipt (screen 32).
+// about the value Muntej gave you this week (value.ts) with "Show me" → the weekly receipt (screen 32).
 // On a Home screen he also gives a weekly recap (first open each Sunday) and cheers milestones (10+ follow-ups
-// handled for you, 5+ on time in a row) â€” each once a week.
-// His face follows that status: on fire = star eyes, good = happy, late = worried, way behind = sad, nothing = sleepy.
+// handled for you, 5+ on time in a row) — each once a week.
+// His face AND colour follow that status (performance.ts): on fire = gold star eyes, good = green smile,
+// watch out = amber worried, behind = red sad, overloaded = purple dizzy, nothing = grey sleepy. Every status names
+// the tasks behind it and says how to cheer him up; when it changes he says so ("You turned me green! 💚").
 // Tap → the same bubble again (+ "Show me"). Long-press → hidden until the app restarts.
 // He is called Saree3 / سريع on screen; the "Ask Saree3" label next to him opens the chat.
 // He also watches your finished tasks waiting for the manager and reacts to the answer (approved → cheer +
@@ -22,7 +24,7 @@ import { useDirection } from '@/lib/i18n';
 import { Munti, MUNTI_SIZES, type MuntiMood } from './Munti';
 import { MUNTI_NS, ROUTE_TIPS } from './tips';
 import { munti, useMunti } from './store';
-import { usePerformance, type PerfStatus } from './performance';
+import { RANK, usePerformance, type Line, type PerfStatus } from './performance';
 import { timeLabel, useWeekValue, type WeekValue } from './value';
 import { formatNumber } from '@/features/home/value';
 import { useMyProfile, useTasks, useTeam } from '@/lib/api';
@@ -40,6 +42,7 @@ const RECEIPT = '/32-receipt' as const;
 const HOMES = ['/01-home', '/25-employee-home'];
 const RECAP_MS = 9000;
 const APPROVAL_BONUS = 10;
+const TURN_EMOJI: Record<string, string> = { gold: '🔥', green: '💚', amber: '🙂', red: '😮', purple: '😮‍💨', grey: '😴', brand: '🙂' };
 /** week number (weeks start Sunday, Riyadh time) for once-a-week moments */
 const weekKey = () => Math.floor((Date.now() + 3 * 3_600_000 + 4 * 86_400_000) / (7 * 86_400_000));
 const riyadhDay = () => new Date(Date.now() + 3 * 3_600_000).getUTCDay();
@@ -56,10 +59,8 @@ async function firstTime(key: string) {
 }
 
 /** Face while the bubble is closed / open. */
-const REST: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'idle', watch: 'oops', behind: 'sad', quiet: 'sleep' };
-const SPEAK: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'talk', watch: 'oops', behind: 'sad', quiet: 'sleep' };
-/** worse → better, for "did it improve?" */
-const RANK: Record<PerfStatus, number> = { behind: 0, watch: 1, quiet: 2, good: 3, great: 4 };
+const REST: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'idle', watch: 'oops', behind: 'sad', overloaded: 'dizzy', quiet: 'sleep' };
+const SPEAK: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'talk', watch: 'oops', behind: 'sad', overloaded: 'dizzy', quiet: 'sleep' };
 
 export function HelperButton() {
   const { t } = useScreenT(MUNTI_NS);
@@ -70,6 +71,13 @@ export function HelperButton() {
   const s = useMunti();
   const route = ROUTE_TIPS[pathname];
   const perf = usePerformance(lang);
+  /** a status line in words; colour names inside (color_*) are translated too */
+  const say = (l: Line | null | undefined) => {
+    if (!l) return null;
+    const vars: Record<string, unknown> = { ...l.vars };
+    if (typeof vars.color === 'string') vars.color = t(vars.color);
+    return t(l.key, vars);
+  };
   const value = useWeekValue();
   const fmt = (n: number, d = 0) => formatNumber(n, lang, d);
   const time = value ? timeLabel(value.minutes, t, fmt) : '';
@@ -121,7 +129,7 @@ export function HelperButton() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks.data, me.data?.id]);
 
-  // Home: weekly recap (Sunday, once) and milestones (once a week each) â€” after the pop-up has had its turn
+  // Home: weekly recap (Sunday, once) and milestones (once a week each) — after the pop-up has had its turn
   const valueReady = !!value;
   useEffect(() => {
     if (!value || !HOMES.includes(pathname) || !s.enabled || s.hidden) return;
@@ -155,8 +163,12 @@ export function HelperButton() {
     prevStatus.current = perf.status;
     if (!prev || prev === perf.status) return;
     const better = RANK[perf.status] > RANK[prev];
-    const text = t(perf.message, perf.vars);
-    const id = setTimeout(() => munti.say(text, better ? 'celebrate' : perf.mood), 4800);
+    // better: "You turned me green! 💚" + what's true now; worse: the status line itself
+    const text = better ? `${t('turned', { color: t(`color_${perf.tone}`), emoji: TURN_EMOJI[perf.tone] })} ${say(perf.message)}` : say(perf.message)!;
+    const id = setTimeout(
+      () => (better ? munti.celebrate(text, { ms: RECAP_MS }) : munti.say(text, perf.mood, { ms: RECAP_MS, action: perf.showMe ?? undefined })),
+      4800,
+    );
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [perfStatus]);
@@ -205,34 +217,27 @@ export function HelperButton() {
     AccessibilityInfo.announceForAccessibility(t('hidden'));
   };
 
-  // open bubble â€” tapped: how it's going + this week's value; auto: alternates how it's going (+ tip) / the value
-  const perfText = perf ? t(perf.message, perf.vars) : null;
+  // open bubble — tapped: how it's going + this week's value; auto: alternates how it's going (+ tip) / the value
+  // status turn: the named status line + the second fact + how to cheer me up; value turn: the week's value
+  const perfText = perf ? say(perf.message) : null;
   const vLine = valueLine(value);
   const valueTurn = open === 'auto' && popKind === 'value' && !!vLine;
   const bubbleText = toast ? toast.text : open && route ? (valueTurn ? vLine : (perfText ?? t(route.tip))) : null;
-  const subText =
+  const subLines: string[] =
     toast || !open || !route
-      ? null
+      ? []
       : valueTurn
-        ? onTimeLine(value)
-        : open === 'tap'
-          ? (vLine ?? (perfText ? t(route.tip) : null))
-          : perfText
-            ? t(route.tip)
-            : null;
-  const lateTasks = { pathname: '/38-tasks', params: { filter: 'late' } } as const;
+        ? [onTimeLine(value)].filter((x): x is string => !!x)
+        : [say(perf?.extra), perf ? say(perf.cheer) : t(route.tip), open === 'tap' ? vLine : null].filter((x): x is string => !!x);
   const showMe = toast
     ? toast.action
     : !open
       ? undefined
       : valueTurn
         ? RECEIPT
-        : perf?.showLate
-          ? lateTasks
-          : open === 'tap' && vLine
-            ? RECEIPT
-            : route?.showMe;
+        : (perf?.showMe ?? (open === 'tap' && vLine ? RECEIPT : route?.showMe));
   const fabMood: MuntiMood = toast ? toast.mood : perf ? (open ? SPEAK : REST)[perf.status] : open ? 'talk' : 'idle';
+  const tone = perf?.tone ?? 'brand';
 
   return (
     <>
@@ -257,16 +262,16 @@ export function HelperButton() {
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
-            {!showFab && <Munti key={toast?.id} size="sm" mood={toast?.mood ?? 'talk'} settleAfter={2400} style={{ marginTop: 2 }} />}
+            {!showFab && <Munti key={toast?.id} size="sm" tone={tone} mood={toast?.mood ?? 'talk'} settleAfter={2400} style={{ marginTop: 2 }} />}
             <View style={{ flex: 1, gap: spacing.xs, paddingTop: spacing.xs }}>
-              <AppText weight={subText ? 'semibold' : 'regular'} style={{ lineHeight: 20 }}>
+              <AppText weight={subLines.length ? 'semibold' : 'regular'} style={{ lineHeight: 20 }}>
                 {bubbleText}
               </AppText>
-              {subText && (
-                <AppText variant="small" color="textMuted" style={{ lineHeight: 18 }}>
-                  {subText}
+              {subLines.map((line, i) => (
+                <AppText key={i} variant="small" color={i === subLines.length - 1 && open === 'tap' ? 'textMuted' : 'textSoft'} style={{ lineHeight: 18 }}>
+                  {line}
                 </AppText>
-              )}
+              ))}
             </View>
             <Pressable
               onPress={() => (toast ? munti.dismiss() : setOpen(false))}
@@ -330,7 +335,7 @@ export function HelperButton() {
           })}
         >
           {/* new key per screen/toast → hops in again */}
-          <Munti key={toast?.id ?? pathname} size="md" mood={fabMood} settleAfter={fabMood === 'talk' ? 2400 : undefined} />
+          <Munti key={toast?.id ?? pathname} size="md" tone={tone} mood={fabMood} settleAfter={fabMood === 'talk' ? 2400 : undefined} />
         </Pressable>
       )}
 

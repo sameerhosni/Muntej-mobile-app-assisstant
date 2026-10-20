@@ -3,13 +3,27 @@
 // around its own point (transformOrigin) without any SVG prop animation.
 // Hyper by default: hops in, bounces, and fidgets (hop, look around, wave, antenna flash, wiggle) every few seconds.
 // Reduce motion on → static poses only (same face per mood, nothing moves).
+// `tone` colours his body + a soft glow: the status indicator (gold on fire, green good, amber watch out, red behind,
+// purple overloaded, grey quiet; brand blue when there is no status, e.g. in the chat).
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Platform, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { colors, gradients } from '@/theme/tokens';
 
-/** star = proud/on fire (star eyes + confetti), sad = behind (tear + sweat), oops = worried. */
-export type MuntiMood = 'idle' | 'wave' | 'think' | 'talk' | 'celebrate' | 'oops' | 'sleep' | 'star' | 'sad';
+/** star = proud/on fire (star eyes + confetti), sad = behind (tear + sweat), oops = worried, dizzy = overloaded. */
+export type MuntiMood = 'idle' | 'wave' | 'think' | 'talk' | 'celebrate' | 'oops' | 'sleep' | 'star' | 'sad' | 'dizzy';
+export type MuntiTone = 'brand' | 'gold' | 'green' | 'amber' | 'red' | 'purple' | 'grey';
+
+/** body gradient per tone (all from the theme tokens) */
+const TONES: Record<MuntiTone, readonly [string, string]> = {
+  brand: [gradients.avatarBlue[0], gradients.avatarBlue[1]],
+  gold: [gradients.points[0], gradients.points[1]],
+  green: [gradients.success[0], gradients.success[1]],
+  amber: [gradients.warning[0], gradients.warning[1]],
+  red: [colors.red, colors.orange],
+  purple: [gradients.avatarPurple[0], gradients.avatarPurple[1]],
+  grey: [colors.textFaint, colors.borderDashed],
+};
 export type MuntiSize = 'sm' | 'md' | 'lg';
 
 export const MUNTI_SIZES: Record<MuntiSize, number> = { sm: 28, md: 56, lg: 120 };
@@ -45,10 +59,13 @@ type Props = {
   hyper?: boolean;
   /** Screen-reader name; without it Munti is decorative and hidden from screen readers. */
   label?: string;
+  /** body colour (status indicator); default brand blue */
+  tone?: MuntiTone;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, hyper = true, label, style }: Props) {
+export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, hyper = true, label, tone = 'brand', style }: Props) {
+  const [bodyA, bodyB] = TONES[tone];
   const S = MUNTI_SIZES[size];
   const u = S / 100;
   const reduce = useReduceMotion();
@@ -119,6 +136,11 @@ export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, hyper =
     if (mood === 'think') run(Animated.loop(Animated.sequence([t(light, 1, 450), t(light, 0.3, 450)])));
     if (mood === 'talk') run(Animated.loop(Animated.sequence([t(mouth, 0.25, 130), t(mouth, 1, 150)])));
     if (mood === 'sleep') run(Animated.loop(Animated.sequence([t(zzz, 1, 2000, Easing.out(Easing.quad)), t(zzz, 0, 0)])));
+    // overloaded: slow dizzy sway + sweat
+    if (mood === 'dizzy') {
+      run(Animated.loop(Animated.sequence([t(wiggle, 0.6, 700), t(wiggle, -0.6, 1400), t(wiggle, 0, 700)])));
+      run(Animated.loop(Animated.sequence([t(drop, 1, 1200, Easing.in(Easing.quad)), t(drop, 0, 0), Animated.delay(700)])));
+    }
     if (mood === 'sad') run(Animated.loop(Animated.sequence([t(drop, 1, 1400, Easing.in(Easing.quad)), t(drop, 0, 0), Animated.delay(500)])));
     if (mood === 'oops')
       run(
@@ -215,15 +237,18 @@ export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, hyper =
 
   // arms hang from the shoulders; celebrate/star = both up, wave = end arm up and swinging, sad = droopy
   const up = CONFETTI_MOODS.includes(mood);
-  const leftArmDeg = up ? 150 : mood === 'oops' ? 35 : mood === 'sad' ? 4 : 14;
-  const rightRest = up ? -150 : mood === 'oops' ? -35 : mood === 'sad' ? -4 : -14;
+  const droopy = mood === 'sad' || mood === 'dizzy';
+  const leftArmDeg = up ? 150 : mood === 'oops' ? 35 : droopy ? 4 : 14;
+  const rightRest = up ? -150 : mood === 'oops' ? -35 : droopy ? -4 : -14;
   const rightArm = v.arm.interpolate({
     inputRange: [0, 1],
     outputRange: mood === 'wave' ? ['-125deg', '-165deg'] : [`${rightRest}deg`, '-145deg'],
   });
 
   const lightColor =
-    mood === 'oops' || mood === 'sad'
+    mood === 'dizzy'
+      ? colors.purpleLight
+      : mood === 'oops' || mood === 'sad'
       ? colors.red
       : mood === 'think'
         ? colors.mint
@@ -254,13 +279,15 @@ export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, hyper =
         {/* body, face plate, antenna stick */}
         <Svg width={S} height={S} viewBox="0 0 100 100" style={{ position: 'absolute' }}>
           <Defs>
-            <LinearGradient id="muntiBody" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor={gradients.avatarBlue[0]} />
-              <Stop offset="1" stopColor={gradients.avatarBlue[1]} />
+            <LinearGradient id={`muntiBody-${tone}`} x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={bodyA} />
+              <Stop offset="1" stopColor={bodyB} />
             </LinearGradient>
           </Defs>
+          {/* soft glow in the status colour */}
+          {tone !== 'brand' && <Circle cx={50} cy={60} r={42} fill={bodyA} opacity={0.18} />}
           <Rect x={48.5} y={14} width={3} height={14} rx={1.5} fill={colors.navy} />
-          <Circle cx={50} cy={60} r={34} fill="url(#muntiBody)" />
+          <Circle cx={50} cy={60} r={34} fill={`url(#muntiBody-${tone})`} />
           <Ellipse cx={50} cy={58} rx={25} ry={19} fill={colors.navy} opacity={0.22} />
           <Ellipse cx={39} cy={36} rx={9} ry={5} fill={colors.onDark} opacity={0.28} />
           {(mood === 'oops' || mood === 'celebrate' || mood === 'star') && (
@@ -290,7 +317,7 @@ export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, hyper =
         </Animated.View>
 
         {/* sad: tear under the eye + sweat drop on the forehead, both sliding down */}
-        {mood === 'sad' && (
+        {(mood === 'sad' || mood === 'dizzy') && (
           <Animated.View
             style={[
               layer,
@@ -406,6 +433,20 @@ function starPath(cx: number, cy: number, r: number) {
 
 function Eyes({ mood, S }: { mood: MuntiMood; S: number }) {
   const eyes = [38, 62];
+  if (mood === 'dizzy') {
+    // spiral eyes
+    const spiral = (x: number) => `M${x} 55 m-1 0 a1 1 0 1 1 2 0 a3 3 0 1 1 -6 0 a5 5 0 1 1 10 0 a7 7 0 1 1 -14 0`;
+    return (
+      <Svg width={S} height={S} viewBox="0 0 100 100">
+        {eyes.map((x) => (
+          <Circle key={`w${x}`} cx={x} cy={55} r={9} fill={colors.onDark} />
+        ))}
+        {eyes.map((x) => (
+          <Path key={x} d={spiral(x)} stroke={colors.navy} strokeWidth={1.8} fill="none" strokeLinecap="round" />
+        ))}
+      </Svg>
+    );
+  }
   if (mood === 'star') {
     return (
       <Svg width={S} height={S} viewBox="0 0 100 100">
@@ -470,6 +511,7 @@ function Mouth({ mood, S }: { mood: MuntiMood; S: number }) {
       shape = <Path d="M40 65 Q50 80 60 65 Z" fill={colors.navy} stroke={colors.navy} strokeWidth={2} strokeLinejoin="round" />;
       break;
     case 'oops':
+    case 'dizzy':
       shape = <Path d="M42 71 Q46 67 50 71 Q54 75 58 71" stroke={colors.navy} strokeWidth={2.6} strokeLinecap="round" fill="none" />;
       break;
     case 'sad':
