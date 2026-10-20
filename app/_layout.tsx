@@ -16,6 +16,7 @@ import { SCREENS } from '@/features/screens/registry';
 import { ProtoBar } from '@/features/prototype/ProtoBar';
 import { HelperButton } from '@/features/munti/HelperButton';
 import { usePushNotifications } from '@/features/notifications/push';
+import { useLiveSync } from '@/lib/realtime';
 import '@/features/prototype/strings';
 
 // non-tab numbered screens, e.g. "14-task-detail"
@@ -47,6 +48,8 @@ function RootNavigator() {
   const { direction } = useDirection();
   // register this phone for push + open tasks from tapped notifications (no-op in Expo Go / web)
   usePushNotifications(!!session && !needsMfa);
+  // live updates: any change to data this person can see refreshes the screen by itself
+  useLiveSync(!!session && !needsMfa, session?.user.id);
 
   useEffect(() => {
     loadSavedLanguage().finally(() => setLangReady(true));
