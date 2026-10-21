@@ -23,6 +23,7 @@ import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
 import { MuntejHandling, MyTasks, NeedsSupport, TeamPulse } from '@/features/home/TodayHome';
 import { Spotlight } from '@/features/launch/Spotlight';
+import { MySteps } from '@/features/steps/MySteps';
 import { NS } from '@/features/home/strings';
 function greetingKey(date = new Date()) {
   const h = date.getHours();
@@ -88,6 +89,7 @@ export default function ManagerHome() {
           {/* 4. people who need a hand, 5. your own tasks (both hidden when empty) */}
           <NeedsSupport />
           <MyTasks />
+          <MySteps />
 
           {/* 6. everything else, one tap away */}
           <Shortcuts

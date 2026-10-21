@@ -5,6 +5,8 @@
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from 'react-native';
 import { TOOL_LABEL, useTaskTools } from '@/features/tasks/toolTags';
+import { StepsSection } from '@/features/steps/StepsSection';
+import { Spotlight } from '@/features/launch/Spotlight';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, Check, ChevronLeft, Clock, Link2, Mic, MessageSquare, Plus, Send, Sparkles } from 'lucide-react-native';
@@ -278,7 +280,12 @@ export default function TaskDetailScreen() {
           </Card>
         </View>
 
-        {/* subtasks */}
+        {/* steps: live tasks get the real steps section; the prototype tour keeps the design's demo */}
+        {live && d ? (
+          <Spotlight id="task.steps" style={{ marginHorizontal: spacing.screen }}>
+            <StepsSection task={d as unknown as Parameters<typeof StepsSection>[0]['task']} />
+          </Spotlight>
+        ) : (
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <AppText variant="section">{t('subtasks')}</AppText>
@@ -354,6 +361,7 @@ export default function TaskDetailScreen() {
             </AppText>
           )}
         </View>
+        )}
 
         {/* proof */}
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.sm }}>

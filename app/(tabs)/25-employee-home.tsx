@@ -26,6 +26,7 @@ import { SareeLine, Shortcuts, type Shortcut } from '@/features/home/SimpleHome'
 import { NS as HOME_NS } from '@/features/home/strings';
 import { NS } from '@/features/employee-home/strings';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
+import { MySteps } from '@/features/steps/MySteps';
 
 export default function EmployeeHome() {
   const { t } = useScreenT(NS);
@@ -103,6 +104,7 @@ export default function EmployeeHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.lg }}>
           {/* 2. today's real tasks (max 3) */}
           <TodayTasks />
+          <MySteps />
 
           {/* 3. everything else, one tap away */}
           <Shortcuts items={SHOW_REWARDS ? shortcuts : shortcuts.filter((s) => s.key !== 'rewards')} />

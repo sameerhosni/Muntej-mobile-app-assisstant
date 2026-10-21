@@ -28,6 +28,8 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   saree3: {},
   daily_summary: { href: '/18-alerts', spot: 'alerts.summary' },
   view_as: { href: '/settings', spot: 'settings.viewAs' },
+  // opens one of your own open tasks (LaunchCard picks it) with its steps lit up
+  steps: { href: '/38-tasks', spot: 'task.steps' },
 };
 
 /** "later" asks again after this long, at most twice */

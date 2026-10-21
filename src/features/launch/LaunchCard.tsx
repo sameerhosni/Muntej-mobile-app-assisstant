@@ -11,7 +11,7 @@ import { AppText, Button } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useMyProfile } from '@/lib/api';
+import { useMyProfile, useTasks } from '@/lib/api';
 import { canSwitchView } from '@/features/view-as/store';
 import { Munti } from '@/features/munti/Munti';
 import { munti } from '@/features/munti/store';
@@ -50,6 +50,7 @@ export function LaunchCard() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const me = useMyProfile();
+  const tasks = useTasks();
   const features = useFeatures();
   const states = useMyFeatureStates(me.data?.id);
   const [current, setCurrent] = useState<Feature | null>(null);
@@ -104,7 +105,16 @@ export function LaunchCard() {
     const place = FEATURE_PLACES[current.key] ?? {};
     markFeature(current.key, 'tried');
     close();
-    if (place.href) {
+    // steps live on a task: open your first open task (else the Tasks list)
+    const ownTask =
+      current.key === 'steps'
+        ? (tasks.data ?? []).find((x) => x.owner_id === me.data?.id && !['done', 'cancelled', 'submitted'].includes(x.status)) ??
+          (tasks.data ?? []).find((x) => !['done', 'cancelled'].includes(x.status))
+        : undefined;
+    if (ownTask) {
+      router.push({ pathname: '/14-task-detail', params: { id: ownTask.id } });
+      if (place.spot) setTimeout(() => spotlight.show(place.spot!), 700);
+    } else if (place.href) {
       router.push(place.href);
       if (place.spot) setTimeout(() => spotlight.show(place.spot!), 700);
     } else {

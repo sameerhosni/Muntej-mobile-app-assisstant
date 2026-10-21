@@ -220,6 +220,14 @@ async function run(admin: SupabaseClient, dry: boolean) {
     return best;
   };
 
+  // open steps of open tasks (next-step hints, late steps)
+  const { data: stepRows } = await admin
+    .from('subtasks')
+    .select('id, task_id, title, owner_id, due_at, position')
+    .eq('done', false)
+    .in('task_id', tasks.map((t) => t.id).slice(0, 500));
+  const openSteps = (stepRows ?? []) as { id: string; task_id: string; title: string; owner_id: string | null; due_at: string | null; position: number }[];
+
   // ── 1. chase late work ──
   for (const t of tasks) {
     const owner = active(t.owner_id);
@@ -240,7 +248,14 @@ async function run(admin: SupabaseClient, dry: boolean) {
       const n = sent.length + 1;
       // first reminder · the ones in between · the last one (says the manager decides next)
       const tone = n === limit && limit > 1 ? 2 : n === 1 ? 0 : 1;
-      await followup(t.id, owner.id, chaseText(tone, t.title, t.due_at, first(manager), first(manager, true)));
+      const txt = chaseText(tone, t.title, t.due_at, first(manager), first(manager, true));
+      // the next open step makes the ask concrete
+      const next = openSteps.filter((s) => s.task_id === t.id).sort((a, b) => a.position - b.position)[0];
+      if (next) {
+        txt.message += ` Next step: ${next.title}.`;
+        txt.message_ar += ` الخطوة الجاية: ${next.title}.`;
+      }
+      await followup(t.id, owner.id, txt);
       await mark(`${base}:${n}`, t.id, owner.id);
       actions.push({ kind: 'chase', key: `${base}:${n}`, detail: `${first(owner)} · ${t.title} (${n}/${limit})` });
       continue;
@@ -306,6 +321,26 @@ async function run(admin: SupabaseClient, dry: boolean) {
     });
     await mark(key, t.id, owner.id);
     actions.push({ kind: 'blocked', key, detail: `${first(owner)} · ${t.title}` });
+  }
+
+  // ── 2b. late steps: a kind reminder to the step's person, once a working day, at most 3 times ──
+  const taskById = new Map(tasks.map((t) => [t.id, t]));
+  for (const s of openSteps) {
+    if (!s.owner_id || !s.due_at || Date.parse(s.due_at) > now) continue;
+    const t = taskById.get(s.task_id);
+    const who = active(s.owner_id);
+    if (!t || !who || !ACTIVE.includes(t.status)) continue;
+    const manager = managerOf(who.id, t.assigner_id);
+    if (!on(manager?.id, 'chase_late')) continue;
+    const sent = [1, 2, 3].map((i) => marks.get(`step:${s.id}:${i}`)).filter((x): x is number => x !== undefined);
+    if (sent.length >= 3) continue;
+    if (sent.length && now < nextWorkingMorning(Math.max(...sent))) continue;
+    await followup(t.id, who.id, {
+      message: `The step "${s.title}" (for "${t.title}") was due ${whenText(s.due_at, false)}. Done? Tick it in Muntej, or tell me what you need.`,
+      message_ar: `الخطوة «${s.title}» (في «${t.title}») كان موعدها ${whenText(s.due_at, true)}. خلصت؟ علّمها في منتج، أو قل لي وش تحتاج.`,
+    });
+    await mark(`step:${s.id}:${sent.length + 1}`, t.id, who.id);
+    actions.push({ kind: 'step_chase', key: `step:${s.id}:${sent.length + 1}`, detail: `${first(who)} · ${s.title}` });
   }
 
   // ── 3. rebalance overloaded people ──

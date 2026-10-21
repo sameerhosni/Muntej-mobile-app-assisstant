@@ -451,3 +451,6 @@ verify_jwt = false
 
 [functions.quick-login]
 verify_jwt = false
+
+[functions.suggest-steps]
+verify_jwt = false
