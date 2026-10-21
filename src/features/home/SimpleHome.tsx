@@ -16,6 +16,7 @@ import { Munti } from '@/features/munti/Munti';
 import { usePerformance, type Line } from '@/features/munti/performance';
 import { MUNTI_NS } from '@/features/munti/tips';
 import { NS } from './strings';
+import { ActionPill, useTodayActions } from './TodayHome';
 
 /** Saree3's one-sentence status, in his colour, for the Home header. Tap → the tasks it names. */
 export function SareeLine({ onDark = true }: { onDark?: boolean }) {
@@ -58,9 +59,19 @@ export function SareeLine({ onDark = true }: { onDark?: boolean }) {
   );
 }
 
-type Need = { key: string; Icon: ComponentType<LucideProps>; bg: ColorToken; fg: string; title: string; sub: string; href: Href };
+type Need = {
+  key: string;
+  Icon: ComponentType<LucideProps>;
+  bg: ColorToken;
+  fg: string;
+  title: string;
+  sub: string;
+  href: Href;
+  /** one-tap action on the row (Approve / Nudge); tapping the row still opens the details */
+  action?: { label: string; done: string; tone: 'primary' | 'green'; run: () => Promise<boolean> };
+};
 
-/** Manager: the few things that need you, most urgent first — decisions, reviews waiting, late team tasks. */
+/** Manager: the few things that need you, most urgent first — decisions, reviews waiting (Approve), late team tasks (Nudge). */
 export function NeedsYou() {
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
@@ -68,6 +79,7 @@ export function NeedsYou() {
   const team = useTeam();
   const tasks = useTasks();
   const decisions = useDecisions('pending');
+  const { approve, nudge } = useTodayActions();
   const meId = me.data?.id;
   const ar = lang === 'ar';
   const first = (id: string | null) => {
@@ -98,6 +110,7 @@ export function NeedsYou() {
         title: x.title,
         sub: t('ny_review', { name: first(x.owner_id) ?? '…' }),
         href: { pathname: '/15-review', params: { id: x.id } } as Href,
+        action: { label: t('approve'), done: t('approved'), tone: 'green' as const, run: () => approve(x.id) },
       })),
     ...(tasks.data ?? [])
       .filter((x) => isLate(x, now))
@@ -112,6 +125,10 @@ export function NeedsYou() {
           ? t('ny_late', { name: first(x.owner_id) ?? '…', when: formatDue(x.due_at!, lang) })
           : t('ny_lateNoOwner', { when: formatDue(x.due_at!, lang) }),
         href: { pathname: '/14-task-detail', params: { id: x.id } } as Href,
+        action:
+          x.owner_id && x.owner_id !== meId
+            ? { label: t('nudge'), done: t('nudged'), tone: 'primary' as const, run: () => nudge(x) }
+            : undefined,
       })),
   ];
   const taskIds = needs.filter((n) => !n.key.startsWith('d-')).map((n) => n.key.slice(2));
@@ -127,35 +144,48 @@ export function NeedsYou() {
       ) : (
         <Card padding={spacing.sm} style={{ gap: 0 }}>
           {needs.slice(0, 3).map((n, i) => (
-            <Pressable
+            // the row opens the details; the action pill sits beside it (not nested: one button per control)
+            <View
               key={n.key}
-              onPress={() => router.push(n.href)}
-              accessibilityRole="button"
-              accessibilityLabel={`${n.title}. ${n.sub}`}
-              style={({ pressed }) => ({
+              style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: spacing.md,
-                minHeight: sizes.touch + 12,
-                paddingHorizontal: spacing.sm,
+                gap: spacing.sm,
+                paddingEnd: spacing.sm,
                 borderTopWidth: i === 0 ? 0 : 1,
                 borderTopColor: colors.border,
-                opacity: pressed ? 0.7 : 1,
-              })}
+              }}
             >
-              <IconBadge size={34} bg={n.bg} round>
-                <n.Icon color={n.fg} size={16} strokeWidth={2.2} />
-              </IconBadge>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <AppText weight="bold" numberOfLines={1} style={{ writingDirection: contentDirection(n.title) }}>
-                  {n.title}
-                </AppText>
-                <AppText variant="caption" color="textMuted" numberOfLines={1}>
-                  {n.sub}
-                </AppText>
-              </View>
-              <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
-            </Pressable>
+              <Pressable
+                onPress={() => router.push(n.href)}
+                accessibilityRole="button"
+                accessibilityLabel={`${n.title}. ${n.sub}`}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  minWidth: 0,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                  minHeight: sizes.touch + 12,
+                  paddingStart: spacing.sm,
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <IconBadge size={34} bg={n.bg} round>
+                  <n.Icon color={n.fg} size={16} strokeWidth={2.2} />
+                </IconBadge>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <AppText weight="bold" numberOfLines={1} style={{ writingDirection: contentDirection(n.title) }}>
+                    {n.title}
+                  </AppText>
+                  <AppText variant="caption" color="textMuted" numberOfLines={1}>
+                    {n.sub}
+                  </AppText>
+                </View>
+                {!n.action && <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />}
+              </Pressable>
+              {n.action && <ActionPill label={n.action.label} doneLabel={n.action.done} tone={n.action.tone} onPress={n.action.run} />}
+            </View>
           ))}
           {needs.length > 3 && (
             <Pressable

@@ -1,8 +1,11 @@
 // Screen 01 · Manager Home — see design/v2/html/Main.dc.html (Arabic: MainAR.dc.html)
-// Simplified (pilot feedback "too crowded"): three blocks only —
+// "Today" — what a manager checks every morning, top to bottom, each block short (max 3 rows) and hidden when empty:
 //   1. slim header: greeting + bell + avatar, and Saree3's one-line status in his colour
-//   2. "Needs you": max 3 (decisions waiting → reviews waiting → late team tasks), "See all" for the rest
-//   3. shortcuts: Your week (value receipt), Team, Objectives, Autopilot
+//   2. team pulse: working on · late · done this week · yours (each number opens those tasks)
+//   3. "Needs you": decisions → reviews (one-tap Approve) → late team tasks (one-tap Nudge)
+//   4. who needs support (late / blocked / sent back / overbooked) with one-tap Check in
+//   5. your own tasks, tick to finish
+//   6. shortcuts: Your week (value receipt), Team, Objectives, Autopilot
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
@@ -17,6 +20,7 @@ import { useMyProfile } from '@/lib/api';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
+import { MyTasks, NeedsSupport, TeamPulse } from '@/features/home/TodayHome';
 import { NS } from '@/features/home/strings';
 
 function greetingKey(date = new Date()) {
@@ -67,10 +71,17 @@ export default function ManagerHome() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
-          {/* 2. what needs you, max 3 */}
+          {/* 2. the team at a glance */}
+          <TeamPulse />
+
+          {/* 3. what needs you, max 3, with one-tap actions */}
           <NeedsYou />
 
-          {/* 3. everything else, one tap away */}
+          {/* 4. people who need a hand, 5. your own tasks (both hidden when empty) */}
+          <NeedsSupport />
+          <MyTasks />
+
+          {/* 6. everything else, one tap away */}
           <Shortcuts
             items={[
               { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
