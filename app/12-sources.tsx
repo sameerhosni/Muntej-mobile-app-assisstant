@@ -8,7 +8,7 @@ import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, View } 
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Inbox, Lock } from 'lucide-react-native';
-import { AppText, Button, Card, IconBadge, IconButton } from '@/components/ui';
+import { AppText, Button, Card, IconBadge, IconButton, TextField } from '@/components/ui';
 import { colors, radius, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -95,7 +95,15 @@ export default function SourcesScreen() {
         {(conns.isLoading || providers.isLoading) && <ActivityIndicator color={colors.primary} />}
 
         {order.map((id) => (
-          <ToolRow key={id} id={id} conn={byId.get(id)} available={!!info.get(id)?.available} configured={!!info.get(id)?.configured} onNote={setNote} />
+          <ToolRow
+            key={id}
+            id={id}
+            conn={byId.get(id)}
+            available={!!info.get(id)?.available}
+            configured={!!info.get(id)?.configured}
+            token={!!info.get(id)?.token}
+            onNote={setNote}
+          />
         ))}
 
         <Card style={{ gap: spacing.sm }}>
@@ -123,18 +131,22 @@ function ToolRow({
   conn,
   available,
   configured,
+  token,
   onNote,
 }: {
   id: ProviderId;
   conn: Connection | undefined;
   available: boolean;
   configured: boolean;
+  token: boolean;
   onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void;
 }) {
   const { t } = useScreenT(CONN_NS);
   const { lang } = useDirection();
   const actions = useConnectionActions();
-  const [busy, setBusy] = useState<null | 'connect' | 'sync' | 'disconnect'>(null);
+  const [busy, setBusy] = useState<null | 'connect' | 'sync' | 'disconnect' | 'token'>(null);
+  const [tokenOpen, setTokenOpen] = useState(false);
+  const [tokenText, setTokenText] = useState('');
   const b = BADGE[id];
   const name = t(`n_${id}`);
   const n = (v: number) => formatNumber(v, lang);
@@ -145,7 +157,7 @@ function ToolRow({
   const today = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
   const found = conn && conn.found_day === today ? conn.found_today : 0;
 
-  const run = async (kind: 'connect' | 'sync' | 'disconnect', fn: () => Promise<void>) => {
+  const run = async (kind: 'connect' | 'sync' | 'disconnect' | 'token', fn: () => Promise<void>) => {
     setBusy(kind);
     onNote(null);
     try {
@@ -157,6 +169,13 @@ function ToolRow({
     }
   };
   const connect = () => run('connect', () => actions.connect(id));
+  const saveToken = () =>
+    run('token', async () => {
+      const r = await actions.connectWithToken(id, tokenText);
+      setTokenText('');
+      setTokenOpen(false);
+      onNote({ tone: 'green', text: t('tokenDone', { name, tasks: n(r.tasks) }) });
+    });
   const sync = () =>
     run('sync', async () => {
       const r = await actions.syncNow(id);
@@ -196,7 +215,7 @@ function ToolRow({
             {t(`r_${id}`)}
           </AppText>
         </View>
-        {!conn && !configured && (
+        {!conn && !configured && !token && (
           <View style={{ paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.chip }}>
             <AppText variant="micro" weight="bold" color="textMuted">
               {!available ? t('soon') : t('needsSetup')}
@@ -221,7 +240,37 @@ function ToolRow({
           <Button label={t('disconnect')} variant="outline" size="md" loading={busy === 'disconnect'} onPress={disconnect} style={{ flex: 1 }} />
         </View>
       ) : (
-        configured && <Button label={t('connect')} size="md" loading={busy === 'connect'} onPress={connect} />
+        <View style={{ gap: spacing.sm }}>
+          {configured && <Button label={t('connect')} size="md" loading={busy === 'connect'} onPress={connect} />}
+          {token && !tokenOpen && (
+            <Button label={t('withToken')} variant={configured ? 'outline' : 'primary'} size="md" onPress={() => setTokenOpen(true)} />
+          )}
+          {token && tokenOpen && (
+            // the person's own token: where to find it, paste, connect (the server checks it before saving)
+            <View style={{ gap: spacing.sm }}>
+              <AppText variant="small" color="textSoft">
+                {t(`tokenHelp_${id}`, { defaultValue: '' })}
+              </AppText>
+              <TextField
+                label={t('tokenLabel')}
+                value={tokenText}
+                onChangeText={setTokenText}
+                placeholder={t('tokenPlaceholder')}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                ltr
+              />
+              <AppText variant="caption" color="textMuted">
+                {t('tokenSafe')}
+              </AppText>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <Button label={t('cancel')} variant="outline" size="md" onPress={() => setTokenOpen(false)} style={{ flex: 1 }} />
+                <Button label={t('tokenSave')} size="md" loading={busy === 'token'} disabled={tokenText.trim().length < 10} onPress={saveToken} style={{ flex: 1 }} />
+              </View>
+            </View>
+          )}
+        </View>
       )}
     </Card>
   );

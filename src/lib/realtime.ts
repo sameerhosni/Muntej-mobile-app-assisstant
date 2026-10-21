@@ -43,11 +43,19 @@ export function useLiveSync(enabled: boolean, userId: string | undefined) {
 
     const channel = supabase.channel(`live:${userId}`);
     for (const table of TABLES) channel.on('postgres_changes', { event: '*', schema: 'public', table }, refresh);
-    // (re)connected after a drop: catch up on anything missed meanwhile
+    // (re)connected after a drop: catch up on anything missed meanwhile — at most once every 30 s, so a channel
+    // that keeps re-joining can never turn into a refresh storm (every query refetched every second)
     let connectedOnce = false;
-    channel.subscribe((status) => {
-      if (status !== 'SUBSCRIBED') return;
-      if (connectedOnce) refresh();
+    let lastCatchUp = 0;
+    channel.subscribe((status, err) => {
+      if (status !== 'SUBSCRIBED') {
+        if (status !== 'CLOSED') console.warn('[live] channel', status, err?.message ?? '');
+        return;
+      }
+      if (connectedOnce && Date.now() - lastCatchUp > 30_000) {
+        lastCatchUp = Date.now();
+        refresh();
+      }
       connectedOnce = true;
     });
 
@@ -57,9 +65,22 @@ export function useLiveSync(enabled: boolean, userId: string | undefined) {
     };
   }, [enabled, userId, qc]);
 
-  // back from the background (phones): TanStack Query refetches stale queries on focus
+  // back from the background: TanStack Query refetches stale queries on focus
   useEffect(() => {
-    if (Platform.OS === 'web') return; // the browser tab already reports focus
+    if (Platform.OS === 'web') {
+      // only a real return counts (hidden for a few seconds): some embedded browsers flip visibility several times a
+      // second, which refetched everything constantly and cancelled slower calls before they could finish
+      let hiddenAt = 0;
+      focusManager.setEventListener((setFocused) => {
+        const onVis = () => {
+          if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+          else if (hiddenAt && Date.now() - hiddenAt > 3000) setFocused(true);
+        };
+        document.addEventListener('visibilitychange', onVis);
+        return () => document.removeEventListener('visibilitychange', onVis);
+      });
+      return;
+    }
     const sub = AppState.addEventListener('change', (s) => focusManager.setFocused(s === 'active'));
     return () => sub.remove();
   }, []);

@@ -6,6 +6,7 @@ import * as ExpoLinking from 'expo-linking';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toError } from '@/features/capture/api';
+import { useMyProfile } from '@/lib/api';
 
 export const PROVIDER_IDS = ['microsoft', 'google', 'slack', 'jira', 'clickup', 'trello', 'notion', 'azure_devops'] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -20,7 +21,8 @@ export type Connection = {
   found_today: number;
   found_day: string | null;
 };
-export type ProviderInfo = { id: ProviderId; available: boolean; configured: boolean };
+/** configured = sign-in is set up on the server; token = the person can connect with their own personal API token */
+export type ProviderInfo = { id: ProviderId; available: boolean; configured: boolean; token: boolean };
 
 // connections isn't in the generated types yet
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,7 +47,15 @@ export function useConnections() {
 
 /** which tools this server can connect today (built + credentials set) */
 export function useProviders() {
-  return useQuery({ queryKey: ['connectProviders'], queryFn: () => call<ProviderInfo[]>({ action: 'providers' }), staleTime: 5 * 60_000 });
+  // asked only once signed in (the function needs the session), retried if the first call races the sign-in
+  const me = useMyProfile();
+  return useQuery({
+    queryKey: ['connectProviders', me.data?.id],
+    enabled: !!me.data,
+    queryFn: () => call<ProviderInfo[]>({ action: 'providers' }),
+    staleTime: 5 * 60_000,
+    retry: 3,
+  });
 }
 
 export function useConnectionActions() {
@@ -58,6 +68,14 @@ export function useConnectionActions() {
       const { url } = await call<{ url: string }>({ action: 'start', provider, redirect });
       if (Platform.OS === 'web') window.location.href = url;
       else await Linking.openURL(url);
+    },
+    /** connect with a personal API token; the server checks it and reads the first tasks right away */
+    connectWithToken: async (provider: ProviderId, token: string) => {
+      const r = await call<{ ok: boolean; label: string; read: number; tasks: number; error?: string }>({ action: 'token', provider, token });
+      await refresh();
+      await qc.invalidateQueries({ queryKey: ['incoming'] });
+      await qc.invalidateQueries({ queryKey: ['tasks'] });
+      return r;
     },
     disconnect: async (provider: ProviderId) => {
       await call({ action: 'disconnect', provider });

@@ -1,5 +1,6 @@
 // connect — linking a person's own tools to Muntej (OAuth 2.0 with PKCE). The tokens stay on the server, encrypted.
 //   POST { action: 'providers' }                      → which tools can be connected on this server (credentials set)
+//   POST { action: 'token', provider, token }         → connect with a personal API token (ClickUp …), first read now
 //   POST { action: 'start', provider, redirect }      → the tool's sign-in page URL (the app opens it in the browser)
 //   GET  /connect/callback?code&state                 → the tool sends the person back here; we save the connection
 //                                                       and send them on to `redirect` (?connected=… or ?error=…)
@@ -84,7 +85,58 @@ serve(async (req) => {
 
   switch (body.action) {
     case 'providers':
-      return json(ALL_PROVIDERS.map((id) => ({ id, available: !!PROVIDERS[id], configured: !!PROVIDERS[id]?.configured() })));
+      return json(
+        ALL_PROVIDERS.map((id) => ({
+          id,
+          available: !!PROVIDERS[id],
+          configured: !!PROVIDERS[id]?.configured(),
+          token: !!PROVIDERS[id]?.personalToken,
+        })),
+      );
+
+    // connect with the person's own personal API token (no admin setup): checked against the tool, then kept encrypted
+    case 'token': {
+      const provider = body.provider ? PROVIDERS[body.provider] : undefined;
+      if (!provider?.personalToken) throw new HttpError(400, 'This tool needs sign-in instead');
+      const token = String((body as { token?: string }).token ?? '').trim();
+      if (token.length < 10 || token.length > 500) throw new HttpError(400, 'That doesn’t look like a token');
+      let account: { label: string; cursor?: Record<string, unknown> };
+      try {
+        account = await provider.personalToken.verify(token);
+      } catch {
+        throw new HttpError(400, 'That token didn’t work. Copy it again and paste it here');
+      }
+      const { data: conn, error } = await admin
+        .from('connections')
+        .upsert(
+          {
+            profile_id: profileId,
+            provider: body.provider,
+            status: 'connected',
+            account_label: account.label,
+            last_error: null,
+            cursor: account.cursor ?? {},
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'profile_id,provider' },
+        )
+        .select('*')
+        .single();
+      if (error) throw error;
+      await admin.from('connection_secrets').upsert({ connection_id: conn.id, data: await seal({ access_token: token }), updated_at: new Date().toISOString() });
+      await admin.from('activity_log').insert({
+        actor_type: 'user',
+        actor_id: profileId,
+        subject_id: profileId,
+        action: 'source_connected',
+        summary: `Connected ${NAME[body.provider as ProviderId]} (${account.label})`,
+        summary_ar: `ربط ${NAME[body.provider as ProviderId]} (${account.label})`,
+        undoable: false,
+      });
+      // first read right away, so the person sees their tasks arrive
+      const first = await syncConnection(admin, conn);
+      return json({ ok: true, label: account.label, ...first });
+    }
 
     case 'start': {
       const provider = body.provider ? PROVIDERS[body.provider] : undefined;

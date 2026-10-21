@@ -4,6 +4,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { requireEnv } from './http.ts';
 import { ingestMessage, OPEN, type Creator } from './intake-core.ts';
 import { microsoft } from './providers/microsoft.ts';
+import { clickup } from './providers/clickup.ts';
 
 export type Tokens = { access_token: string; refresh_token?: string; expires_at?: number; scope?: string };
 
@@ -15,6 +16,8 @@ export type Fetched = {
   sender?: string | null;
   subject?: string | null;
   receivedAt?: string | null;
+  /** already a task in the tool (assigned to the person): taken as-is, no AI reading */
+  task?: { title: string; due_at: string | null; priority: 'low' | 'medium' | 'high' | 'urgent'; description?: string | null; link?: string | null };
 };
 
 export type Provider = {
@@ -28,12 +31,17 @@ export type Provider = {
   account: (t: Tokens) => Promise<{ label: string; cursor?: Record<string, unknown> }>;
   /** what's new since `cursor` (and the cursor to use next time) */
   fetchNew: (t: Tokens, cursor: Record<string, unknown>) => Promise<{ items: Fetched[]; cursor: Record<string, unknown> }>;
+  /**
+   * the person can connect with their own personal API token instead of signing in (no admin app setup needed);
+   * `verify` checks it and says who it belongs to
+   */
+  personalToken?: { verify: (token: string) => Promise<{ label: string; cursor?: Record<string, unknown> }> };
 };
 
 /** every tool shown on the Sources screen; only those in PROVIDERS can connect today */
 export const ALL_PROVIDERS = ['microsoft', 'google', 'slack', 'jira', 'clickup', 'trello', 'notion', 'azure_devops'] as const;
 export type ProviderId = (typeof ALL_PROVIDERS)[number];
-export const PROVIDERS: Partial<Record<ProviderId, Provider>> = { microsoft };
+export const PROVIDERS: Partial<Record<ProviderId, Provider>> = { microsoft, clickup };
 
 export const CALLBACK_URL = `${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/connect/callback`;
 
@@ -121,10 +129,16 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
       if (error) throw new Error(error.message);
       return data as string;
     };
+    // only what Muntej hasn't read yet counts towards this run's cap (so a long list never gets stuck on old items)
+    const ids = items.map((i) => i.externalId);
+    const { data: seen } = ids.length
+      ? await admin.from('incoming_items').select('external_id').eq('owner_id', conn.profile_id).in('external_id', ids)
+      : { data: [] as { external_id: string }[] };
+    const seenIds = new Set((seen ?? []).map((r) => r.external_id as string));
+    const fresh = items.filter((i) => !seenIds.has(i.externalId) && (i.task || i.text.trim()));
     let tasks = 0;
     let read = 0;
-    for (const it of items.slice(0, MAX_ITEMS)) {
-      if (!it.text.trim()) continue;
+    for (const it of fresh.slice(0, MAX_ITEMS)) {
       const item = await ingestMessage(admin, {
         profileId: conn.profile_id,
         text: it.text,
@@ -136,6 +150,7 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         team: team ?? [],
         open: openTasks ?? [],
         create,
+        structured: it.task,
       });
       if (!item.duplicate_message) {
         read++;
@@ -149,7 +164,7 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         last_error: null,
         last_sync_at: new Date().toISOString(),
         // read past what we skipped this run only if nothing was left behind
-        cursor: items.length > MAX_ITEMS ? conn.cursor : cursor,
+        cursor: fresh.length > MAX_ITEMS ? conn.cursor : cursor,
         found_day: today,
         found_today: (conn.found_day === today ? conn.found_today : 0) + tasks,
         updated_at: new Date().toISOString(),

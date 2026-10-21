@@ -143,6 +143,7 @@ export async function saveItem(admin: SupabaseClient, item: Item) {
   return data as Item;
 }
 
+// incoming source → tasks.source (enum task_source); tools without their own value are 'text'
 const TASK_SOURCE: Record<string, string> = { email: 'email', outlook: 'email', gmail: 'email', whatsapp: 'whatsapp', teams: 'teams', slack: 'slack', jira: 'jira', azure_devops: 'azure_devops', google_chat: 'google_chat' };
 
 /** Turns one suggestion into a real task (with its follow-up plan) via `create`. */
@@ -187,6 +188,11 @@ export type IngestInput = {
   team: Person[];
   open: OpenTask[];
   create: Creator;
+  /**
+   * an already-structured task from a task tool (ClickUp, Jira, Trello …): no AI reading needed — it becomes one
+   * suggestion owned by the person (it was assigned to them there), added by itself unless it duplicates an open task
+   */
+  structured?: { title: string; due_at: string | null; priority: 'low' | 'medium' | 'high' | 'urgent'; description?: string | null; link?: string | null };
 };
 
 /** Reads a message and saves it as an incoming item (auto-adding the sure tasks). Same message twice → the same item. */
@@ -206,17 +212,34 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   if (existing.data) return { ...(existing.data as Item), duplicate_message: true };
 
   const now = new Date();
-  const riyadhNow = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Riyadh', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-  }).format(now);
-  const found = await extract(body, {
-    current_time_riyadh: `${riyadhNow} (${now.toISOString()} UTC)`,
-    user_id: input.profileId,
-    team: input.team.map((p) => ({ id: p.id, name: p.full_name, name_ar: p.full_name_ar, title: p.title ?? null, skills: p.skills ?? [] })),
-    sender: input.sender ?? null,
-    subject: input.subject ?? null,
-    source: input.source,
-  });
+  const st = input.structured;
+  const found: z.infer<typeof Found> = st
+    ? {
+        language: /[؀-ۿ]/.test(st.title) ? 'ar' : 'en',
+        summary: `${input.source}: ${st.title}`,
+        tasks: [
+          {
+            title: st.title.slice(0, 200),
+            owner_id: input.profileId,
+            due_at: st.due_at,
+            priority: st.priority,
+            definition_of_done: null,
+            estimate_hours: null,
+            confidence: 1,
+            quote: (st.link ?? st.description ?? '').slice(0, 200),
+          },
+        ],
+      }
+    : await extract(body, {
+        current_time_riyadh: `${new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Riyadh', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+        }).format(now)} (${now.toISOString()} UTC)`,
+        user_id: input.profileId,
+        team: input.team.map((p) => ({ id: p.id, name: p.full_name, name_ar: p.full_name_ar, title: p.title ?? null, skills: p.skills ?? [] })),
+        sender: input.sender ?? null,
+        subject: input.subject ?? null,
+        source: input.source,
+      });
 
   const teamIds = new Set(input.team.map((p) => p.id));
   const suggestions: Suggestion[] = found.tasks.slice(0, MAX_TASKS).map((t) => {
@@ -255,9 +278,11 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
 
   // autopilot: tasks Muntej is sure about are added straight away; only the unclear ones wait for the person
   const { data: ap } = await admin.from('autopilot_prefs').select('rules').eq('profile_id', input.profileId).maybeSingle();
-  if ((ap?.rules as Record<string, boolean> | undefined)?.incoming_auto !== false && item.suggestions.some(isSure)) {
+  // a task assigned to you in a task tool is sure even without a due date
+  const sure = (s: Suggestion) => isSure(s) || (!!st && s.state === 'new' && !s.duplicate_of);
+  if ((ap?.rules as Record<string, boolean> | undefined)?.incoming_auto !== false && item.suggestions.some(sure)) {
     for (const s of item.suggestions) {
-      if (!isSure(s)) continue;
+      if (!sure(s)) continue;
       try {
         s.task_id = await createFromSuggestion(admin, input.profileId, item, s, input.create);
         s.state = 'accepted';
