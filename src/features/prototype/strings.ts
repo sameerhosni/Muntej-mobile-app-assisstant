@@ -223,6 +223,6 @@ export const PROTO_NS = registerStrings('proto', { en, ar });
 
 // Screens 39 (Team), 40 (Objectives), 41 (Objective) and 42 (Incoming) have no entry in the shared en/ar `screens` list: add their names here.
 registerStrings('screens', {
-  en: { '39': 'Team', '40': 'Objectives', '41': 'Objective', '42': 'Incoming' },
-  ar: { '39': 'الفريق', '40': 'الأهداف', '41': 'الهدف', '42': 'الوارد' },
+  en: { '39': 'Team', '40': 'Objectives', '41': 'Objective', '42': 'Incoming', '43': 'Feature adoption' },
+  ar: { '39': 'الفريق', '40': 'الأهداف', '41': 'الهدف', '42': 'الوارد', '43': 'استخدام المزايا' },
 });

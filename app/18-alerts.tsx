@@ -32,6 +32,7 @@ import {
   Moon,
   Rocket,
   Smartphone,
+  Sparkles,
   Star,
   Sun,
   TriangleAlert,
@@ -41,6 +42,8 @@ import {
 } from 'lucide-react-native';
 import { AppText, Button, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, Toggle } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { featureUsed } from '@/features/launch/launch';
+import { Spotlight } from '@/features/launch/Spotlight';
 import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -88,6 +91,7 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   no_reply: { Icon: MessageCircleQuestion, bg: 'amberText' },
   escalated: { Icon: Siren, bg: 'red' },
   tool_sync: { Icon: ArrowLeftRight, bg: 'primary' },
+  new_feature: { Icon: Sparkles, bg: 'purple' },
 };
 
 function RecentAlerts() {
@@ -182,6 +186,7 @@ function SummaryTest() {
       const { data, error } = await supabase.functions.invoke<{ sent?: string[]; skipped?: string }>('daily-summary', { body: { test: true } });
       if (error || !data) throw error ?? new Error('no data');
       const sent = data.sent ?? [];
+      featureUsed('daily_summary');
       setNote(
         data.skipped
           ? t('summaryNothing')
@@ -396,7 +401,11 @@ export default function AlertsScreen() {
           )}
 
           {/* try the daily summary now (sent to you only, whatever the time) */}
-          {prefs && <SummaryTest />}
+          {prefs && (
+            <Spotlight id="alerts.summary">
+              <SummaryTest />
+            </Spotlight>
+          )}
 
           {/* Quiet hours + escalation */}
           {prefs && esc && (

@@ -30,10 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const needsMfa = await mfaPending(session);
       if (alive) setState({ session, ready: true, needsMfa });
     };
-    supabase.auth.getSession().then(({ data }) => apply(data.session));
+    // whose data is in the cache right now
+    let cachedFor: string | null | undefined;
+    supabase.auth.getSession().then(({ data }) => {
+      cachedFor = data.session?.user.id ?? null;
+      apply(data.session);
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      // never show one user's cached data to the next
-      if (event === 'SIGNED_OUT' || event === 'SIGNED_IN') queryClient.clear();
+      // never show one user's cached data to the next — but only when the person really changes: supabase-js also
+      // says SIGNED_IN each time the app / tab comes back into view, which used to wipe and refetch everything
+      const who = session?.user.id ?? null;
+      if ((event === 'SIGNED_OUT' || event === 'SIGNED_IN') && who !== cachedFor) queryClient.clear();
+      cachedFor = who;
       // supabase-js warns against awaiting its own calls inside this callback → defer
       setTimeout(() => apply(session), 0);
     });

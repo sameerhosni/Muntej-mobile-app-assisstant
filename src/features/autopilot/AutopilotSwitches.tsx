@@ -9,6 +9,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { supabase } from '@/lib/supabase';
 import { useMyProfile } from '@/lib/api';
 import { NS } from './strings';
+import { featureUsed } from '@/features/launch/launch';
 
 export const AUTOPILOT_RULES = ['chase_late', 'help_blocked', 'rebalance', 'find_owner', 'incoming_auto', 'auto_approve'] as const;
 export type AutopilotRule = (typeof AUTOPILOT_RULES)[number];
@@ -39,6 +40,7 @@ export function AutopilotSwitches() {
     mutationFn: async (rules: Partial<Record<AutopilotRule, boolean>>) => {
       const { error } = await untyped.from('autopilot_prefs').upsert({ profile_id: meId, rules, updated_at: new Date().toISOString() });
       if (error) throw new Error(error.message);
+      featureUsed('autopilot');
     },
     onMutate: async (rules) => {
       setError(false);

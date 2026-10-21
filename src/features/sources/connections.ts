@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toError } from '@/features/capture/api';
 import { useMyProfile } from '@/lib/api';
+import { featureUsed } from '@/features/launch/launch';
 
 export const PROVIDER_IDS = ['microsoft', 'google', 'slack', 'jira', 'clickup', 'trello', 'notion', 'azure_devops'] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
@@ -79,6 +80,7 @@ export function useConnectionActions() {
     /** connect with a personal API token; the server checks it and reads the first tasks right away */
     connectWithToken: async (provider: ProviderId, creds: Record<string, string>) => {
       const r = await call<{ ok: boolean; label: string; read: number; tasks: number; error?: string }>({ action: 'token', provider, creds });
+      featureUsed('tools');
       await refresh();
       await qc.invalidateQueries({ queryKey: ['incoming'] });
       await qc.invalidateQueries({ queryKey: ['tasks'] });

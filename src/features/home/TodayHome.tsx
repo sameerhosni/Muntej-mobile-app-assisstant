@@ -16,6 +16,7 @@ import { DAY_MS, isOpen, personName, firstName, startOfWeek } from '@/features/d
 import { inFilter, isLate } from '@/features/tasks/model';
 import { TaskRow } from '@/features/tasks/TaskRow';
 import { invalidateTaskData, setTaskStatus } from '@/features/chat/api';
+import { featureUsed } from '@/features/launch/launch';
 import { formatNumber } from './value';
 import { NS } from './strings';
 
@@ -85,6 +86,7 @@ export function useTodayActions() {
       try {
         await setTaskStatus(taskId, 'done');
         await invalidateTaskData(qc);
+        featureUsed('today_home');
         return true;
       } catch {
         return false;
@@ -127,7 +129,10 @@ export function MuntejHandling() {
 
   return (
     <Pressable
-      onPress={() => router.push('/03-autopilot')}
+      onPress={() => {
+        featureUsed('autopilot');
+        router.push('/03-autopilot');
+      }}
       accessibilityRole="link"
       accessibilityLabel={`${t('handlingTitle')}. ${text}`}
       style={({ pressed }) => ({
@@ -186,7 +191,10 @@ export function TeamPulse() {
         {tiles.map((x) => (
           <Pressable
             key={x.key}
-            onPress={() => router.push(tasksLink(x.ids))}
+            onPress={() => {
+              featureUsed('today_home');
+              router.push(tasksLink(x.ids));
+            }}
             disabled={x.n === 0}
             accessibilityRole="link"
             accessibilityLabel={`${x.label}: ${x.n}`}

@@ -19,6 +19,7 @@ import { usePushNotifications } from '@/features/notifications/push';
 import { useLiveSync } from '@/lib/realtime';
 import { ShareIntentProvider } from 'expo-share-intent';
 import { ShareIntake } from '@/features/incoming/ShareIntake';
+import { LaunchCard } from '@/features/launch/LaunchCard';
 import '@/features/prototype/strings';
 
 // non-tab numbered screens, e.g. "14-task-detail"
@@ -103,6 +104,7 @@ function RootNavigator() {
       </Stack>
       <ShareIntake signedIn={signedIn} />
       {signedIn && <HelperButton />}
+      {signedIn && <LaunchCard />}
       {signedIn && <ProtoBar />}
     </View>
   );

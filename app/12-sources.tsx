@@ -23,6 +23,8 @@ import {
   type Target,
 } from '@/features/sources/connections';
 import { CONN_NS } from '@/features/sources/connStrings';
+import { featureUsed } from '@/features/launch/launch';
+import { Spotlight } from '@/features/launch/Spotlight';
 
 /** letter badge per tool (brand logos aren't in the app; colours from the theme) */
 const BADGE: Record<ProviderId, { letter: string; bg: ColorToken; fg: string }> = {
@@ -49,6 +51,7 @@ export default function SourcesScreen() {
   // back from a tool's sign-in page
   useEffect(() => {
     if (params.connected) {
+      featureUsed('tools');
       setNote({ tone: 'green', text: t('doneConnected', { name: t(`n_${params.connected}`) }) });
       actions.refresh();
     } else if (params.error) setNote({ tone: 'red', text: t('doneError') });
@@ -60,6 +63,7 @@ export default function SourcesScreen() {
   const info = new Map((providers.data ?? []).map((p) => [p.id, p]));
   // connected first, then the ones you can connect, then the rest
   const order = [...PROVIDER_IDS].sort((a, b) => rank(a) - rank(b));
+  const firstConnectable = order.find((id) => !byId.has(id) && (info.get(id)?.token || info.get(id)?.configured));
   function rank(id: ProviderId) {
     if (byId.has(id)) return 0;
     if (info.get(id)?.configured) return 1;
@@ -102,19 +106,29 @@ export default function SourcesScreen() {
 
         {(conns.isLoading || providers.isLoading) && <ActivityIndicator color={colors.primary} />}
 
-        {order.map((id) => (
-          <ToolRow
-            key={id}
-            id={id}
-            conn={byId.get(id)}
-            available={!!info.get(id)?.available}
-            configured={!!info.get(id)?.configured}
-            token={!!info.get(id)?.token}
-            tokenFields={info.get(id)?.tokenFields ?? ['token']}
-            twoWay={!!info.get(id)?.twoWay}
-            onNote={setNote}
-          />
-        ))}
+        {order.map((id) => {
+          const row = (
+            <ToolRow
+              key={id}
+              id={id}
+              conn={byId.get(id)}
+              available={!!info.get(id)?.available}
+              configured={!!info.get(id)?.configured}
+              token={!!info.get(id)?.token}
+              tokenFields={info.get(id)?.tokenFields ?? ['token']}
+              twoWay={!!info.get(id)?.twoWay}
+              onNote={setNote}
+            />
+          );
+          // "Show me" from the launch card lights up the first tool you can connect yourself
+          return id === firstConnectable ? (
+            <Spotlight key={id} id="sources.list">
+              {row}
+            </Spotlight>
+          ) : (
+            row
+          );
+        })}
 
         <Card style={{ gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>

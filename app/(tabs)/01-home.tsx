@@ -22,6 +22,7 @@ import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
 import { MuntejHandling, MyTasks, NeedsSupport, TeamPulse } from '@/features/home/TodayHome';
+import { Spotlight } from '@/features/launch/Spotlight';
 import { NS } from '@/features/home/strings';
 function greetingKey(date = new Date()) {
   const h = date.getHours();
@@ -73,8 +74,12 @@ export default function ManagerHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
           {/* 2. the team at a glance + what Muntej is handling by itself */}
           <View style={{ gap: spacing.md }}>
-            <TeamPulse />
-            <MuntejHandling />
+            <Spotlight id="home.pulse">
+              <TeamPulse />
+            </Spotlight>
+            <Spotlight id="home.handling">
+              <MuntejHandling />
+            </Spotlight>
           </View>
 
           {/* 3. what needs you, max 3, with one-tap actions */}
@@ -90,7 +95,7 @@ export default function ManagerHome() {
               { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
               { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
               { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
-              { key: 'auto', label: th('sc_autopilot'), Icon: RotateCw, href: '/03-autopilot', bg: 'amberTint', fg: colors.amberText },            ]}
+              { key: 'auto', label: th('sc_autopilot'), Icon: RotateCw, href: '/03-autopilot', bg: 'amberTint', fg: colors.amberText, feature: 'autopilot' },            ]}
           />
         </View>
       </ScrollView>

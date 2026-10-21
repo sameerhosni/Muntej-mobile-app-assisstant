@@ -33,6 +33,7 @@ import { useCompleteTask } from '@/features/tasks/useCompleteTask';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
 import { transcribeAudio } from '@/features/capture/api';
 import { formatClock } from '@/features/capture/points';
+import { featureUsed, useLaunchCardOn } from '@/features/launch/launch';
 import { MUNTI_NS, ROUTE_TIPS } from './tips';
 import { munti, useMunti } from './store';
 import { RANK, usePerformance, type Line, type PerfStatus } from './performance';
@@ -256,6 +257,8 @@ export function HelperButton() {
 
   // ── support mode: what needs this person (bigger, pulsing, count badge, one-tap actions) ──
   const support = useSupport();
+  // a "New for you" card is on screen: his own pop-up waits
+  const launchOn = useLaunchCardOn();
   const { toggle: completeTask } = useCompleteTask();
   const supportOn = support.count > 0;
 
@@ -305,6 +308,7 @@ export function HelperButton() {
         const next = { side: centerX < c.screenW / 2 ? ('left' as const) : ('right' as const), ratio: (nextTop - c.minTop) / Math.max(1, c.maxTop - c.minTop) };
         setPos(next);
         AsyncStorage.setItem(POS_KEY, JSON.stringify(next)).catch(() => {});
+        featureUsed('saree3');
       },
       onPanResponderTerminate: () => {
         setDragging(false);
@@ -344,6 +348,7 @@ export function HelperButton() {
     munti.flash('brand', 60_000);
     try {
       await recorder.start();
+      featureUsed('saree3');
     } catch (e) {
       talking.current = false;
       setTalk('idle');
@@ -509,7 +514,7 @@ export function HelperButton() {
 
   return (
     <>
-      {bubbleText && !dragging && (
+      {bubbleText && !dragging && !launchOn && (
         <View
           accessibilityLiveRegion="polite"
           style={{

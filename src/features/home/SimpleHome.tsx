@@ -16,6 +16,7 @@ import { MUNTI_NS } from '@/features/munti/tips';
 import { NS } from './strings';
 import { ActionPill, useTodayActions } from './TodayHome';
 import { useIncomingCount } from '@/features/incoming/api';
+import { isNewFor, useMyFeatureStates } from '@/features/launch/launch';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
 
 /** Saree3's one-sentence status, in his colour, for the Home header. Tap → the tasks it names. */
@@ -217,10 +218,13 @@ export function NeedsYou() {
   );
 }
 
-export type Shortcut = { key: string; label: string; Icon: ComponentType<LucideProps>; href: Href; bg: ColorToken; fg: string };
+/** `feature`: a new feature this shortcut leads to — a "New" dot shows until the person has tried it */
+export type Shortcut = { key: string; label: string; Icon: ComponentType<LucideProps>; href: Href; bg: ColorToken; fg: string; feature?: string };
 
 /** A row of small, equal shortcuts (the things that used to be cards on Home). */
 export function Shortcuts({ items }: { items: Shortcut[] }) {
+  const me = useMyProfile();
+  const states = useMyFeatureStates(me.data?.id);
   return (
     <View style={{ flexDirection: 'row', gap: spacing.sm }}>
       {items.map((s) => (
@@ -242,9 +246,26 @@ export function Shortcuts({ items }: { items: Shortcut[] }) {
             opacity: pressed ? 0.8 : 1,
           })}
         >
-          <IconBadge size={34} bg={s.bg} round>
-            <s.Icon color={s.fg} size={17} strokeWidth={2} />
-          </IconBadge>
+          <View>
+            <IconBadge size={34} bg={s.bg} round>
+              <s.Icon color={s.fg} size={17} strokeWidth={2} />
+            </IconBadge>
+            {s.feature && states.data && isNewFor(states.data, s.feature) && (
+              <View
+                style={{
+                  position: 'absolute',
+                  top: -2,
+                  end: -4,
+                  width: 12,
+                  height: 12,
+                  borderRadius: 6,
+                  backgroundColor: colors.red,
+                  borderWidth: 2,
+                  borderColor: colors.surface,
+                }}
+              />
+            )}
+          </View>
           <AppText variant="micro" weight="bold" color="textSoft" align="center" numberOfLines={1}>
             {s.label}
           </AppText>

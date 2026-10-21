@@ -81,6 +81,7 @@ const W = {
     pushEmp: '{today} due today · {late} late',
     logSummary: 'Sent your morning summary ({via})',
     logReason: 'Daily summary at {time}, as set in Alerts',
+    newFor: 'New for you ✨',
   },
   ar: {
     subjectMgr: 'فريقك اليوم · {date}',
@@ -112,6 +113,7 @@ const W = {
     pushEmp: '{today} مطلوبة اليوم · {late} متأخرة',
     logSummary: 'أرسل ملخّص الصباح ({via})',
     logReason: 'الملخّص اليومي الساعة {time} حسب إعدادات التنبيهات',
+    newFor: 'جديد لك ✨',
   },
 } as const;
 
@@ -348,6 +350,23 @@ async function sendOne(admin: SupabaseClient, me: Person, w: World, prefs: Prefs
   const rule = ruleOf(prefs);
   const s = isManager(me, w) ? managerSummary(me, w, now, lang) : employeeSummary(me, w, now, lang);
   if (!s) return { profile: me.id, sent: [] as string[], skipped: 'nothing to say' };
+
+  // "New for you": up to two features from the last 2 weeks this person hasn't tried (or turned down) yet
+  const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar').order('sort');
+  const { data: mine } = await admin.from('feature_events').select('feature_key, state').eq('profile_id', me.id);
+  const done = new Set((mine ?? []).filter((e) => ['tried', 'adopted', 'not_interested'].includes(e.state as string)).map((e) => e.feature_key as string));
+  const mgr = isManager(me, w);
+  const fresh = (feats ?? []).filter(
+    (f) =>
+      Date.now() - Date.parse(f.released_at as string) <= 14 * DAY &&
+      !done.has(f.key as string) &&
+      (f.audience === 'all' || (f.audience === 'manager' && mgr) || (f.audience === 'employee' && !mgr) || (f.audience === 'admin' && (me.role === 'admin' || me.role === 'super_admin'))),
+  );
+  if (fresh.length)
+    s.sections.push({
+      title: say(lang, 'newFor'),
+      items: fresh.slice(0, 2).map((f) => (lang === 'ar' ? `${f.title_ar}: ${f.benefit_ar}` : `${f.title}: ${f.benefit}`)),
+    });
 
   const hello = say(lang, 'hello', { name: firstName(me, lang) });
   const allowed = (c: string) => rule.channels.includes(c) && prefs?.channels?.[c] !== false;

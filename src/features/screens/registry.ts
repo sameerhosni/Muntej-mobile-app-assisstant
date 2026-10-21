@@ -4,7 +4,7 @@
 export type ScreenNum =
   | '01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13'
   | '14' | '15' | '16' | '17' | '18' | '19' | '20' | '21' | '22' | '23' | '24' | '25' | '26'
-  | '27' | '28' | '29' | '30' | '31' | '32' | '33' | '34' | '35' | '36' | '37' | '38' | '39' | '40' | '41' | '42';
+  | '27' | '28' | '29' | '30' | '31' | '32' | '33' | '34' | '35' | '36' | '37' | '38' | '39' | '40' | '41' | '42' | '43';
 
 export type Role = 'manager' | 'employee';
 
@@ -64,6 +64,7 @@ export const SCREENS: ScreenMeta[] = [
   { num: '40', route: '/40-objectives', design: 'Objectives', sprint: 1 },
   { num: '41', route: '/41-objective', design: 'Objective', sprint: 1 },
   { num: '42', route: '/42-incoming', design: 'Incoming', sprint: 2 },
+  { num: '43', route: '/43-adoption', design: 'Adoption', sprint: 2 },
 ];
 
 export function screenMeta(num: ScreenNum): ScreenMeta {

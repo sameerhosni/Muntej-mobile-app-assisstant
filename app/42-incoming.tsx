@@ -16,6 +16,8 @@ import { formatDue } from '@/features/capture/format';
 import { contentDirection } from '@/features/chat/Bubbles';
 import { useIncoming, useIncomingActions, type IncomingItem, type Suggestion, type SuggestionEdit } from '@/features/incoming/api';
 import { NS } from '@/features/incoming/strings';
+import { featureUsed } from '@/features/launch/launch';
+import { Spotlight } from '@/features/launch/Spotlight';
 
 export default function IncomingScreen() {
   const { t } = useScreenT(NS);
@@ -37,6 +39,7 @@ export default function IncomingScreen() {
     setNote(null);
     try {
       const item = await actions.ingest(text, params.text ? 'share' : 'paste');
+      featureUsed('incoming');
       setText('');
       const auto = item.suggestions.filter((s) => s.auto).length;
       if (item.duplicate_message) setNote(t('sameMessage'));
@@ -91,6 +94,7 @@ export default function IncomingScreen() {
         </Pressable>
 
         {/* paste box */}
+        <Spotlight id="incoming.paste">
         <Card style={{ gap: spacing.md }}>
           <AppText variant="small" weight="semibold" color="textMuted">
             {t('pasteLabel')}
@@ -125,6 +129,7 @@ export default function IncomingScreen() {
             </AppText>
           )}
         </Card>
+        </Spotlight>
 
         {incoming.isLoading && <ActivityIndicator color={colors.primary} />}
         {incoming.isError && (

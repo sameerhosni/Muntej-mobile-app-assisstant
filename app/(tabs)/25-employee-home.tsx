@@ -45,7 +45,7 @@ export default function EmployeeHome() {
     { key: 'rewards', label: th('sc_rewards'), Icon: Gift, href: '/26-rewards', bg: 'orangeTint', fg: colors.orange },
     { key: 'quest', label: th('sc_quest'), Icon: Trophy, href: '/30-team-quests', bg: 'primaryTint', fg: colors.primary },
     { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
-    { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary },
+    { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary, feature: 'incoming' },
   ];
 
   return (

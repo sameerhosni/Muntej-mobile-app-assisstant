@@ -433,6 +433,38 @@ async function run(admin: SupabaseClient, dry: boolean) {
       actions.push({ kind: 'review_remind', key, detail: `${first(reviewer)} · ${t.title}` });
     }
   }
+  // ── 6. new features nobody showed them yet: one push, 3 days after launch, grouped per person ──
+  const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar');
+  const launchable = (feats ?? []).filter((f) => {
+    const age = now - Date.parse(f.released_at as string);
+    return age >= 3 * DAY && age <= 30 * DAY;
+  });
+  if (launchable.length) {
+    const { data: fev } = await admin.from('feature_events').select('profile_id, feature_key').in('feature_key', launchable.map((f) => f.key));
+    const seenBy = new Set((fev ?? []).map((e) => `${e.feature_key}:${e.profile_id}`));
+    const forRole = (aud: string, p: Person) =>
+      aud === 'all' || (aud === 'admin' && (p.role === 'admin' || p.role === 'super_admin')) || (aud === 'manager' && p.role !== 'employee') || (aud === 'employee' && p.role === 'employee');
+    for (const p of people.values()) {
+      if (p.status !== 'active') continue;
+      const missed = launchable.filter((f) => forRole(f.audience as string, p) && !seenBy.has(`${f.key}:${p.id}`) && !marks.has(`launch_push:${f.key}:${p.id}`));
+      if (!missed.length) continue;
+      const one = missed.length === 1 ? missed[0] : null;
+      alerts.push({
+        profile_id: p.id,
+        kind: 'new_feature',
+        subject_id: p.id,
+        task_id: null,
+        title: one ? `New in Muntej: ${one.title}` : `${missed.length} new things Muntej can do for you`,
+        body: one ? (one.benefit as string) : missed.map((f) => f.title).join(' · '),
+        title_ar: one ? `جديد في منتج: ${one.title_ar}` : `${missed.length} أشياء جديدة يسويها منتج لك`,
+        body_ar: one ? (one.benefit_ar as string) : missed.map((f) => f.title_ar).join(' · '),
+        dedupe_key: `launch_push:${p.id}:${missed.map((f) => f.key).join(',')}`,
+      });
+      for (const f of missed) await mark(`launch_push:${f.key}:${p.id}`, null, p.id);
+      actions.push({ kind: 'launch_push', key: `launch_push:${p.id}`, detail: `${first(p)} · ${missed.map((f) => f.key).join(', ')}` });
+    }
+  }
+
   if (alerts.length && !dry) {
     const { error } = await admin.from('alerts').upsert(alerts, { onConflict: 'dedupe_key', ignoreDuplicates: true });
     if (error) console.error('alerts insert failed', error.message);

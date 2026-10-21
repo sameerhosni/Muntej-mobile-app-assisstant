@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Users } from 'lucide-react-native';
+import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Sparkles, Users } from 'lucide-react-native';
 import { AppText, Avatar, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle, Toggle } from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
 import { PROTO_NS } from '@/features/prototype/strings';
@@ -13,6 +13,9 @@ import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { setLanguage, useDirection, type Language } from '@/lib/i18n';
 import { SCREENS, homeRouteFor } from '@/features/screens/registry';
 import { canSwitchView, useViewAs, viewAs, type ViewAs } from '@/features/view-as/store';
+import { featureUsed } from '@/features/launch/launch';
+import { Spotlight } from '@/features/launch/Spotlight';
+import { LAUNCH_NS } from '@/features/launch/strings';
 import { useTotpFactor } from '@/features/auth/useTotpFactor';
 import { sendTestPush, usePushStatus } from '@/features/notifications/push';
 import { NS as TEAM_NS } from '@/features/org/strings';
@@ -31,6 +34,7 @@ export default function SettingsScreen() {
   const { t: tt } = useScreenT(TEAM_NS);
   const { t: tm } = useScreenT(MUNTI_NS);
   const { t: ta } = useScreenT(ALERTS_NS);
+  const { t: tl } = useScreenT(LAUNCH_NS);
   const muntiState = useMunti();
   // the real role (not the "View as" one) decides admin-only things
   const realRole = me?.actual_role ?? me?.role;
@@ -39,6 +43,7 @@ export default function SettingsScreen() {
   const switchView = (v: ViewAs) => {
     if (v === view) return;
     viewAs.set(v);
+    featureUsed('view_as');
     router.replace(homeRouteFor(v === 'employee' ? 'employee' : realRole));
   };
   const twoStep = useTotpFactor();
@@ -113,6 +118,7 @@ export default function SettingsScreen() {
 
       {/* admins: use the app as a manager or as an employee */}
       {isAdmin && (
+        <Spotlight id="settings.viewAs">
         <Card>
           <View style={{ gap: 4 }}>
             <AppText variant="cardTitle">{t('settings.viewAs')}</AppText>
@@ -149,6 +155,23 @@ export default function SettingsScreen() {
               );
             })}
           </View>
+        </Card>
+        </Spotlight>
+      )}
+
+      {/* admins: who uses what's new (screen 43) */}
+      {isAdmin && (
+        <Card onPress={() => router.push('/43-adoption')} accessibilityLabel={tl('settingsRow')} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <IconBadge size={44} bg="greenTint">
+            <Sparkles color={colors.green} size={20} strokeWidth={2} />
+          </IconBadge>
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText variant="cardTitle">{tl('settingsRow')}</AppText>
+            <AppText variant="caption" color="textMuted">
+              {tl('settingsHint')}
+            </AppText>
+          </View>
+          <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
         </Card>
       )}
 

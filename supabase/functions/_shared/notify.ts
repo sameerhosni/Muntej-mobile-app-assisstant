@@ -22,7 +22,8 @@ export type AlertKind =
   | 'decision_waiting'
   | 'no_reply'
   | 'escalated'
-  | 'tool_sync';
+  | 'tool_sync'
+  | 'new_feature';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -43,6 +44,8 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   task_assigned: null,
   // what moved between Muntej and a connected tool (the person turned the sync on themselves)
   tool_sync: null,
+  // "New in Muntej" — once per feature per person, only if they never saw it in the app
+  new_feature: null,
 };
 
 export type QuietHours = { enabled?: boolean; prayer_times?: boolean; after?: string; friday?: boolean; ramadan?: boolean };

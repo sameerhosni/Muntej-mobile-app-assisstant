@@ -25,7 +25,8 @@ export type AlertKind =
   | 'decision_waiting'
   | 'no_reply'
   | 'escalated'
-  | 'tool_sync';
+  | 'tool_sync'
+  | 'new_feature';
 
 export type AlertItem = {
   id: string;

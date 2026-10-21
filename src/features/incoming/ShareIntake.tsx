@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { useShareIntentContext } from 'expo-share-intent';
+import { featureUsed } from '@/features/launch/launch';
 
 export function ShareIntake({ signedIn }: { signedIn: boolean }) {
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
@@ -10,7 +11,10 @@ export function ShareIntake({ signedIn }: { signedIn: boolean }) {
   useEffect(() => {
     if (!signedIn || !hasShareIntent) return;
     const text = (shareIntent.text ?? shareIntent.webUrl ?? '').trim();
-    if (text) router.push({ pathname: '/42-incoming', params: { text: text.slice(0, 12_000) } });
+    if (text) {
+      featureUsed('incoming');
+      router.push({ pathname: '/42-incoming', params: { text: text.slice(0, 12_000) } });
+    }
     resetShareIntent();
   }, [signedIn, hasShareIntent, shareIntent, resetShareIntent]);
 

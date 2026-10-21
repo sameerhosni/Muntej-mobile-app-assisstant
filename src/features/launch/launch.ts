@@ -1,0 +1,140 @@
+// Feature launches (see supabase/migrations/20261021170000_feature_launch.sql): the features table holds what's new
+// and for whom; feature_events holds each person's state. Here: where each feature lives in the app, the state hooks,
+// featureUsed() to call wherever a feature is really used, and the spotlight that points at the right button.
+import { useSyncExternalStore } from 'react';
+import type { Href } from 'expo-router';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
+
+export type FeatureState = 'seen' | 'tried' | 'adopted' | 'later' | 'not_interested';
+export type Feature = {
+  key: string;
+  audience: 'all' | 'manager' | 'employee' | 'admin';
+  released_at: string;
+  title: string;
+  title_ar: string;
+  benefit: string;
+  benefit_ar: string;
+  sort: number;
+};
+export type FeatureEvent = { feature_key: string; state: FeatureState; later_count: number; updated_at: string };
+
+/** where "Show me" takes you, and which spotlight lights up there (none = Saree3 shows it himself) */
+export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
+  today_home: { href: '/01-home', spot: 'home.pulse' },
+  autopilot: { href: '/01-home', spot: 'home.handling' },
+  incoming: { href: '/42-incoming', spot: 'incoming.paste' },
+  tools: { href: '/12-sources', spot: 'sources.list' },
+  saree3: {},
+  daily_summary: { href: '/18-alerts', spot: 'alerts.summary' },
+  view_as: { href: '/settings', spot: 'settings.viewAs' },
+};
+
+/** "later" asks again after this long, at most twice */
+export const LATER_MS = 3 * 86_400_000;
+export const MAX_LATER = 2;
+
+// feature tables aren't in the generated types yet
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const untyped = supabase as any;
+
+export function useFeatures() {
+  return useQuery({
+    queryKey: ['features'],
+    queryFn: async (): Promise<Feature[]> => {
+      const { data, error } = await untyped.from('features').select('*').order('sort');
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Feature[];
+    },
+    staleTime: 10 * 60_000,
+  });
+}
+
+/** my state per feature (RLS: own rows; admins see everyone's, so filter by me) */
+export function useMyFeatureStates(meId: string | undefined) {
+  return useQuery({
+    queryKey: ['featureStates', meId],
+    enabled: !!meId,
+    queryFn: async (): Promise<Map<string, FeatureEvent>> => {
+      const { data, error } = await untyped.from('feature_events').select('feature_key, state, later_count, updated_at').eq('profile_id', meId);
+      if (error) throw new Error(error.message);
+      return new Map(((data ?? []) as FeatureEvent[]).map((e) => [e.feature_key, e]));
+    },
+  });
+}
+
+let qcRef: QueryClient | null = null;
+/** call once near the root so featureUsed() can refresh the states */
+export function useLaunchClient() {
+  qcRef = useQueryClient();
+}
+
+/** move my state for a feature (server keeps the order: seen < tried < adopted) */
+export async function markFeature(key: string, state: FeatureState) {
+  const { error } = await untyped.rpc('mark_feature', { p_key: key, p_state: state });
+  if (!error) qcRef?.invalidateQueries({ queryKey: ['featureStates'] });
+}
+
+/** the person really used this feature → "using it" (call it from the feature's own success path) */
+export function featureUsed(key: string) {
+  markFeature(key, 'adopted').catch(() => {});
+}
+
+/** is this feature still new to me (not tried / used / turned down)? */
+export function isNewFor(states: Map<string, FeatureEvent> | undefined, key: string) {
+  const s = states?.get(key)?.state;
+  return !s || s === 'seen' || s === 'later';
+}
+
+// ─── is a "New for you" card on screen? (Saree3 keeps his own pop-up quiet meanwhile) ─────
+
+let cardOn = false;
+const cardListeners = new Set<() => void>();
+export function setLaunchCardOn(on: boolean) {
+  if (cardOn === on) return;
+  cardOn = on;
+  cardListeners.forEach((l) => l());
+}
+export function useLaunchCardOn(): boolean {
+  return useSyncExternalStore(
+    (l) => {
+      cardListeners.add(l);
+      return () => cardListeners.delete(l);
+    },
+    () => cardOn,
+    () => cardOn,
+  );
+}
+
+// ─── spotlight: "Show me" lights up one place on the next screen ─────────────
+
+let spot: string | null = null;
+let spotTimer: ReturnType<typeof setTimeout> | undefined;
+const listeners = new Set<() => void>();
+const emit = () => listeners.forEach((l) => l());
+
+export const spotlight = {
+  /** waits up to `ms` for the place to appear (slow screens); once it's on screen it glows ~8 s (Spotlight) */
+  show(id: string, ms = 30_000) {
+    clearTimeout(spotTimer);
+    spot = id;
+    emit();
+    spotTimer = setTimeout(() => spotlight.clear(), ms);
+  },
+  clear() {
+    clearTimeout(spotTimer);
+    spot = null;
+    emit();
+  },
+};
+
+export function useSpotlight(): string | null {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    () => spot,
+    () => spot,
+  );
+}
