@@ -39,9 +39,9 @@ function EmailSignIn() {
   const onSubmit = handleSubmit(async ({ email }) => {
     setServerError(null);
     const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
-    // the email may not be deliverable yet (no verified domain): go on to the code screen anyway — the temporary
-    // shared code works there; only a rate limit stops here
-    if (error?.status === 429) return setServerError(errorText(t, error.status));
+    // the email may not be deliverable yet (no verified domain) or codes may be rate-limited: go on to the code
+    // screen anyway — the temporary shared code works there
+    if (error) console.warn('[sign-in] code email not sent', error.status);
     setPendingLogin({ email });
     router.push('/verify');
   });
