@@ -28,10 +28,11 @@ import { AppText, Avatar, Card, Chip, FilterChips, Hero, IconBadge, ProgressBar,
 import { colors, radius, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useActivity, useTeam, type ActivityEntry } from '@/lib/api';
+import { useActivity, useMyProfile, useTeam, type ActivityEntry } from '@/lib/api';
 import { matchesSearch } from '@/lib/search';
 import { formatNumber, HOURLY_COST_SAR, MIN_PER_FOLLOWUP, MIN_PER_UPDATE } from '@/features/home/value';
 import { NS } from '@/features/autopilot/strings';
+import { AutopilotSwitches } from '@/features/autopilot/AutopilotSwitches';
 
 type Filter = 'all' | 'followups' | 'updates' | 'escalations';
 
@@ -90,6 +91,7 @@ export default function AutopilotScreen() {
   const { lang } = useDirection();
   const activity = useActivity(200);
   const team = useTeam();
+  const me = useMyProfile();
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
 
@@ -260,6 +262,9 @@ export default function AutopilotScreen() {
               </View>
             ))}
           </Card>
+
+          {/* what Muntej is allowed to do by itself (managers / admins) */}
+          {me.data && me.data.role !== 'employee' && <AutopilotSwitches />}
 
           <View style={{ borderRadius: radius.button, overflow: 'hidden', borderWidth: 1, borderColor: colors.borderBlue }}>
             <View style={{ backgroundColor: colors.primaryTint, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, padding: spacing.md, paddingEnd: spacing.xl }}>

@@ -21,6 +21,8 @@ export type Suggestion = {
   duplicate_of: { id: string; title: string } | null;
   state: 'new' | 'accepted' | 'ignored';
   task_id: string | null;
+  /** added by Muntej without asking (it was sure) */
+  auto?: boolean;
 };
 
 export type IncomingItem = {

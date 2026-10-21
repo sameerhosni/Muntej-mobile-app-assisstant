@@ -2,8 +2,9 @@
 // "Today" — what a manager checks every morning, top to bottom, each block short (max 3 rows) and hidden when empty:
 //   1. slim header: greeting + bell + avatar, and Saree3's one-line status in his colour
 //   2. team pulse: working on · late · done this week · yours (each number opens those tasks)
-//   3. "Needs you": decisions → reviews (one-tap Approve) → late team tasks (one-tap Nudge)
-//   4. who needs support (late / blocked / sent back / overbooked) with one-tap Check in
+//      + "Muntej is on it": late work it is chasing, things it did by itself today (→ Autopilot log)
+//   3. "Needs you": decisions only — tasks found in messages, decisions, finished work (one-tap Approve)
+//   4. who needs support (late / blocked / sent back / overbooked); Muntej is already following up with them
 //   5. your own tasks, tick to finish
 //   6. shortcuts: Your week (value receipt), Team, Objectives, Autopilot
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
@@ -20,7 +21,7 @@ import { useMyProfile } from '@/lib/api';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
-import { MyTasks, NeedsSupport, TeamPulse } from '@/features/home/TodayHome';
+import { MuntejHandling, MyTasks, NeedsSupport, TeamPulse } from '@/features/home/TodayHome';
 import { NS } from '@/features/home/strings';
 function greetingKey(date = new Date()) {
   const h = date.getHours();
@@ -70,8 +71,11 @@ export default function ManagerHome() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
-          {/* 2. the team at a glance */}
-          <TeamPulse />
+          {/* 2. the team at a glance + what Muntej is handling by itself */}
+          <View style={{ gap: spacing.md }}>
+            <TeamPulse />
+            <MuntejHandling />
+          </View>
 
           {/* 3. what needs you, max 3, with one-tap actions */}
           <NeedsYou />

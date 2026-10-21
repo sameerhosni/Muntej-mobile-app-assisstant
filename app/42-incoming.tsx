@@ -38,8 +38,10 @@ export default function IncomingScreen() {
     try {
       const item = await actions.ingest(text, params.text ? 'share' : 'paste');
       setText('');
+      const auto = item.suggestions.filter((s) => s.auto).length;
       if (item.duplicate_message) setNote(t('sameMessage'));
       else if (!item.suggestions.length) setNote(t('foundNone'));
+      else if (auto) setNote(t('autoAdded', { count: auto, n: auto }));
     } catch (e) {
       setNote((e as Error).message || t('error'));
     } finally {

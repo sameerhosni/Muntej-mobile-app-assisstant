@@ -24,10 +24,12 @@ const en = {
   // manager Today: one-tap actions, team pulse, who needs support, your tasks
   approve: 'Approve',
   approved: 'Approved',
-  nudge: 'Nudge',
-  nudged: 'Nudged',
-  checkIn: 'Check in',
-  checkedIn: 'Sent',
+  handlingTitle: 'Muntej is on it',
+  handlingLate_one: 'chasing {{n}} late task',
+  handlingLate_other: 'chasing {{n}} late tasks',
+  handlingToday_one: '{{n}} thing done by itself today',
+  handlingToday_other: '{{n}} things done by itself today',
+  supOnIt: 'Muntej is following up',
   pulseTitle: 'Your team today',
   pulse_working: 'Working on',
   pulse_late: 'Late',
@@ -39,8 +41,6 @@ const en = {
   sup_returned: '{{n}} sent back',
   sup_over: 'booked {{pct}}% this week',
   myTasksTitle: 'Your tasks',
-  log_nudge: 'Asked for an update on "{{task}}"',
-  log_checkin: 'Checked in: how can I help with your tasks?',
 };
 
 const ar: typeof en = {
@@ -65,10 +65,12 @@ const ar: typeof en = {
   progressA11y: 'المستوى {{level}}، {{streak}} يوم متواصل، {{pts}} نقطة. افتح المكافآت',
   approve: 'اعتمد',
   approved: 'اعتمدتها',
-  nudge: 'ذكّره',
-  nudged: 'ذكّرته',
-  checkIn: 'اطمّن عليه',
-  checkedIn: 'أرسلت',
+  handlingTitle: 'منتج ماسك الأمور',
+  handlingLate_one: 'يلاحق {{n}} مهمة متأخرة',
+  handlingLate_other: 'يلاحق {{n}} مهام متأخرة',
+  handlingToday_one: 'سوّى {{n}} شي بنفسه اليوم',
+  handlingToday_other: 'سوّى {{n}} أشياء بنفسه اليوم',
+  supOnIt: 'منتج يتابع معه',
   pulseTitle: 'فريقك اليوم',
   pulse_working: 'شغّالين عليها',
   pulse_late: 'متأخرة',
@@ -80,8 +82,6 @@ const ar: typeof en = {
   sup_returned: '{{n}} راجعة للتعديل',
   sup_over: 'محجوز {{pct}}٪ هالأسبوع',
   myTasksTitle: 'مهامك',
-  log_nudge: 'طلب تحديث عن «{{task}}»',
-  log_checkin: 'يطمّن عليك: وش أقدر أساعدك فيه بمهامك؟',
 };
 
 export const NS = registerStrings('s01', { en, ar });

@@ -23,6 +23,22 @@ const en = {
   monthValue: '{{h}} h · SAR {{sar}}',
   auto: 'Auto · your rules',
   undoable: 'Undoable',
+  // switches: what Muntej does by itself
+  sw_title: 'What Muntej does by itself',
+  sw_hint: 'For your team. You only get the decisions.',
+  sw_chase_late: 'Chase late work',
+  sw_chase_late_hint: 'Reminds the owner 3 times, then brings you one decision',
+  sw_help_blocked: 'Help with blocked work',
+  sw_help_blocked_hint: 'Asks what is blocking it and follows up',
+  sw_rebalance: 'Balance the workload',
+  sw_rebalance_hint: 'Proposes moving a task off anyone who is overbooked',
+  sw_find_owner: 'Find owners',
+  sw_find_owner_hint: 'Proposes who should take a task nobody owns',
+  sw_incoming_auto: 'Add sure tasks from messages',
+  sw_incoming_auto_hint: 'Clear owner and date, not a duplicate: added without asking',
+  sw_auto_approve: 'Approve finished work',
+  sw_auto_approve_hint: 'Reminds you after 1 working day, approves it after 2',
+  sw_error: "Couldn't save that. Try again.",
 };
 
 const ar: typeof en = {
@@ -48,6 +64,21 @@ const ar: typeof en = {
   monthValue: '{{h}} س · {{sar}} ريال',
   auto: 'تلقائي · حسب قواعدك',
   undoable: 'تقدر تتراجع',
+  sw_title: 'وش يسوي منتج بنفسه',
+  sw_hint: 'لفريقك. يوصلك بس اللي يحتاج قرار.',
+  sw_chase_late: 'يلاحق الشغل المتأخر',
+  sw_chase_late_hint: 'يذكّر المسؤول ٣ مرات، بعدها يجيبك بقرار واحد',
+  sw_help_blocked: 'يساعد في الشغل الواقف',
+  sw_help_blocked_hint: 'يسأل وش موقفه ويتابع',
+  sw_rebalance: 'يوزّع الضغط',
+  sw_rebalance_hint: 'يقترح ينقل مهمة عن أي أحد محجوز زيادة',
+  sw_find_owner: 'يلقى مسؤول',
+  sw_find_owner_hint: 'يقترح مين ياخذ المهمة اللي بدون مسؤول',
+  sw_incoming_auto: 'يضيف المهام الأكيدة من الرسائل',
+  sw_incoming_auto_hint: 'مسؤول وموعد واضحين وما هي مكررة: يضيفها بدون ما يسأل',
+  sw_auto_approve: 'يعتمد الشغل الخالص',
+  sw_auto_approve_hint: 'يذكّرك بعد يوم عمل، ويعتمده بعد يومين',
+  sw_error: 'ما انحفظ التغيير. جرّب مرة ثانية.',
 };
 
 export const NS = registerStrings('s03', { en, ar });

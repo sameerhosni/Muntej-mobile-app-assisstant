@@ -3,14 +3,12 @@
 import type { ComponentType } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { ChevronRight, ClipboardCheck, Clock, Gavel, Inbox, type LucideProps } from 'lucide-react-native';
+import { ChevronRight, ClipboardCheck, Gavel, Inbox, type LucideProps } from 'lucide-react-native';
 import { AppText, Card, IconBadge } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useDecisions, useMyProfile, useTasks, useTeam } from '@/lib/api';
-import { formatDue } from '@/features/capture/format';
-import { isLate } from '@/features/tasks/model';
 import { contentDirection } from '@/features/chat/Bubbles';
 import { Munti } from '@/features/munti/Munti';
 import { usePerformance, type Line } from '@/features/munti/performance';
@@ -73,7 +71,7 @@ type Need = {
   action?: { label: string; done: string; tone: 'primary' | 'green'; run: () => Promise<boolean> };
 };
 
-/** Manager: the few things that need you, most urgent first — decisions, reviews waiting (Approve), late team tasks (Nudge). */
+/** Manager: only what needs a decision — tasks found in messages, decisions, finished work waiting for review (Approve). */
 export function NeedsYou() {
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
@@ -81,7 +79,7 @@ export function NeedsYou() {
   const team = useTeam();
   const tasks = useTasks();
   const decisions = useDecisions('pending');
-  const { approve, nudge } = useTodayActions();
+  const { approve } = useTodayActions();
   const { t: ti } = useScreenT(INCOMING_NS);
   const incoming = useIncomingCount();
   const meId = me.data?.id;
@@ -90,10 +88,6 @@ export function NeedsYou() {
     const p = id ? (team.data ?? []).find((x) => x.id === id) : undefined;
     return p ? ((ar && p.full_name_ar) || p.full_name).split(' ')[0] : null;
   };
-  const now = Date.now();
-  const byDue = (a: { due_at: string | null }, b: { due_at: string | null }) =>
-    (a.due_at ? Date.parse(a.due_at) : Infinity) - (b.due_at ? Date.parse(b.due_at) : Infinity);
-
   const needs: Need[] = [
     // tasks Muntej found in pasted / forwarded messages, waiting for Add or Ignore
     ...(incoming.count > 0
@@ -130,26 +124,9 @@ export function NeedsYou() {
         href: { pathname: '/15-review', params: { id: x.id } } as Href,
         action: { label: t('approve'), done: t('approved'), tone: 'green' as const, run: () => approve(x.id) },
       })),
-    ...(tasks.data ?? [])
-      .filter((x) => isLate(x, now))
-      .sort(byDue)
-      .map((x) => ({
-        key: `l-${x.id}`,
-        Icon: Clock,
-        bg: 'redTint' as ColorToken,
-        fg: colors.red,
-        title: x.title,
-        sub: x.owner_id
-          ? t('ny_late', { name: first(x.owner_id) ?? '…', when: formatDue(x.due_at!, lang) })
-          : t('ny_lateNoOwner', { when: formatDue(x.due_at!, lang) }),
-        href: { pathname: '/14-task-detail', params: { id: x.id } } as Href,
-        action:
-          x.owner_id && x.owner_id !== meId
-            ? { label: t('nudge'), done: t('nudged'), tone: 'primary' as const, run: () => nudge(x) }
-            : undefined,
-      })),
+    // late work is not here: the autopilot chases it and only brings a decision when the owner doesn't answer
   ];
-  const taskIds = needs.filter((n) => n.key.startsWith('r-') || n.key.startsWith('l-')).map((n) => n.key.slice(2));
+  const taskIds = needs.filter((n) => n.key.startsWith('r-')).map((n) => n.key.slice(2));
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
   return (

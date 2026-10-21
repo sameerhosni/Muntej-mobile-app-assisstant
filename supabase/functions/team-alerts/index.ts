@@ -115,10 +115,11 @@ function texts(kind: Kind, c: Ctx): { title: string; body: string; title_ar: str
       };
     case 'overload':
       return {
-        title: `${c.name} is overloaded`,
-        body: `${c.hours} h of open work against ${c.cap} h a week. Consider moving something.`,
-        title_ar: `${c.nameAr} عليه ضغط شغل`,
-        body_ar: `عنده ${c.hours} ساعة شغل مفتوح وطاقته ${c.cap} ساعة بالأسبوع. يمكن تنقل شي منها.`,
+        // sent to the person themself; Muntej proposes the move to their manager
+        title: 'Your week is very full',
+        body: `${c.hours} h of open work against ${c.cap} h a week. Muntej is asking your manager to move something off your plate.`,
+        title_ar: 'أسبوعك مليان',
+        body_ar: `عندك ${c.hours} ساعة شغل مفتوح وطاقتك ${c.cap} ساعة بالأسبوع. منتج بيطلب من مديرك ينقل شي عنك.`,
       };
     case 'task_done_on_time':
       return {
@@ -284,15 +285,15 @@ serve(async (req) => {
     if (!ACTIVE.includes(t.status) || !t.due_at) continue;
     const due = new Date(t.due_at).getTime();
 
-    if (due <= nowMs && due > nowMs - DAY) {
-      add('task_late', [...managersOf(owner.id), owner.id], owner, t, {}, `task_late:${t.id}`);
-    } else if (due > nowMs) {
+    // late work is the autopilot's job (it chases the owner and only brings the manager a decision), so no
+    // task_late alert here; an at-risk heads-up goes to the owner, not the manager
+    if (due > nowMs) {
       const start = new Date(t.start_at ?? t.created_at).getTime();
       const total = due - start;
       if (total > 0) {
         const frac = (nowMs - start) / total;
         if (frac >= 0.65 && t.progress < 50) {
-          add('task_at_risk', managersOf(owner.id), owner, t, { pct: Math.round(frac * 100), progress: t.progress }, `task_at_risk:${t.id}`);
+          add('task_at_risk', [owner.id], owner, t, { pct: Math.round(frac * 100), progress: t.progress }, `task_at_risk:${t.id}`);
         }
       }
     }
@@ -305,8 +306,10 @@ serve(async (req) => {
     const cap = Number(owner.weekly_capacity_hours ?? 0);
     if (cap <= 0) continue;
     const hours = tasks.reduce((s, t) => s + (t.estimate_hours != null ? Number(t.estimate_hours) : DEFAULT_TASK_HOURS), 0);
+    // the manager gets a ready "move a task" decision from the autopilot instead of a bare overload alert;
+    // the person hears it so they can say what to drop
     if (hours > cap * 1.1) {
-      add('overload', managersOf(ownerId), owner, null, { hours: Math.round(hours), cap: Math.round(cap) }, `overload:${ownerId}:${week}`);
+      add('overload', [ownerId], owner, null, { hours: Math.round(hours), cap: Math.round(cap) }, `overload:${ownerId}:${week}`);
     }
   }
 
@@ -365,7 +368,7 @@ serve(async (req) => {
   // escalation: a follow-up got no answer (nothing moved on the task since) → remind the owner, then tell the manager
   const { data: sentFollowups } = await admin
     .from('followups')
-    .select('id, task_id, recipient_id, sent_at, task:tasks(id, title, status, updated_at)')
+    .select('id, task_id, recipient_id, sent_at, task:tasks(id, title, status, updated_at, due_at)')
     .eq('status', 'sent')
     .gte('sent_at', new Date(nowMs - 7 * DAY).toISOString())
     .lte('sent_at', new Date(nowMs - 2 * HOUR).toISOString())
@@ -376,9 +379,11 @@ serve(async (req) => {
     : { data: [] as { profile_id: string; escalation: Record<string, unknown> | null }[] };
   const escOf = new Map((escRows ?? []).map((e) => [e.profile_id as string, (e.escalation ?? {}) as { no_reply_hours?: number; alert_manager?: boolean }]));
   for (const f of sentFollowups ?? []) {
-    const task = f.task as unknown as { id: string; title: string; status: string; updated_at: string } | null;
+    const task = f.task as unknown as { id: string; title: string; status: string; updated_at: string; due_at: string | null } | null;
     const owner = active(f.recipient_id as string | null);
     if (!task || !owner || !ACTIVE.includes(task.status)) continue;
+    // past due: the autopilot's chase owns it (reminders, then one decision for the manager)
+    if (task.due_at && new Date(task.due_at).getTime() < nowMs) continue;
     const sentAt = new Date(f.sent_at as string).getTime();
     if (new Date(task.updated_at).getTime() > sentAt + 5 * 60_000) continue; // something moved since: answered
     const esc = escOf.get(owner.id) ?? {};

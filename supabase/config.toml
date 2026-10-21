@@ -439,3 +439,6 @@ verify_jwt = false
 
 [functions.intake]
 verify_jwt = false
+
+[functions.autopilot]
+verify_jwt = false

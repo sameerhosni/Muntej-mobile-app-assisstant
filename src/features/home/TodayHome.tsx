@@ -1,12 +1,12 @@
-// The manager's "Today" blocks for Home: the team at a glance (pulse), who needs support, and your own tasks.
-// Plus the one-tap actions used by "Needs you": Approve a finished task, Nudge the owner of a late one, Check in on
-// a person. Every action is written to activity_log; the person it concerns gets it as an alert/push (trigger).
+// The manager's "Today" blocks for Home: the team at a glance (pulse), what Muntej is handling by itself, who needs
+// support (Muntej is already following up), and your own tasks. The only one-tap action left is Approve finished work:
+// chasing late work and checking on stuck people is the autopilot's job (supabase/functions/autopilot).
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronRight } from 'lucide-react-native';
-import i18n, { useDirection } from '@/lib/i18n';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Bot, Check, ChevronRight } from 'lucide-react-native';
+import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { supabase } from '@/lib/supabase';
 import { useMyProfile, useTasks, useTeam, type Profile, type TaskWithPeople } from '@/lib/api';
@@ -76,24 +76,9 @@ export function ActionPill({
   );
 }
 
-/** One-tap manager actions. Each returns true when it worked. */
+/** The one action a manager still takes from Home: approving finished work. (Chasing and check-ins are the autopilot's.) */
 export function useTodayActions() {
   const qc = useQueryClient();
-  const me = useMyProfile();
-  const log = async (row: { subject: string | null; task: string | null; key: string; vars: Record<string, string> }) => {
-    if (!me.data) return false;
-    const { error } = await supabase.from('activity_log').insert({
-      actor_type: 'user',
-      actor_id: me.data.id,
-      subject_id: row.subject,
-      task_id: row.task,
-      action: row.key === 'log_checkin' ? 'check_in' : 'nudged',
-      summary: i18n.t(`${NS}.${row.key}`, { ...row.vars, lng: 'en' }),
-      summary_ar: i18n.t(`${NS}.${row.key}`, { ...row.vars, lng: 'ar' }),
-      undoable: false,
-    });
-    return !error;
-  };
   return {
     /** Close a finished task (set_task_status approves the open review round). */
     approve: async (taskId: string) => {
@@ -105,12 +90,69 @@ export function useTodayActions() {
         return false;
       }
     },
-    /** Ask the owner of a late task for an update — reaches them as an alert + push. */
-    nudge: (x: Pick<TaskWithPeople, 'id' | 'title' | 'owner_id'>) =>
-      log({ subject: x.owner_id, task: x.id, key: 'log_nudge', vars: { task: x.title } }),
-    /** "How can I help?" to a person who looks stuck. */
-    checkIn: (p: Pick<Profile, 'id'>) => log({ subject: p.id, task: null, key: 'log_checkin', vars: {} }),
   };
+}
+
+/** "Muntej is on it": what the autopilot is handling right now (late work it's chasing) and did today. Opens the log. */
+export function MuntejHandling() {
+  const { t } = useScreenT(NS);
+  const { lang, isRTL } = useDirection();
+  const me = useMyProfile();
+  const tasks = useTasks();
+  const meId = me.data?.id;
+  const today = useQuery({
+    queryKey: ['activity', 'muntejToday'],
+    queryFn: async () => {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const { count, error } = await supabase
+        .from('activity_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('actor_type', 'muntej')
+        .gte('created_at', start.toISOString());
+      if (error) throw new Error(error.message);
+      return count ?? 0;
+    },
+  });
+  const late = (tasks.data ?? []).filter((x) => x.owner_id !== meId && isLate(x)).length;
+  const done = today.data ?? 0;
+  if (!late && !done) return null;
+  const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
+  const text = [
+    late > 0 && t('handlingLate', { count: late, n: formatNumber(late, lang) }),
+    done > 0 && t('handlingToday', { count: done, n: formatNumber(done, lang) }),
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <Pressable
+      onPress={() => router.push('/03-autopilot')}
+      accessibilityRole="link"
+      accessibilityLabel={`${t('handlingTitle')}. ${text}`}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        minHeight: sizes.touch + 8,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radius.tile,
+        backgroundColor: colors.primaryTint,
+        opacity: pressed ? 0.8 : 1,
+      })}
+    >
+      <Bot color={colors.primary} size={20} strokeWidth={2} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <AppText weight="bold" color="primary">
+          {t('handlingTitle')}
+        </AppText>
+        <AppText variant="caption" color="textMuted" numberOfLines={1}>
+          {text}
+        </AppText>
+      </View>
+      <ChevronRight color={colors.primary} size={16} strokeWidth={2.2} style={flip} />
+    </Pressable>
+  );
 }
 
 type Tile = { key: string; label: string; n: number; ids: string[]; fg: string; bg: ColorToken };
@@ -182,7 +224,6 @@ export function NeedsSupport() {
   const me = useMyProfile();
   const team = useTeam();
   const tasks = useTasks();
-  const { checkIn } = useTodayActions();
   const meId = me.data?.id;
   const now = Date.now();
   const weekEnd = startOfWeek(new Date(now)).getTime() + 7 * DAY_MS;
@@ -226,46 +267,38 @@ export function NeedsSupport() {
         {people.slice(0, 3).map((s, i) => {
           const name = personName(s.p, lang);
           return (
-            // the row opens their stuck tasks; "Check in" sits beside it (not nested)
-            <View
+            // the row opens their stuck tasks; no button: Muntej is already following up with them
+            <Pressable
               key={s.p.id}
-              style={{
+              onPress={() => router.push(tasksLink(s.ids))}
+              accessibilityRole="button"
+              accessibilityLabel={`${name}. ${why(s)}. ${t('supOnIt')}`}
+              style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: spacing.sm,
-                paddingEnd: spacing.sm,
+                gap: spacing.md,
+                minHeight: sizes.touch + 12,
+                paddingHorizontal: spacing.sm,
+                paddingVertical: spacing.xs,
                 borderTopWidth: i === 0 ? 0 : 1,
                 borderTopColor: colors.border,
-              }}
+                opacity: pressed ? 0.7 : 1,
+              })}
             >
-              <Pressable
-                onPress={() => router.push(tasksLink(s.ids))}
-                accessibilityRole="button"
-                accessibilityLabel={`${name}. ${why(s)}`}
-                style={({ pressed }) => ({
-                  flex: 1,
-                  minWidth: 0,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: spacing.md,
-                  minHeight: sizes.touch + 12,
-                  paddingStart: spacing.sm,
-                  opacity: pressed ? 0.7 : 1,
-                })}
-              >
-                <Avatar name={s.p.full_name} size={34} gradient={avatarGradientFor(s.p.full_name)} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <AppText weight="bold" numberOfLines={1}>
-                    {firstName(name)}
-                  </AppText>
-                  <AppText variant="caption" color={s.late > 0 ? 'red' : 'textMuted'} numberOfLines={1}>
-                    {why(s)}
-                  </AppText>
-                </View>
-                <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
-              </Pressable>
-              <ActionPill label={t('checkIn')} doneLabel={t('checkedIn')} onPress={() => checkIn(s.p)} />
-            </View>
+              <Avatar name={s.p.full_name} size={34} gradient={avatarGradientFor(s.p.full_name)} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText weight="bold" numberOfLines={1}>
+                  {firstName(name)}
+                </AppText>
+                <AppText variant="caption" color={s.late > 0 ? 'red' : 'textMuted'} numberOfLines={1}>
+                  {why(s)}
+                </AppText>
+                <AppText variant="caption" color="primary" numberOfLines={1}>
+                  {t('supOnIt')}
+                </AppText>
+              </View>
+              <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
+            </Pressable>
           );
         })}
         {people.length > 3 && (

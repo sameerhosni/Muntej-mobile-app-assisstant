@@ -4,6 +4,7 @@ import i18n from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 import type { DecisionWithContext, Profile } from '@/lib/api';
 import { NS } from './strings';
+import { jsonStr } from './people';
 
 type Person = Pick<Profile, 'id' | 'full_name' | 'full_name_ar'>;
 
@@ -30,6 +31,13 @@ export function useResolveDecision() {
 
       if (moveTo && d.task_id) {
         check(await supabase.from('tasks').update({ owner_id: moveTo.id }).eq('id', d.task_id));
+        // a task nobody owned (draft) becomes a real assignment once it has an owner
+        check(await supabase.from('tasks').update({ status: 'assigned' }).eq('id', d.task_id).eq('status', 'draft'));
+      }
+      // "give more time" (Muntej's late-work decision carries the new date): approving moves the due date
+      const newDue = jsonStr(d.details, 'new_due_at');
+      if (outcome === 'approved' && !moveTo && d.task_id && newDue) {
+        check(await supabase.from('tasks').update({ due_at: newDue, expected_close_at: newDue }).eq('id', d.task_id));
       }
 
       check(
