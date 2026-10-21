@@ -448,3 +448,6 @@ verify_jwt = false
 
 [functions.sync-sources]
 verify_jwt = false
+
+[functions.quick-login]
+verify_jwt = false

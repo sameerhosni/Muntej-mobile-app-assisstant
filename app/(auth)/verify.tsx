@@ -33,6 +33,13 @@ export default function VerifyScreen() {
 
   const onSubmit = handleSubmit(async ({ code }) => {
     setServerError(null);
+    // TEMPORARY: the shared 4-digit code (while sign-in emails don't reach everyone) → quick-login gives a one-time token
+    if (email && code.length === 4) {
+      const { data, error: fnError } = await supabase.functions.invoke<{ token_hash: string }>('quick-login', { body: { email, code } });
+      const res = data?.token_hash ? await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' }) : null;
+      if (fnError || !res || res.error) setServerError(t('auth.genericError'));
+      return;
+    }
     const { error } = phone
       ? await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' })
       : await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
