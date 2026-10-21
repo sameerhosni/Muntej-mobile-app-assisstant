@@ -36,8 +36,6 @@ const en = {
   sw_find_owner_hint: 'Proposes who should take a task nobody owns',
   sw_incoming_auto: 'Add sure tasks from messages',
   sw_incoming_auto_hint: 'Clear owner and date, not a duplicate: added without asking',
-  sw_auto_approve: 'Approve finished work',
-  sw_auto_approve_hint: 'Reminds you after 1 working day, approves it after 2',
   sw_error: "Couldn't save that. Try again.",
 };
 
@@ -76,8 +74,6 @@ const ar: typeof en = {
   sw_find_owner_hint: 'يقترح مين ياخذ المهمة اللي بدون مسؤول',
   sw_incoming_auto: 'يضيف المهام الأكيدة من الرسائل',
   sw_incoming_auto_hint: 'مسؤول وموعد واضحين وما هي مكررة: يضيفها بدون ما يسأل',
-  sw_auto_approve: 'يعتمد الشغل الخالص',
-  sw_auto_approve_hint: 'يذكّرك بعد يوم عمل، ويعتمده بعد يومين',
   sw_error: 'ما انحفظ التغيير. جرّب مرة ثانية.',
 };
 

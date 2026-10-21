@@ -16,6 +16,8 @@ import { formatNumber } from '@/features/home/value';
 import { shortName } from '@/features/decisions/people';
 import { person, personLabel } from '@/features/demo/team';
 import { useDecideReview } from '@/features/review/useDecideReview';
+import { AutoApproveTag } from '@/features/review/ReviewBar';
+import { autoApproveAt, openReview } from '@/features/review/countdown';
 import { NS } from '@/features/review/strings';
 
 type Status = 'pending' | 'approved' | 'returned';
@@ -112,8 +114,10 @@ export default function ReviewScreen() {
       ];
 
   // live: what the bottom area shows when nothing was decided in this visit
+  // the owner never decides on their own work (a manager's own task goes to their manager): they see it waiting
+  const ownerViewing = live && !!me.data && me.data.id === d?.owner_id;
   const liveView: Status | 'waiting' =
-    status !== 'pending' ? status : pendingReview ? 'pending' : lastReview?.decision === 'approved' ? 'approved' : 'waiting';
+    status !== 'pending' ? status : pendingReview ? (ownerViewing ? 'waiting' : 'pending') : lastReview?.decision === 'approved' ? 'approved' : 'waiting';
   const view = live ? liveView : status;
   const shownRating = live && status === 'pending' && liveView === 'approved' ? lastReview?.rating ?? 5 : rating;
   const currentRound = live ? pendingReview?.round ?? lastReview?.round ?? 1 : 2;
@@ -266,6 +270,7 @@ export default function ReviewScreen() {
       >
         {view === 'pending' && (
           <View style={{ backgroundColor: colors.surface, borderRadius: 26, padding: spacing.xxl, gap: spacing.lg, boxShadow: shadows.raised }}>
+            {live && <AutoApproveTag at={autoApproveAt(openReview(d?.reviews))} />}
             <AppText variant="section" style={{ fontSize: 18 }}>
               {t('rate')}
             </AppText>
@@ -408,6 +413,7 @@ export default function ReviewScreen() {
             <AppText variant="small" color="textMuted">
               {t('waitingBody', { name: ownerName })}
             </AppText>
+            {live && <AutoApproveTag at={autoApproveAt(openReview(d?.reviews))} />}
             <Button size="md" variant="outline" label={t('backToTask')} onPress={leave} />
           </View>
         )}

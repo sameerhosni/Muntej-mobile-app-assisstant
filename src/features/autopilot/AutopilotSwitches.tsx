@@ -11,7 +11,8 @@ import { useMyProfile } from '@/lib/api';
 import { NS } from './strings';
 import { featureUsed } from '@/features/launch/launch';
 
-export const AUTOPILOT_RULES = ['chase_late', 'help_blocked', 'rebalance', 'find_owner', 'incoming_auto', 'auto_approve'] as const;
+// auto_approve has no switch: finished work is always approved by Muntej after 2 working days (3 at most)
+export const AUTOPILOT_RULES = ['chase_late', 'help_blocked', 'rebalance', 'find_owner', 'incoming_auto'] as const;
 export type AutopilotRule = (typeof AUTOPILOT_RULES)[number];
 
 // autopilot_prefs isn't in the generated types yet

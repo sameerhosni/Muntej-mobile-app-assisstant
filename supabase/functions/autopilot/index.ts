@@ -7,8 +7,8 @@
 //   help_blocked  a task marked blocked: ask the owner what's blocking it (once per blocked spell).
 //   rebalance     someone booked over 110% this week: propose moving their least urgent task to the freest teammate.
 //   find_owner    a task nobody owns after 30 min: propose the teammate with the most free time.
-//   auto_approve  finished work waiting for review: remind the reviewer after 1 working day; approve it by itself after
-//                 `auto_approve_days` working days (default 2) and tell both sides.
+//   auto_approve  (always on) finished work waiting for review: remind the reviewer after 1 working day; approve it by itself at
+//                 reviews.auto_approve_at (2 working days by default, 3 at most) and tell both sides.
 // The switches live in autopilot_prefs (the manager's row governs their team; missing = on). Messages go out through
 // the follow-up / alert pipeline, so quiet hours, prayer times and Fridays are respected; every action is logged.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
@@ -125,7 +125,7 @@ async function run(admin: SupabaseClient, dry: boolean) {
     admin.from('autopilot_prefs').select('profile_id, rules, chase_reminders, auto_approve_days'),
     admin.from('autopilot_marks').select('key, created_at').gte('created_at', new Date(now - 60 * DAY).toISOString()),
     admin.from('decisions').select('task_id').eq('status', 'pending'),
-    admin.from('reviews').select('id, task_id, reviewer_id, created_at').is('decision', null),
+    admin.from('reviews').select('id, task_id, reviewer_id, created_at, auto_approve_at').is('decision', null),
   ]);
   for (const r of [peopleRes, tasksRes, prefsRes, marksRes, decRes, revRes]) if (r.error) throw r.error;
 
@@ -406,15 +406,17 @@ async function run(admin: SupabaseClient, dry: boolean) {
   // ── 5. reviews: remind after 1 working day, approve by itself after N ──
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const alerts: Record<string, unknown>[] = [];
-  for (const r of (revRes.data ?? []) as { id: string; task_id: string; reviewer_id: string | null; created_at: string }[]) {
+  for (const r of (revRes.data ?? []) as { id: string; task_id: string; reviewer_id: string | null; created_at: string; auto_approve_at: string | null }[]) {
     const t = byId.get(r.task_id);
     if (!t || t.status !== 'submitted') continue;
     const owner = active(t.owner_id);
     const reviewer = active(r.reviewer_id) ?? (owner ? managerOf(owner.id, t.assigner_id) : undefined);
-    if (!owner || !reviewer || !on(reviewer.id, 'auto_approve')) continue;
+    // always on: finished work never waits more than 2 working days by default, 3 at most (reviews.auto_approve_at)
+    if (!owner || !reviewer) continue;
     const days = workingDaysSince(Date.parse(r.created_at), now);
-    const limit = prefs(reviewer.id).auto_approve_days;
-    if (days >= limit) {
+    const limit = Math.min(3, Math.max(1, prefs(reviewer.id).auto_approve_days));
+    const deadline = r.auto_approve_at ? Date.parse(r.auto_approve_at) : workingDaysAhead(Date.parse(r.created_at), limit);
+    if (now >= deadline) {
       const key = `auto_approve:${r.id}`;
       if (marks.has(key)) continue;
       if (!dry) {
@@ -451,8 +453,8 @@ async function run(admin: SupabaseClient, dry: boolean) {
     } else if (days >= 1) {
       const key = `review_remind:${r.id}`;
       if (marks.has(key)) continue;
-      const on_ = whenText(workingDaysAhead(Date.parse(r.created_at), limit), false);
-      const onAr = whenText(workingDaysAhead(Date.parse(r.created_at), limit), true);
+      const on_ = `${whenText(deadline, false)} 9:00`;
+      const onAr = `${whenText(deadline, true)} الساعة ٩ الصبح`;
       alerts.push({
         profile_id: reviewer.id,
         kind: 'new_submission',

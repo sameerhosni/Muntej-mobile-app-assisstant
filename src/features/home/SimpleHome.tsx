@@ -18,6 +18,8 @@ import { ActionPill, useTodayActions } from './TodayHome';
 import { useIncomingCount } from '@/features/incoming/api';
 import { isNewFor, useMyFeatureStates } from '@/features/launch/launch';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
+import { AutoApproveTag } from '@/features/review/ReviewBar';
+import { useReviewDeadlines } from '@/features/review/countdown';
 
 /** Saree3's one-sentence status, in his colour, for the Home header. Tap → the tasks it names. */
 export function SareeLine({ onDark = true }: { onDark?: boolean }) {
@@ -70,6 +72,8 @@ type Need = {
   href: Href;
   /** one-tap action on the row (Approve / Nudge); tapping the row still opens the details */
   action?: { label: string; done: string; tone: 'primary' | 'green'; run: () => Promise<boolean> };
+  /** finished work: when Muntej approves it by itself */
+  autoAt?: string | null;
 };
 
 /** Manager: only what needs a decision — tasks found in messages, decisions, finished work waiting for review (Approve). */
@@ -83,6 +87,8 @@ export function NeedsYou() {
   const { approve } = useTodayActions();
   const { t: ti } = useScreenT(INCOMING_NS);
   const incoming = useIncomingCount();
+  const reviewIds = (tasks.data ?? []).filter((x) => x.status === 'submitted').map((x) => x.id);
+  const deadlines = useReviewDeadlines(reviewIds);
   const meId = me.data?.id;
   const ar = lang === 'ar';
   const first = (id: string | null) => {
@@ -124,6 +130,7 @@ export function NeedsYou() {
         sub: t('ny_review', { name: first(x.owner_id) ?? '…' }),
         href: { pathname: '/15-review', params: { id: x.id } } as Href,
         action: { label: t('approve'), done: t('approved'), tone: 'green' as const, run: () => approve(x.id) },
+        autoAt: deadlines.data?.get(x.id) ?? null,
       })),
     // late work is not here: the autopilot chases it and only brings a decision when the owner doesn't answer
   ];
@@ -193,6 +200,7 @@ export function NeedsYou() {
                   <AppText variant="caption" color="textMuted" numberOfLines={1}>
                     {n.sub}
                   </AppText>
+                  {!!n.autoAt && <AutoApproveTag at={n.autoAt} />}
                 </View>
                 {!n.action && <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />}
               </Pressable>

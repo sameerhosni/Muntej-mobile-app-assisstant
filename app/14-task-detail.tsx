@@ -14,7 +14,8 @@ import { AppText, Avatar, BottomCTA, BOTTOM_CTA_SPACE, Card, Gradient, IconBadge
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
+import { useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
+import { ReviewBar } from '@/features/review/ReviewBar';
 import type { Enum } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
 import { shortName } from '@/features/decisions/people';
@@ -65,6 +66,7 @@ export default function TaskDetailScreen() {
   const task = useTask(id);
   const tool = useTaskTools().data?.get(id ?? '');
   const team = useTeam();
+  const me = useMyProfile();
   const toggle = useToggleSubtask();
 
   const [asked, setAsked] = useState<Partial<Record<CheckKey, boolean>>>({});
@@ -181,7 +183,7 @@ export default function TaskDetailScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + spacing.xs, paddingBottom: BOTTOM_CTA_SPACE + insets.bottom, gap: spacing.xxl }}
+        contentContainerStyle={{ paddingTop: insets.top + spacing.xs, paddingBottom: BOTTOM_CTA_SPACE + insets.bottom + (d?.status === 'submitted' ? 70 : 0), gap: spacing.xxl }}
         showsVerticalScrollIndicator={false}
       >
         {/* header */}
@@ -394,6 +396,9 @@ export default function TaskDetailScreen() {
         </View>
       </ScrollView>
 
+      {live && d ? (
+        <ReviewBar task={d} me={me.data} team={team.data ?? []} />
+      ) : (
       <BottomCTA
         secondary={
           id
@@ -410,6 +415,7 @@ export default function TaskDetailScreen() {
           icon: <Send color={colors.onDark} size={18} strokeWidth={2.2} style={flip} />,
         }}
       />
+      )}
     </View>
   );
 }
