@@ -5,13 +5,13 @@
 //      + "Muntej is on it": late work it is chasing, things it did by itself today (→ Autopilot log)
 //   3. "Needs you": decisions only — tasks found in messages, decisions, finished work (one-tap Approve)
 //   4. who needs support (late / blocked / sent back / overbooked); Muntej is already following up with them
-//   5. your own tasks, tick to finish
-//   6. shortcuts: Your week (value receipt), Team, Objectives, Autopilot
+//   5. next 3 days: the most important work coming up (team + yours); then your own tasks, tick to finish
+//   6. shortcuts: Your week (value receipt), Team, Objectives, Autopilot, Add from a message (Incoming)
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Receipt, RotateCw, Target, Users } from 'lucide-react-native';
+import { Inbox, Receipt, RotateCw, Target, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppText, Avatar, BrandChip, Hero } from '@/components/ui';
 import { colors, spacing } from '@/theme/tokens';
@@ -25,6 +25,8 @@ import { MuntejHandling, MyTasks, NeedsSupport, TeamPulse } from '@/features/hom
 import { Spotlight } from '@/features/launch/Spotlight';
 import { MySteps } from '@/features/steps/MySteps';
 import { NS } from '@/features/home/strings';
+import { NextDays } from '@/features/home/NextDays';
+import { NS as INCOMING_NS } from '@/features/incoming/strings';
 function greetingKey(date = new Date()) {
   const h = date.getHours();
   return h < 12 ? 'home.morning' : h < 18 ? 'home.afternoon' : 'home.evening';
@@ -33,6 +35,7 @@ function greetingKey(date = new Date()) {
 export default function ManagerHome() {
   const { t } = useTranslation();
   const { t: th } = useScreenT(NS);
+  const { t: ti } = useScreenT(INCOMING_NS);
   const { lang } = useDirection();
   const me = useMyProfile();
   const { active: protoActive } = useProto();
@@ -89,6 +92,9 @@ export default function ManagerHome() {
           {/* 3. what needs you, max 3, with one-tap actions */}
           <NeedsYou />
 
+          {/* what is coming up in the next 3 working days, most important first */}
+          <NextDays />
+
           {/* 4. people who need a hand, 5. your own tasks (both hidden when empty) */}
           <NeedsSupport />
           <MyTasks />
@@ -100,7 +106,9 @@ export default function ManagerHome() {
               { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
               { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
               { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
-              { key: 'auto', label: th('sc_autopilot'), Icon: RotateCw, href: '/03-autopilot', bg: 'amberTint', fg: colors.amberText, feature: 'autopilot' },            ]}
+              { key: 'auto', label: th('sc_autopilot'), Icon: RotateCw, href: '/03-autopilot', bg: 'amberTint', fg: colors.amberText, feature: 'autopilot' },
+              { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary, feature: 'incoming' },
+            ]}
           />
         </View>
       </ScrollView>

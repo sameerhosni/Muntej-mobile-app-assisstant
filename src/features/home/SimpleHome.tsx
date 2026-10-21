@@ -143,18 +143,7 @@ export function NeedsYou() {
         <AppText variant="section" style={{ flex: 1 }}>
           {t('needsYou')}
         </AppText>
-        {/* the way into Incoming: paste an email / chat and Muntej pulls the tasks out */}
-        <Pressable
-          onPress={() => router.push('/42-incoming')}
-          accessibilityRole="link"
-          hitSlop={8}
-          style={{ minHeight: sizes.touch, flexDirection: 'row', alignItems: 'center', gap: 4 }}
-        >
-          <Inbox color={colors.primary} size={15} strokeWidth={2.2} />
-          <AppText variant="small" weight="bold" color="primary">
-            {ti('pasteLink')}
-          </AppText>
-        </Pressable>
+        {/* the way into Incoming (paste a message) is a shortcut now: this block is decisions only */}
       </View>
       {needs.length === 0 ? (
         <Card padding={spacing.lg}>
@@ -274,7 +263,7 @@ export function Shortcuts({ items }: { items: Shortcut[] }) {
               />
             )}
           </View>
-          <AppText variant="micro" weight="bold" color="textSoft" align="center" numberOfLines={1}>
+          <AppText variant="micro" weight="bold" color="textSoft" align="center" numberOfLines={2}>
             {s.label}
           </AppText>
         </Pressable>
