@@ -1,10 +1,10 @@
-# TEMPORARY: turns on the shared sign-in code (1234) for every existing Muntej person until a date, while sign-in
+# TEMPORARY: turns on the shared sign-in code (123456) for every existing Muntej person until a date, while sign-in
 # emails can't reach everyone. Anyone who knows a colleague's email can then sign in as them — use only while needed.
 #   powershell -ExecutionPolicy Bypass -File scripts\enable-quick-login.ps1             # on for 30 days
 #   powershell -ExecutionPolicy Bypass -File scripts\enable-quick-login.ps1 -Off        # off now
 # Needs SUPABASE_ACCESS_TOKEN (user env var, see scripts/set-supabase-secrets.ps1).
 
-param([switch]$Off, [int]$Days = 30, [string]$Code = '1234')
+param([switch]$Off, [int]$Days = 30, [string]$Code = '123456')
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
