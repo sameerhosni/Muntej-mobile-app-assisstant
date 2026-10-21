@@ -5,8 +5,11 @@ import { requireEnv } from './http.ts';
 import { ingestMessage, OPEN, type Creator } from './intake-core.ts';
 import { microsoft } from './providers/microsoft.ts';
 import { clickup } from './providers/clickup.ts';
+import { jira } from './providers/jira.ts';
+import { trello } from './providers/trello.ts';
 
-export type Tokens = { access_token: string; refresh_token?: string; expires_at?: number; scope?: string };
+/** `extra` holds what a personal-token connection needs besides the token (Jira site + email, Trello API key …) */
+export type Tokens = { access_token: string; refresh_token?: string; expires_at?: number; scope?: string; extra?: Record<string, string> };
 
 /** one thing worth reading from the tool (a flagged mail, a message that mentions you, a meeting's notes …) */
 export type Fetched = {
@@ -35,13 +38,17 @@ export type Provider = {
    * the person can connect with their own personal API token instead of signing in (no admin app setup needed);
    * `verify` checks it and says who it belongs to
    */
-  personalToken?: { verify: (token: string) => Promise<{ label: string; cursor?: Record<string, unknown> }> };
+  personalToken?: {
+    /** what the person fills in, in order (always includes 'token') */
+    fields: string[];
+    verify: (creds: Record<string, string>) => Promise<{ label: string; cursor?: Record<string, unknown> }>;
+  };
 };
 
 /** every tool shown on the Sources screen; only those in PROVIDERS can connect today */
 export const ALL_PROVIDERS = ['microsoft', 'google', 'slack', 'jira', 'clickup', 'trello', 'notion', 'azure_devops'] as const;
 export type ProviderId = (typeof ALL_PROVIDERS)[number];
-export const PROVIDERS: Partial<Record<ProviderId, Provider>> = { microsoft, clickup };
+export const PROVIDERS: Partial<Record<ProviderId, Provider>> = { microsoft, clickup, jira, trello };
 
 export const CALLBACK_URL = `${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/connect/callback`;
 

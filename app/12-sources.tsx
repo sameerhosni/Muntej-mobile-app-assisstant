@@ -102,6 +102,7 @@ export default function SourcesScreen() {
             available={!!info.get(id)?.available}
             configured={!!info.get(id)?.configured}
             token={!!info.get(id)?.token}
+            tokenFields={info.get(id)?.tokenFields ?? ['token']}
             onNote={setNote}
           />
         ))}
@@ -132,6 +133,7 @@ function ToolRow({
   available,
   configured,
   token,
+  tokenFields,
   onNote,
 }: {
   id: ProviderId;
@@ -139,6 +141,7 @@ function ToolRow({
   available: boolean;
   configured: boolean;
   token: boolean;
+  tokenFields: string[];
   onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void;
 }) {
   const { t } = useScreenT(CONN_NS);
@@ -146,7 +149,8 @@ function ToolRow({
   const actions = useConnectionActions();
   const [busy, setBusy] = useState<null | 'connect' | 'sync' | 'disconnect' | 'token'>(null);
   const [tokenOpen, setTokenOpen] = useState(false);
-  const [tokenText, setTokenText] = useState('');
+  const [creds, setCreds] = useState<Record<string, string>>({});
+  const filled = tokenFields.every((f) => (creds[f] ?? '').trim().length >= (f === 'token' ? 10 : 2));
   const b = BADGE[id];
   const name = t(`n_${id}`);
   const n = (v: number) => formatNumber(v, lang);
@@ -171,8 +175,8 @@ function ToolRow({
   const connect = () => run('connect', () => actions.connect(id));
   const saveToken = () =>
     run('token', async () => {
-      const r = await actions.connectWithToken(id, tokenText);
-      setTokenText('');
+      const r = await actions.connectWithToken(id, creds);
+      setCreds({});
       setTokenOpen(false);
       onNote({ tone: 'green', text: t('tokenDone', { name, tasks: n(r.tasks) }) });
     });
@@ -251,22 +255,26 @@ function ToolRow({
               <AppText variant="small" color="textSoft">
                 {t(`tokenHelp_${id}`, { defaultValue: '' })}
               </AppText>
-              <TextField
-                label={t('tokenLabel')}
-                value={tokenText}
-                onChangeText={setTokenText}
-                placeholder={t('tokenPlaceholder')}
-                autoCapitalize="none"
-                autoCorrect={false}
-                secureTextEntry
-                ltr
-              />
+              {tokenFields.map((f) => (
+                <TextField
+                  key={f}
+                  label={t(`field_${f}`, { defaultValue: f })}
+                  value={creds[f] ?? ''}
+                  onChangeText={(v) => setCreds((c) => ({ ...c, [f]: v }))}
+                  placeholder={t(`field_${f}_ph`, { defaultValue: t('tokenPlaceholder') })}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType={f === 'email' ? 'email-address' : 'default'}
+                  secureTextEntry={f === 'token' || f === 'key'}
+                  ltr
+                />
+              ))}
               <AppText variant="caption" color="textMuted">
                 {t('tokenSafe')}
               </AppText>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 <Button label={t('cancel')} variant="outline" size="md" onPress={() => setTokenOpen(false)} style={{ flex: 1 }} />
-                <Button label={t('tokenSave')} size="md" loading={busy === 'token'} disabled={tokenText.trim().length < 10} onPress={saveToken} style={{ flex: 1 }} />
+                <Button label={t('tokenSave')} size="md" loading={busy === 'token'} disabled={!filled} onPress={saveToken} style={{ flex: 1 }} />
               </View>
             </View>
           )}

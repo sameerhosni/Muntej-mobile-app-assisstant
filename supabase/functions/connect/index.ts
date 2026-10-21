@@ -91,6 +91,7 @@ serve(async (req) => {
           available: !!PROVIDERS[id],
           configured: !!PROVIDERS[id]?.configured(),
           token: !!PROVIDERS[id]?.personalToken,
+          tokenFields: PROVIDERS[id]?.personalToken?.fields ?? [],
         })),
       );
 
@@ -98,14 +99,22 @@ serve(async (req) => {
     case 'token': {
       const provider = body.provider ? PROVIDERS[body.provider] : undefined;
       if (!provider?.personalToken) throw new HttpError(400, 'This tool needs sign-in instead');
-      const token = String((body as { token?: string }).token ?? '').trim();
-      if (token.length < 10 || token.length > 500) throw new HttpError(400, 'That doesn’t look like a token');
+      // the tool's fields (token, plus e.g. Jira site + email, Trello API key)
+      const given = ((body as { creds?: Record<string, string> }).creds ?? { token: (body as { token?: string }).token ?? '' }) as Record<string, string>;
+      const creds: Record<string, string> = {};
+      for (const f of provider.personalToken.fields) {
+        const v = String(given[f] ?? '').trim();
+        if (!v || v.length > 500) throw new HttpError(400, `Please fill in: ${f}`);
+        creds[f] = v;
+      }
+      if (creds.token.length < 10) throw new HttpError(400, 'That doesn’t look like a token');
       let account: { label: string; cursor?: Record<string, unknown> };
       try {
-        account = await provider.personalToken.verify(token);
+        account = await provider.personalToken.verify(creds);
       } catch {
-        throw new HttpError(400, 'That token didn’t work. Copy it again and paste it here');
+        throw new HttpError(400, 'That didn’t work. Check the details and paste the token again');
       }
+      const { token, ...extra } = creds;
       const { data: conn, error } = await admin
         .from('connections')
         .upsert(
@@ -123,7 +132,7 @@ serve(async (req) => {
         .select('*')
         .single();
       if (error) throw error;
-      await admin.from('connection_secrets').upsert({ connection_id: conn.id, data: await seal({ access_token: token }), updated_at: new Date().toISOString() });
+      await admin.from('connection_secrets').upsert({ connection_id: conn.id, data: await seal({ access_token: token, extra }), updated_at: new Date().toISOString() });
       await admin.from('activity_log').insert({
         actor_type: 'user',
         actor_id: profileId,

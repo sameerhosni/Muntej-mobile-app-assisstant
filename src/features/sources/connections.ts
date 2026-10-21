@@ -22,7 +22,7 @@ export type Connection = {
   found_day: string | null;
 };
 /** configured = sign-in is set up on the server; token = the person can connect with their own personal API token */
-export type ProviderInfo = { id: ProviderId; available: boolean; configured: boolean; token: boolean };
+export type ProviderInfo = { id: ProviderId; available: boolean; configured: boolean; token: boolean; tokenFields: string[] };
 
 // connections isn't in the generated types yet
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,8 +70,8 @@ export function useConnectionActions() {
       else await Linking.openURL(url);
     },
     /** connect with a personal API token; the server checks it and reads the first tasks right away */
-    connectWithToken: async (provider: ProviderId, token: string) => {
-      const r = await call<{ ok: boolean; label: string; read: number; tasks: number; error?: string }>({ action: 'token', provider, token });
+    connectWithToken: async (provider: ProviderId, creds: Record<string, string>) => {
+      const r = await call<{ ok: boolean; label: string; read: number; tasks: number; error?: string }>({ action: 'token', provider, creds });
       await refresh();
       await qc.invalidateQueries({ queryKey: ['incoming'] });
       await qc.invalidateQueries({ queryKey: ['tasks'] });

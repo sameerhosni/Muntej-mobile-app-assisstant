@@ -53,7 +53,7 @@ export const clickup: Provider = {
   refresh: async (t: Tokens) => t,
 
   account: (t) => whoAmI(t.access_token),
-  personalToken: { verify: (token) => whoAmI(token) },
+  personalToken: { fields: ['token'], verify: (c) => whoAmI(c.token) },
 
   fetchNew: async (t, cursor) => {
     const token = t.access_token;
