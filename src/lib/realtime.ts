@@ -22,6 +22,7 @@ const TABLES = [
   'recurring_tasks',
   'achievements',
   'workspaces',
+  'incoming_items',
 ] as const;
 
 /** merge a burst of changes into one refresh */

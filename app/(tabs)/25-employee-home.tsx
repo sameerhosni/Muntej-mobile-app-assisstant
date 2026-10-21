@@ -9,7 +9,7 @@
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Gift, Receipt, Target, Trophy } from 'lucide-react-native';
+import { Gift, Inbox, Receipt, Target, Trophy } from 'lucide-react-native';
 import { AppText, Avatar, Hero, PointsCoin } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -25,10 +25,12 @@ import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { SareeLine, Shortcuts, type Shortcut } from '@/features/home/SimpleHome';
 import { NS as HOME_NS } from '@/features/home/strings';
 import { NS } from '@/features/employee-home/strings';
+import { NS as INCOMING_NS } from '@/features/incoming/strings';
 
 export default function EmployeeHome() {
   const { t } = useScreenT(NS);
   const { t: th } = useScreenT(HOME_NS);
+  const { t: ti } = useScreenT(INCOMING_NS);
   const { lang } = useDirection();
   const me = useMyProfile();
   const qc = useQueryClient();
@@ -43,6 +45,7 @@ export default function EmployeeHome() {
     { key: 'rewards', label: th('sc_rewards'), Icon: Gift, href: '/26-rewards', bg: 'orangeTint', fg: colors.orange },
     { key: 'quest', label: th('sc_quest'), Icon: Trophy, href: '/30-team-quests', bg: 'primaryTint', fg: colors.primary },
     { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
+    { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary },
   ];
 
   return (

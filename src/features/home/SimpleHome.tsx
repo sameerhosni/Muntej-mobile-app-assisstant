@@ -3,7 +3,7 @@
 import type { ComponentType } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { ChevronRight, ClipboardCheck, Clock, Gavel, type LucideProps } from 'lucide-react-native';
+import { ChevronRight, ClipboardCheck, Clock, Gavel, Inbox, type LucideProps } from 'lucide-react-native';
 import { AppText, Card, IconBadge } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -17,6 +17,8 @@ import { usePerformance, type Line } from '@/features/munti/performance';
 import { MUNTI_NS } from '@/features/munti/tips';
 import { NS } from './strings';
 import { ActionPill, useTodayActions } from './TodayHome';
+import { useIncomingCount } from '@/features/incoming/api';
+import { NS as INCOMING_NS } from '@/features/incoming/strings';
 
 /** Saree3's one-sentence status, in his colour, for the Home header. Tap → the tasks it names. */
 export function SareeLine({ onDark = true }: { onDark?: boolean }) {
@@ -80,6 +82,8 @@ export function NeedsYou() {
   const tasks = useTasks();
   const decisions = useDecisions('pending');
   const { approve, nudge } = useTodayActions();
+  const { t: ti } = useScreenT(INCOMING_NS);
+  const incoming = useIncomingCount();
   const meId = me.data?.id;
   const ar = lang === 'ar';
   const first = (id: string | null) => {
@@ -91,6 +95,20 @@ export function NeedsYou() {
     (a.due_at ? Date.parse(a.due_at) : Infinity) - (b.due_at ? Date.parse(b.due_at) : Infinity);
 
   const needs: Need[] = [
+    // tasks Muntej found in pasted / forwarded messages, waiting for Add or Ignore
+    ...(incoming.count > 0
+      ? [
+          {
+            key: 'incoming',
+            Icon: Inbox,
+            bg: 'primaryTint' as ColorToken,
+            fg: colors.primary,
+            title: ti('homeRow', { count: incoming.count, n: incoming.count }),
+            sub: ti('homeSub'),
+            href: '/42-incoming' as Href,
+          },
+        ]
+      : []),
     ...(decisions.data ?? []).map((d) => ({
       key: `d-${d.id}`,
       Icon: Gavel,
@@ -131,7 +149,7 @@ export function NeedsYou() {
             : undefined,
       })),
   ];
-  const taskIds = needs.filter((n) => !n.key.startsWith('d-')).map((n) => n.key.slice(2));
+  const taskIds = needs.filter((n) => n.key.startsWith('r-') || n.key.startsWith('l-')).map((n) => n.key.slice(2));
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
   return (
