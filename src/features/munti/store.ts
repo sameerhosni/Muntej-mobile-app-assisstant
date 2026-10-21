@@ -7,20 +7,30 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Href } from 'expo-router';
 import i18n from '@/lib/i18n';
 import { MUNTI_NS, type MuntiKey } from './tips';
-import type { MuntiMood } from './Munti';
+import type { MuntiMood, MuntiTone } from './Munti';
 
 const STORAGE_KEY = 'munti.enabled';
 
 export type MuntiToast = { id: number; text: string; mood: MuntiMood; action?: Href };
 export type SayOptions = { ms?: number; action?: Href };
 
-type State = { enabled: boolean; hidden: boolean; toast: MuntiToast | null };
+/** a moment's colour on top of his status colour: gold = cheer, green = done, brand = thinking, red = needs you */
+export type MuntiFlash = { id: number; tone: MuntiTone };
 
-let state: State = { enabled: true, hidden: false, toast: null };
+type State = { enabled: boolean; hidden: boolean; toast: MuntiToast | null; flash: MuntiFlash | null };
+
+let state: State = { enabled: true, hidden: false, toast: null, flash: null };
 const listeners = new Set<() => void>();
 let nextId = 1;
 let loaded = false;
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
+
+function flash(tone: MuntiTone, ms = 2600) {
+  clearTimeout(flashTimer);
+  set({ flash: { id: nextId++, tone } });
+  flashTimer = setTimeout(() => set({ flash: null }), ms);
+}
 
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
@@ -55,7 +65,16 @@ export const munti = {
     set({ hidden: true, toast: null });
   },
   celebrate(text?: string, opts: SayOptions = {}) {
+    flash('gold');
     show(text ?? i18n.t(`${MUNTI_NS}.value_done`), 'celebrate', opts.ms, opts.action);
+  },
+  /** change his colour for a moment (e.g. green when a task is done, brand blue while he works) */
+  flash(tone: MuntiTone, ms?: number) {
+    flash(tone, ms);
+  },
+  endFlash() {
+    clearTimeout(flashTimer);
+    set({ flash: null });
   },
   say(text: string, mood: MuntiMood = 'talk', opts: SayOptions = {}) {
     show(text, mood, opts.ms, opts.action);

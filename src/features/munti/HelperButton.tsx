@@ -11,17 +11,28 @@
 // He is called Saree3 / سريع on screen; the "Ask Saree3" label next to him opens the chat.
 // He also watches your finished tasks waiting for the manager and reacts to the answer (approved → cheer +
 // bonus points, sent back → encouragement), live through Realtime.
+// Drag him anywhere: he snaps to the nearest side and the phone remembers where; drop him on the ✕ to hide him.
+// Support mode (support.ts): when something needs you he grows, his glow pulses red and a count shows; tapping him
+// lists the top two things with their one-tap button (Open · Approve · Ask for more time · Tell Muntej).
+// Living colour: his status colour, with a moment's flash for events (gold cheer, green done, blue while thinking).
+// Tap → quick asks ("What needs me?", "How is my team?", "Add a task"). Hold → talk; let go → it goes to the chat.
 import { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AccessibilityInfo, Pressable, useWindowDimensions, View } from 'react-native';
-import { router, usePathname } from 'expo-router';
+import { AccessibilityInfo, Animated, Easing, PanResponder, Platform, Pressable, useWindowDimensions, View } from 'react-native';
+import { router, usePathname, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react-native';
 import { AppText, Gradient } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
 import { useDirection } from '@/lib/i18n';
-import { Munti, MUNTI_SIZES, type MuntiMood } from './Munti';
+import { Munti, MUNTI_SIZES, type MuntiMood, type MuntiTone } from './Munti';
+import { useSupport, type SupportItem } from './support';
+import { useCompleteTask } from '@/features/tasks/useCompleteTask';
+import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
+import { transcribeAudio } from '@/features/capture/api';
+import { formatClock } from '@/features/capture/points';
 import { MUNTI_NS, ROUTE_TIPS } from './tips';
 import { munti, useMunti } from './store';
 import { RANK, usePerformance, type Line, type PerfStatus } from './performance';
@@ -31,6 +42,25 @@ import { useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { wallet } from '@/features/rewards/wallet';
 
 const FAB = MUNTI_SIZES.md;
+/** support mode: about 50% bigger */
+const SUPPORT_SCALE = 1.45;
+/** the ✕ you drop him on to hide him */
+const BIN = 64;
+/** hold this long to start talking */
+const HOLD_MS = 450;
+/** where he sits: { side, ratio of the free height } */
+const POS_KEY = 'munti.pos';
+const nativeDriver = Platform.OS !== 'web';
+/** glow colour per status colour (the body gradient's main colour) */
+const TONE_GLOW: Record<MuntiTone, string> = {
+  brand: colors.primary,
+  gold: colors.gold,
+  green: colors.green,
+  amber: colors.amber,
+  red: colors.red,
+  purple: colors.purple,
+  grey: colors.textFaint,
+};
 const POP_DELAY_MS = 1000;
 const POP_SHOW_MS = 6500;
 // pops up by himself at most once per screen per day (remembered on the phone)
@@ -67,6 +97,7 @@ const SPEAK: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'talk', watc
 
 export function HelperButton() {
   const { t } = useScreenT(MUNTI_NS);
+  const { t: tg } = useTranslation();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const { width: screenW } = useWindowDimensions();
@@ -223,17 +254,141 @@ export function HelperButton() {
     AsyncStorage.setItem('munti.ask.used', '1').catch(() => {});
   };
 
+  // ── support mode: what needs this person (bigger, pulsing, count badge, one-tap actions) ──
+  const support = useSupport();
+  const { toggle: completeTask } = useCompleteTask();
+  const supportOn = support.count > 0;
+
+  // ── where he sits: dragged anywhere, snaps to the nearest side, remembered on the phone ──
+  const { height: screenH } = useWindowDimensions();
+  const { isRTL } = useDirection();
+  const fabBottom = (route?.tabBar ? sizes.tabBarHeight - 10 + Math.max(insets.bottom, 10) : insets.bottom) + spacing.lg;
+  const minTop = insets.top + spacing.sm;
+  const maxTop = screenH - fabBottom - FAB;
+  const [pos, setPos] = useState<{ side: 'left' | 'right'; ratio: number } | null>(null);
+  useEffect(() => {
+    AsyncStorage.getItem(POS_KEY)
+      .then((v) => v && setPos(JSON.parse(v)))
+      .catch(() => {});
+  }, []);
+  const side = pos?.side ?? (isRTL ? 'right' : 'left');
+  const top = pos ? minTop + pos.ratio * Math.max(0, maxTop - minTop) : maxTop;
+  const baseLeft = side === 'left' ? spacing.lg : screenW - FAB - spacing.lg;
+
+  const pan = useRef(new Animated.ValueXY()).current;
+  const [dragging, setDragging] = useState(false);
+  const [overBin, setOverBin] = useState(false);
+  const binY = screenH - fabBottom - BIN / 2 - spacing.xxl;
+  const nearBin = (x: number, y: number) => Math.hypot(x - screenW / 2, y - binY) < BIN;
+  const talking = useRef(false);
+  const geo = useRef({ baseLeft, top, minTop, maxTop, screenW });
+  geo.current = { baseLeft, top, minTop, maxTop, screenW };
+  const responder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => !talking.current && Math.hypot(g.dx, g.dy) > 6,
+      onPanResponderGrant: () => {
+        setDragging(true);
+        setOpen(false);
+      },
+      onPanResponderMove: (_e, g) => {
+        pan.setValue({ x: g.dx, y: g.dy });
+        setOverBin(nearBin(g.moveX, g.moveY));
+      },
+      onPanResponderRelease: (_e, g) => {
+        setDragging(false);
+        setOverBin(false);
+        pan.setValue({ x: 0, y: 0 });
+        if (nearBin(g.moveX, g.moveY)) return hide();
+        const c = geo.current;
+        const centerX = c.baseLeft + g.dx + FAB / 2;
+        const nextTop = Math.min(c.maxTop, Math.max(c.minTop, c.top + g.dy));
+        const next = { side: centerX < c.screenW / 2 ? ('left' as const) : ('right' as const), ratio: (nextTop - c.minTop) / Math.max(1, c.maxTop - c.minTop) };
+        setPos(next);
+        AsyncStorage.setItem(POS_KEY, JSON.stringify(next)).catch(() => {});
+      },
+      onPanResponderTerminate: () => {
+        setDragging(false);
+        setOverBin(false);
+        pan.setValue({ x: 0, y: 0 });
+      },
+    }),
+  ).current;
+
+  // ── size + pulse: grows in support mode, the glow breathes (faster and stronger when he needs you) ──
+  const grow = useRef(new Animated.Value(1)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(grow, { toValue: supportOn ? SUPPORT_SCALE : 1, friction: 5, useNativeDriver: nativeDriver }).start();
+  }, [supportOn, grow]);
+  useEffect(() => {
+    const ms = supportOn ? 700 : 1800;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: ms, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }),
+        Animated.timing(pulse, { toValue: 0, duration: ms, easing: Easing.inOut(Easing.quad), useNativeDriver: nativeDriver }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [supportOn, pulse]);
+
+  // ── hold to talk: hold him, speak, let go → the chat gets it ──
+  const recorder = useVoiceRecorder();
+  const [talk, setTalk] = useState<'idle' | 'recording' | 'thinking'>('idle');
+  const startTalk = async () => {
+    if (talking.current) return;
+    talking.current = true;
+    setOpen(false);
+    munti.dismiss();
+    setTalk('recording');
+    munti.flash('brand', 60_000);
+    try {
+      await recorder.start();
+    } catch (e) {
+      talking.current = false;
+      setTalk('idle');
+      munti.endFlash();
+      munti.say(e instanceof MicDeniedError ? tg('capture.micDenied') : tg('capture.failed'), 'oops');
+    }
+  };
+  const stopTalk = async () => {
+    if (!talking.current) return;
+    talking.current = false;
+    const duration = recorder.durationMillis;
+    setTalk('thinking');
+    const uri = await recorder.stop().catch(() => null);
+    if (!uri || duration < 800 || recorder.wasSilent()) {
+      setTalk('idle');
+      munti.endFlash();
+      return munti.say(t(duration < 800 ? 'talk_short' : 'talk_silent'), 'oops');
+    }
+    try {
+      const text = (await transcribeAudio(uri)).trim();
+      setTalk('idle');
+      munti.endFlash();
+      if (text) router.push({ pathname: '/02-capture', params: { mode: 'text', say: text, via: 'voice' } });
+    } catch {
+      setTalk('idle');
+      munti.endFlash();
+      munti.say(tg('capture.failed'), 'oops');
+    }
+  };
+
   if (!active) return null;
 
   const toast = s.toast;
   const showFab = !!route?.fab;
   if (!showFab && !toast && !(open && route)) return null;
 
-  const fabBottom = (route?.tabBar ? sizes.tabBarHeight - 10 + Math.max(insets.bottom, 10) : insets.bottom) + spacing.lg;
-  // bubble sits above the floating Munti; screens without it (the chat) show bubbles under the header instead.
-  // Bubble and Munti are positioned separately with fixed sizes: nothing can stretch or push the other (Android).
-  const bubbleAnchor = showFab ? { bottom: fabBottom + FAB + spacing.sm } : { top: insets.top + 84 };
-  const bubbleW = Math.min(300, screenW - spacing.lg * 2);
+  const size = FAB * (supportOn ? SUPPORT_SCALE : 1);
+  // bubble near him: above when he sits in the lower half, below otherwise; on his side of the screen
+  const bubbleW = Math.min(320, screenW - spacing.lg * 2);
+  const bubbleAnchor = showFab
+    ? {
+        ...(side === 'left' ? { left: spacing.lg } : { right: spacing.lg }),
+        ...(top > screenH / 2 ? { bottom: screenH - top + (size - FAB) / 2 + spacing.sm } : { top: top + FAB + (size - FAB) / 2 + spacing.sm }),
+      }
+    : { start: spacing.lg, top: insets.top + 84 };
 
   const tap = () => {
     if (toast) return munti.dismiss();
@@ -243,45 +398,128 @@ export function HelperButton() {
     munti.hideForSession();
     AccessibilityInfo.announceForAccessibility(t('hidden'));
   };
+  const go = (href: Href) => {
+    setOpen(false);
+    router.push(href);
+  };
+  const ask = (msg: string) => go({ pathname: '/02-capture', params: { mode: 'text', say: msg } });
 
   // open bubble — tapped: how it's going + this week's value; auto: alternates how it's going (+ tip) / the value
   // status turn: the named status line + the second fact + how to cheer me up; value turn: the week's value
   const perfText = perf ? say(perf.message) : null;
   const vLine = valueLine(value);
   const valueTurn = open === 'auto' && popKind === 'value' && !!vLine;
-  const bubbleText = toast ? toast.text : open && route ? (valueTurn ? vLine : (perfText ?? t(route.tip))) : null;
+  const supportTurn = !!open && !toast && supportOn;
+  const bubbleText = toast
+    ? toast.text
+    : talk === 'recording'
+      ? t('talk_listening')
+      : talk === 'thinking'
+        ? t('talk_thinking')
+        : open && route
+          ? supportTurn
+            ? t('sup_head', { count: support.count, n: fmt(support.count) })
+            : valueTurn
+              ? vLine
+              : (perfText ?? t(route.tip))
+          : null;
   // max 2 lines: the status + ONE action (the second fact if there is one, else how to cheer me up)
   const subLines: string[] =
-    toast || !open || !route
+    toast || !open || !route || supportTurn || talk !== 'idle'
       ? []
       : valueTurn
         ? []
         : [perf ? (say(perf.extra) ?? say(perf.cheer)) : t(route.tip)].filter((x): x is string => !!x);
-  const showMe = toast
-    ? toast.action
-    : !open
-      ? undefined
-      : valueTurn
-        ? RECEIPT
-        : (perf?.showMe ?? (open === 'tap' && vLine ? RECEIPT : route?.showMe));
-  const fabMood: MuntiMood = toast ? toast.mood : perf ? (open ? SPEAK : REST)[perf.status] : open ? 'talk' : 'idle';
-  const tone = perf?.tone ?? 'brand';
+  const showMe =
+    toast
+      ? toast.action
+      : !open || supportTurn || talk !== 'idle'
+        ? undefined
+        : valueTurn
+          ? RECEIPT
+          : (perf?.showMe ?? (open === 'tap' && vLine ? RECEIPT : route?.showMe));
+  const fabMood: MuntiMood =
+    talk === 'recording' ? 'talk' : talk === 'thinking' ? 'think' : toast ? toast.mood : perf ? (open ? SPEAK : REST)[perf.status] : open ? 'talk' : 'idle';
+  // colour: a moment's flash (cheer / done / thinking) on top of his status colour
+  const tone: MuntiTone = s.flash?.tone ?? perf?.tone ?? 'brand';
+  const glow = TONE_GLOW[tone];
+
+  /** one support row: what it is + its one-tap button */
+  const supportRow = (it: SupportItem) => {
+    const row = (text: string, btn: string, onPress: () => void, link?: Href) => (
+      <View key={it.key} style={{ gap: 6 }}>
+        <AppText variant="small" weight="semibold" numberOfLines={2} onPress={link ? () => go(link) : undefined}>
+          {text}
+        </AppText>
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`${btn}: ${text}`}
+          style={({ pressed }) => ({
+            alignSelf: 'flex-start',
+            minHeight: sizes.touch - 8,
+            paddingHorizontal: spacing.lg,
+            borderRadius: radius.pill,
+            justifyContent: 'center',
+            backgroundColor: colors.primary,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <AppText variant="small" weight="bold" color="onDark">
+            {btn}
+          </AppText>
+        </Pressable>
+      </View>
+    );
+    switch (it.kind) {
+      case 'decisions':
+        return row(t('sup_decisions', { count: it.n, n: fmt(it.n) }), t('sup_open'), () => go(it.href));
+      case 'incoming':
+        return row(t('sup_incoming', { count: it.n, n: fmt(it.n) }), t('sup_open'), () => go(it.href));
+      case 'review': {
+        const task = (tasks.data ?? []).find((x) => x.id === it.taskId);
+        return row(
+          t('sup_review', { name: it.name, title: it.title }),
+          t('sup_approve'),
+          () => {
+            setOpen(false);
+            if (task) completeTask(task);
+          },
+          { pathname: '/15-review', params: { id: it.taskId } },
+        );
+      }
+      case 'late':
+        return row(t('sup_late', { title: it.title }), t('sup_moreTime'), () => ask(t('ask_moreTime', { title: it.title })), {
+          pathname: '/14-task-detail',
+          params: { id: it.taskId },
+        });
+      case 'blocked':
+        return row(t('sup_blocked', { title: it.title }), t('sup_tell'), () =>
+          go({ pathname: '/02-capture', params: { mode: 'text', focus: it.taskId, draft: t('draft_blocked', { title: it.title }) } }),
+        );
+    }
+  };
+  const quick = [
+    { key: 'needs', label: t('q_needs'), run: () => ask(t('q_needs_msg')) },
+    me.data?.role === 'employee'
+      ? { key: 'next', label: t('q_next'), run: () => ask(t('q_next_msg')) }
+      : { key: 'team', label: t('q_team'), run: () => ask(t('q_team_msg')) },
+    { key: 'add', label: t('q_add'), run: () => go({ pathname: '/02-capture', params: { mode: 'text' } }) },
+  ];
 
   return (
     <>
-      {bubbleText && (
+      {bubbleText && !dragging && (
         <View
           accessibilityLiveRegion="polite"
           style={{
             position: 'absolute',
-            start: spacing.lg,
             ...bubbleAnchor,
             width: bubbleW,
             backgroundColor: colors.surface,
             borderRadius: radius.card,
-            borderBottomStartRadius: showFab ? 6 : radius.card,
             borderWidth: 1,
-            borderColor: colors.borderBlue,
+            borderColor: supportTurn ? colors.red : colors.borderBlue,
             boxShadow: shadows.raised,
             paddingVertical: spacing.lg,
             paddingStart: spacing.xxl,
@@ -292,7 +530,7 @@ export function HelperButton() {
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
             {!showFab && <Munti key={toast?.id} size="sm" tone={tone} mood={toast?.mood ?? 'talk'} settleAfter={2400} style={{ marginTop: 2 }} />}
             <View style={{ flex: 1, gap: spacing.xs, paddingTop: spacing.xs }}>
-              <AppText weight={subLines.length ? 'semibold' : 'regular'} style={{ lineHeight: 20 }}>
+              <AppText weight={subLines.length || supportTurn ? 'semibold' : 'regular'} style={{ lineHeight: 20 }}>
                 {bubbleText}
               </AppText>
               {subLines.map((line, i) => (
@@ -301,22 +539,22 @@ export function HelperButton() {
                 </AppText>
               ))}
             </View>
-            <Pressable
-              onPress={() => (toast ? munti.dismiss() : setOpen(false))}
-              accessibilityRole="button"
-              accessibilityLabel={t('close')}
-              hitSlop={4}
-              style={{ width: sizes.touch - 8, height: sizes.touch - 8, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <X color={colors.textMuted} size={16} strokeWidth={2.2} />
-            </Pressable>
+            {talk === 'idle' && (
+              <Pressable
+                onPress={() => (toast ? munti.dismiss() : setOpen(false))}
+                accessibilityRole="button"
+                accessibilityLabel={t('close')}
+                hitSlop={4}
+                style={{ width: sizes.touch - 8, height: sizes.touch - 8, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X color={colors.textMuted} size={16} strokeWidth={2.2} />
+              </Pressable>
+            )}
           </View>
+          {supportTurn && <View style={{ gap: spacing.md, paddingEnd: spacing.lg }}>{support.items.slice(0, 2).map(supportRow)}</View>}
           {showMe && (
             <Pressable
-              onPress={() => {
-                setOpen(false);
-                router.push(showMe);
-              }}
+              onPress={() => go(showMe)}
               accessibilityRole="button"
               accessibilityLabel={t('showMe')}
               style={({ pressed }) => ({
@@ -338,37 +576,138 @@ export function HelperButton() {
               </Gradient>
             </Pressable>
           )}
+          {/* quick asks when you tapped him: straight into the chat */}
+          {open === 'tap' && !toast && talk === 'idle' && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingEnd: spacing.md }}>
+              {quick.map((q) => (
+                <Pressable
+                  key={q.key}
+                  onPress={q.run}
+                  accessibilityRole="button"
+                  style={({ pressed }) => ({
+                    minHeight: sizes.touch - 8,
+                    paddingHorizontal: spacing.md,
+                    borderRadius: radius.pill,
+                    justifyContent: 'center',
+                    borderWidth: 1,
+                    borderColor: colors.borderBlue,
+                    backgroundColor: pressed ? colors.primaryTint : colors.surface,
+                  })}
+                >
+                  <AppText variant="small" weight="bold" color="primary">
+                    {q.label}
+                  </AppText>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          {open === 'tap' && !toast && talk === 'idle' && (
+            <AppText variant="caption" color="textFaint">
+              {t('holdHint')}
+            </AppText>
+          )}
+        </View>
+      )}
+
+      {/* drop him here to hide him (only while dragging) */}
+      {dragging && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: screenW / 2 - BIN / 2,
+            top: binY - BIN / 2,
+            width: BIN,
+            height: BIN,
+            borderRadius: BIN / 2,
+            backgroundColor: overBin ? colors.red : 'rgba(11,26,51,0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transform: [{ scale: overBin ? 1.15 : 1 }],
+          }}
+        >
+          <X color={colors.onDark} size={26} strokeWidth={2.4} />
         </View>
       )}
 
       {showFab && (
-        <Pressable
-          onPress={tap}
-          onLongPress={hide}
-          delayLongPress={600}
-          accessibilityRole="button"
-          accessibilityLabel={t('name')}
-          accessibilityHint={t('a11yHint')}
-          accessibilityState={{ expanded: !!open }}
-          accessibilityActions={[{ name: 'longpress', label: t('hide') }]}
-          onAccessibilityAction={(e) => e.nativeEvent.actionName === 'longpress' && hide()}
-          style={({ pressed }) => ({
+        <Animated.View
+          {...responder.panHandlers}
+          style={{
             position: 'absolute',
-            start: spacing.lg,
-            bottom: fabBottom,
+            left: baseLeft,
+            top,
             width: FAB,
             height: FAB,
-            borderRadius: FAB / 2,
-            transform: [{ scale: pressed ? 0.94 : 1 }],
-          })}
+            transform: [...pan.getTranslateTransform(), { scale: grow }],
+          }}
         >
-          {/* new key per screen/toast → hops in again */}
-          <Munti key={toast?.id ?? pathname} size="md" tone={tone} mood={fabMood} settleAfter={fabMood === 'talk' ? 2400 : undefined} />
-        </Pressable>
+          {/* breathing glow in his colour: stronger and faster in support mode */}
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: -10,
+              top: -10,
+              width: FAB + 20,
+              height: FAB + 20,
+              borderRadius: (FAB + 20) / 2,
+              backgroundColor: supportOn ? colors.red : glow,
+              opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: supportOn ? [0.12, 0.42] : [0.06, 0.2] }),
+              transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, supportOn ? 1.18 : 1.06] }) }],
+            }}
+          />
+          <Pressable
+            onPress={tap}
+            onLongPress={startTalk}
+            onPressOut={() => talking.current && stopTalk()}
+            delayLongPress={HOLD_MS}
+            accessibilityRole="button"
+            accessibilityLabel={supportOn ? `${t('name')}. ${t('sup_head', { count: support.count, n: fmt(support.count) })}` : t('name')}
+            accessibilityHint={t('a11yHint')}
+            accessibilityState={{ expanded: !!open }}
+            accessibilityActions={[{ name: 'longpress', label: t('hide') }]}
+            onAccessibilityAction={(e) => e.nativeEvent.actionName === 'longpress' && hide()}
+            style={{ width: FAB, height: FAB, borderRadius: FAB / 2 }}
+          >
+            {/* new key per screen/toast → hops in again */}
+            <Munti key={toast?.id ?? pathname} size="md" tone={tone} mood={fabMood} settleAfter={fabMood === 'talk' && talk === 'idle' ? 2400 : undefined} />
+          </Pressable>
+          {supportOn && talk === 'idle' && (
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                minWidth: 20,
+                height: 20,
+                borderRadius: 10,
+                paddingHorizontal: 4,
+                backgroundColor: colors.red,
+                borderWidth: 2,
+                borderColor: colors.surface,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <AppText weight="extrabold" color="onDark" style={{ fontSize: 10, lineHeight: 12 }}>
+                {fmt(Math.min(support.count, 99))}
+              </AppText>
+            </View>
+          )}
+          {talk === 'recording' && (
+            <View pointerEvents="none" style={{ position: 'absolute', top: FAB + 4, left: -spacing.xl, right: -spacing.xl, alignItems: 'center' }}>
+              <AppText variant="micro" weight="extrabold" color="primary" style={{ writingDirection: 'ltr' }}>
+                {formatClock(recorder.durationMillis)}
+              </AppText>
+            </View>
+          )}
+        </Animated.View>
       )}
 
-      {/* "Ask Saree3": next to him while it's new (hidden while a bubble is open) → the chat */}
-      {showFab && showAsk && !bubbleText && (
+      {/* "Ask Saree3": next to him while it's new (hidden while a bubble is open or he's busy) */}
+      {showFab && showAsk && !bubbleText && !dragging && talk === 'idle' && (
         <Pressable
           onPress={() => {
             askUsed();
@@ -378,8 +717,8 @@ export function HelperButton() {
           accessibilityLabel={t('askA11y')}
           style={({ pressed }) => ({
             position: 'absolute',
-            start: spacing.lg + FAB - 4,
-            bottom: fabBottom + (FAB - sizes.touch) / 2,
+            ...(side === 'left' ? { left: baseLeft + size + 4 } : { right: screenW - baseLeft + (size - FAB) / 2 + 4 }),
+            top: top + (FAB - sizes.touch) / 2,
             minHeight: sizes.touch,
             justifyContent: 'center',
             opacity: pressed ? 0.8 : 1,

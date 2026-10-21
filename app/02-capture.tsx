@@ -104,7 +104,14 @@ export default function MuntejChatScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   // focus: opened from a task (Tasks list row / mic) → the chat is locked on that task
-  const { mode, focus } = useLocalSearchParams<{ mode?: 'voice' | 'text'; focus?: string }>();
+  // say: a message to send right away (Saree3's quick asks / hold-to-talk); draft: text to put in the box
+  const { mode, focus, say, draft, via } = useLocalSearchParams<{
+    mode?: 'voice' | 'text';
+    focus?: string;
+    say?: string;
+    draft?: string;
+    via?: 'voice' | 'text';
+  }>();
 
   const chat = useChat();
   const team = useTeam();
@@ -172,6 +179,22 @@ export default function MuntejChatScreen() {
   );
 
   const busy = pending?.status === 'sending';
+
+  // opened by Saree3 with something to say (once per distinct message) or a draft for the box
+  const said = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof say === 'string' && say.trim() && said.current !== say) {
+      said.current = say;
+      send(say, via === 'voice' ? 'voice' : 'text');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [say]);
+  useEffect(() => {
+    if (typeof draft === 'string' && draft) {
+      setText(draft);
+      input.current?.focus();
+    }
+  }, [draft]);
 
   const sendTyped = () => {
     if (busy || !text.trim()) return;

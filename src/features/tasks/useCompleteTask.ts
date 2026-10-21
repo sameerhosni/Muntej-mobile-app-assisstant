@@ -58,6 +58,8 @@ export function useCompleteTask() {
               ? tm('complete_done', { title: x.title, pts: formatNumber(pts, lang), min: formatNumber(MIN_PER_FOLLOWUP * 2, lang) })
               : tm('complete_closed', { title: x.title, name: nameOf(x.owner_id) ?? '…' }),
         );
+        // done = a green flash (Saree3's living colour), on top of the cheer
+        munti.flash('green');
       }
       await invalidateTaskData(qc);
       return true;
