@@ -23,6 +23,7 @@ const TABLES = [
   'achievements',
   'workspaces',
   'incoming_items',
+  'connections',
 ] as const;
 
 /** merge a burst of changes into one refresh */

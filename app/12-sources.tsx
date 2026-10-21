@@ -1,312 +1,228 @@
-// Screen 12 · Sources — see design/v2/html/Sources.dc.html (Arabic: SourcesAR.dc.html)
-// Live data: sources (own rows, RLS). Tiles toggle connect/disconnect (or waitlist for coming-soon types) optimistically
-// via src/features/sources/useSources. "copy-paste" and "saved / day" tiles are demo figures from the design.
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View, useWindowDimensions } from 'react-native';
-import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeftRight, Camera, Check, ChevronLeft, ChevronRight, Clock, Hand } from 'lucide-react-native';
-import { AppText, Button, Card, Gradient, Hero, IconBadge, IconButton, StatTile } from '@/components/ui';
-import { colors, radius, shadows, spacing, type ColorToken, type GradientToken } from '@/theme/tokens';
+// Screen 12 · Sources — see design/v2/html/Sources.dc.html (Arabic: SourcesAR.dc.html); now "Connect your tools".
+// Real connections (table connections + Edge Function `connect`): Connect opens the tool's own sign-in page, which
+// sends the person back here (?connected=… / ?error=…). Every 10 minutes sync-sources reads what's new and passes it
+// to Muntej's intake (sure tasks are added, the rest wait in Incoming). Check now / Disconnect per tool.
+// Tools that aren't built yet show "Coming soon"; built ones without the server's app credentials, "Needs admin setup".
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ChevronLeft, Inbox, Lock } from 'lucide-react-native';
+import { AppText, Button, Card, IconBadge, IconButton } from '@/components/ui';
+import { colors, radius, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
-import { NS } from '@/features/sources/strings';
-import { useSources, type SourceType, type SourceView } from '@/features/sources/useSources';
+import { PROVIDER_IDS, useConnectionActions, useConnections, useProviders, type Connection, type ProviderId } from '@/features/sources/connections';
+import { CONN_NS } from '@/features/sources/connStrings';
 
-/** Connected-tile fill. Closest app tokens to each brand (brand colors aren't tokens yet). */
-const TILE_GRADIENT: Record<SourceType, GradientToken> = {
-  whatsapp: 'success',
-  email: 'points',
-  meeting: 'avatarPurple',
-  teams: 'purple',
-  slack: 'heroEmployee',
-  google_chat: 'avatarGreen',
-  jira: 'primary',
-  azure_devops: 'avatarBlue',
-  sticky_note: 'warning',
+/** letter badge per tool (brand logos aren't in the app; colours from the theme) */
+const BADGE: Record<ProviderId, { letter: string; bg: ColorToken; fg: string }> = {
+  microsoft: { letter: 'M', bg: 'primaryTint', fg: colors.primary },
+  google: { letter: 'G', bg: 'redTint', fg: colors.red },
+  slack: { letter: 'S', bg: 'purpleTint', fg: colors.purple },
+  jira: { letter: 'J', bg: 'primaryTint', fg: colors.primary },
+  clickup: { letter: 'C', bg: 'purpleTint', fg: colors.purple },
+  trello: { letter: 'T', bg: 'primaryTint', fg: colors.primary },
+  notion: { letter: 'N', bg: 'chip', fg: colors.text },
+  azure_devops: { letter: 'A', bg: 'primaryTint', fg: colors.primary },
 };
 
-const GRID_GAP = spacing.lg;
-const DEMO_SAVED_HOURS = 1.5;
-const DEMO_COPY_PASTE = 0;
-const DEMO_DUPLICATES = 0;
-
 export default function SourcesScreen() {
-  const { t } = useScreenT(NS);
-  const { lang, isRTL } = useDirection();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const { sources, ready, isLoading, isError, isRefetching, refetch, saveError, toggle } = useSources();
+  const { t } = useScreenT(CONN_NS);
+  const { isRTL } = useDirection();
+  const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
+  const conns = useConnections();
+  const providers = useProviders();
+  const actions = useConnectionActions();
+  const params = useLocalSearchParams<{ connected?: string; error?: string }>();
+  const [note, setNote] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
 
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  const BackIcon = isRTL ? ChevronRight : ChevronLeft;
+  // back from a tool's sign-in page
+  useEffect(() => {
+    if (params.connected) {
+      setNote({ tone: 'green', text: t('doneConnected', { name: t(`n_${params.connected}`) }) });
+      actions.refresh();
+    } else if (params.error) setNote({ tone: 'red', text: t('doneError') });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.connected, params.error]);
 
-  const connected = sources.filter((s) => s.status === 'connected');
-  const captured = connected.reduce((sum, s) => sum + s.todayCount, 0);
-  const tileW = (Math.min(width, 520) - spacing.screen * 2 - GRID_GAP * 2) / 3;
-
-  const status = (s: SourceView): { label: string; color: ColorToken; hint: string } => {
-    if (s.status === 'connected')
-      return { label: t('today', { n: formatNumber(s.todayCount, lang) }), color: 'green', hint: t('tileHint.connected') };
-    if (s.status === 'error') return { label: t('reconnect'), color: 'red', hint: t('tileHint.error') };
-    if (s.status === 'coming_soon')
-      return s.waitlist
-        ? { label: t('onList'), color: 'purple', hint: t('tileHint.soonOn') }
-        : { label: t('notify'), color: 'primary', hint: t('tileHint.soon') };
-    return { label: t('connect'), color: 'primary', hint: t('tileHint.disconnected') };
-  };
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const byId = new Map((conns.data ?? []).map((c) => [c.provider, c]));
+  const info = new Map((providers.data ?? []).map((p) => [p.id, p]));
+  // connected first, then the ones you can connect, then the rest
+  const order = [...PROVIDER_IDS].sort((a, b) => rank(a) - rank(b));
+  function rank(id: ProviderId) {
+    if (byId.has(id)) return 0;
+    if (info.get(id)?.configured) return 1;
+    if (info.get(id)?.available) return 2;
+    return 3;
+  }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
-      >
-        <Hero>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg }}>
-            <IconButton variant="glass" label={t('back')} onPress={goBack}>
-              <BackIcon color={colors.onDark} size={22} strokeWidth={2} />
-            </IconButton>
-            <View style={{ flex: 1, gap: 4 }}>
-              <AppText variant="titleLg" color="onDark" style={{ lineHeight: 32 }}>
-                {t('title')}
-              </AppText>
-              <AppText color="onDarkMuted">{t('subtitle')}</AppText>
-            </View>
-          </View>
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <StatTile
-              variant="glass"
-              iconBg="purple"
-              icon={<Check color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={formatNumber(captured, lang)}
-              label={t('caught')}
-            />
-            <StatTile
-              variant="glass"
-              iconBg="orange"
-              icon={<Hand color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={formatNumber(DEMO_COPY_PASTE, lang)}
-              label={t('copyPaste')}
-            />
-            <StatTile
-              variant="glass"
-              iconBg="primaryLight"
-              icon={<Clock color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={t('savedValue', { n: formatNumber(DEMO_SAVED_HOURS, lang, 1) })}
-              label={t('saved')}
-            />
-          </View>
-        </Hero>
-
-        <View style={{ paddingHorizontal: spacing.screen, paddingTop: spacing.xl, gap: spacing.lg }}>
-          {/* Live count + duplicates */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: colors.green,
-                  borderWidth: 0,
-                  boxShadow: `0px 0px 0px 3px ${colors.greenTint}`,
-                }}
-              />
-              <AppText variant="small" weight="bold">
-                {t('live', { n: formatNumber(connected.length, lang) })}
-              </AppText>
-            </View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 5,
-                backgroundColor: colors.greenTint,
-                borderRadius: radius.pill,
-                paddingHorizontal: 9,
-                paddingVertical: 4,
-              }}
-            >
-              <Check color={colors.green} size={11} strokeWidth={2.6} />
-              <AppText variant="micro" weight="bold" color="green">
-                {t('duplicates', { n: formatNumber(DEMO_DUPLICATES, lang) })}
-              </AppText>
-            </View>
-          </View>
-
-          {isLoading && (
-            <Card padding={spacing.lg} style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md }}>
-              <ActivityIndicator color={colors.primary} />
-              <AppText color="textMuted">{t('loading')}</AppText>
-            </Card>
-          )}
-          {isError && (
-            <Card tone="red" padding={spacing.lg}>
-              <AppText color="red">{t('error')}</AppText>
-            </Card>
-          )}
-          {saveError && (
-            <Card tone="amber" padding={spacing.lg}>
-              <AppText variant="small" color="amberStrong">
-                {t('saveError')}
-              </AppText>
-            </Card>
-          )}
-
-          {/* Tiles */}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP }}>
-            {sources.map((s) => {
-              const on = s.status === 'connected';
-              const soon = s.status === 'coming_soon';
-              const st = status(s);
-              const name = t(`name.${s.type}`);
-              return (
-                <Pressable
-                  key={s.type}
-                  onPress={() => toggle(s.type)}
-                  disabled={!ready}
-                  accessibilityRole={soon ? 'button' : 'switch'}
-                  accessibilityLabel={name}
-                  accessibilityHint={st.hint}
-                  accessibilityState={soon ? { selected: s.waitlist, disabled: !ready } : { checked: on, disabled: !ready }}
-                  style={({ pressed }) => ({
-                    width: tileW,
-                    height: 96,
-                    borderRadius: radius.card,
-                    backgroundColor: colors.surface,
-                    borderWidth: 1.5,
-                    borderStyle: on ? 'solid' : 'dashed',
-                    borderColor: on ? colors.surface : s.status === 'error' ? colors.red : colors.borderDashed,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 5,
-                    boxShadow: shadows.tile,
-                    opacity: pressed ? 0.85 : 1,
-                  })}
-                >
-                  {soon && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: 6,
-                        end: 6,
-                        backgroundColor: colors.chip,
-                        borderRadius: radius.pill,
-                        paddingHorizontal: 6,
-                        paddingVertical: 1,
-                      }}
-                    >
-                      <AppText variant="micro" weight="bold" color="textMuted" style={{ fontSize: 9 }}>
-                        {t('soon')}
-                      </AppText>
-                    </View>
-                  )}
-                  {on ? (
-                    <Gradient
-                      name={TILE_GRADIENT[s.type]}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: shadows.raised,
-                      }}
-                    >
-                      <AppText variant="small" weight="extrabold" color="onDark" style={{ writingDirection: 'ltr' }}>
-                        {t(`abbr.${s.type}`)}
-                      </AppText>
-                    </Gradient>
-                  ) : (
-                    <View
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 12,
-                        backgroundColor: colors.chip,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <AppText variant="small" weight="extrabold" color="textFaint" style={{ writingDirection: 'ltr' }}>
-                        {t(`abbr.${s.type}`)}
-                      </AppText>
-                    </View>
-                  )}
-                  <AppText variant="small" weight="bold" align="center" numberOfLines={1} style={{ paddingHorizontal: 4 }}>
-                    {name}
-                  </AppText>
-                  <AppText variant="micro" weight="semibold" color={st.color} align="center" numberOfLines={1}>
-                    {st.label}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* Two-way sync */}
-          <Card
-            padding={spacing.lg}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.lg,
-              borderStartWidth: 4,
-              borderStartColor: colors.primary,
-              paddingEnd: spacing.xl,
+        contentContainerStyle={{ padding: spacing.screen, paddingTop: 20, gap: spacing.lg, paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={conns.isRefetching}
+            onRefresh={() => {
+              conns.refetch();
+              providers.refetch();
             }}
-          >
-            <IconBadge size={34} bg="primaryTint">
-              <ArrowLeftRight color={colors.primary} size={18} strokeWidth={1.9} />
-            </IconBadge>
-            <View style={{ flex: 1, gap: 1 }}>
-              <AppText weight="bold">{t('syncTitle')}</AppText>
-              <AppText variant="caption" color="textMuted">
-                {t('syncDetail')}
-              </AppText>
-            </View>
-            <View importantForAccessibility="no-hide-descendants" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <IconBadge size={26} gradient="avatarBlue">
-                <AppText variant="micro" weight="extrabold" color="onDark">
-                  {t('syncM')}
-                </AppText>
-              </IconBadge>
-              <ArrowLeftRight color={colors.textFaint} size={14} strokeWidth={2.2} />
-              <IconBadge size={26} gradient={TILE_GRADIENT.jira}>
-                <AppText variant="micro" weight="extrabold" color="onDark" style={{ fontSize: 10 }}>
-                  {t('abbr.jira')}
-                </AppText>
-              </IconBadge>
-            </View>
-          </Card>
-        </View>
-      </ScrollView>
-
-      {/* Sticky actions */}
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          paddingHorizontal: spacing.screen,
-          paddingTop: spacing.lg,
-          paddingBottom: Math.max(insets.bottom, spacing.xxl) + spacing.sm,
-          backgroundColor: colors.bg,
-          flexDirection: 'row',
-          gap: spacing.md,
-        }}
+            tintColor={colors.primary}
+          />
+        }
       >
-        <Button
-          label={t('snap')}
-          icon={<Camera color={colors.onDark} size={20} strokeWidth={1.9} />}
-          onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })}
-          style={{ flex: 1 }}
-        />
-        <Button label={t('noteTaker')} variant="outline" onPress={() => router.push('/13-note-taker')} style={{ minWidth: 120 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <IconButton label={t('back')} onPress={back}>
+            <ChevronLeft color={colors.text} size={22} strokeWidth={2} style={flip} />
+          </IconButton>
+          <AppText variant="titleLg" style={{ flex: 1 }}>
+            {t('title')}
+          </AppText>
+        </View>
+        <AppText color="textMuted">{t('subtitle')}</AppText>
+
+        {note && (
+          <Card tone={note.tone} padding={spacing.lg}>
+            <AppText variant="small" weight="semibold" color={note.tone === 'green' ? 'greenText' : 'red'}>
+              {note.text}
+            </AppText>
+          </Card>
+        )}
+
+        {(conns.isLoading || providers.isLoading) && <ActivityIndicator color={colors.primary} />}
+
+        {order.map((id) => (
+          <ToolRow key={id} id={id} conn={byId.get(id)} available={!!info.get(id)?.available} configured={!!info.get(id)?.configured} onNote={setNote} />
+        ))}
+
+        <Card style={{ gap: spacing.sm }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <Inbox color={colors.primary} size={18} strokeWidth={2} />
+            <AppText weight="bold">{t('howTitle')}</AppText>
+          </View>
+          <AppText variant="small" color="textSoft">
+            {t('how')}
+          </AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+            <Lock color={colors.textMuted} size={14} strokeWidth={2} style={{ marginTop: 3 }} />
+            <AppText variant="caption" color="textMuted" style={{ flex: 1 }}>
+              {t('privacy')}
+            </AppText>
+          </View>
+        </Card>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function ToolRow({
+  id,
+  conn,
+  available,
+  configured,
+  onNote,
+}: {
+  id: ProviderId;
+  conn: Connection | undefined;
+  available: boolean;
+  configured: boolean;
+  onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void;
+}) {
+  const { t } = useScreenT(CONN_NS);
+  const { lang } = useDirection();
+  const actions = useConnectionActions();
+  const [busy, setBusy] = useState<null | 'connect' | 'sync' | 'disconnect'>(null);
+  const b = BADGE[id];
+  const name = t(`n_${id}`);
+  const n = (v: number) => formatNumber(v, lang);
+  const ago = (iso: string) => {
+    const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+    return m < 1 ? t('justNow') : m < 60 ? t('minAgo', { n: n(m) }) : t('hAgo', { n: n(Math.round(m / 60)) });
+  };
+  const today = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+  const found = conn && conn.found_day === today ? conn.found_today : 0;
+
+  const run = async (kind: 'connect' | 'sync' | 'disconnect', fn: () => Promise<void>) => {
+    setBusy(kind);
+    onNote(null);
+    try {
+      await fn();
+    } catch (e) {
+      onNote({ tone: 'red', text: (e as Error).message || t('error') });
+    } finally {
+      setBusy(null);
+    }
+  };
+  const connect = () => run('connect', () => actions.connect(id));
+  const sync = () =>
+    run('sync', async () => {
+      const r = await actions.syncNow(id);
+      onNote(r.error ? { tone: 'red', text: t('problem', { msg: r.error }) } : { tone: 'green', text: t('checkedResult', { read: n(r.read), tasks: n(r.tasks) }) });
+    });
+  const disconnect = () => {
+    const go = () => run('disconnect', () => actions.disconnect(id));
+    if (Platform.OS === 'web') {
+      if (window.confirm(t('confirmDisconnect', { name }))) go();
+      return;
+    }
+    Alert.alert(name, t('confirmDisconnect', { name }), [
+      { text: t('cancel'), style: 'cancel' },
+      { text: t('disconnect'), style: 'destructive', onPress: go },
+    ]);
+  };
+
+  const status = conn
+    ? conn.status === 'error'
+      ? t('problem', { msg: conn.last_error ?? '' })
+      : [t('connectedAs', { who: conn.account_label ?? name }), conn.last_sync_at ? t('checked', { when: ago(conn.last_sync_at) }) : t('never'), found ? t('foundToday', { count: found, n: n(found) }) : null]
+          .filter(Boolean)
+          .join(' · ')
+    : null;
+
+  return (
+    <Card style={{ gap: spacing.md, opacity: !conn && !configured ? 0.7 : 1 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <IconBadge size={40} bg={b.bg}>
+          <AppText weight="extrabold" style={{ color: b.fg, fontSize: 18 }}>
+            {b.letter}
+          </AppText>
+        </IconBadge>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText weight="bold">{name}</AppText>
+          <AppText variant="caption" color="textMuted">
+            {t(`r_${id}`)}
+          </AppText>
+        </View>
+        {!conn && !configured && (
+          <View style={{ paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.chip }}>
+            <AppText variant="micro" weight="bold" color="textMuted">
+              {!available ? t('soon') : t('needsSetup')}
+            </AppText>
+          </View>
+        )}
       </View>
-    </View>
+
+      {status && (
+        <AppText variant="small" weight="semibold" color={conn?.status === 'error' ? 'red' : 'greenText'}>
+          {status}
+        </AppText>
+      )}
+
+      {conn ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {conn.status === 'error' ? (
+            <Button label={t('reconnect')} size="md" loading={busy === 'connect'} onPress={connect} style={{ flex: 1 }} />
+          ) : (
+            <Button label={t('checkNow')} size="md" loading={busy === 'sync'} onPress={sync} style={{ flex: 1 }} />
+          )}
+          <Button label={t('disconnect')} variant="outline" size="md" loading={busy === 'disconnect'} onPress={disconnect} style={{ flex: 1 }} />
+        </View>
+      ) : (
+        configured && <Button label={t('connect')} size="md" loading={busy === 'connect'} onPress={connect} />
+      )}
+    </Card>
   );
 }

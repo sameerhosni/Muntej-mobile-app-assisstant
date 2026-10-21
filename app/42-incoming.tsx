@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, CopyCheck, Inbox } from 'lucide-react-native';
+import { ChevronLeft, CopyCheck, Inbox, Plug } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, IconBadge, IconButton, TextField } from '@/components/ui';
 import { colors, fontFamily, fontSize, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -68,6 +68,27 @@ export default function IncomingScreen() {
           </AppText>
         </View>
         <AppText color="textMuted">{t('subtitle')}</AppText>
+        {/* connected tools bring messages in by themselves */}
+        <Pressable
+          onPress={() => router.push('/12-sources')}
+          accessibilityRole="link"
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            minHeight: sizes.touch,
+            paddingHorizontal: spacing.lg,
+            borderRadius: radius.tile,
+            backgroundColor: colors.primaryTint,
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <Plug color={colors.primary} size={18} strokeWidth={2} />
+          <AppText weight="bold" color="primary" style={{ flex: 1 }}>
+            {t('connectTools')}
+          </AppText>
+          <ChevronLeft color={colors.primary} size={16} strokeWidth={2.2} style={{ transform: [{ scaleX: isRTL ? 1 : -1 }] }} />
+        </Pressable>
 
         {/* paste box */}
         <Card style={{ gap: spacing.md }}>

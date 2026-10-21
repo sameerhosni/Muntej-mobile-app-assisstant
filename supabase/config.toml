@@ -442,3 +442,9 @@ verify_jwt = false
 
 [functions.autopilot]
 verify_jwt = false
+
+[functions.connect]
+verify_jwt = false
+
+[functions.sync-sources]
+verify_jwt = false
