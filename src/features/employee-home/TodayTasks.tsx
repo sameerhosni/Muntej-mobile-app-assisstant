@@ -13,6 +13,7 @@ import { useMyProfile, useTasks, useTeam, type TaskWithPeople } from '@/lib/api'
 import { formatDue } from '@/features/capture/format';
 import { formatNumber } from '@/features/home/value';
 import { useWallet } from '@/features/rewards/wallet';
+import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { TASK_POINTS as PTS, useCompleteTask } from '@/features/tasks/useCompleteTask';
 import { contentDirection } from '@/features/chat/Bubbles';
 import { NS } from './strings';
@@ -55,7 +56,7 @@ export function TodayTasks() {
     <View style={{ gap: spacing.md, marginTop: 6 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <AppText variant="section">{t('quests')}</AppText>
-        <PointsPill size="sm" label={t('ptsToday', { n: n(w.earnedToday) })} />
+        {SHOW_REWARDS && <PointsPill size="sm" label={t('ptsToday', { n: n(w.earnedToday) })} />}
       </View>
 
       {tasks.isLoading && <ActivityIndicator color={colors.purple} style={{ alignSelf: 'flex-start' }} />}
@@ -122,11 +123,13 @@ export function TodayTasks() {
                 {hint}
               </AppText>
             </View>
-            <View style={{ backgroundColor: colors.orangeTint, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
-              <AppText weight="extrabold" color="orangeText" style={{ writingDirection: 'ltr' }}>
-                +{n(pts)}
-              </AppText>
-            </View>
+            {SHOW_REWARDS && (
+              <View style={{ backgroundColor: colors.orangeTint, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
+                <AppText weight="extrabold" color="orangeText" style={{ writingDirection: 'ltr' }}>
+                  +{n(pts)}
+                </AppText>
+              </View>
+            )}
           </Pressable>
         );
       })}

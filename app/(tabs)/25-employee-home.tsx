@@ -4,6 +4,7 @@
 //      and Saree3's one-line status in his colour
 //   2. Today's tasks: the real ones (max 3), one tap marks them done / sends them for review
 //   3. shortcuts: Your week (value receipt), Rewards, Team quest, Objectives
+// Rewards entry points (progress pill, Rewards shortcut) are hidden for now — see SHOW_REWARDS.
 // Demo: level, streak and points come from the shared demo wallet — no gamification backend yet.
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
@@ -17,10 +18,11 @@ import { useMyProfile } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
 import { person, personLabel } from '@/features/demo/team';
 import { LEVEL, useWallet } from '@/features/rewards/wallet';
+import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { STREAK_DAYS } from '@/features/employee-home/demo';
 import { TodayTasks } from '@/features/employee-home/TodayTasks';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
-import { SareeLine, Shortcuts } from '@/features/home/SimpleHome';
+import { SareeLine, Shortcuts, type Shortcut } from '@/features/home/SimpleHome';
 import { NS as HOME_NS } from '@/features/home/strings';
 import { NS } from '@/features/employee-home/strings';
 
@@ -35,6 +37,13 @@ export default function EmployeeHome() {
   const n = (v: number) => formatNumber(v, lang);
   const fullName = me.data ? (lang === 'ar' && me.data.full_name_ar ? me.data.full_name_ar : me.data.full_name) : personLabel(person('faisal'), lang);
   const firstName = fullName.split(' ')[0];
+
+  const shortcuts: Shortcut[] = [
+    { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
+    { key: 'rewards', label: th('sc_rewards'), Icon: Gift, href: '/26-rewards', bg: 'orangeTint', fg: colors.orange },
+    { key: 'quest', label: th('sc_quest'), Icon: Trophy, href: '/30-team-quests', bg: 'primaryTint', fg: colors.primary },
+    { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
+  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -55,27 +64,29 @@ export default function EmployeeHome() {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                 {/* level · streak · points in one pill → Rewards */}
-                <Pressable
-                  onPress={() => router.navigate('/26-rewards')}
-                  accessibilityRole="link"
-                  accessibilityLabel={th('progressA11y', { level: n(LEVEL), streak: n(STREAK_DAYS), pts: n(w.balance) })}
-                  style={({ pressed }) => ({
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 5,
-                    minHeight: sizes.touch - 8,
-                    paddingStart: 5,
-                    paddingEnd: spacing.md,
-                    borderRadius: radius.pill,
-                    backgroundColor: colors.surface,
-                    opacity: pressed ? 0.88 : 1,
-                  })}
-                >
-                  <PointsCoin size={22} />
-                  <AppText variant="caption" weight="extrabold" color="orangeText" style={{ writingDirection: 'ltr' }}>
-                    {`Lv ${n(LEVEL)} · 🔥${n(STREAK_DAYS)} · ${n(w.balance)}`}
-                  </AppText>
-                </Pressable>
+                {SHOW_REWARDS && (
+                  <Pressable
+                    onPress={() => router.navigate('/26-rewards')}
+                    accessibilityRole="link"
+                    accessibilityLabel={th('progressA11y', { level: n(LEVEL), streak: n(STREAK_DAYS), pts: n(w.balance) })}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 5,
+                      minHeight: sizes.touch - 8,
+                      paddingStart: 5,
+                      paddingEnd: spacing.md,
+                      borderRadius: radius.pill,
+                      backgroundColor: colors.surface,
+                      opacity: pressed ? 0.88 : 1,
+                    })}
+                  >
+                    <PointsCoin size={22} />
+                    <AppText variant="caption" weight="extrabold" color="orangeText" style={{ writingDirection: 'ltr' }}>
+                      {`Lv ${n(LEVEL)} · 🔥${n(STREAK_DAYS)} · ${n(w.balance)}`}
+                    </AppText>
+                  </Pressable>
+                )}
                 <AlertsBell />
                 <Pressable onPress={() => router.push('/settings')} accessibilityRole="button" accessibilityLabel={t('settings')} hitSlop={2}>
                   <Avatar name={fullName || '?'} size={40} gradient="avatarBlue" ring />
@@ -91,14 +102,7 @@ export default function EmployeeHome() {
           <TodayTasks />
 
           {/* 3. everything else, one tap away */}
-          <Shortcuts
-            items={[
-              { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
-              { key: 'rewards', label: th('sc_rewards'), Icon: Gift, href: '/26-rewards', bg: 'orangeTint', fg: colors.orange },
-              { key: 'quest', label: th('sc_quest'), Icon: Trophy, href: '/30-team-quests', bg: 'primaryTint', fg: colors.primary },
-              { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
-            ]}
-          />
+          <Shortcuts items={SHOW_REWARDS ? shortcuts : shortcuts.filter((s) => s.key !== 'rewards')} />
         </View>
       </ScrollView>
     </View>

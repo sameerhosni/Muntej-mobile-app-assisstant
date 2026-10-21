@@ -7,6 +7,7 @@ import { Award, CircleCheck, Gift, House, ListChecks, Mic, ChartNoAxesColumn, ty
 import { AppText, Gradient } from '@/components/ui';
 import { colors, radius, shadows, sizes } from '@/theme/tokens';
 import type { Role } from '@/features/screens/registry';
+import { SHOW_REWARDS } from '@/features/rewards/visibility';
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
@@ -21,13 +22,16 @@ const MANAGER: (TabDef | 'mic')[] = [
 ];
 
 // everyone can create tasks (an employee may manage others), so both bars carry the centre mic
-const EMPLOYEE: (TabDef | 'mic')[] = [
-  { name: '25-employee-home', label: 'tabs.home', Icon: House },
-  { name: '38-tasks', label: 'tabs.tasks', Icon: ListChecks },
-  'mic',
-  { name: '26-rewards', label: 'tabs.rewards', Icon: Gift },
-  { name: '29-badges', label: 'tabs.badges', Icon: Award },
-];
+// Rewards + Badges are hidden for now (SHOW_REWARDS): Home · mic · Tasks keeps the mic centred.
+const EMPLOYEE: (TabDef | 'mic')[] = SHOW_REWARDS
+  ? [
+      { name: '25-employee-home', label: 'tabs.home', Icon: House },
+      { name: '38-tasks', label: 'tabs.tasks', Icon: ListChecks },
+      'mic',
+      { name: '26-rewards', label: 'tabs.rewards', Icon: Gift },
+      { name: '29-badges', label: 'tabs.badges', Icon: Award },
+    ]
+  : [{ name: '25-employee-home', label: 'tabs.home', Icon: House }, 'mic', { name: '38-tasks', label: 'tabs.tasks', Icon: ListChecks }];
 
 type Props = TabBarProps & { role: Role; badges?: Record<string, number> };
 
