@@ -54,6 +54,8 @@ export const colors = {
   redTint: '#FDECEC',
 
   // points
+  // brand (logo only: the indigo dot of the wordmark)
+  brandIndigo: '#5048E5',
   orange: '#F26A1B',
   orangeText: '#E2580B',
   orangeTint: '#FFF1E8',
@@ -76,6 +78,8 @@ export const gradients = {
   avatarPurple: ['#6D4AFF', '#A78BFA'],
   avatarGreen: ['#0EA5A4', '#34D399'],
   avatarOrange: ['#F26A1B', '#FFB547'],
+  // the logo's arrow, purple → yellow (brand accents only, not for screens)
+  brand: ['#5B3BFF', '#C13BF0', '#FF4FA0', '#FF9F1C', '#FFD60A'],
 } as const satisfies Record<string, readonly [string, string, ...string[]]>;
 
 export type GradientToken = keyof typeof gradients;

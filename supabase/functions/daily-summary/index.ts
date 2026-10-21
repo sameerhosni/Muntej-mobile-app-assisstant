@@ -253,6 +253,12 @@ function isManager(p: Person, w: World) {
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/** the white wordmark, served by the public `brand` function (mail apps need an https image) */
+const LOGO_URL = `${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/brand?f=wordmark-white`;
+/** thin purple → yellow line under the header, like the logo's arrow (solid purple where gradients aren't supported) */
+const BRAND_LINE =
+  '<tr><td style="height:4px;line-height:4px;font-size:0;background-color:#C13BF0;background-image:linear-gradient(90deg,#5B3BFF,#C13BF0,#FF4FA0,#FF9F1C,#FFD60A)">&nbsp;</td></tr>';
+
 function emailHtml(s: Summary, hello: string, lang: Lang) {
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const align = lang === 'ar' ? 'right' : 'left';
@@ -269,10 +275,11 @@ function emailHtml(s: Summary, hello: string, lang: Lang) {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F3F6FB;padding:24px 0"><tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border-radius:18px;overflow:hidden" dir="${dir}">
       <tr><td style="background:#1F6FEB;padding:22px 24px;text-align:${align}">
-        <div style="font:700 13px Arial,sans-serif;color:#CFE0FF">Muntej · منتج</div>
+        <img src="${LOGO_URL}" width="110" height="37" alt="Muntej · منتج" style="display:block;border:0;width:110px;height:auto;font:700 13px Arial,sans-serif;color:#CFE0FF${lang === 'ar' ? ';margin-left:auto' : ''}">
         <div style="font:700 22px Arial,sans-serif;color:#FFFFFF;padding-top:4px">${esc(hello)}</div>
         <div style="font:14px Arial,sans-serif;color:#E6EEFF;padding-top:6px">${esc(s.headline)}</div>
       </td></tr>
+      ${BRAND_LINE}
       ${sections}
       <tr><td style="padding:18px 24px 6px;font:700 14px Arial,sans-serif;color:#1F6FEB;text-align:${align}">${esc(say(lang, 'open'))}</td></tr>
       <tr><td style="padding:4px 24px 22px;font:12px Arial,sans-serif;color:#8A97AD;text-align:${align}">${esc(say(lang, 'footer'))}</td></tr>

@@ -15,7 +15,7 @@
     "android": {
       "package": "sa.muntej.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F3F6FB",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -35,7 +35,7 @@
         {
           "backgroundColor": "#F3F6FB",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 160
+          "imageWidth": 220
         }
       ],
       [
@@ -63,8 +63,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/android-icon-monochrome.png",
-          "color": "#1F6FEB",
+          "icon": "./assets/notification-icon.png",
+          "color": "#6D4AFF",
           "defaultChannel": "muntej"
         }
       ],

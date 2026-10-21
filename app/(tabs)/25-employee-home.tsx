@@ -10,7 +10,7 @@ import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Gift, Inbox, Receipt, Target, Trophy } from 'lucide-react-native';
-import { AppText, Avatar, Hero, PointsCoin } from '@/components/ui';
+import { AppText, Avatar, BrandChip, Hero, PointsCoin } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -60,11 +60,14 @@ export default function EmployeeHome() {
         <Hero variant="employee">
           <View style={{ gap: spacing.lg }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm }}>
-              <View style={{ gap: 2, flexShrink: 1 }}>
-                <AppText color="onDarkMuted">{t('morning')}</AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 1 }}>
+                <BrandChip size={40} />
+                <View style={{ gap: 2, flexShrink: 1 }}>
+                  <AppText color="onDarkMuted">{t('morning')}</AppText>
                 <AppText variant="titleLg" color="onDark" numberOfLines={1}>
                   {firstName}
                 </AppText>
+                </View>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                 {/* level · streak · points in one pill → Rewards */}

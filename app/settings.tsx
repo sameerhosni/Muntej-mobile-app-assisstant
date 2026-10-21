@@ -5,7 +5,8 @@ import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Sparkles, Users } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle, Toggle } from '@/components/ui';
+import Constants from 'expo-constants';
+import { AppText, Avatar, BrandSymbol, BrandWordmark, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle, Toggle } from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
 import { PROTO_NS } from '@/features/prototype/strings';
 import { useMyProfile, useSignOut } from '@/lib/api';
@@ -329,6 +330,20 @@ export default function SettingsScreen() {
       </Card>
         </>
       )}
+
+      {/* about: the brand + version */}
+      <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xxl }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, direction: 'ltr' }}>
+          <BrandSymbol size={34} />
+          <BrandWordmark width={92} style={{ marginTop: 3 }} />
+        </View>
+        <AppText variant="caption" color="textMuted" align="center">
+          {t('settings.aboutTagline')}
+        </AppText>
+        <AppText variant="micro" color="textFaint">
+          {t('settings.version', { v: Constants.expoConfig?.version ?? '' })}
+        </AppText>
+      </View>
     </Screen>
   );
 }

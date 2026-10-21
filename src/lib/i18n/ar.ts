@@ -229,6 +229,8 @@ const ar: Translations = {
     arabic: 'العربية',
     allScreens: 'كل الشاشات',
     allScreensHint: 'روح لأي شاشة من الـ ٢٤ (اختصار للتطوير).',
+    aboutTagline: 'يحوّل المحادثات إلى تنفيذ وأداء حقيقي.',
+    version: 'الإصدار {{v}}',
     open: 'افتح الإعدادات',
   },
 };

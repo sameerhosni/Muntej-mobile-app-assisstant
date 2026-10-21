@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react-native';
-import { AppText, IconButton } from '@/components/ui';
+import { AppText, BrandSymbol, IconButton } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -495,9 +495,12 @@ export default function MuntejChatScreen() {
           />
         </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <AppText variant="title" display>
-            {t('title')}
-          </AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <AppText variant="title" display>
+              {t('title')}
+            </AppText>
+            <BrandSymbol size={24} />
+          </View>
           <AppText variant="caption" color="textMuted" numberOfLines={1}>
             {t('subtitle')}
           </AppText>

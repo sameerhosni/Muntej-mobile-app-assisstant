@@ -17,3 +17,4 @@ export { PointsCoin, PointsPill } from './PointsPill';
 export { IconButton } from './IconButton';
 export { FilterChips, type FilterOption } from './FilterChips';
 export { SearchField } from './SearchField';
+export { BrandChip, BrandSymbol, BrandWordmark } from './Logo';

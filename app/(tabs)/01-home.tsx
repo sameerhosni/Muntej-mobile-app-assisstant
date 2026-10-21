@@ -13,7 +13,7 @@ import { Redirect, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Receipt, RotateCw, Target, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { AppText, Avatar, Hero } from '@/components/ui';
+import { AppText, Avatar, BrandChip, Hero } from '@/components/ui';
 import { colors, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -55,11 +55,14 @@ export default function ManagerHome() {
         <Hero>
           <View style={{ gap: spacing.lg }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View style={{ gap: 2, flexShrink: 1 }}>
-                <AppText color="onDarkMuted">{t(greetingKey())}</AppText>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 1 }}>
+                <BrandChip size={40} />
+                <View style={{ gap: 2, flexShrink: 1 }}>
+                  <AppText color="onDarkMuted">{t(greetingKey())}</AppText>
                 <AppText variant="titleLg" color="onDark" numberOfLines={1}>
                   {firstName || ' '}
                 </AppText>
+                </View>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
                 <AlertsBell />

@@ -226,6 +226,8 @@ const en = {
     arabic: 'العربية',
     allScreens: 'All screens',
     allScreensHint: 'Jump to any of the 24 screens (dev shortcut).',
+    aboutTagline: 'Turns conversations into done work.',
+    version: 'Version {{v}}',
     open: 'Open settings',
   },
 };

@@ -454,3 +454,6 @@ verify_jwt = false
 
 [functions.suggest-steps]
 verify_jwt = false
+
+[functions.brand]
+verify_jwt = false
