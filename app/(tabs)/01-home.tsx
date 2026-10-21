@@ -10,7 +10,7 @@
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Inbox, Receipt, RotateCw, Target, Users } from 'lucide-react-native';
+import { Receipt, RotateCw, Target, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppText, Avatar, Hero } from '@/components/ui';
 import { colors, spacing } from '@/theme/tokens';
@@ -22,8 +22,6 @@ import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
 import { MyTasks, NeedsSupport, TeamPulse } from '@/features/home/TodayHome';
 import { NS } from '@/features/home/strings';
-import { NS as INCOMING_NS } from '@/features/incoming/strings';
-
 function greetingKey(date = new Date()) {
   const h = date.getHours();
   return h < 12 ? 'home.morning' : h < 18 ? 'home.afternoon' : 'home.evening';
@@ -32,7 +30,6 @@ function greetingKey(date = new Date()) {
 export default function ManagerHome() {
   const { t } = useTranslation();
   const { t: th } = useScreenT(NS);
-  const { t: ti } = useScreenT(INCOMING_NS);
   const { lang } = useDirection();
   const me = useMyProfile();
   const { active: protoActive } = useProto();
@@ -89,9 +86,7 @@ export default function ManagerHome() {
               { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
               { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
               { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
-              { key: 'auto', label: th('sc_autopilot'), Icon: RotateCw, href: '/03-autopilot', bg: 'amberTint', fg: colors.amberText },
-              { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary },
-            ]}
+              { key: 'auto', label: th('sc_autopilot'), Icon: RotateCw, href: '/03-autopilot', bg: 'amberTint', fg: colors.amberText },            ]}
           />
         </View>
       </ScrollView>

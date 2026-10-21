@@ -154,7 +154,23 @@ export function NeedsYou() {
 
   return (
     <View style={{ gap: spacing.md }}>
-      <AppText variant="section">{t('needsYou')}</AppText>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <AppText variant="section" style={{ flex: 1 }}>
+          {t('needsYou')}
+        </AppText>
+        {/* the way into Incoming: paste an email / chat and Muntej pulls the tasks out */}
+        <Pressable
+          onPress={() => router.push('/42-incoming')}
+          accessibilityRole="link"
+          hitSlop={8}
+          style={{ minHeight: sizes.touch, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+        >
+          <Inbox color={colors.primary} size={15} strokeWidth={2.2} />
+          <AppText variant="small" weight="bold" color="primary">
+            {ti('pasteLink')}
+          </AppText>
+        </Pressable>
+      </View>
       {needs.length === 0 ? (
         <Card padding={spacing.lg}>
           <AppText color="textMuted">{t('nothingNeeds')}</AppText>

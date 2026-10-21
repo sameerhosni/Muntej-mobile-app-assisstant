@@ -221,8 +221,8 @@ const ar: typeof en = {
 
 export const PROTO_NS = registerStrings('proto', { en, ar });
 
-// Screens 39 (Team), 40 (Objectives) and 41 (Objective) have no entry in the shared en/ar `screens` list: add its name here.
+// Screens 39 (Team), 40 (Objectives), 41 (Objective) and 42 (Incoming) have no entry in the shared en/ar `screens` list: add their names here.
 registerStrings('screens', {
-  en: { '39': 'Team', '40': 'Objectives', '41': 'Objective' },
-  ar: { '39': 'الفريق', '40': 'الأهداف', '41': 'الهدف' },
+  en: { '39': 'Team', '40': 'Objectives', '41': 'Objective', '42': 'Incoming' },
+  ar: { '39': 'الفريق', '40': 'الأهداف', '41': 'الهدف', '42': 'الوارد' },
 });

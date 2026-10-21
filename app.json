@@ -67,6 +67,13 @@
           "color": "#1F6FEB",
           "defaultChannel": "muntej"
         }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "androidIntentFilters": ["text/*"],
+          "disableIOS": true
+        }
       ]
     ],
     "experiments": {

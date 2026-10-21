@@ -1,10 +1,10 @@
 // The 37 v2 screens (design/v2/canvas.json), with their route, design file and sprint,
-// plus 38 Tasks, 39 Team, 40 Objectives and 41 Objective detail (no mockup; v2 light style per design/TOKENS.md).
+// plus 38 Tasks, 39 Team, 40 Objectives, 41 Objective detail and 42 Incoming (no mockup; v2 light style per design/TOKENS.md).
 
 export type ScreenNum =
   | '01' | '02' | '03' | '04' | '05' | '06' | '07' | '08' | '09' | '10' | '11' | '12' | '13'
   | '14' | '15' | '16' | '17' | '18' | '19' | '20' | '21' | '22' | '23' | '24' | '25' | '26'
-  | '27' | '28' | '29' | '30' | '31' | '32' | '33' | '34' | '35' | '36' | '37' | '38' | '39' | '40' | '41';
+  | '27' | '28' | '29' | '30' | '31' | '32' | '33' | '34' | '35' | '36' | '37' | '38' | '39' | '40' | '41' | '42';
 
 export type Role = 'manager' | 'employee';
 
@@ -63,6 +63,7 @@ export const SCREENS: ScreenMeta[] = [
   { num: '39', route: '/39-team', design: 'Team', sprint: 1 },
   { num: '40', route: '/40-objectives', design: 'Objectives', sprint: 1 },
   { num: '41', route: '/41-objective', design: 'Objective', sprint: 1 },
+  { num: '42', route: '/42-incoming', design: 'Incoming', sprint: 2 },
 ];
 
 export function screenMeta(num: ScreenNum): ScreenMeta {

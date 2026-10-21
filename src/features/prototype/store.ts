@@ -9,7 +9,7 @@ const AUDIENCE: Record<ScreenNum, 'manager' | 'employee' | 'both'> = {
   '19': 'manager', '20': 'manager', '21': 'manager', '22': 'manager', '23': 'manager', '24': 'manager',
   '25': 'employee', '26': 'employee', '27': 'manager', '28': 'manager', '29': 'employee', '30': 'employee',
   '31': 'manager', '32': 'manager', '33': 'manager', '34': 'manager', '35': 'employee', '36': 'both', '37': 'manager',
-  '38': 'both', '39': 'both', '40': 'both', '41': 'both',
+  '38': 'both', '39': 'both', '40': 'both', '41': 'both', '42': 'both',
 };
 
 export type ProtoScreen = ScreenMeta & { audience: 'manager' | 'employee' | 'both' };

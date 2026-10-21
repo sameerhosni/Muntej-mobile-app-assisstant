@@ -47,6 +47,7 @@ const en = {
   homeRow_other: '{{n}} tasks found in your messages',
   homeSub: 'Add or ignore with one tap',
   shortcut: 'Incoming',
+  pasteLink: 'Paste a message',
 };
 
 const ar: typeof en = {
@@ -94,6 +95,7 @@ const ar: typeof en = {
   homeRow_other: 'لقيت {{n}} مهام في رسائلك',
   homeSub: 'أضفها أو تجاهلها بضغطة',
   shortcut: 'الوارد',
+  pasteLink: 'الصق رسالة',
 };
 
 export const NS = registerStrings('s42', { en, ar });

@@ -17,6 +17,8 @@ import { ProtoBar } from '@/features/prototype/ProtoBar';
 import { HelperButton } from '@/features/munti/HelperButton';
 import { usePushNotifications } from '@/features/notifications/push';
 import { useLiveSync } from '@/lib/realtime';
+import { ShareIntentProvider } from 'expo-share-intent';
+import { ShareIntake } from '@/features/incoming/ShareIntake';
 import '@/features/prototype/strings';
 
 // non-tab numbered screens, e.g. "14-task-detail"
@@ -31,13 +33,16 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <SafeAreaProvider>
-          <RootNavigator />
-        </SafeAreaProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    // first, so text shared from other apps ("Share to Muntej") is caught at launch
+    <ShareIntentProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <SafeAreaProvider>
+            <RootNavigator />
+          </SafeAreaProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ShareIntentProvider>
   );
 }
 
@@ -96,6 +101,7 @@ function RootNavigator() {
           <Stack.Screen name="(auth)" />
         </Stack.Protected>
       </Stack>
+      <ShareIntake signedIn={signedIn} />
       {signedIn && <HelperButton />}
       {signedIn && <ProtoBar />}
     </View>
