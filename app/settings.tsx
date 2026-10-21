@@ -1,5 +1,5 @@
 // Screen · Settings — profile, language, sign out, all-screens dev index; no mockup, v2 style per design/TOKENS.md
-// The prototype tour and the all-screens list are for admins only (pilot users never see the prototype bulb).
+// The prototype tour, the all-screens list and the Manager/Employee "View as" switch are for admins only.
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,8 @@ import { PROTO_NS } from '@/features/prototype/strings';
 import { useMyProfile, useSignOut } from '@/lib/api';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { setLanguage, useDirection, type Language } from '@/lib/i18n';
-import { SCREENS } from '@/features/screens/registry';
+import { SCREENS, homeRouteFor } from '@/features/screens/registry';
+import { canSwitchView, useViewAs, viewAs, type ViewAs } from '@/features/view-as/store';
 import { useTotpFactor } from '@/features/auth/useTotpFactor';
 import { sendTestPush, usePushStatus } from '@/features/notifications/push';
 import { NS as TEAM_NS } from '@/features/org/strings';
@@ -31,7 +32,15 @@ export default function SettingsScreen() {
   const { t: tm } = useScreenT(MUNTI_NS);
   const { t: ta } = useScreenT(ALERTS_NS);
   const muntiState = useMunti();
-  const isAdmin = me?.role === 'admin' || me?.role === 'super_admin';
+  // the real role (not the "View as" one) decides admin-only things
+  const realRole = me?.actual_role ?? me?.role;
+  const isAdmin = canSwitchView(realRole);
+  const view = useViewAs();
+  const switchView = (v: ViewAs) => {
+    if (v === view) return;
+    viewAs.set(v);
+    router.replace(homeRouteFor(v === 'employee' ? 'employee' : realRole));
+  };
   const twoStep = useTotpFactor();
   const push = usePushStatus();
   const [testing, setTesting] = useState(false);
@@ -86,7 +95,8 @@ export default function SettingsScreen() {
               </AppText>
               <AppText variant="cardTitle">{lang === 'ar' && me.full_name_ar ? me.full_name_ar : me.full_name}</AppText>
               <AppText variant="caption" color="textMuted">
-                {t(`settings.role_${me.role}`)}
+                {t(`settings.role_${realRole}`)}
+                {isAdmin ? ` · ${t('settings.viewingAs', { view: t(view === 'employee' ? 'settings.viewEmployee' : 'settings.viewManager') })}` : ''}
                 {(lang === 'ar' ? me.title_ar : me.title) ? ` · ${lang === 'ar' ? me.title_ar : me.title}` : ''}
               </AppText>
             </View>
@@ -98,6 +108,47 @@ export default function SettingsScreen() {
             loading={signOut.isPending}
             onPress={() => signOut.mutate()}
           />
+        </Card>
+      )}
+
+      {/* admins: use the app as a manager or as an employee */}
+      {isAdmin && (
+        <Card>
+          <View style={{ gap: 4 }}>
+            <AppText variant="cardTitle">{t('settings.viewAs')}</AppText>
+            <AppText variant="caption" color="textMuted">
+              {t('settings.viewAsHint')}
+            </AppText>
+          </View>
+          <View
+            accessibilityRole="radiogroup"
+            style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}
+          >
+            {(['manager', 'employee'] as ViewAs[]).map((v) => {
+              const active = view === v;
+              return (
+                <Pressable
+                  key={v}
+                  onPress={() => switchView(v)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  style={{
+                    flex: 1,
+                    minHeight: sizes.touch,
+                    borderRadius: radius.pill,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: active ? colors.surface : colors.transparent,
+                    boxShadow: active ? shadows.tile : undefined,
+                  }}
+                >
+                  <AppText weight="bold" style={{ color: active ? (v === 'employee' ? colors.purple : colors.primary) : colors.textMuted }}>
+                    {t(v === 'employee' ? 'settings.viewEmployee' : 'settings.viewManager')}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
         </Card>
       )}
 

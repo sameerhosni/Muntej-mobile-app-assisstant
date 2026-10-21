@@ -209,6 +209,11 @@ const ar: Translations = {
   },
   settings: {
     role_super_admin: 'مدير النظام',
+    viewAs: 'شوف التطبيق كـ',
+    viewAsHint: 'بدّل بين شاشات المدير وشاشات الموظف. صلاحياتك ما تتغير.',
+    viewManager: 'مدير',
+    viewEmployee: 'موظف',
+    viewingAs: 'تشوفه كـ{{view}}',
     role_admin: 'مسؤول',
     role_manager: 'مدير',
     role_employee: 'موظف',

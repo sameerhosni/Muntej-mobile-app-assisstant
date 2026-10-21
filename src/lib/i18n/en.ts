@@ -206,6 +206,11 @@ const en = {
   },
   settings: {
     role_super_admin: 'Super admin',
+    viewAs: 'View the app as',
+    viewAsHint: 'Switch between the manager and the employee screens. Your access stays the same.',
+    viewManager: 'Manager',
+    viewEmployee: 'Employee',
+    viewingAs: 'viewing as {{view}}',
     role_admin: 'Admin',
     role_manager: 'Manager',
     role_employee: 'Employee',

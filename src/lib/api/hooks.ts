@@ -1,7 +1,9 @@
 // Typed data hooks (TanStack Query). RLS decides what each user can see, so queries stay simple.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { useCallback } from 'react';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { useViewAs, withView } from '@/features/view-as/store';
 import { qk, type TaskFilter } from './keys';
 import {
   ACTIVE_STATUSES,
@@ -24,15 +26,18 @@ function unwrap<T>(res: { data: T | null; error: { message: string } | null }): 
 const TASK_SELECT =
   '*, owner:profiles!tasks_owner_id_fkey(id, full_name, full_name_ar, avatar_color), helper:profiles!tasks_helper_id_fkey(id, full_name, full_name_ar), workspace:workspaces(id, name, name_ar, color)';
 
-/** The signed-in user's profile. */
+/** The signed-in user's profile. For admins, `role` follows the "View as" switch; `actual_role` is the real one. */
 export function useMyProfile() {
   const { session } = useAuth();
   const userId = session?.user.id;
+  const view = useViewAs();
+  const select = useCallback((p: Profile) => withView(p, view), [view]);
   return useQuery({
     queryKey: qk.me,
     enabled: !!userId,
     queryFn: async (): Promise<Profile> =>
       unwrap(await supabase.from('profiles').select('*').eq('user_id', userId!).single()),
+    select,
   });
 }
 
