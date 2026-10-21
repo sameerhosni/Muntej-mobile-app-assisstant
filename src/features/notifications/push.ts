@@ -79,6 +79,8 @@ function openFrom(data: unknown) {
   }
   if (d.taskId) router.push({ pathname: '/14-task-detail', params: { id: d.taskId } } as Href);
   else if (d.kind === 'decision_waiting') router.push('/04-decisions' as Href);
+  // the daily summary opens Home
+  else if (d.screen) router.push(d.screen as Href);
   else router.push('/18-alerts' as Href);
 }
 

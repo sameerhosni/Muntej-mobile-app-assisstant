@@ -55,7 +55,7 @@ export const DEFAULT_PREFS: AlertPrefs = {
     decision_waiting: { enabled: true, channels: ['push'], timing: 'instant' },
     new_submission: { enabled: true, channels: ['push'] },
     kudos: { enabled: true, channels: ['push'], timing: 'instant' },
-    daily_summary: { enabled: true, channels: ['email'], time: '08:00' },
+    daily_summary: { enabled: true, channels: ['push', 'email'], time: '08:00' },
     weekly_report: { enabled: false, channels: ['email'], day: 'thu', time: '16:00' },
   },
   quiet_hours: { enabled: true, prayer_times: true, after: '21:00', friday: true, ramadan: true },

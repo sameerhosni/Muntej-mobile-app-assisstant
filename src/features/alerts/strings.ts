@@ -70,6 +70,14 @@ const en = {
   agoH: '{{n}}h',
   agoD: '{{n}}d',
   waNote: "WhatsApp delivery starts once your company's WhatsApp is connected.",
+  summaryTest: "Send me today's summary now",
+  summarySent: 'Sent by {{via}}.',
+  summaryNothing: 'Nothing to report today, so no summary. Enjoy the calm.',
+  summaryNone: "Couldn't deliver it (no device or email reachable yet).",
+  summaryError: "Couldn't send the summary. Try again in a moment.",
+  via_push: 'push',
+  via_email: 'email',
+  via_whatsapp: 'WhatsApp',
 };
 
 const ar: typeof en = {
@@ -142,6 +150,14 @@ const ar: typeof en = {
   agoH: 'قبل {{n}} س',
   agoD: 'قبل {{n}} يوم',
   waNote: 'التنبيهات على الواتساب تبدأ أول ما يتربط واتساب شركتك.',
+  summaryTest: 'أرسل لي ملخّص اليوم الحين',
+  summarySent: 'انرسل على {{via}}.',
+  summaryNothing: 'ما فيه شي يستاهل ملخّص اليوم. استانس بالهدوء.',
+  summaryNone: 'ما قدرنا نوصله (ما فيه جهاز أو إيميل متاح للحين).',
+  summaryError: 'ما انرسل الملخّص. جرّب بعد شوي.',
+  via_push: 'الإشعارات',
+  via_email: 'الإيميل',
+  via_whatsapp: 'الواتساب',
 };
 
 export const NS = registerStrings('s18', { en, ar });

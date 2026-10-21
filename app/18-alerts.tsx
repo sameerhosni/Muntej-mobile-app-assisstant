@@ -2,7 +2,7 @@
 // Live data: notification_prefs (own row, RLS). Toggles save optimistically via src/features/alerts/useAlertPrefs.
 // Recent alerts: table alerts (own rows; team-alerts, muntej-chat and DB triggers write them, the server pushes each once)
 // via src/features/alerts/useAlerts, with "Mark all read". Value tiles: real counts for the last 7 days (useAlertStats).
-import { Fragment, type ComponentType } from 'react';
+import { Fragment, useState, type ComponentType } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,7 +38,8 @@ import {
   UserPen,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, Toggle } from '@/components/ui';
+import { AppText, Button, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, Toggle } from '@/components/ui';
+import { supabase } from '@/lib/supabase';
 import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -164,6 +165,43 @@ function RecentAlerts() {
         </View>
       )}
     </Card>
+  );
+}
+
+/** "Send me today's summary now": runs the daily-summary function for the signed-in user and says where it went. */
+function SummaryTest() {
+  const { t } = useScreenT(NS);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const { data, error } = await supabase.functions.invoke<{ sent?: string[]; skipped?: string }>('daily-summary', { body: { test: true } });
+      if (error || !data) throw error ?? new Error('no data');
+      const sent = data.sent ?? [];
+      setNote(
+        data.skipped
+          ? t('summaryNothing')
+          : sent.length
+            ? t('summarySent', { via: sent.map((c) => t(`via_${c}`)).join(' + ') })
+            : t('summaryNone'),
+      );
+    } catch {
+      setNote(t('summaryError'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Button label={t('summaryTest')} variant="outline" size="md" loading={busy} onPress={run} />
+      {note && (
+        <AppText variant="small" color="textMuted" align="center">
+          {note}
+        </AppText>
+      )}
+    </View>
   );
 }
 
@@ -354,6 +392,9 @@ export default function AlertsScreen() {
               </View>
             </Card>
           )}
+
+          {/* try the daily summary now (sent to you only, whatever the time) */}
+          {prefs && <SummaryTest />}
 
           {/* Quiet hours + escalation */}
           {prefs && esc && (
