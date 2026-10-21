@@ -22,7 +22,7 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTask, useTeam } from '@/lib/api';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
-import { transcribeAudio } from '@/features/capture/api';
+import { TranscribeTimeoutError, transcribeAudio } from '@/features/capture/api';
 import { personName } from '@/features/capture/TaskReview';
 import {
   appendToChat,
@@ -92,6 +92,10 @@ type Pending = {
 };
 
 const EXAMPLES = ['ex1', 'ex2', 'ex3'] as const;
+/** voice: a pause this long after speaking sends the recording by itself */
+const AUTO_STOP_MS = 2000;
+/** voice: nobody needs more than this for one message */
+const MAX_RECORD_MS = 120_000;
 
 export default function MuntejChatScreen() {
   const { t } = useScreenT(NS);
@@ -196,9 +200,18 @@ export default function MuntejChatScreen() {
     }
   }, [mode, startRecording]);
 
+  // one stop at a time (a double tap used to call the native stop twice and freeze the strip);
+  // each recording gets a run id so Cancel while "writing it down" drops that result
+  const stopping = useRef(false);
+  const voiceRun = useRef(0);
   const stopRecording = async () => {
+    if (stopping.current || voice !== 'recording') return;
+    stopping.current = true;
+    const run = ++voiceRun.current;
     const duration = recorder.durationMillis;
+    setVoice('transcribing');
     const uri = await recorder.stop().catch(() => null);
+    stopping.current = false;
     if (!uri || duration < 800) {
       setVoice('idle');
       setNotice(tg('capture.tooShort'));
@@ -210,23 +223,40 @@ export default function MuntejChatScreen() {
       setNotice(tg('capture.noSpeech'));
       return;
     }
-    setVoice('transcribing');
     try {
       const transcript = await transcribeAudio(uri);
+      if (run !== voiceRun.current) return; // cancelled meanwhile
       setVoice('idle');
       if (transcript.trim()) await send(transcript, 'voice');
       else setNotice(tg('capture.tooShort'));
     } catch (e) {
+      if (run !== voiceRun.current) return;
       setVoice('idle');
       const msg = (e as Error).message;
-      setNotice(msg === 'No speech detected' ? tg('capture.noSpeech') : msg || tg('capture.failed'));
+      setNotice(
+        e instanceof TranscribeTimeoutError
+          ? tg('capture.slow')
+          : msg === 'No speech detected'
+            ? tg('capture.noSpeech')
+            : msg || tg('capture.failed'),
+      );
     }
   };
 
   const cancelRecording = async () => {
-    if (recorder.isRecording) await recorder.stop().catch(() => {});
+    voiceRun.current++;
+    stopping.current = false;
     setVoice('idle');
+    if (recorder.isRecording) await recorder.stop().catch(() => {});
   };
+
+  // hands-free: after the person has spoken, a pause of AUTO_STOP_MS sends it; very long recordings stop at MAX_RECORD_MS
+  useEffect(() => {
+    if (voice !== 'recording') return;
+    const pausedAfterSpeech = recorder.silentForMs !== null && recorder.silentForMs > AUTO_STOP_MS && recorder.durationMillis > 1500;
+    if (pausedAfterSpeech || recorder.durationMillis > MAX_RECORD_MS) stopRecording();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice, recorder.silentForMs, recorder.durationMillis]);
 
   // ── leaving ────────────────────────────────────────────────────────────────
   // opened from Home → go back; opened directly (deep link / web refresh) → land on Home

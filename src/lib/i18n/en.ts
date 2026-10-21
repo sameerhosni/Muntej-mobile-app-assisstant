@@ -141,6 +141,7 @@ const en = {
     p_urgent: 'Urgent',
     micDenied: 'Microphone access is off. Allow it in Settings, or type the task instead.',
     tooShort: 'That was too short. Hold on a bit longer and try again.',
+    slow: 'The connection is slow, so I couldn’t write that down. Try again, or type it.',
     failed: "Something went wrong. Try again or type it.",
     saved: 'Done. Muntej has it.',
     noOwnerWarn: "No owner yet. I'll save it as a draft until you pick someone.",

@@ -1,6 +1,6 @@
 import type { ReactNode, Ref } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
-import { Mic, Send, Square, X } from 'lucide-react-native';
+import { Mic, Send, X } from 'lucide-react-native';
 import { AppText, Gradient } from '@/components/ui';
 import { colors, fontFamily, fontSize, shadows, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -58,33 +58,45 @@ export function Composer(p: Props) {
         }}
       >
         {p.voice === 'recording' ? (
+          // listening: cancel · live bars + "I send it when you pause" + clock · send now
           <>
             <RoundButton label={t('cancel')} onPress={p.onCancel}>
               <X color={colors.textSoft} size={20} strokeWidth={2} />
             </RoundButton>
-            <View style={{ flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, minWidth: 0 }}>
-              <View style={{ flexShrink: 1, overflow: 'hidden' }}>
-                <Waveform level={p.level} />
+            <View style={{ flex: 1, minHeight: 48, justifyContent: 'center', alignItems: 'center', minWidth: 0 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+                <View style={{ overflow: 'hidden' }}>
+                  <Waveform level={p.level} />
+                </View>
+                <AppText variant="small" weight="extrabold" color="textMuted" accessibilityLiveRegion="polite" style={{ writingDirection: 'ltr' }}>
+                  {formatClock(p.durationMs)}
+                </AppText>
               </View>
-              <AppText weight="extrabold" accessibilityLiveRegion="polite" style={{ writingDirection: 'ltr' }}>
-                {formatClock(p.durationMs)}
-              </AppText>
-              <AppText variant="caption" color="textMuted" numberOfLines={1} style={{ flexShrink: 1 }}>
-                {t('listening')}
+              <AppText variant="caption" color="primary" weight="bold" numberOfLines={1}>
+                {t('listeningHint')}
               </AppText>
             </View>
             <RoundButton label={t('stop')} onPress={p.onStop} gradient>
-              <Square color={colors.onDark} fill={colors.onDark} size={16} strokeWidth={2} />
+              <Send color={colors.onDark} size={19} strokeWidth={1.9} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
             </RoundButton>
           </>
         ) : p.voice === 'transcribing' ? (
-          <View
-            accessibilityLiveRegion="polite"
-            style={{ flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md }}
-          >
-            <ActivityIndicator color={colors.primary} />
-            <AppText color="textMuted">{t('transcribing')}</AppText>
-          </View>
+          // writing it down: always cancellable, so a slow connection never traps the person here
+          <>
+            <RoundButton label={t('cancel')} onPress={p.onCancel}>
+              <X color={colors.textSoft} size={20} strokeWidth={2} />
+            </RoundButton>
+            <View
+              accessibilityLiveRegion="polite"
+              style={{ flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md }}
+            >
+              <ActivityIndicator color={colors.primary} />
+              <AppText color="textMuted" numberOfLines={1}>
+                {t('transcribing')}
+              </AppText>
+            </View>
+            <View style={{ width: 48 }} />
+          </>
         ) : (
           <>
             <TextInput

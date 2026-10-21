@@ -47,6 +47,9 @@ export async function toError(error: unknown): Promise<Error> {
   return error instanceof Error ? error : new Error(String(error));
 }
 
+const TRANSCRIBE_TIMEOUT_MS = 45_000;
+export class TranscribeTimeoutError extends Error {}
+
 export async function transcribeAudio(uri: string): Promise<string> {
   if (Platform.OS === 'web') {
     const form = new FormData();
@@ -71,6 +74,9 @@ export async function transcribeAudio(uri: string): Promise<string> {
   if (!token) throw new Error('Not signed in');
 
   let res: Response;
+  // a weak connection must not leave "Writing down what you said…" on screen forever
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), TRANSCRIBE_TIMEOUT_MS);
   try {
     res = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/transcribe`, {
       method: 'POST',
@@ -79,11 +85,14 @@ export async function transcribeAudio(uri: string): Promise<string> {
         apikey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
       },
       body: form,
+      signal: abort.signal,
     });
   } catch (e) {
     console.warn('[transcribe] network error', { uri: fileUri, error: String(e) });
+    if (abort.signal.aborted) throw new TranscribeTimeoutError('timeout');
     throw new Error(`Upload failed: ${String(e)}`);
   } finally {
+    clearTimeout(timer);
     // the recording is only needed for this upload; never keep audio on the device
     try {
       file.delete();
