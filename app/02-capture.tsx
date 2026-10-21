@@ -28,6 +28,8 @@ import {
   appendToChat,
   chatKey,
   applyBulkChange,
+  applyBriefFixes,
+  undoTaskChanges,
   confirmChange,
   confirmOrg,
   confirmRecurring,
@@ -49,6 +51,7 @@ import {
   deleteTask,
   taskSnapshot,
   useChat,
+  type BriefRow,
   type BulkChange,
   type ChatMessage,
   type ChatSource,
@@ -65,6 +68,7 @@ import { ObjectiveProposalCard, type ObjectiveProposalState } from '@/features/c
 import { MuntejAvatar, MuntejBubble, MuntejText, NoticeBubble, TypingBubble, UserBubble } from '@/features/chat/Bubbles';
 import { ProposalCard, TaskCard, type CardState, type ProposalState } from '@/features/chat/TaskCard';
 import { Suggestions } from '@/features/chat/Suggestions';
+import { BriefCard } from '@/features/chat/BriefCard';
 import { Candidates } from '@/features/chat/Candidates';
 import { FocusBar } from '@/features/chat/FocusBar';
 import { Composer, type VoiceState } from '@/features/chat/Composer';
@@ -91,6 +95,7 @@ type Pending = {
   error?: string;
 };
 
+const EMPTY_KEYS = new Set<string>();
 const EXAMPLES = ['ex1', 'ex2', 'ex3'] as const;
 /** voice: a pause this long after speaking sends the recording by itself */
 const AUTO_STOP_MS = 2000;
@@ -375,6 +380,22 @@ export default function MuntejChatScreen() {
   };
   const applyBulk = (ids: string[], change: BulkChange) => runCard(applyBulkChange(ids, change, lang));
   const undo = (logId: string) => runCard(undoTaskChange(logId, lang));
+  const undoAll = (ids: string[]) => runCard(ids.length > 1 ? undoTaskChanges(ids, lang) : undoTaskChange(ids[0], lang));
+  const applyBrief = (sourceId: string, rows: BriefRow[]) => runCard(applyBriefFixes(sourceId, rows, lang));
+  // brief rows whose fix was applied, per brief message
+  const briefApplied = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const x of messages) {
+      const done = payloadPart(x.payload, 'bulk_done');
+      const b = done?.brief;
+      // undone → the row offers its fix again
+      if (!b || (done.log_id && undoneLogs.has(done.log_id))) continue;
+      const s = m.get(b.source_id) ?? new Set<string>();
+      b.keys.forEach((k) => s.add(k));
+      m.set(b.source_id, s);
+    }
+    return m;
+  }, [messages, undoneLogs]);
   const createHeld = (task: HeldTask, opts: Parameters<typeof createHeldTask>[1]) => runCard(createHeldTask(task, opts, lang));
   const updateExisting = (taskId: string, patch: ProposedPatch) => runCard(confirmChange(taskId, patch, lang));
   const saveRecurring = (id: string | null, patch: Record<string, unknown>) => runCard(confirmRecurring(id, patch, lang));
@@ -554,9 +575,20 @@ export default function MuntejChatScreen() {
           const dup = payloadPart(m.payload, 'duplicate');
           const createdList = payloadPart(m.payload, 'created_list');
           const rec = payloadPart(m.payload, 'recurring_proposal');
+          const brief = payloadPart(m.payload, 'brief');
           const isLatest = m.id === lastAssistantId && !pending;
           let card = null;
-          if (rec) {
+          if (brief) {
+            card = (
+              <BriefCard
+                key={`br-${m.id}`}
+                brief={brief}
+                applied={briefApplied.get(m.id) ?? EMPTY_KEYS}
+                open={isLatest}
+                onApply={(rows) => applyBrief(m.id, rows)}
+              />
+            );
+          } else if (rec) {
             card = (
               <RecurringCard
                 key={`r-${m.id}`}
@@ -582,7 +614,7 @@ export default function MuntejChatScreen() {
                 key={`bd-${m.id}`}
                 done={bulkDone}
                 undone={!!bulkDone.log_id && undoneLogs.has(bulkDone.log_id)}
-                onUndo={() => undo(bulkDone.log_id!)}
+                onUndo={() => undoAll(bulkDone.log_ids?.length ? bulkDone.log_ids : [bulkDone.log_id!])}
               />
             );
           } else if (people) {

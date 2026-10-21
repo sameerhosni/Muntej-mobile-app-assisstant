@@ -173,6 +173,19 @@ const BulkChange = z.object({
   }),
 });
 
+// a question about several people / tasks → a small table; the server adds what Muntej did and the one-tap next step
+const BriefRow = z.object({
+  person_id: z.string().nullable().describe('id from team when the row is about a person, else null'),
+  task_id: z.string().nullable().describe('id from open_tasks when the row is about one task, else null'),
+  status: z.enum(['late', 'blocked', 'overloaded', 'at_risk', 'unassigned', 'on_track', 'star']),
+  metric: z.string().describe('the key number, very short: "58h / 40h", "1 day late", "6 done · 92% on time"'),
+  note: z.string().describe('one short clause in the user language: the task name or the reason'),
+});
+const Brief = z.object({
+  headline: z.string().describe('one line counting what matters, e.g. "2 need attention · 4 on track" / "٢ يحتاجون انتباه · ٤ ماشين تمام"'),
+  rows: z.array(BriefRow).describe('max 6, problems first'),
+});
+
 const ChatOutput = z.object({
   language: z.enum(['en', 'ar']),
   reply: z.string(),
@@ -187,6 +200,7 @@ const ChatOutput = z.object({
   recurring: RecurringChange.nullable().describe('Only when action = recurring'),
   suggestions: z.array(z.string()).describe('0-3 optional next steps, each a short ready-to-send message in the user language'),
   candidates: z.array(z.string()).describe('Only with action none: 2-3 task ids when the user wants to change a task but several tasks fit'),
+  brief: Brief.nullable().describe('Only with action none, for questions about several people or tasks'),
 });
 type ChatOutput = z.infer<typeof ChatOutput>;
 
@@ -198,6 +212,7 @@ const SYSTEM = `You are Muntej, a friendly, sharp AI task assistant for people i
 Each turn, choose ONE action:
 - "none": small talk (hi, thanks) and questions ("what's late?", "who is free?"). Answer questions from the provided open_tasks/team data only; never invent facts.
   TEAM QUESTIONS ("how is Faisal doing?", "who's overloaded?", "top performers this month", "risks in Khalid's team", "who knows Selenium?"): answer in 1-3 short sentences from team[].stats, skills, title and the org tree (manager_id / reports; "Khalid's team" = everyone below Khalid, any depth). Quote the real numbers (done, on-time %, late, open, hours, achievements); never invent or estimate a number that is not in the data. stats = null means the user cannot see that person's tasks: say so instead of guessing. Top performers: rank by done_this_month, then on_time_pct, then achievements. Overloaded: stats.overloaded or open_estimate_hours above weekly_hours. People who left are in former_team: mention them only when asked.
+- BRIEF: when a question's answer covers several people or tasks (team status, who is late / blocked / overloaded / free, risks, top performers, "what needs me today", what's on someone's plate, objectives at risk), fill brief: headline = one counting line; rows (max 6) = problems first (late, blocked, overloaded, at_risk, unassigned), then on_track / star only when the question is about everyone or about performance. Each row: person_id and/or task_id from the lists, status, metric (the real number from the data) and note (task name or reason). Then the reply is ONE short sentence that does not repeat the rows (e.g. "Here's your team today:" / "هذا وضع فريقك اليوم:"). Never claim you reminded or changed anything: the server adds what Muntej already did and the one-tap fix to each row. brief = null for small talk, for one-person / one-task answers and for every other action.
 - "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). Create it IMMEDIATELY, even if details are vague — the user can Undo, and gaps are filled later in the chat. Never ask a clarifying question instead of creating: write the best short title you can from what was said, and mention the open points (which one, when, what "done" means) in the reply as things they can add. Only the title is required: owner, due date, what "done" means, priority details and budget may all be null and filled later. Only use "none" for work if you cannot even name the task.
   WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team (never former_team) using, in order: skill level and years in the skills the work needs, title, recent_tasks similar to this one, then the lower load (stats.open / open_estimate_hours vs weekly_hours; avoid people marked overloaded or with late tasks when someone similar is free). Put the data-based reason in owner_reason (one short clause, user's language, e.g. "Selenium 4/5, 3 years, only 2 open tasks"). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
 - "org": the user wants to change the team itself (people, not tasks): add someone ("add Reem as QA engineer under Khalid, 5 years, Selenium and API testing" → op "add", person_id null, fields full_name, full_name_ar when you can write it, title + title_ar, manager_id, years_experience, skills_detail), move someone ("move Saad under Maha" → op "move", fields.manager_id), change details ("Faisal is now an admin" → role; "Khalid works 35 hours a week" → weekly_capacity_hours; "Noura knows Docker now" → skills_detail with just that skill; op "update"), or someone left / came back ("Noura left the company" → op "status", status "deleted"). Fill ONLY the fields that change, all others null. person_id must come from team or former_team. Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short.
@@ -218,7 +233,7 @@ Each turn, choose ONE action:
 Writing rules:
 - language = the language of the user's latest message. Write reply, title, owner_reason, goal, definition_of_done and helper_reason in it. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
 - reply: 1–3 short sentences, human and warm, no lists, no ids. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so (with action "none" you created and changed nothing).
-- suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. When the task has no objective and an active objective could fit, one suggestion may link it ("Link it to «X»" / "اربطها بهدف «X»"). Empty for small talk, questions, cancel, delete, org and objective.
+- suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. When the task has no objective and an active objective could fit, one suggestion may link it ("Link it to «X»" / "اربطها بهدف «X»"). After a question answered with a brief: 2 short follow-up questions the user may ask next (e.g. "Who's free this week?" / "مين فاضي هالأسبوع؟"). Empty for small talk, other questions, cancel, delete, org and objective.
 - PENDING CARDS: if the user just says "yes"/"confirm"/"تمام" to a change waiting on a card, use "none" and tell them to tap Confirm on the card.
 - ids (owner_id, helper_id, workspace_id, task_id, person_id, manager_id, objective_id) must come from the provided lists, else null.
 - task and update are null unless action is create / update; org is null unless action is org; objective is null unless action is objective; status_change only with status; bulk only with bulk; recurring only with recurring.
@@ -347,6 +362,10 @@ serve(async (req) => {
     apply_create?: { task: Record<string, unknown>; owner_ids?: string[]; mode?: 'separate' | 'shared'; force?: boolean };
     /** Confirm tapped on a recurring schedule card: upsert_recurring as the caller */
     apply_recurring?: { recurring_id: string | null; patch: Record<string, unknown> };
+    /** one-tap fix(es) on a team brief row: "Move to Faisal", "+2 days" (Undo for 5 minutes) */
+    apply_brief?: { source_id: string; items: BriefApplyItem[] };
+    /** Undo after "Do all" on a brief (one log per change) */
+    undo_log_ids?: string[];
     lang?: string;
   };
   const message = (body.message ?? '').trim();
@@ -357,6 +376,8 @@ serve(async (req) => {
   if (body.apply_bulk) return await applyBulk(db, profileId, body.apply_bulk, body.lang === 'ar');
   if (body.undo_log_id) return await undoChange(db, profileId, body.undo_log_id, body.lang === 'ar');
   if (body.apply_recurring) return await applyRecurring(db, profileId, body.apply_recurring, body.lang === 'ar');
+  if (body.apply_brief) return await applyBrief(db, profileId, body.apply_brief, body.lang === 'ar');
+  if (body.undo_log_ids) return await undoMany(db, profileId, body.undo_log_ids, body.lang === 'ar');
   // no user message of its own: Confirm / a choice on a card
   const tapped = !!body.apply || !!body.apply_create;
 
@@ -688,6 +709,7 @@ serve(async (req) => {
       recurring: null,
       suggestions: [],
       candidates: [],
+      brief: null,
     };
   } else if (body.apply_create?.task) {
     // a choice on a people / duplicate card: the task as proposed, created without asking again
@@ -724,6 +746,7 @@ serve(async (req) => {
       recurring: null,
       suggestions: [],
       candidates: [],
+      brief: null,
     };
   } else {
   // ── ask the model ──
@@ -1385,6 +1408,155 @@ ${message}` : message },
       return { id, title: t.title, owner_name: nameOf(t.owner_id), due_at: t.due_at };
     });
     if (picks.length >= 2) payload = { candidates: picks, original_message: message };
+  } else if (parsed.action === 'none' && parsed.brief?.rows.length) {
+    const brief = await buildBrief(parsed.brief, parsed.language === 'ar');
+    if (brief.rows.length) {
+      payload = { brief, suggestions: parsed.suggestions.slice(0, 2) };
+      // the table says it all: keep the reply to one short lead-in line
+      const lead = parsed.reply.split(/(?<=[.!؟?:])\s+/)[0].trim();
+      parsed.reply = lead.length && lead.length <= 90 ? lead : parsed.language === 'ar' ? 'هذا وضع فريقك اليوم:' : "Here's your team today:";
+    }
+  }
+
+  /**
+   * The model's table → rows the app can show and act on. For each problem row on someone else's task the caller
+   * manages, Muntej does the safe part itself (a reminder / check-in, at most once a day per task, logged) and offers
+   * ONE change for a tap (move it to the teammate with the most free time, or 2 more working days). Never applied here.
+   */
+  async function buildBrief(raw: z.infer<typeof Brief>, ar: boolean): Promise<BriefOut> {
+    const admin = adminClient();
+    const fn = (id: string | null) => {
+      const p = id ? byId.get(id) : undefined;
+      return p ? ((ar && p.full_name_ar) || p.full_name).split(' ')[0] : null;
+    };
+    const canManage = (t: TaskRow) => t.assigner_id === profileId || amAdmin || (!!t.owner_id && isBelow(t.owner_id, profileId));
+    // hours already promised to someone by an earlier row of this same brief ("Do all" must not pile everything on one person)
+    const reserved = new Map<string, number>();
+    const freeOf = (id: string) => Number(byId.get(id)?.weekly_capacity_hours ?? 40) - queueHoursOf(id) - (reserved.get(id) ?? 0);
+    const hoursOfTask = (t: TaskRow) => (t.estimate_hours ? Number(t.estimate_hours) : t.owner_id ? speedOf(t.owner_id).defaultHours : 4);
+    /** the teammate (same manager as the owner, or the caller's own reports) with the most free hours for this task */
+    const freestFor = (t: TaskRow) => {
+      const boss = (t.owner_id && byId.get(t.owner_id)?.manager_id) || profileId;
+      let best: { id: string; free: number } | null = null;
+      for (const p of team) {
+        if (p.id === t.owner_id || p.status !== 'active' || p.manager_id !== boss || !seesTasksOf(p.id)) continue;
+        const free = freeOf(p.id);
+        if (free - hoursOfTask(t) >= 4 && (!best || free > best.free)) best = { id: p.id, free };
+      }
+      return best;
+    };
+    const late = (t: TaskRow) => !!t.due_at && Date.parse(t.due_at) < now.getTime();
+    const prRank: Record<string, number> = { low: 0, medium: 1, high: 2, urgent: 3 };
+    /** the task a person row is about: late first, then blocked; overloaded → the least urgent one */
+    const taskForPerson = (pid: string, status: string, used: Set<string>) => {
+      const mine = open.filter((t) => t.owner_id === pid && t.status !== 'submitted' && !used.has(t.id));
+      if (status === 'overloaded')
+        return mine
+          .filter((t) => !late(t))
+          .sort((a, b) => prRank[a.priority] - prRank[b.priority] || Date.parse(b.due_at ?? '2999-01-01') - Date.parse(a.due_at ?? '2999-01-01'))[0];
+      if (status === 'blocked') return mine.find((t) => t.status === 'blocked');
+      return mine.filter(late).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!))[0] ?? mine.find((t) => t.status === 'blocked');
+    };
+
+    const rows: BriefOut['rows'] = [];
+    const used = new Set<string>();
+    for (const r of raw.rows.slice(0, 6)) {
+      let task = r.task_id ? taskById.get(r.task_id) ?? null : null;
+      if (task && (!ACTIVE.includes(task.status) || used.has(task.id))) task = null;
+      const pid = r.person_id && byId.has(r.person_id) ? r.person_id : (task?.owner_id ?? null);
+      if (!task && pid && ['late', 'blocked', 'overloaded', 'at_risk'].includes(r.status)) task = taskForPerson(pid, r.status, used) ?? null;
+      if (!pid && !task) continue;
+      if (task) used.add(task.id);
+      // the model sometimes repeats the task name as the note
+      let note = r.note.trim();
+      if (task && (note === task.title || note.includes(task.title))) note = note.replace(task.title, '').replace(/^[\s·:،,-]+|[\s·:،,-]+$/g, '');
+      rows.push({
+        key: `${pid ?? '-'}:${task?.id ?? '-'}:${r.status}`,
+        status: r.status,
+        person_id: pid,
+        person_name: fn(pid),
+        task_id: task?.id ?? null,
+        task_title: task?.title ?? null,
+        metric: r.metric,
+        note,
+        auto: null,
+        action: null,
+      });
+    }
+
+    // ── what Muntej already did today on these tasks (autopilot or an earlier brief) ──
+    const dayStart = new Date(Date.UTC(riyadh.getUTCFullYear(), riyadh.getUTCMonth(), riyadh.getUTCDate()) - 3 * 3_600_000).toISOString();
+    const ids = rows.map((r) => r.task_id).filter((x): x is string => !!x);
+    const { data: markRows } = ids.length
+      ? await admin.from('autopilot_marks').select('key, task_id, created_at').in('task_id', ids).gte('created_at', dayStart)
+      : { data: [] };
+    const doneToday = new Map<string, string>();
+    for (const m of (markRows ?? []) as { key: string; task_id: string; created_at: string }[]) {
+      if (/^(chase|blocked|step|brief):/.test(m.key) && !doneToday.has(m.task_id)) doneToday.set(m.task_id, m.created_at);
+    }
+
+    const me = fn(profileId) ?? '';
+    const meAr = (byId.get(profileId)?.full_name_ar ?? byId.get(profileId)?.full_name ?? '').split(' ')[0];
+    let sent = 0;
+    for (const row of rows) {
+      const t = row.task_id ? taskById.get(row.task_id)! : null;
+      if (!t || t.owner_id === profileId || !canManage(t)) continue;
+      if (!['late', 'blocked', 'overloaded', 'at_risk', 'unassigned'].includes(row.status)) continue;
+
+      // the safe part, by Muntej itself
+      if (t.owner_id && row.status !== 'unassigned') {
+        const at = doneToday.get(t.id);
+        if (at) row.auto = { kind: row.status === 'blocked' ? 'checked_in' : 'reminded', at, now: false };
+        else if (sent < 5) {
+          const text =
+            row.status === 'blocked'
+              ? {
+                  message: `${me} asked about "${t.title}". What's blocking it? Tell me who or what you're waiting for, and I'll chase it.`,
+                  message_ar: `${meAr} سأل عن «${t.title}». وش اللي موقفها؟ قل لي مين أو وش تنتظر وأنا ألاحقه.`,
+                }
+              : row.status === 'overloaded'
+                ? {
+                    message: `Your plate looks full this week. Is "${t.title}" still on track? If something should move, tell me and I'll sort it with ${me}.`,
+                    message_ar: `جدولك مليان هالأسبوع. «${t.title}» ماشية؟ لو فيه شي لازم ينتقل قل لي وأرتبه مع ${meAr}.`,
+                  }
+                : {
+                    message: `${me} asked about "${t.title}"${t.due_at ? ` (due ${new Date(t.due_at).toLocaleDateString('en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short' })})` : ''}. Where is it now? If you need more time or help, reply and I'll sort it.`,
+                    message_ar: `${meAr} سأل عن «${t.title}». وين وصلت؟ لو تحتاج وقت أو مساعدة رد علي وأنا أتصرف.`,
+                  };
+          const { error: fe } = await admin
+            .from('followups')
+            .insert({ task_id: t.id, recipient_id: t.owner_id, scheduled_at: now.toISOString(), channel: 'push', status: 'scheduled', ...text });
+          if (!fe) {
+            sent++;
+            const dayKey = riyadh.toISOString().slice(0, 10);
+            await admin.from('autopilot_marks').insert({ key: `brief:${t.id}:${dayKey}`, task_id: t.id, profile_id: t.owner_id });
+            await admin.from('activity_log').insert({
+              actor_type: 'muntej',
+              subject_id: t.owner_id,
+              task_id: t.id,
+              action: row.status === 'blocked' ? 'checked_in' : 'reminded',
+              summary: `${row.status === 'blocked' ? 'Asked' : 'Reminded'} ${fn(t.owner_id)} about "${t.title}"`,
+              summary_ar: `${row.status === 'blocked' ? 'سأل' : 'ذكّر'} ${fn(t.owner_id)} عن «${t.title}»`,
+              reason: `${me} asked about the team in the chat`,
+              undoable: false,
+            });
+            row.auto = { kind: row.status === 'blocked' ? 'checked_in' : 'reminded', at: now.toISOString(), now: true };
+          }
+        }
+      }
+
+      // the change, for one tap
+      if (row.status === 'blocked') continue;
+      const to = freestFor(t);
+      if (to) {
+        reserved.set(to.id, (reserved.get(to.id) ?? 0) + hoursOfTask(t));
+        row.action = { kind: 'owner', task_id: t.id, owner_id: to.id, to_name: fn(to.id), free_hours: Math.round(to.free), due_at: null };
+      } else if (row.status === 'late' || row.status === 'at_risk') {
+        const due = workingDaysAhead17(now.getTime(), 2);
+        row.action = { kind: 'due', task_id: t.id, owner_id: null, to_name: null, free_hours: null, due_at: new Date(due).toISOString() };
+      }
+    }
+    return { headline: raw.headline, rows };
   }
 
   // a proposal must never read as done: the server words the question, naming the task it found
@@ -1790,6 +1962,153 @@ async function undoChange(db: Caller['db'], profileId: string, logId: string, ar
   const { data: botMsg, error: e2 } = await db
     .from('chat_messages')
     .insert({ profile_id: profileId, role: 'assistant', content: reply, task_id: null, action: 'none', payload: { undo_done: { log_id: logId } } })
+    .select()
+    .single();
+  if (e2) throw new HttpError(500, e2.message);
+  return json({ messages: [botMsg] });
+}
+
+// ─── team brief: table answers, what Muntej did, one-tap fixes ──────────────────
+
+type BriefStatus = z.infer<typeof BriefRow>['status'];
+type BriefAction = {
+  kind: 'owner' | 'due';
+  task_id: string;
+  owner_id: string | null;
+  to_name: string | null;
+  free_hours: number | null;
+  due_at: string | null;
+};
+type BriefOut = {
+  headline: string;
+  rows: {
+    /** stable id of the row: an applied fix is matched back to it */
+    key: string;
+    status: BriefStatus;
+    person_id: string | null;
+    person_name: string | null;
+    task_id: string | null;
+    task_title: string | null;
+    metric: string;
+    note: string;
+    /** what Muntej did by itself (now = in this answer, else earlier today) */
+    auto: { kind: 'reminded' | 'checked_in'; at: string; now: boolean } | null;
+    action: BriefAction | null;
+  }[];
+};
+type BriefApplyItem = { key: string; kind: 'owner' | 'due'; task_id: string; owner_id?: string | null; due_at?: string | null };
+
+/** 17:00 Riyadh, `days` working days (Sun–Thu) after t */
+function workingDaysAhead17(t: number, days: number): number {
+  const day = (x: number) => new Date(x + RIYADH_MS).getUTCDay();
+  let m = t;
+  for (let i = 0; i < days; ) {
+    m += DAY;
+    if (day(m) !== 5 && day(m) !== 6) i++;
+  }
+  const l = new Date(m + RIYADH_MS);
+  l.setUTCHours(17, 0, 0, 0);
+  return l.getTime() - RIYADH_MS;
+}
+
+/** One tap (or "Do all") on a brief: each fix through bulk_update_tasks as the caller, so the usual rules and Undo apply. */
+async function applyBrief(
+  db: Caller['db'],
+  profileId: string,
+  raw: { source_id: string; items: BriefApplyItem[] },
+  ar: boolean,
+): Promise<Response> {
+  const items = (Array.isArray(raw?.items) ? raw.items : [])
+    .filter((x) => x && UUID.test(x.task_id) && (x.kind === 'owner' ? !!x.owner_id && UUID.test(x.owner_id) : x.kind === 'due' && !!x.due_at))
+    .slice(0, 6);
+  if (!items.length) throw new HttpError(400, 'Nothing to change');
+
+  const logIds: string[] = [];
+  const keys: string[] = [];
+  const lines: string[] = [];
+  const failed: { title: string | null; error: string }[] = [];
+  const names = new Map<string, string>();
+  const ownerIds = items.map((x) => x.owner_id).filter((x): x is string => !!x);
+  if (ownerIds.length) {
+    const { data } = await db.from('profiles').select('id, full_name, full_name_ar').in('id', ownerIds);
+    for (const p of (data ?? []) as { id: string; full_name: string; full_name_ar: string | null }[])
+      names.set(p.id, ((ar && p.full_name_ar) || p.full_name).split(' ')[0]);
+  }
+  const dayFmt = (iso: string) =>
+    new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(iso));
+
+  for (const it of items) {
+    const change = it.kind === 'owner' ? { kind: 'owner', owner_id: it.owner_id } : { kind: 'due', due_at: it.due_at };
+    const { data, error } = await db.rpc('bulk_update_tasks', { p_ids: [it.task_id], p_change: change });
+    if (error) {
+      failed.push({ title: null, error: error.message });
+      continue;
+    }
+    const r = data as { log_id: string | null; ok: { title: string }[]; failed: { title: string | null; error: string }[] };
+    failed.push(...r.failed.map((f) => ({ title: f.title, error: f.error })));
+    if (!r.ok.length) continue;
+    if (r.log_id) logIds.push(r.log_id);
+    keys.push(it.key);
+    const title = r.ok[0].title;
+    lines.push(
+      it.kind === 'owner'
+        ? ar
+          ? `«${title}» ← ${names.get(it.owner_id!) ?? ''}`
+          : `"${title}" → ${names.get(it.owner_id!) ?? ''}`
+        : ar
+          ? `«${title}» لين ${dayFmt(it.due_at!)}`
+          : `"${title}" due ${dayFmt(it.due_at!)}`,
+    );
+  }
+  // the new owners / the people whose dates moved are told through the usual alerts
+  await deliverNow();
+
+  const reply = lines.length
+    ? (ar ? 'تم ✅ ' : 'Done ✅ ') + lines.join(ar ? '، ' : '; ') + '.'
+    : ar
+      ? 'ما قدرت أسويها.'
+      : "I couldn't do that.";
+  const { data: botMsg, error: e2 } = await db
+    .from('chat_messages')
+    .insert({
+      profile_id: profileId,
+      role: 'assistant',
+      content: reply,
+      task_id: null,
+      action: 'none',
+      payload: {
+        bulk_done: {
+          log_id: logIds[0] ?? null,
+          log_ids: logIds,
+          kind: 'brief',
+          ok: lines.length,
+          submitted: 0,
+          failed,
+          undo_until: new Date(Date.now() + 5 * 60_000).toISOString(),
+          brief: { source_id: raw.source_id, keys },
+        },
+      },
+    })
+    .select()
+    .single();
+  if (e2) throw new HttpError(500, e2.message);
+  return json({ messages: [botMsg] });
+}
+
+/** Undo after "Do all": every log of that tap (each with its own 5-minute check). */
+async function undoMany(db: Caller['db'], profileId: string, raw: string[], ar: boolean): Promise<Response> {
+  const ids = (Array.isArray(raw) ? raw : []).filter((x) => typeof x === 'string' && UUID.test(x)).slice(0, 6);
+  if (!ids.length) throw new HttpError(400, 'Nothing to undo');
+  let n = 0;
+  for (const id of ids) {
+    const { data, error } = await db.rpc('undo_task_changes', { p_log: id });
+    if (error) throw new HttpError(400, error.message);
+    n += data as number;
+  }
+  const reply = ar ? `رجّعتها زي ما كانت (${n} ${n === 1 ? 'مهمة' : 'مهام'}).` : `Undone: ${n} task${n === 1 ? '' : 's'} back as they were.`;
+  const { data: botMsg, error: e2 } = await db
+    .from('chat_messages')
+    .insert({ profile_id: profileId, role: 'assistant', content: reply, task_id: null, action: 'none', payload: { undo_done: { log_id: ids[0], log_ids: ids } } })
     .select()
     .single();
   if (e2) throw new HttpError(500, e2.message);

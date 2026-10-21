@@ -145,12 +145,41 @@ export type BulkProposal = { change: BulkChange; label: string; items: BulkItem[
 export type BulkDone = {
   /** null when nothing can be undone (delete) */
   log_id: string | null;
-  kind: BulkChange['kind'];
+  kind: BulkChange['kind'] | 'brief';
   ok: number;
   submitted: number;
   failed: { title: string | null; error: string }[];
   undo_until: string;
+  /** "Do all" on a team brief: one log per fix */
+  log_ids?: string[];
+  /** which brief rows these fixes came from */
+  brief?: { source_id: string; keys: string[] };
 };
+
+/** A question about several people / tasks, answered as a small table. Muntej did the safe part (auto) by itself;
+ *  action is the one change waiting for a tap. */
+export type BriefStatus = 'late' | 'blocked' | 'overloaded' | 'at_risk' | 'unassigned' | 'on_track' | 'star';
+export type BriefAction = {
+  kind: 'owner' | 'due';
+  task_id: string;
+  owner_id: string | null;
+  to_name: string | null;
+  free_hours: number | null;
+  due_at: string | null;
+};
+export type BriefRow = {
+  key: string;
+  status: BriefStatus;
+  person_id: string | null;
+  person_name: string | null;
+  task_id: string | null;
+  task_title: string | null;
+  metric: string;
+  note: string;
+  auto: { kind: 'reminded' | 'checked_in'; at: string; now: boolean } | null;
+  action: BriefAction | null;
+};
+export type Brief = { headline: string; rows: BriefRow[] };
 
 /** Fields of a new task Muntej held back to ask first (several people / looks like a duplicate). */
 export type HeldTask = Record<string, unknown> & { title: string; owner_id: string | null };
@@ -178,7 +207,8 @@ export type RecurringProposalPayload = NoTask & { recurring_proposal: RecurringP
 export type RecurringDonePayload = NoTask & { recurring_done: { id: string; title: string; next_due_at: string | null } };
 export type BulkProposalPayload = NoTask & { bulk_proposal: BulkProposal };
 export type BulkDonePayload = NoTask & { bulk_done: BulkDone };
-export type UndoDonePayload = NoTask & { undo_done: { log_id: string } };
+export type BriefPayload = { id?: undefined; suggestions?: string[]; brief: Brief };
+export type UndoDonePayload = NoTask & { undo_done: { log_id: string; log_ids?: string[] } };
 export type PeopleChoicePayload = NoTask & { people_choice: PeopleChoice };
 export type DuplicatePayload = NoTask & { duplicate: Duplicate };
 export type CreatedListPayload = NoTask & { created_list: CreatedItem[] };
@@ -197,11 +227,12 @@ export type ChatPayload =
   | DuplicatePayload
   | CreatedListPayload
   | RecurringProposalPayload
-  | RecurringDonePayload;
+  | RecurringDonePayload
+  | BriefPayload;
 
 /** payload field of one card kind, or null */
 export function payloadPart<
-  K extends 'bulk_proposal' | 'bulk_done' | 'undo_done' | 'people_choice' | 'duplicate' | 'created_list' | 'recurring_proposal' | 'recurring_done',
+  K extends 'bulk_proposal' | 'bulk_done' | 'undo_done' | 'people_choice' | 'duplicate' | 'created_list' | 'recurring_proposal' | 'recurring_done' | 'brief',
 >(
   p: ChatPayload | null | undefined,
   key: K,
@@ -224,6 +255,19 @@ export function applyBulkChange(ids: string[], change: BulkChange, lang: 'en' | 
 /** Confirm on a recurring card: saves the schedule (the first task may be created right away). */
 export function confirmRecurring(recurringId: string | null, patch: Record<string, unknown>, lang: 'en' | 'ar') {
   return invokeChat({ apply_recurring: { recurring_id: recurringId, patch }, lang });
+}
+
+/** One tap / "Do all" on a team brief: the rows' fixes (move to someone / 2 more days). */
+export function applyBriefFixes(sourceId: string, rows: BriefRow[], lang: 'en' | 'ar') {
+  const items = rows
+    .filter((r) => r.action)
+    .map((r) => ({ key: r.key, kind: r.action!.kind, task_id: r.action!.task_id, owner_id: r.action!.owner_id, due_at: r.action!.due_at }));
+  return invokeChat({ apply_brief: { source_id: sourceId, items }, lang });
+}
+
+/** Undo every fix of one "Do all" tap. */
+export function undoTaskChanges(logIds: string[], lang: 'en' | 'ar') {
+  return invokeChat({ undo_log_ids: logIds, lang });
 }
 
 /** Undo a status / bulk change (the server allows 5 minutes). */
