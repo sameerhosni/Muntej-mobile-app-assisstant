@@ -24,6 +24,7 @@ const TABLES = [
   'workspaces',
   'incoming_items',
   'connections',
+  'task_links',
 ] as const;
 
 /** merge a burst of changes into one refresh */

@@ -3,7 +3,8 @@
 // "Ask <assigner>" and "Split with AI" are local demo actions; ticking a live subtask writes subtasks.done.
 // "Change with Muntej" (bottom bar) opens the chat locked on this task — the one place changes are made.
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, View } from 'react-native';
+import { TOOL_LABEL, useTaskTools } from '@/features/tasks/toolTags';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, Check, ChevronLeft, Clock, Link2, Mic, MessageSquare, Plus, Send, Sparkles } from 'lucide-react-native';
@@ -60,6 +61,7 @@ export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const live = !!id;
   const task = useTask(id);
+  const tool = useTaskTools().data?.get(id ?? '');
   const team = useTeam();
   const toggle = useToggleSubtask();
 
@@ -206,6 +208,22 @@ export default function TaskDetailScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             <MetaChip bg="purpleTint" fg="purpleText" icon={<SourceIcon color={colors.purpleText} size={14} strokeWidth={2} />} label={t(`source.${source}`)} />
             {sourceRef && <MetaChip bg="primaryTint" fg="primary" icon={<Link2 color={colors.primary} size={14} strokeWidth={2} />} label={sourceRef} />}
+            {/* the tool this task is linked to (two-way sync): tap to open it there */}
+            {tool && (
+              <Pressable
+                onPress={() => tool.url && Linking.openURL(tool.url)}
+                disabled={!tool.url}
+                accessibilityRole="link"
+                hitSlop={{ top: 8, bottom: 8 }}
+              >
+                <MetaChip
+                  bg="primaryTint"
+                  fg="primary"
+                  icon={<Link2 color={colors.primary} size={14} strokeWidth={2} />}
+                  label={`${TOOL_LABEL[tool.provider] ?? tool.provider}${tool.url ? ' ↗' : ''}`}
+                />
+              </Pressable>
+            )}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.orangeTint, borderRadius: radius.pill, paddingVertical: 4, paddingStart: 4, paddingEnd: spacing.md }}>
               <PointsCoin size={18} />
               <AppText variant="caption" weight="bold" color="orangeText">

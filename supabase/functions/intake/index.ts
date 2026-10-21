@@ -19,6 +19,21 @@ async function loadItem(admin: SupabaseClient, profileId: string, id: unknown): 
   return data as Item;
 }
 
+/** an item that came from a task tool (ClickUp, Jira, Trello) and was added by hand stays linked to it (two-way sync) */
+async function linkToTool(admin: SupabaseClient, profileId: string, item: Item, taskId: string | null) {
+  const externalId = (item as Item & { external_id?: string }).external_id;
+  if (!taskId || !externalId || !['clickup', 'jira', 'trello'].includes(item.source)) return;
+  const { data: conn } = await admin.from('connections').select('id').eq('profile_id', profileId).eq('provider', item.source).maybeSingle();
+  if (!conn) return;
+  const link = item.suggestions.find((s) => s.task_id === taskId)?.quote;
+  await admin
+    .from('task_links')
+    .upsert(
+      { task_id: taskId, connection_id: conn.id, provider: item.source, external_id: externalId, external_url: link?.startsWith('http') ? link : null, direction: 'in' },
+      { onConflict: 'connection_id,external_id', ignoreDuplicates: true },
+    );
+}
+
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
   const { db, profileId } = await getCaller(req);
@@ -64,6 +79,7 @@ serve(async (req) => {
       if (edit.due_at !== undefined) s.due_at = edit.due_at || null;
       s.task_id = await createFromSuggestion(admin, profileId, item, s, create);
       s.state = 'accepted';
+      await linkToTool(admin, profileId, item, s.task_id);
       return json(await saveItem(admin, item));
     }
 
@@ -73,6 +89,7 @@ serve(async (req) => {
         if (s.state !== 'new' || s.duplicate_of) continue;
         s.task_id = await createFromSuggestion(admin, profileId, item, s, create);
         s.state = 'accepted';
+        await linkToTool(admin, profileId, item, s.task_id);
       }
       return json(await saveItem(admin, item));
     }

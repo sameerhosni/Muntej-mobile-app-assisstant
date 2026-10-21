@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from '
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowLeftRight,
   ArrowUp,
   BellOff,
   CalendarX,
@@ -86,6 +87,7 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   objective_missed: { Icon: CalendarX, bg: 'red' },
   no_reply: { Icon: MessageCircleQuestion, bg: 'amberText' },
   escalated: { Icon: Siren, bg: 'red' },
+  tool_sync: { Icon: ArrowLeftRight, bg: 'primary' },
 };
 
 function RecentAlerts() {

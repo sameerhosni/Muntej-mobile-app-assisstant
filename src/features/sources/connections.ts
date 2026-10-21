@@ -20,9 +20,14 @@ export type Connection = {
   last_error: string | null;
   found_today: number;
   found_day: string | null;
+  /** the two directions: bring tasks in (tool → Muntej) / send tasks out (Muntej → tool) */
+  import_on: boolean;
+  export_on: boolean;
+  export_target: { id: string; name: string; since?: string } | null;
 };
 /** configured = sign-in is set up on the server; token = the person can connect with their own personal API token */
-export type ProviderInfo = { id: ProviderId; available: boolean; configured: boolean; token: boolean; tokenFields: string[] };
+export type ProviderInfo = { id: ProviderId; available: boolean; configured: boolean; token: boolean; tokenFields: string[]; twoWay: boolean };
+export type Target = { id: string; name: string };
 
 // connections isn't in the generated types yet
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,7 +43,9 @@ export function useConnections() {
   return useQuery({
     queryKey: ['connections'],
     queryFn: async (): Promise<Connection[]> => {
-      const { data, error } = await untyped.from('connections').select('id, provider, status, account_label, last_sync_at, last_error, found_today, found_day');
+      const { data, error } = await untyped
+        .from('connections')
+        .select('id, provider, status, account_label, last_sync_at, last_error, found_today, found_day, import_on, export_on, export_target');
       if (error) throw new Error(error.message);
       return (data ?? []) as Connection[];
     },
@@ -81,8 +88,18 @@ export function useConnectionActions() {
       await call({ action: 'disconnect', provider });
       await refresh();
     },
+    /** lists / projects in the person's account that tasks can be sent to */
+    targets: (provider: ProviderId) => call<Target[]>({ action: 'targets', provider }),
+    /** the two switches and where tasks go */
+    settings: async (provider: ProviderId, patch: { import_on?: boolean; export_on?: boolean; export_target?: Target | null }) => {
+      await call({ action: 'settings', provider, ...patch });
+      await refresh();
+    },
     syncNow: async (provider: ProviderId) => {
-      const r = await call<{ read: number; tasks: number; error?: string }>({ action: 'sync', provider });
+      const r = await call<{ read: number; tasks: number; sent: number; closedHere: number; closedThere: number; updated: number; error?: string }>({
+        action: 'sync',
+        provider,
+      });
       await refresh();
       await qc.invalidateQueries({ queryKey: ['incoming'] });
       return r;

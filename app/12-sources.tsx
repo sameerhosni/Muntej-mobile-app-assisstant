@@ -4,16 +4,24 @@
 // to Muntej's intake (sure tasks are added, the rest wait in Incoming). Check now / Disconnect per tool.
 // Tools that aren't built yet show "Coming soon"; built ones without the server's app credentials, "Needs admin setup".
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Inbox, Lock } from 'lucide-react-native';
-import { AppText, Button, Card, IconBadge, IconButton, TextField } from '@/components/ui';
-import { colors, radius, spacing, type ColorToken } from '@/theme/tokens';
+import { AppText, Button, Card, IconBadge, IconButton, TextField, Toggle } from '@/components/ui';
+import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
-import { PROVIDER_IDS, useConnectionActions, useConnections, useProviders, type Connection, type ProviderId } from '@/features/sources/connections';
+import {
+  PROVIDER_IDS,
+  useConnectionActions,
+  useConnections,
+  useProviders,
+  type Connection,
+  type ProviderId,
+  type Target,
+} from '@/features/sources/connections';
 import { CONN_NS } from '@/features/sources/connStrings';
 
 /** letter badge per tool (brand logos aren't in the app; colours from the theme) */
@@ -103,6 +111,7 @@ export default function SourcesScreen() {
             configured={!!info.get(id)?.configured}
             token={!!info.get(id)?.token}
             tokenFields={info.get(id)?.tokenFields ?? ['token']}
+            twoWay={!!info.get(id)?.twoWay}
             onNote={setNote}
           />
         ))}
@@ -134,6 +143,7 @@ function ToolRow({
   configured,
   token,
   tokenFields,
+  twoWay,
   onNote,
 }: {
   id: ProviderId;
@@ -142,6 +152,7 @@ function ToolRow({
   configured: boolean;
   token: boolean;
   tokenFields: string[];
+  twoWay: boolean;
   onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void;
 }) {
   const { t } = useScreenT(CONN_NS);
@@ -183,7 +194,11 @@ function ToolRow({
   const sync = () =>
     run('sync', async () => {
       const r = await actions.syncNow(id);
-      onNote(r.error ? { tone: 'red', text: t('problem', { msg: r.error }) } : { tone: 'green', text: t('checkedResult', { read: n(r.read), tasks: n(r.tasks) }) });
+      onNote(
+        r.error
+          ? { tone: 'red', text: t('problem', { msg: r.error }) }
+          : { tone: 'green', text: t('checkedResult2', { tasks: n(r.tasks), sent: n(r.sent ?? 0), closed: n((r.closedHere ?? 0) + (r.closedThere ?? 0)) }) },
+      );
     });
   const disconnect = () => {
     const go = () => run('disconnect', () => actions.disconnect(id));
@@ -234,6 +249,8 @@ function ToolRow({
         </AppText>
       )}
 
+      {conn && <Directions id={id} conn={conn} twoWay={twoWay} onNote={onNote} />}
+
       {conn ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {conn.status === 'error' ? (
@@ -281,5 +298,129 @@ function ToolRow({
         </View>
       )}
     </Card>
+  );
+}
+
+/** The two directions for a connected tool: bring tasks in / send my tasks out (+ where they go). */
+function Directions({
+  id,
+  conn,
+  twoWay,
+  onNote,
+}: {
+  id: ProviderId;
+  conn: Connection;
+  twoWay: boolean;
+  onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void;
+}) {
+  const { t } = useScreenT(CONN_NS);
+  const actions = useConnectionActions();
+  const [picking, setPicking] = useState(false);
+  const [targets, setTargets] = useState<Target[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const save = async (patch: { import_on?: boolean; export_on?: boolean; export_target?: Target | null }) => {
+    setSaving(true);
+    onNote(null);
+    try {
+      await actions.settings(id, patch);
+    } catch (e) {
+      onNote({ tone: 'red', text: (e as Error).message || t('error') });
+    } finally {
+      setSaving(false);
+    }
+  };
+  const openPicker = async () => {
+    setPicking(true);
+    setTargets(null);
+    try {
+      setTargets(await actions.targets(id));
+    } catch (e) {
+      setPicking(false);
+      onNote({ tone: 'red', text: (e as Error).message || t('error') });
+    }
+  };
+  const toggleOut = (on: boolean) => {
+    if (on && !conn.export_target) return openPicker(); // choose where first, then it switches on
+    save({ export_on: on });
+  };
+
+  const row = (label: string, hint: string, value: boolean, onChange: (v: boolean) => void) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 52 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <AppText weight="bold">{label}</AppText>
+        <AppText variant="caption" color="textMuted">
+          {hint}
+        </AppText>
+      </View>
+      <Toggle value={value} onValueChange={onChange} disabled={saving} accessibilityLabel={label} />
+    </View>
+  );
+
+  return (
+    <View style={{ gap: spacing.xs, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm }}>
+      {row(`⬇ ${t('dirIn')}`, t('dirInHint'), conn.import_on, (v) => save({ import_on: v }))}
+      {twoWay && (
+        <>
+          {row(`⬆ ${t('dirOut')}`, t('dirOutHint'), conn.export_on, toggleOut)}
+          <Pressable
+            onPress={openPicker}
+            accessibilityRole="button"
+            style={{ minHeight: sizes.touch, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}
+          >
+            <AppText variant="small" weight="semibold" color={conn.export_target ? 'text' : 'primary'} style={{ flex: 1 }} numberOfLines={2}>
+              {conn.export_target ? t('where', { name: conn.export_target.name }) : t('pickWhere')}
+            </AppText>
+            {conn.export_target && (
+              <AppText variant="small" weight="bold" color="primary">
+                {t('change')}
+              </AppText>
+            )}
+          </Pressable>
+          <AppText variant="caption" color="textMuted">
+            {t('inStep')}
+          </AppText>
+        </>
+      )}
+
+      <Modal visible={picking} transparent animationType="slide" onRequestClose={() => setPicking(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(11,26,51,0.35)' }} onPress={() => setPicking(false)} accessibilityLabel={t('cancel')} />
+        <View style={{ maxHeight: '70%', backgroundColor: colors.surface, borderTopLeftRadius: radius.cardLg, borderTopRightRadius: radius.cardLg, padding: spacing.screen, gap: spacing.md }}>
+          <AppText variant="section">{t('pickTitle')}</AppText>
+          {!targets ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              <ActivityIndicator color={colors.primary} />
+              <AppText color="textMuted">{t('pickLoading')}</AppText>
+            </View>
+          ) : targets.length === 0 ? (
+            <AppText color="textMuted">{t('pickEmpty')}</AppText>
+          ) : (
+            <ScrollView style={{ maxHeight: 420 }}>
+              {targets.map((x) => (
+                <Pressable
+                  key={x.id}
+                  onPress={async () => {
+                    setPicking(false);
+                    await save({ export_target: x, export_on: true });
+                  }}
+                  accessibilityRole="button"
+                  style={({ pressed }) => ({
+                    minHeight: sizes.touch + 4,
+                    justifyContent: 'center',
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                    backgroundColor: pressed || conn.export_target?.id === x.id ? colors.primaryTint : colors.transparent,
+                    paddingHorizontal: spacing.sm,
+                  })}
+                >
+                  <AppText weight={conn.export_target?.id === x.id ? 'bold' : 'regular'}>{x.name}</AppText>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+          <Button label={t('cancel')} variant="outline" size="md" onPress={() => setPicking(false)} />
+        </View>
+      </Modal>
+    </View>
   );
 }

@@ -58,6 +58,85 @@ export const jira: Provider = {
     },
   },
 
+  tasks: {
+    targets: async (t, cursor) => {
+      const site = typeof cursor.site === 'string' ? cursor.site : siteOf(t.extra?.site ?? '');
+      const r = await api<{ values: { id: string; key: string; name: string }[] }>(site, t.extra?.email ?? '', t.access_token, '/rest/api/3/project/search?maxResults=100');
+      return r.values.map((p) => ({ id: p.key, name: `${p.name} (${p.key})` }));
+    },
+    create: async (t, cursor, projectKey, task) => {
+      const site = typeof cursor.site === 'string' ? cursor.site : siteOf(t.extra?.site ?? '');
+      const email = t.extra?.email ?? '';
+      // "Task" if the project has it, else its first non-sub-task type
+      const types = await api<{ issueTypes?: { id: string; name: string; subtask: boolean }[]; values?: { id: string; name: string; subtask: boolean }[] }>(
+        site,
+        email,
+        t.access_token,
+        `/rest/api/3/issue/createmeta/${projectKey}/issuetypes`,
+      );
+      const list = types.issueTypes ?? types.values ?? [];
+      const type = list.find((x) => x.name.toLowerCase() === 'task') ?? list.find((x) => !x.subtask);
+      const body = {
+        fields: {
+          project: { key: projectKey },
+          summary: task.title,
+          issuetype: type ? { id: type.id } : { name: 'Task' },
+          ...(task.due_at ? { duedate: new Date(Date.parse(task.due_at) + 3 * 3_600_000).toISOString().slice(0, 10) } : {}),
+          ...(cursor.account_id ? { assignee: { accountId: cursor.account_id } } : {}),
+          ...(task.description
+            ? { description: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: task.description.slice(0, 5000) }] }] } }
+            : {}),
+        },
+      };
+      const res = await fetch(`https://${site}/rest/api/3/issue`, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${btoa(`${email}:${t.access_token}`)}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`Jira ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const made = (await res.json()) as { id: string; key: string };
+      return { id: made.id, url: `https://${site}/browse/${made.key}` };
+    },
+    update: async (t, cursor, id, task) => {
+      const site = typeof cursor.site === 'string' ? cursor.site : siteOf(t.extra?.site ?? '');
+      const email = t.extra?.email ?? '';
+      const res = await fetch(`https://${site}/rest/api/3/issue/${id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Basic ${btoa(`${email}:${t.access_token}`)}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: { summary: task.title, duedate: task.due_at ? new Date(Date.parse(task.due_at) + 3 * 3_600_000).toISOString().slice(0, 10) : null },
+        }),
+      });
+      if (!res.ok) throw new Error(`Jira ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    },
+    // workflows differ: take whichever transition lands in the "Done" category
+    close: async (t, cursor, id) => {
+      const site = typeof cursor.site === 'string' ? cursor.site : siteOf(t.extra?.site ?? '');
+      const email = t.extra?.email ?? '';
+      const { transitions } = await api<{ transitions: { id: string; to?: { statusCategory?: { key?: string } } }[] }>(
+        site,
+        email,
+        t.access_token,
+        `/rest/api/3/issue/${id}/transitions`,
+      );
+      const done = transitions.find((x) => x.to?.statusCategory?.key === 'done');
+      if (!done) return;
+      const res = await fetch(`https://${site}/rest/api/3/issue/${id}/transitions`, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${btoa(`${email}:${t.access_token}`)}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transition: { id: done.id } }),
+      });
+      if (!res.ok) throw new Error(`Jira ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    },
+    closedAmong: async (t, cursor, ids) => {
+      if (!ids.length) return new Set<string>();
+      const site = typeof cursor.site === 'string' ? cursor.site : siteOf(t.extra?.site ?? '');
+      const q = new URLSearchParams({ jql: `id in (${ids.join(',')}) AND statusCategory = Done`, fields: 'id', maxResults: '100' });
+      const { issues } = await api<{ issues: { id: string }[] }>(site, t.extra?.email ?? '', t.access_token, `/rest/api/3/search/jql?${q}`);
+      return new Set((issues ?? []).map((i) => i.id));
+    },
+  },
+
   fetchNew: async (t: Tokens, cursor) => {
     const site = typeof cursor.site === 'string' ? cursor.site : siteOf(t.extra?.site ?? '');
     const email = t.extra?.email ?? '';

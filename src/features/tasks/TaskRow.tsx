@@ -6,7 +6,8 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { Check, ChevronRight } from 'lucide-react-native';
 import { AppText, Card } from '@/components/ui';
-import { colors, sizes, spacing, type ColorToken } from '@/theme/tokens';
+import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
+import { TOOL_LABEL, useTaskTools } from './toolTags';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTeam, type TaskWithPeople } from '@/lib/api';
@@ -23,6 +24,7 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
   const { toggle, canTick, busyId } = useCompleteTask();
   const me = useMyProfile();
   const team = useTeam();
+  const tool = useTaskTools().data?.get(task.id);
 
   const finished = isFinished(task.status);
   const cancelled = task.status === 'cancelled';
@@ -115,6 +117,14 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
             >
               {task.title}
             </AppText>
+            {tool && (
+              // the tool this task lives in too (two-way sync)
+              <View style={{ paddingHorizontal: 6, paddingVertical: 1, borderRadius: radius.pill, backgroundColor: colors.primaryTint }}>
+                <AppText variant="micro" weight="bold" color="primary" numberOfLines={1}>
+                  {TOOL_LABEL[tool.provider] ?? tool.provider}
+                </AppText>
+              </View>
+            )}
           </View>
           <AppText variant="caption" weight={late || mineWaiting ? 'semibold' : 'regular'} color={lineColor} numberOfLines={1}>
             {line}

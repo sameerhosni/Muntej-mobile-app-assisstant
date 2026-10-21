@@ -43,6 +43,19 @@ export type Provider = {
     fields: string[];
     verify: (creds: Record<string, string>) => Promise<{ label: string; cursor?: Record<string, unknown> }>;
   };
+  /** two-way task tools (Muntej → tool, and keeping both sides in step); mail / chat tools leave this out */
+  tasks?: TaskSync;
+};
+
+export type OutTask = { title: string; due_at: string | null; priority: 'low' | 'medium' | 'high' | 'urgent'; description: string | null };
+export type TaskSync = {
+  /** where Muntej may put tasks: lists / projects in the person's account */
+  targets: (t: Tokens, cursor: Record<string, unknown>) => Promise<{ id: string; name: string }[]>;
+  create: (t: Tokens, cursor: Record<string, unknown>, targetId: string, task: OutTask) => Promise<{ id: string; url: string | null }>;
+  update: (t: Tokens, cursor: Record<string, unknown>, externalId: string, task: Pick<OutTask, 'title' | 'due_at'>) => Promise<void>;
+  close: (t: Tokens, cursor: Record<string, unknown>, externalId: string) => Promise<void>;
+  /** which of these items are finished / closed in the tool */
+  closedAmong: (t: Tokens, cursor: Record<string, unknown>, externalIds: string[]) => Promise<Set<string>>;
 };
 
 /** every tool shown on the Sources screen; only those in PROVIDERS can connect today */
@@ -105,17 +118,60 @@ export async function tokenRequest(url: string, params: Record<string, string>):
   };
 }
 
-// ─── sync one connection ──────────────────────────────────────────────────────
+// ─── sync one connection (both ways) ──────────────────────────────────────────
 
-type Conn = { id: string; profile_id: string; provider: ProviderId; cursor: Record<string, unknown>; found_today: number; found_day: string | null };
+type Conn = {
+  id: string;
+  profile_id: string;
+  provider: ProviderId;
+  cursor: Record<string, unknown>;
+  found_today: number;
+  found_day: string | null;
+  import_on?: boolean;
+  export_on?: boolean;
+  export_target?: { id: string; name: string; since?: string } | null;
+};
+export type SyncResult = { read: number; tasks: number; sent: number; closedHere: number; closedThere: number; updated: number; error?: string };
+
+export const TOOL_NAME: Record<ProviderId, { en: string; ar: string }> = {
+  microsoft: { en: 'Microsoft 365', ar: 'مايكروسوفت ٣٦٥' },
+  google: { en: 'Google', ar: 'قوقل' },
+  slack: { en: 'Slack', ar: 'سلاك' },
+  jira: { en: 'Jira', ar: 'جيرا' },
+  clickup: { en: 'ClickUp', ar: 'كليك أب' },
+  trello: { en: 'Trello', ar: 'تريلو' },
+  notion: { en: 'Notion', ar: 'نوشن' },
+  azure_devops: { en: 'Azure DevOps', ar: 'أزور ديف أوبس' },
+};
 
 /** most items read per connection per run (keeps AI cost and time bounded; the rest come next run) */
 const MAX_ITEMS = 15;
+/** most tasks sent / closed / updated in the tool per run */
+const MAX_WRITES = 10;
+const FINISHED = ['done', 'cancelled'];
+const OPEN_FOR_EXPORT = ['draft', 'assigned', 'in_progress', 'blocked', 'returned'];
 
-export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise<{ read: number; tasks: number; error?: string }> {
+type LinkRow = {
+  id: string;
+  task_id: string;
+  external_id: string;
+  direction: 'in' | 'out';
+  closed_there: boolean;
+  synced_at: string;
+  task: { id: string; title: string; due_at: string | null; status: string; updated_at: string } | null;
+};
+
+/** two due dates are the same day (tools keep dates, Muntej keeps times) */
+const sameDue = (a: string | null | undefined, b: string | null | undefined) =>
+  (!a && !b) || (!!a && !!b && new Date(Date.parse(a) + 3 * 3_600_000).toISOString().slice(0, 10) === new Date(Date.parse(b) + 3 * 3_600_000).toISOString().slice(0, 10));
+
+export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise<SyncResult> {
+  const out: SyncResult = { read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0 };
   const provider = PROVIDERS[conn.provider];
-  if (!provider) return { read: 0, tasks: 0, error: 'not available yet' };
+  if (!provider) return { ...out, error: 'not available yet' };
   const today = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+  const nowIso = () => new Date().toISOString();
+  const name = TOOL_NAME[conn.provider];
   try {
     const { data: secret } = await admin.from('connection_secrets').select('data').eq('connection_id', conn.id).single();
     if (!secret) throw new Error('Sign in again');
@@ -123,68 +179,192 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
     if (tokens.expires_at && tokens.expires_at < Date.now() + 60_000) {
       if (!tokens.refresh_token) throw new Error('Sign in again');
       tokens = await provider.refresh(tokens);
-      await admin.from('connection_secrets').update({ data: await seal(tokens), updated_at: new Date().toISOString() }).eq('connection_id', conn.id);
+      await admin.from('connection_secrets').update({ data: await seal(tokens), updated_at: nowIso() }).eq('connection_id', conn.id);
+    }
+    const cur = conn.cursor ?? {};
+    let nextCursor = cur;
+    const { data: linkRows } = await admin
+      .from('task_links')
+      .select('id, task_id, external_id, direction, closed_there, synced_at, task:tasks(id, title, due_at, status, updated_at)')
+      .eq('connection_id', conn.id);
+    const links = (linkRows ?? []) as unknown as LinkRow[];
+    const linkByExt = new Map(links.map((l) => [l.external_id, l]));
+
+    // ── 1. in: tool → Muntej ──
+    if (conn.import_on !== false) {
+      const { items, cursor } = await provider.fetchNew(tokens, cur);
+      // items already linked: their title / due date changes come over
+      for (const it of items) {
+        const l = linkByExt.get(it.externalId);
+        if (!l?.task || !it.task || FINISHED.includes(l.task.status)) continue;
+        const patch: Record<string, unknown> = {};
+        if (it.task.title && it.task.title !== l.task.title) patch.title = it.task.title;
+        if (!sameDue(it.task.due_at, l.task.due_at)) patch.due_at = it.task.due_at;
+        if (!Object.keys(patch).length) continue;
+        await admin.from('tasks').update(patch).eq('id', l.task_id);
+        await admin.from('task_links').update({ synced_at: nowIso() }).eq('id', l.id);
+        out.updated++;
+      }
+      const [{ data: team }, { data: openTasks }] = await Promise.all([
+        admin.from('profiles').select('id, full_name, full_name_ar, title, skills').eq('status', 'active'),
+        admin.from('tasks').select('id, title, owner_id').in('status', OPEN),
+      ]);
+      const create: Creator = async (p) => {
+        const { data, error } = await admin.rpc('create_task_as', { p, actor: conn.profile_id });
+        if (error) throw new Error(error.message);
+        return data as string;
+      };
+      // only what Muntej hasn't read yet counts towards this run's cap (so a long list never gets stuck on old items)
+      const ids = items.map((i) => i.externalId);
+      const { data: seen } = ids.length
+        ? await admin.from('incoming_items').select('external_id').eq('owner_id', conn.profile_id).in('external_id', ids)
+        : { data: [] as { external_id: string }[] };
+      const seenIds = new Set((seen ?? []).map((r) => r.external_id as string));
+      const fresh = items.filter((i) => !seenIds.has(i.externalId) && !linkByExt.has(i.externalId) && (i.task || i.text.trim()));
+      for (const it of fresh.slice(0, MAX_ITEMS)) {
+        const item = await ingestMessage(admin, {
+          profileId: conn.profile_id,
+          text: it.text,
+          source: it.source,
+          externalId: it.externalId,
+          sender: it.sender,
+          subject: it.subject,
+          receivedAt: it.receivedAt,
+          team: team ?? [],
+          open: openTasks ?? [],
+          create,
+          structured: it.task,
+        });
+        if (item.duplicate_message) continue;
+        out.read++;
+        // tool tasks count when they became Muntej tasks; mail / chat counts every task found (some wait in Incoming)
+        out.tasks += it.task ? item.suggestions.filter((s) => s.state === 'accepted').length : item.suggestions.length;
+        // a tool task that became a Muntej task is linked, so status and changes stay in step from now on
+        const made = it.task ? item.suggestions.find((s) => s.task_id) : undefined;
+        if (made?.task_id) {
+          await admin
+            .from('task_links')
+            .upsert(
+              { task_id: made.task_id, connection_id: conn.id, provider: conn.provider, external_id: it.externalId, external_url: it.task?.link ?? null, direction: 'in' },
+              { onConflict: 'connection_id,external_id', ignoreDuplicates: true },
+            );
+        }
+      }
+      nextCursor = fresh.length > MAX_ITEMS ? cur : cursor;
     }
 
-    const { items, cursor } = await provider.fetchNew(tokens, conn.cursor ?? {});
-    const [{ data: team }, { data: openTasks }] = await Promise.all([
-      admin.from('profiles').select('id, full_name, full_name_ar, title, skills').eq('status', 'active'),
-      admin.from('tasks').select('id, title, owner_id').in('status', OPEN),
-    ]);
-    const create: Creator = async (p) => {
-      const { data, error } = await admin.rpc('create_task_as', { p, actor: conn.profile_id });
-      if (error) throw new Error(error.message);
-      return data as string;
-    };
-    // only what Muntej hasn't read yet counts towards this run's cap (so a long list never gets stuck on old items)
-    const ids = items.map((i) => i.externalId);
-    const { data: seen } = ids.length
-      ? await admin.from('incoming_items').select('external_id').eq('owner_id', conn.profile_id).in('external_id', ids)
-      : { data: [] as { external_id: string }[] };
-    const seenIds = new Set((seen ?? []).map((r) => r.external_id as string));
-    const fresh = items.filter((i) => !seenIds.has(i.externalId) && (i.task || i.text.trim()));
-    let tasks = 0;
-    let read = 0;
-    for (const it of fresh.slice(0, MAX_ITEMS)) {
-      const item = await ingestMessage(admin, {
-        profileId: conn.profile_id,
-        text: it.text,
-        source: it.source,
-        externalId: it.externalId,
-        sender: it.sender,
-        subject: it.subject,
-        receivedAt: it.receivedAt,
-        team: team ?? [],
-        open: openTasks ?? [],
-        create,
-        structured: it.task,
-      });
-      if (!item.duplicate_message) {
-        read++;
-        tasks += item.suggestions.length;
+    // ── 2. out: Muntej → tool (the person's own open tasks from when they switched it on) ──
+    const target = conn.export_target;
+    if (provider.tasks && conn.export_on && target?.id) {
+      const { data: mine } = await admin
+        .from('tasks')
+        .select('id, title, due_at, priority, description, created_at')
+        .eq('owner_id', conn.profile_id)
+        .in('status', OPEN_FOR_EXPORT)
+        .gte('created_at', target.since ?? nowIso())
+        .order('created_at')
+        .limit(50);
+      const mineIds = (mine ?? []).map((t) => t.id);
+      const { data: linked } = mineIds.length ? await admin.from('task_links').select('task_id').in('task_id', mineIds) : { data: [] };
+      const linkedIds = new Set((linked ?? []).map((r) => r.task_id as string));
+      for (const t of (mine ?? []).filter((x) => !linkedIds.has(x.id)).slice(0, MAX_WRITES)) {
+        const made = await provider.tasks.create(tokens, cur, target.id, {
+          title: t.title,
+          due_at: t.due_at,
+          priority: t.priority,
+          description: t.description,
+        });
+        await admin
+          .from('task_links')
+          .insert({ task_id: t.id, connection_id: conn.id, provider: conn.provider, external_id: made.id, external_url: made.url, direction: 'out' });
+        await admin.from('activity_log').insert({
+          actor_type: 'muntej',
+          subject_id: conn.profile_id,
+          task_id: t.id,
+          action: 'sent_to_tool',
+          summary: `Sent "${t.title}" to ${name.en} (${target.name})`,
+          summary_ar: `أرسل «${t.title}» إلى ${name.ar} (${target.name})`,
+          undoable: false,
+        });
+        out.sent++;
       }
     }
+
+    // ── 3. keep linked tasks in step (status both ways, Muntej's title / due changes go to the tool) ──
+    if (provider.tasks && links.length) {
+      const openHere = links.filter((l) => l.task && !FINISHED.includes(l.task.status) && !l.closed_there);
+      const closed = openHere.length ? await provider.tasks.closedAmong(tokens, cur, openHere.slice(0, 40).map((l) => l.external_id)) : new Set<string>();
+      for (const l of openHere) {
+        if (!closed.has(l.external_id)) continue;
+        await admin.from('tasks').update({ status: 'done', closed_at: nowIso(), progress: 100 }).eq('id', l.task_id).not('status', 'in', '(done,cancelled)');
+        await admin.from('task_links').update({ closed_there: true, synced_at: nowIso() }).eq('id', l.id);
+        await admin.from('activity_log').insert({
+          actor_type: 'muntej',
+          subject_id: conn.profile_id,
+          task_id: l.task_id,
+          action: 'task_closed',
+          summary: `Closed "${l.task!.title}" because it was finished in ${name.en}`,
+          summary_ar: `قفل «${l.task!.title}» لأنها خلصت في ${name.ar}`,
+          undoable: false,
+        });
+        out.closedHere++;
+      }
+      for (const l of links.filter((x) => x.task?.status === 'done' && !x.closed_there).slice(0, MAX_WRITES)) {
+        await provider.tasks.close(tokens, cur, l.external_id);
+        await admin.from('task_links').update({ closed_there: true, synced_at: nowIso() }).eq('id', l.id);
+        out.closedThere++;
+      }
+      const changed = links.filter((l) => l.task && !FINISHED.includes(l.task.status) && !closed.has(l.external_id) && l.task.updated_at > l.synced_at);
+      for (const l of changed.slice(0, MAX_WRITES)) {
+        await provider.tasks.update(tokens, cur, l.external_id, { title: l.task!.title, due_at: l.task!.due_at });
+        await admin.from('task_links').update({ synced_at: nowIso() }).eq('id', l.id);
+      }
+    }
+
+    // ── 4. one grouped notification for what moved ──
+    const parts = { en: [] as string[], ar: [] as string[] };
+    if (out.tasks) {
+      parts.en.push(`${out.tasks} task${out.tasks === 1 ? '' : 's'} came in`);
+      parts.ar.push(`وصلت ${out.tasks} مهام`);
+    }
+    if (out.sent) {
+      parts.en.push(`${out.sent} sent`);
+      parts.ar.push(`انرسلت ${out.sent}`);
+    }
+    if (out.closedHere + out.closedThere) {
+      parts.en.push(`${out.closedHere + out.closedThere} closed on both sides`);
+      parts.ar.push(`انقفلت ${out.closedHere + out.closedThere} بالطرفين`);
+    }
+    if (parts.en.length) {
+      await admin.from('alerts').insert({
+        profile_id: conn.profile_id,
+        kind: 'tool_sync',
+        subject_id: conn.profile_id,
+        title: `${name.en}: ${parts.en.join(' · ')}`,
+        body: 'Muntej keeps both sides in step.',
+        title_ar: `${name.ar}: ${parts.ar.join(' · ')}`,
+        body_ar: 'منتج يخلّي الطرفين متطابقين.',
+        dedupe_key: `sync:${conn.id}:${nowIso()}`,
+      });
+    }
+
     await admin
       .from('connections')
       .update({
         status: 'connected',
         last_error: null,
-        last_sync_at: new Date().toISOString(),
-        // read past what we skipped this run only if nothing was left behind
-        cursor: fresh.length > MAX_ITEMS ? conn.cursor : cursor,
+        last_sync_at: nowIso(),
+        cursor: nextCursor,
         found_day: today,
-        found_today: (conn.found_day === today ? conn.found_today : 0) + tasks,
-        updated_at: new Date().toISOString(),
+        found_today: (conn.found_day === today ? conn.found_today : 0) + out.tasks,
+        updated_at: nowIso(),
       })
       .eq('id', conn.id);
-    return { read, tasks };
+    return out;
   } catch (e) {
     const msg = (e as Error).message.slice(0, 300);
     console.error('sync failed', conn.provider, msg);
-    await admin
-      .from('connections')
-      .update({ status: 'error', last_error: msg, last_sync_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', conn.id);
-    return { read: 0, tasks: 0, error: msg };
+    await admin.from('connections').update({ status: 'error', last_error: msg, last_sync_at: nowIso(), updated_at: nowIso() }).eq('id', conn.id);
+    return { ...out, error: msg };
   }
 }

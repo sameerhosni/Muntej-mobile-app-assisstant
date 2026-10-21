@@ -5,10 +5,12 @@
 //   GET  /connect/callback?code&state                 → the tool sends the person back here; we save the connection
 //                                                       and send them on to `redirect` (?connected=… or ?error=…)
 //   POST { action: 'disconnect', provider }           → forget the connection and its tokens
-//   POST { action: 'sync', provider }                 → check that tool right now (otherwise every 10 min)
+//   POST { action: 'sync', provider }                 → check that tool right now, both ways (otherwise every 10 min)
+//   POST { action: 'targets', provider }              → lists / projects tasks can be sent to
+//   POST { action: 'settings', provider, import_on?, export_on?, export_target? } → the two switches + where tasks go
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
-import { ALL_PROVIDERS, CALLBACK_URL, challengeOf, PROVIDERS, randomToken, seal, syncConnection, type ProviderId } from '../_shared/connections.ts';
+import { ALL_PROVIDERS, CALLBACK_URL, challengeOf, open, PROVIDERS, randomToken, seal, syncConnection, type ProviderId } from '../_shared/connections.ts';
 
 const STATE_TTL_MS = 10 * 60_000;
 /** only back into the app (deep link / Expo Go / the local web preview): never an open redirect */
@@ -92,8 +94,43 @@ serve(async (req) => {
           configured: !!PROVIDERS[id]?.configured(),
           token: !!PROVIDERS[id]?.personalToken,
           tokenFields: PROVIDERS[id]?.personalToken?.fields ?? [],
+          twoWay: !!PROVIDERS[id]?.tasks,
         })),
       );
+
+    // where Muntej may put tasks in this tool (lists / projects in the person's own account)
+    case 'targets': {
+      const provider = body.provider ? PROVIDERS[body.provider] : undefined;
+      if (!provider?.tasks) throw new HttpError(400, 'This tool only brings tasks in');
+      const { data: conn } = await admin.from('connections').select('id, cursor').eq('profile_id', profileId).eq('provider', body.provider ?? '').maybeSingle();
+      if (!conn) throw new HttpError(404, 'Not connected');
+      const { data: secret } = await admin.from('connection_secrets').select('data').eq('connection_id', conn.id).single();
+      if (!secret) throw new HttpError(409, 'Sign in again');
+      return json(await provider.tasks.targets(await open(secret.data as string), (conn.cursor ?? {}) as Record<string, unknown>));
+    }
+
+    // the two switches (bring in / send out) and where tasks go
+    case 'settings': {
+      const b = body as { import_on?: boolean; export_on?: boolean; export_target?: { id: string; name: string } | null };
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (typeof b.import_on === 'boolean') patch.import_on = b.import_on;
+      if (b.export_target !== undefined)
+        patch.export_target = b.export_target ? { id: String(b.export_target.id), name: String(b.export_target.name).slice(0, 200), since: new Date().toISOString() } : null;
+      if (typeof b.export_on === 'boolean') {
+        patch.export_on = b.export_on;
+        // turning it on: only tasks from now on go out (never the whole backlog)
+        if (b.export_on && b.export_target === undefined) {
+          const { data: cur } = await admin.from('connections').select('export_target').eq('profile_id', profileId).eq('provider', body.provider ?? '').maybeSingle();
+          const tgt = cur?.export_target as { id: string; name: string } | null;
+          if (!tgt) throw new HttpError(400, 'Pick where tasks should go first');
+          patch.export_target = { ...tgt, since: new Date().toISOString() };
+        }
+      }
+      const { data, error } = await admin.from('connections').update(patch).eq('profile_id', profileId).eq('provider', body.provider ?? '').select('*').maybeSingle();
+      if (error) throw error;
+      if (!data) throw new HttpError(404, 'Not connected');
+      return json(data);
+    }
 
     // connect with the person's own personal API token (no admin setup): checked against the tool, then kept encrypted
     case 'token': {

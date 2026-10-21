@@ -17,6 +17,16 @@ async function api<T>(key: string, token: string, path: string, params: Record<s
   return (await res.json()) as T;
 }
 
+async function write<T = unknown>(t: Tokens, method: 'POST' | 'PUT', path: string, params: Record<string, string>): Promise<T> {
+  const res = await fetch(`${API}${path}?${new URLSearchParams({ ...params, key: t.extra?.key ?? '', token: t.access_token })}`, {
+    method,
+    headers: { Accept: 'application/json' },
+  });
+  if (res.status === 401) throw new Error('Sign in again');
+  if (!res.ok) throw new Error(`Trello ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return (await res.json()) as T;
+}
+
 export const trello: Provider = {
   id: 'trello',
   ...noOAuth,
@@ -25,6 +35,47 @@ export const trello: Provider = {
     verify: async (c) => {
       const me = await api<{ id: string; username?: string; fullName?: string; email?: string }>(c.key, c.token, '/members/me', { fields: 'username,fullName,email' });
       return { label: me.email ?? me.fullName ?? me.username ?? 'Trello', cursor: { member_id: me.id } };
+    },
+  },
+
+  tasks: {
+    // every open list on every open board, as "Board › List"
+    targets: async (t) => {
+      const boards = await api<{ id: string; name: string; lists?: { id: string; name: string }[] }[]>(t.extra?.key ?? '', t.access_token, '/members/me/boards', {
+        filter: 'open',
+        fields: 'name',
+        lists: 'open',
+      });
+      return boards.flatMap((b) => (b.lists ?? []).map((l) => ({ id: l.id, name: `${b.name} › ${l.name}` }))).slice(0, 100);
+    },
+    create: async (t, cursor, listId, task) => {
+      const made = await write<{ id: string; url?: string }>(t, 'POST', '/cards', {
+        idList: listId,
+        name: task.title,
+        desc: task.description ?? '',
+        ...(task.due_at ? { due: task.due_at } : {}),
+        ...(cursor.member_id ? { idMembers: String(cursor.member_id) } : {}),
+      });
+      return { id: made.id, url: made.url ?? null };
+    },
+    update: async (t, _cursor, id, task) => {
+      await write(t, 'PUT', `/cards/${id}`, { name: task.title, due: task.due_at ?? 'null' });
+    },
+    // finished = the card's due date ticked complete (the card stays on the board, like people do by hand)
+    close: async (t, _cursor, id) => {
+      await write(t, 'PUT', `/cards/${id}`, { dueComplete: 'true' });
+    },
+    closedAmong: async (t, _cursor, ids) => {
+      const closed = new Set<string>();
+      for (const id of ids) {
+        try {
+          const c = await api<{ closed?: boolean; dueComplete?: boolean }>(t.extra?.key ?? '', t.access_token, `/cards/${id}`, { fields: 'closed,dueComplete' });
+          if (c.closed || c.dueComplete) closed.add(id);
+        } catch (e) {
+          if (/404/.test((e as Error).message)) closed.add(id); // deleted in Trello: treat as finished
+        }
+      }
+      return closed;
     },
   },
 
