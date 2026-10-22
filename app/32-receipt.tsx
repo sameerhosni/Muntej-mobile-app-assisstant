@@ -28,6 +28,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { NS } from '@/features/receipt/strings';
 import { periodStart, useReceipt, type Period, type ReceiptCounts } from '@/features/receipt/useReceipt';
+import { ForgetCard } from '@/features/forget/ForgetCard';
 
 const RATES = [100, 150, 200, 250, 300, 400];
 const DEFAULT_RATE = 200;
@@ -154,6 +155,11 @@ export default function ReceiptScreen() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -22, gap: spacing.screen }}>
+          {/* the north-star: tasks you handed off that closed without you touching them again */}
+          <View style={{ marginTop: 22 }}>
+            <ForgetCard period={period} />
+          </View>
+
           {/* receipt paper */}
           <View style={{ marginTop: 9, marginBottom: 9 }}>
             <Svg width="100%" height={10} viewBox="0 0 346 10" preserveAspectRatio="none" style={{ position: 'absolute', top: -9, left: 0, right: 0 }}>

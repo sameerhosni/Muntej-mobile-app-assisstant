@@ -19,6 +19,8 @@ import { invalidateTaskData, setTaskStatus } from '@/features/chat/api';
 import { featureUsed } from '@/features/launch/launch';
 import { formatNumber } from './value';
 import { NS } from './strings';
+import { useForgetRate } from '@/features/forget/forget';
+import { FORGET_NS } from '@/features/forget/strings';
 
 const tasksLink = (ids: string[]): Href =>
   ids.length ? { pathname: '/38-tasks', params: { ids: ids.slice(0, 50).join(',') } } : '/38-tasks';
@@ -98,6 +100,7 @@ export function useTodayActions() {
 /** "Muntej is on it": what the autopilot is handling right now (late work it's chasing) and did today. Opens the log. */
 export function MuntejHandling() {
   const { t } = useScreenT(NS);
+  const { t: tf } = useScreenT(FORGET_NS);
   const { lang, isRTL } = useDirection();
   const me = useMyProfile();
   const tasks = useTasks();
@@ -118,9 +121,11 @@ export function MuntejHandling() {
   });
   const late = (tasks.data ?? []).filter((x) => x.owner_id !== meId && isLate(x)).length;
   const done = today.data ?? 0;
-  if (!late && !done) return null;
+  const forget = useForgetRate('week');
+  if (!late && !done && forget.pct === null) return null;
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
   const text = [
+    forget.pct !== null && tf('homeLine', { pct: formatNumber(forget.pct, lang) }),
     late > 0 && t('handlingLate', { count: late, n: formatNumber(late, lang) }),
     done > 0 && t('handlingToday', { count: done, n: formatNumber(done, lang) }),
   ]

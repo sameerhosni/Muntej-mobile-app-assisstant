@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
-import { ArrowLeft, ArrowRight, Ban, Calendar, CircleAlert, CircleCheck, Crosshair, Hourglass, Plus, Trash2, TrendingUp, Users } from 'lucide-react-native';
+import { ArrowLeft, ArrowRight, Ban, BellRing, Calendar, CircleAlert, CircleCheck, Crosshair, Hourglass, Plus, Trash2, TrendingUp, Users } from 'lucide-react-native';
 import { AppText, Avatar } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -39,6 +39,11 @@ type Props = {
   estimateHours?: number | null;
   /** Muntej's predicted finish (owner's queue × past speed) */
   prediction?: { at: string; confidence: number; late_days: number } | null;
+  /** the receipt: when Muntej checks in next */
+  nextCheckAt?: string | null;
+  /** a fresh task: Undo until this time (ms); the owner is told only after it */
+  undoUntil?: number;
+  onUndo?: () => Promise<void>;
 };
 
 /** The task Muntej just created/updated, under its chat message. */
@@ -55,7 +60,12 @@ export function TaskCard({
   onTalkAbout,
   estimateHours,
   prediction,
+  nextCheckAt,
+  undoUntil,
+  onUndo,
 }: Props) {
+  const left = useSecondsLeft(undoUntil);
+  const [undoing, setUndoing] = useState(false);
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const [confirm, setConfirm] = useState<'cancel' | 'delete' | null>(askDelete && canDelete ? 'delete' : null);
@@ -191,6 +201,16 @@ export function TaskCard({
             </View>
           )}
 
+          {/* the receipt: Muntej's next check-in, so you can stop thinking about it */}
+          {!!nextCheckAt && task.status !== 'done' && (
+            <Pill bg="primaryTint">
+              <BellRing color={colors.primary} size={12} strokeWidth={2.2} />
+              <AppText variant="caption" weight="semibold" color="primary">
+                {t('nextCheck', { when: formatDue(nextCheckAt, lang) })}
+              </AppText>
+            </Pill>
+          )}
+
           {task.missing.length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
               <AppText variant="caption" weight="bold" color="amberStrong">
@@ -223,6 +243,29 @@ export function TaskCard({
                   </AppText>
                 </Pressable>
               ))}
+            </View>
+          )}
+
+          {/* 10 seconds to take it back before the owner hears anything */}
+          {left > 0 && !!onUndo && (
+            <View style={{ gap: 4 }}>
+              <CardButton
+                label={t('undoNow', { s: left })}
+                busy={undoing}
+                onPress={async () => {
+                  setUndoing(true);
+                  try {
+                    await onUndo();
+                  } finally {
+                    setUndoing(false);
+                  }
+                }}
+              />
+              {!!ownerName && task.owner_id !== task.assigner_id && (
+                <AppText variant="caption" color="textMuted" align="center">
+                  {t('ownerHearsIn', { name: ownerName.split(' ')[0], s: left })}
+                </AppText>
+              )}
             </View>
           )}
 
@@ -508,4 +551,22 @@ export function CardButton({
       )}
     </Pressable>
   );
+}
+
+/** whole seconds left until `until` (ms), ticking every second; 0 when passed or not set */
+function useSecondsLeft(until?: number) {
+  const calc = () => (until ? Math.max(0, Math.ceil((until - Date.now()) / 1000)) : 0);
+  const [left, setLeft] = useState(calc);
+  useEffect(() => {
+    setLeft(calc());
+    if (!until || until <= Date.now()) return;
+    const id = setInterval(() => {
+      const s = calc();
+      setLeft(s);
+      if (s <= 0) clearInterval(id);
+    }, 250);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [until]);
+  return left;
 }

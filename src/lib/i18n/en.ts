@@ -149,7 +149,7 @@ const en = {
     typeInstead: 'Type instead',
   },
   auth: {
-    tagline: 'Create it and forget it.',
+    tagline: 'Say it once. Muntej handles the rest.',
     demoTitle: 'Demo personas',
     demoHint: 'Tap someone to sign in as them. Fixed code, no SMS.',
     demoCodeHint: 'Demo persona: signing you in… (code 123456)',

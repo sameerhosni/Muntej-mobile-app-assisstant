@@ -9,7 +9,7 @@ const en = {
   // simple Home: "Needs you" + shortcuts
   needsYou: 'Needs you',
   seeAll: 'See all ({{count}})',
-  nothingNeeds: 'Nothing needs you right now. Muntej has it 😎',
+  nothingNeeds: 'Nothing needs you today. Muntej has the rest 😎',
   ny_decision: 'Decision waiting',
   ny_review: '{{name}} finished it · waiting for your review',
   ny_late: '{{name}} · was due {{when}}',
@@ -43,7 +43,8 @@ const en = {
   myTasksTitle: 'Your tasks',
 };
 
-const ar: typeof en = {
+// Arabic has more plural forms (zero, two, few, many) than English: extra keys are allowed here
+const ar: typeof en & Record<string, string> = {
   energyTitle: 'حماس الفريق هالأسبوع',
   pointsSettings: 'إعدادات النقاط',
   energySub: 'نقطة · {{count}} مستمرين',
@@ -51,7 +52,7 @@ const ar: typeof en = {
   recognize: 'كافئهم',
   needsYou: 'يحتاجك',
   seeAll: 'شوف الكل ({{count}})',
-  nothingNeeds: 'ما فيه شي يحتاجك الحين. منتج ماسك الأمور 😎',
+  nothingNeeds: 'ما فيه شي يحتاجك اليوم. منتج ماسك الباقي 😎',
   ny_decision: 'قرار ينتظرك',
   ny_review: '{{name}} خلّصها · تنتظر مراجعتك',
   ny_late: '{{name}} · كانت {{when}}',
@@ -68,8 +69,16 @@ const ar: typeof en = {
   handlingTitle: 'منتج ماسك الأمور',
   handlingLate_one: 'يلاحق {{n}} مهمة متأخرة',
   handlingLate_other: 'يلاحق {{n}} مهام متأخرة',
+  handlingLate_zero: 'يلاحق {{n}} مهام متأخرة',
+  handlingLate_two: 'يلاحق مهمتين متأخرة',
+  handlingLate_few: 'يلاحق {{n}} مهام متأخرة',
+  handlingLate_many: 'يلاحق {{n}} مهمة متأخرة',
   handlingToday_one: 'سوّى {{n}} شي بنفسه اليوم',
   handlingToday_other: 'سوّى {{n}} أشياء بنفسه اليوم',
+  handlingToday_zero: 'سوّى {{n}} أشياء بنفسه اليوم',
+  handlingToday_two: 'سوّى شيئين بنفسه اليوم',
+  handlingToday_few: 'سوّى {{n}} أشياء بنفسه اليوم',
+  handlingToday_many: 'سوّى {{n}} شي بنفسه اليوم',
   supOnIt: 'منتج يتابع معه',
   pulseTitle: 'فريقك اليوم',
   pulse_working: 'شغّالين عليها',

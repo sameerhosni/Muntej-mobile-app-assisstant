@@ -46,6 +46,8 @@ export type TaskSnapshot = {
   estimate_hours?: number | null;
   /** Muntej's predicted finish when the card was made */
   prediction?: { at: string; confidence: number; late_days: number } | null;
+  /** the receipt: Muntej's next scheduled check-in on it */
+  next_check_at?: string | null;
 };
 
 /** Fields Muntej may propose to change on a described (not focused) task. */
@@ -448,6 +450,12 @@ export async function setTaskStatus(taskId: string, status: 'done' | 'reopen' | 
   const { data, error } = await untyped.rpc('set_task_status', { p_task: taskId, p_status: status });
   if (error) throw new Error(error.message);
   return data as string;
+}
+
+/** Undo right after creating it (10-second window): cancelled, follow-ups stopped, and the owner is never told. */
+export async function undoNewTask(taskId: string): Promise<void> {
+  const { error } = await untyped.rpc('undo_chat_task', { p_task: taskId });
+  if (error) throw new Error(error.message);
 }
 
 /** Cancel: the task stays (status cancelled) and its pending follow-ups stop. */

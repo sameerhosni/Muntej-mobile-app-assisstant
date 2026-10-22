@@ -1370,7 +1370,18 @@ ${message}` : message },
           suggestions = [...suggestions, ar ? `اربطها بهدف «${title}»` : `Link it to «${title}»`];
         }
       }
+      // the receipt's "next check-in": Muntej's next scheduled follow-up on it (not the hand-off message itself)
+      const { data: nextFollowup } = await db
+        .from('followups')
+        .select('scheduled_at')
+        .eq('task_id', t.id)
+        .eq('status', 'scheduled')
+        .gt('scheduled_at', new Date(Date.now() + 60_000).toISOString())
+        .order('scheduled_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
       payload = {
+        next_check_at: nextFollowup?.scheduled_at ?? null,
         id: t.id,
         title: t.title,
         owner_id: t.owner_id,

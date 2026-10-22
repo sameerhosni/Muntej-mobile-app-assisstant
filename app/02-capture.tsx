@@ -49,6 +49,7 @@ import {
   sendChat,
   cancelTask,
   deleteTask,
+  undoNewTask,
   taskSnapshot,
   useChat,
   type BriefRow,
@@ -137,6 +138,12 @@ export default function MuntejChatScreen() {
   const [voice, setVoice] = useState<VoiceState>('idle');
   // optimistic card states until the refetch confirms them
   const [ended, setEnded] = useState<Record<string, Exclude<CardState, 'active'>>>({});
+  // when each message first showed up on this device: the 10-second Undo counts from there (phone and server clocks differ)
+  const seenAt = useRef(new Map<string, number>());
+  const firstSeen = (id: string, createdAt: string) => {
+    if (!seenAt.current.has(id)) seenAt.current.set(id, Math.min(Date.now(), Date.parse(createdAt) + 60_000));
+    return seenAt.current.get(id)!;
+  };
   // the reply that just arrived: Munti talks on it (or celebrates a new task)
   const [freshId, setFreshId] = useState<string | null>(null);
   const markFresh = (rows: { id: string; role: string }[]) => {
@@ -443,6 +450,17 @@ export default function MuntejChatScreen() {
     }
   };
 
+  // Undo within 10 seconds of creating: the owner is never told
+  const undoNew = async (taskId: string) => {
+    try {
+      await undoNewTask(taskId);
+      setEnded((e) => ({ ...e, [taskId]: 'cancelled' }));
+      await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
+    } catch {
+      setNotice(t('cancelFailed'));
+    }
+  };
+
   const fillMissing = (item: MissingItem) => {
     setText(t(`s_${item}`));
     focusComposer();
@@ -696,6 +714,9 @@ export default function MuntejChatScreen() {
                 onTalkAbout={focusTaskId === task.id ? undefined : () => talkAbout(task.id)}
                 estimateHours={snap.estimate_hours}
                 prediction={snap.prediction}
+                nextCheckAt={snap.next_check_at}
+                undoUntil={m.action === 'created' && Date.now() - Date.parse(m.created_at) < 120_000 ? firstSeen(m.id, m.created_at) + 10_000 : undefined}
+                onUndo={() => undoNew(task.id)}
               />
             );
             // status just changed here: Undo for 5 minutes
@@ -709,7 +730,7 @@ export default function MuntejChatScreen() {
               );
             }
           }
-          const next = isLatest ? (m.payload?.suggestions ?? []) : [];
+          const next = isLatest && !(snap && ended[snap.id]) ? (m.payload?.suggestions ?? []) : [];
           const candidates = isLatest && isCandidates(m.payload) ? m.payload : null;
           return (
             <View key={m.id} style={{ gap: spacing.md }}>
