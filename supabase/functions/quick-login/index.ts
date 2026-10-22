@@ -23,7 +23,8 @@ serve(async (req) => {
   if (only.length && !only.includes(email.toLowerCase())) throw new HttpError(401, 'Wrong code');
   // one email can be in several accounts (one profile each): any membership that isn't removed is enough
   const { data: people } = await admin.from('profiles').select('id, status').ilike('email', email).eq('hidden', false);
-  if (!(people ?? []).some((p) => p.status !== 'deleted')) throw new HttpError(404, 'No Muntej account for this email. Ask your manager to add you.');
+  const person = (people ?? []).find((p) => p.status !== 'deleted');
+  if (!person) throw new HttpError(404, 'No Muntej account for this email. Ask your manager to add you.');
 
   // a magic-link token for this email (the person exists in Muntej; create their sign-in user on first use)
   let link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
