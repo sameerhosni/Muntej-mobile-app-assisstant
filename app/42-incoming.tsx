@@ -1,7 +1,8 @@
-// Screen 42 · Incoming — no mockup; v2 light style per design/TOKENS.md
-// Messages from other tools (pasted / shared now; forwarded email and WhatsApp next) that Muntej read: each found task
-// is a suggestion with Add task / Edit / Ignore — nothing becomes a task without the person's OK.
-// Paste box at the top; ?text= (e.g. muntej://42-incoming?text=…) pre-fills it. Data: src/features/incoming/api.ts.
+// Screen 42 · Tasks from email (Incoming) — no mockup; v2 light style per design/TOKENS.md
+// Your email first: connect Gmail / Outlook right here (their own sign-in, nothing to set up); opening the screen
+// reads the new mail, and every task found waits below with Add task / Edit / Ignore. Pasting a message (WhatsApp,
+// notes) is folded at the bottom; ?text= (muntej://42-incoming?text=…) opens it pre-filled. Other tools: Sources.
+// Data: src/features/incoming/api.ts.
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -18,6 +19,7 @@ import { useIncoming, useIncomingActions, type IncomingItem, type Suggestion, ty
 import { NS } from '@/features/incoming/strings';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
+import { EmailAccounts } from '@/features/incoming/EmailAccounts';
 
 export default function IncomingScreen() {
   const { t } = useScreenT(NS);
@@ -29,9 +31,14 @@ export default function IncomingScreen() {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // the paste box stays folded unless something was shared in
+  const [pasteOpen, setPasteOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof params.text === 'string' && params.text) setText(params.text);
+    if (typeof params.text === 'string' && params.text) {
+      setText(params.text);
+      setPasteOpen(true);
+    }
   }, [params.text]);
 
   const find = async () => {
@@ -54,6 +61,7 @@ export default function IncomingScreen() {
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const items = incoming.data ?? [];
+  const waiting = items.reduce((n, it) => n + it.suggestions.filter((s) => s.state === 'new').length, 0);
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -71,65 +79,13 @@ export default function IncomingScreen() {
           </AppText>
         </View>
         <AppText color="textMuted">{t('subtitle')}</AppText>
-        {/* connected tools bring messages in by themselves */}
-        <Pressable
-          onPress={() => router.push('/12-sources')}
-          accessibilityRole="link"
-          style={({ pressed }) => ({
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-            minHeight: sizes.touch,
-            paddingHorizontal: spacing.lg,
-            borderRadius: radius.tile,
-            backgroundColor: colors.primaryTint,
-            opacity: pressed ? 0.8 : 1,
-          })}
-        >
-          <Plug color={colors.primary} size={18} strokeWidth={2} />
-          <AppText weight="bold" color="primary" style={{ flex: 1 }}>
-            {t('connectTools')}
+        {/* your email, connected right here; opening the screen reads it, the found tasks wait below for an OK */}
+        <EmailAccounts />
+        {waiting > 0 && (
+          <AppText weight="bold" color="primary">
+            {t('waiting', { count: waiting, n: waiting })}
           </AppText>
-          <ChevronLeft color={colors.primary} size={16} strokeWidth={2.2} style={{ transform: [{ scaleX: isRTL ? 1 : -1 }] }} />
-        </Pressable>
-
-        {/* paste box */}
-        <Spotlight id="incoming.paste">
-        <Card style={{ gap: spacing.md }}>
-          <AppText variant="small" weight="semibold" color="textMuted">
-            {t('pasteLabel')}
-          </AppText>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            multiline
-            placeholder={t('pastePlaceholder')}
-            placeholderTextColor={colors.textFaint}
-            selectionColor={colors.primary}
-            accessibilityLabel={t('pasteLabel')}
-            style={{
-              minHeight: 110,
-              maxHeight: 240,
-              borderWidth: 1,
-              borderColor: colors.borderBlue,
-              borderRadius: radius.tile,
-              padding: spacing.lg,
-              color: colors.text,
-              fontSize: fontSize.body,
-              fontFamily: fontFamily.en.medium,
-              textAlignVertical: 'top',
-              writingDirection: contentDirection(text),
-              textAlign: contentDirection(text) === 'rtl' ? 'right' : 'left',
-            }}
-          />
-          <Button label={t('find')} size="md" loading={busy} disabled={!text.trim()} onPress={find} />
-          {note && (
-            <AppText variant="small" color="textMuted" align="center">
-              {note}
-            </AppText>
-          )}
-        </Card>
-        </Spotlight>
+        )}
 
         {incoming.isLoading && <ActivityIndicator color={colors.primary} />}
         {incoming.isError && (
@@ -152,6 +108,71 @@ export default function IncomingScreen() {
         {items.map((it) => (
           <ItemCard key={it.id} item={it} />
         ))}
+
+        {/* paste a message instead (WhatsApp, notes…): folded until asked for; open when something was shared */}
+        {!pasteOpen ? (
+          <Pressable onPress={() => setPasteOpen(true)} accessibilityRole="button" style={{ minHeight: sizes.touch, justifyContent: 'center' }}>
+            <AppText weight="bold" color="primary">
+              {t('pasteOpen')}
+            </AppText>
+          </Pressable>
+        ) : (
+          <Spotlight id="incoming.paste">
+            <Card style={{ gap: spacing.md }}>
+              <AppText variant="small" weight="semibold" color="textMuted">
+                {t('pasteLabel')}
+              </AppText>
+              <TextInput
+                value={text}
+                onChangeText={setText}
+                multiline
+                placeholder={t('pastePlaceholder')}
+                placeholderTextColor={colors.textFaint}
+                selectionColor={colors.primary}
+                accessibilityLabel={t('pasteLabel')}
+                style={{
+                  minHeight: 110,
+                  maxHeight: 240,
+                  borderWidth: 1,
+                  borderColor: colors.borderBlue,
+                  borderRadius: radius.tile,
+                  padding: spacing.lg,
+                  color: colors.text,
+                  fontSize: fontSize.body,
+                  fontFamily: fontFamily.en.medium,
+                  textAlignVertical: 'top',
+                  writingDirection: contentDirection(text),
+                  textAlign: contentDirection(text) === 'rtl' ? 'right' : 'left',
+                }}
+              />
+              <Button label={t('find')} size="md" loading={busy} disabled={!text.trim()} onPress={find} />
+              {note && (
+                <AppText variant="small" color="textMuted" align="center">
+                  {note}
+                </AppText>
+              )}
+            </Card>
+          </Spotlight>
+        )}
+
+        {/* other tools (Teams, Jira, ClickUp…) bring their tasks here too */}
+        <Pressable
+          onPress={() => router.push('/12-sources')}
+          accessibilityRole="link"
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            minHeight: sizes.touch,
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Plug color={colors.textMuted} size={16} strokeWidth={2} />
+          <AppText variant="small" weight="semibold" color="textMuted" style={{ flex: 1 }}>
+            {t('connectTools')}
+          </AppText>
+          <ChevronLeft color={colors.textMuted} size={14} strokeWidth={2.2} style={{ transform: [{ scaleX: isRTL ? 1 : -1 }] }} />
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -212,9 +233,22 @@ function ItemCard({ item }: { item: IncomingItem }) {
       {open.length > 0 && (
         <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
           {addable.length >= 2 && (
-            <Button label={t('acceptAll', { n: addable.length })} size="md" loading={busy === 'all'} onPress={() => run('all', () => actions.acceptAll(item.id))} style={{ flex: 1 }} />
+            <Button
+              label={t('acceptAll', { n: addable.length })}
+              size="md"
+              loading={busy === 'all'}
+              onPress={() => run('all', () => actions.acceptAll(item.id))}
+              style={{ flex: 1 }}
+            />
           )}
-          <Button label={t('ignoreAll')} variant="outline" size="md" loading={busy === 'ignoreAll'} onPress={() => run('ignoreAll', () => actions.ignore(item.id))} style={{ flex: 1 }} />
+          <Button
+            label={t('ignoreAll')}
+            variant="outline"
+            size="md"
+            loading={busy === 'ignoreAll'}
+            onPress={() => run('ignoreAll', () => actions.ignore(item.id))}
+            style={{ flex: 1 }}
+          />
         </View>
       )}
     </Card>
@@ -255,7 +289,10 @@ function SuggestionRow({
         opacity: done ? 0.6 : 1,
       }}
     >
-      <AppText weight="bold" style={{ writingDirection: contentDirection(s.title), textDecorationLine: s.state === 'ignored' ? 'line-through' : 'none' }}>
+      <AppText
+        weight="bold"
+        style={{ writingDirection: contentDirection(s.title), textDecorationLine: s.state === 'ignored' ? 'line-through' : 'none' }}
+      >
         {s.title}
       </AppText>
       <AppText variant="caption" color="textMuted">
@@ -298,7 +335,14 @@ function SuggestionRow({
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Button label={t('cancel')} variant="outline" size="md" onPress={() => setEditing(false)} style={{ flex: 1 }} />
-            <Button label={t('save')} size="md" loading={busy} disabled={!title.trim()} onPress={() => onAccept({ title, owner_id: owner })} style={{ flex: 1 }} />
+            <Button
+              label={t('save')}
+              size="md"
+              loading={busy}
+              disabled={!title.trim()}
+              onPress={() => onAccept({ title, owner_id: owner })}
+              style={{ flex: 1 }}
+            />
           </View>
         </View>
       ) : (
