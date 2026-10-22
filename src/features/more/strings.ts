@@ -45,7 +45,7 @@ const en = {
   week: 'Your week',
   weekSub: 'Forget rate and time saved',
   invite: 'Invite people',
-  inviteSub: 'Share a code, or join a team with one',
+  inviteSub: 'By email, or share your team code',
   growth: 'Growth',
   growthSub: 'Every account’s first steps + feedback',
 };
@@ -94,7 +94,7 @@ const ar: typeof en = {
   week: 'أسبوعك',
   weekSub: 'نسبة النسيان والوقت اللي وفّرته',
   invite: 'ادعُ ناس',
-  inviteSub: 'شارك رمز، أو انضم لفريق برمز',
+  inviteSub: 'بالإيميل، أو شارك رمز فريقك',
   growth: 'النمو',
   growthSub: 'أول خطوات كل حساب + الآراء',
 };

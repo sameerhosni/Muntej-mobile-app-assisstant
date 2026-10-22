@@ -64,3 +64,19 @@ export function saudiPhone(raw: string) {
   if (d.startsWith('5') && d.length === 9) return `966${d}`;
   return d;
 }
+
+/** pick your own team code (6–12 letters / digits, lasts 30 days); throws CODE_FORMAT / CODE_TAKEN */
+export async function chooseInviteCode(qc: QueryClient, code: string) {
+  const { data, error } = await rpc.call(supabase, 'set_invite_code', { p_code: code });
+  if (error) throw new Error(/CODE_(FORMAT|TAKEN)/.exec(error.message)?.[0] ?? error.message);
+  qc.setQueryData(['inviteCode'], data as InviteCode);
+}
+
+/** "noura.alharbi@company.sa" → "Noura Alharbi" (a starting name; they can change it) */
+export const nameFromEmail = (email: string) =>
+  email
+    .split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .replace(/\d+/g, '')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase()) || email.split('@')[0];
