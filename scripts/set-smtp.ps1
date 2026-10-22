@@ -22,6 +22,8 @@ if ($pass.Length -lt 16) { Write-Host 'That does not look like a Gmail app passw
 
 $otp = Get-Content "$root\supabase\templates\otp-code.html" -Raw -Encoding UTF8
 $invite = Get-Content "$root\supabase\templates\invite.html" -Raw -Encoding UTF8
+# the Arabic subjects live in a UTF-8 file: Windows PowerShell misreads non-English text inside a script file
+$words = Get-Content "$root\supabase\templates\email-subjects.json" -Raw -Encoding UTF8 | ConvertFrom-Json
 
 $body = @{
   external_email_enabled                = $true
@@ -30,15 +32,15 @@ $body = @{
   smtp_user                             = 'sales@muntej.app'
   smtp_pass                             = $pass
   smtp_admin_email                      = 'sales@muntej.app'
-  smtp_sender_name                      = 'Muntej منتج'
+  smtp_sender_name                      = $words.sender_name
   smtp_max_frequency                    = 30
   rate_limit_email_sent                 = 100
   mailer_otp_length                     = 6
-  mailer_subjects_magic_link            = 'Your Muntej code · رمز دخول منتج'
+  mailer_subjects_magic_link            = $words.code_subject
   mailer_templates_magic_link_content   = $otp
-  mailer_subjects_confirmation          = 'Your Muntej code · رمز دخول منتج'
+  mailer_subjects_confirmation          = $words.code_subject
   mailer_templates_confirmation_content = $otp
-  mailer_subjects_invite                = "You're invited to Muntej · انضفت لمنتج"
+  mailer_subjects_invite                = $words.invite_subject
   mailer_templates_invite_content       = $invite
 } | ConvertTo-Json -Depth 3
 
