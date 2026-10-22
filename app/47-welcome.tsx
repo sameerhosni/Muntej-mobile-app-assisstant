@@ -1,11 +1,13 @@
 // Screen 47 · Saree3's guided tour — no mockup; v2 light style per design/TOKENS.md
-// A human-style onboarding: a big Saree3 who talks (typed out), shows, then lets you do it with him watching.
-// Answers are big buttons until it's your turn to do the real thing; "Later" (top corner) only pauses — the Home strip
-// brings you back where you stopped.
-//   owner  (signed up, owns a new account): hello → who (name + company) → mic demo (the task card builds itself,
-//          callouts explain each part) → your turn (type or talk; the SAME callouts point at your real task, with a
-//          timer) → team (3-field invite) → hand off a task → graduation (confetti + what you did)
-//   member (invited): hello → answer a practice check-in (fake notification, 3 buttons) → proof → graduation
+// A human-style onboarding, all conversation: Saree3 asks one thing at a time and reacts to every answer. You answer
+// with a quick reply (right under his line, in the conversation) or in the one chat box at the bottom (type or talk),
+// never a form. The header is one small row (Saree3, progress, "Later") so nothing covers the conversation; "Later"
+// only pauses, the Home strip brings you back where you stopped.
+//   owner  (signed up, owns a new account): hello → who (your name, then the company) → mic demo (the task card builds
+//          itself, callouts explain each part) → your turn (type, talk or steal an idea; the SAME callouts point at your
+//          real task, with a timer) → team (their name, email, what they do: one question each) → hand off a task →
+//          graduation (confetti + what you did)
+//   member (invited): hello → answer a practice check-in (fake notification, quick replies) → proof → graduation
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Animated, Easing, KeyboardAvoidingView, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
@@ -22,14 +24,15 @@ import { contentDirection } from '@/features/chat/Bubbles';
 import { confirmOrg, invalidateTaskData, sendChat, taskSnapshot, type TaskSnapshot } from '@/features/chat/api';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
 import { transcribeAudio } from '@/features/capture/api';
+import { setCoachPaused } from '@/features/coach/api';
 import { markOnboarding, setAccountName, setMyName, stepFrom, useOnboarding } from '@/features/onboarding/api';
 import { TOUR_NS } from '@/features/onboarding/tourStrings';
 
 type OwnerStep = 'hello' | 'who' | 'demo' | 'try' | 'team' | 'handoff' | 'grad';
-type MemberStep = 'mhello' | 'mcheck' | 'mproof' | 'mgrad';
+type MemberStep = 'mhello' | 'mproof' | 'mgrad';
 type Step = OwnerStep | MemberStep;
 const OWNER: OwnerStep[] = ['hello', 'who', 'demo', 'try', 'team', 'handoff', 'grad'];
-const MEMBER: MemberStep[] = ['mhello', 'mcheck', 'mproof', 'mgrad'];
+const MEMBER: MemberStep[] = ['mhello', 'mproof', 'mgrad'];
 
 type Item =
   | { id: number; kind: 'say'; text: string }
@@ -37,6 +40,7 @@ type Item =
   | { id: number; kind: 'mic' }
   | { id: number; kind: 'card'; card: CardData }
   | { id: number; kind: 'notif' }
+  | { id: number; kind: 'grad'; lines: string[] }
   | { id: number; kind: 'busy'; text: string };
 // an item before it gets its id (Omit spread over each kind of item)
 type DistOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -49,13 +53,19 @@ type CardData = {
   proof?: boolean;
   callouts: string[];
 };
+/** what Saree3 is waiting for: quick replies under his line and/or the chat box */
+type Chip = { label: string; quiet?: boolean };
+type Asking = { chips?: Chip[]; input?: { placeholder: string; email?: boolean; mic?: boolean } };
+type Answer = { text: string; src: 'chip' | 'text' | 'voice'; chip?: number };
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const typingMs = (s: string) => Math.min(2600, 250 + s.length * 22);
+const DOTS_MS = 450;
+const typingMs = (s: string) => DOTS_MS + Math.min(2600, 250 + s.length * 22);
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export default function WelcomeTour() {
   const { t } = useScreenT(TOUR_NS);
-  const { lang, isRTL } = useDirection();
+  const { lang } = useDirection();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const me = useMyProfile();
@@ -69,10 +79,12 @@ export default function WelcomeTour() {
   const [step, setStep] = useState<Step | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [mood, setMood] = useState<MuntiMood>('wave');
-  const [busy, setBusy] = useState(false);
-  const [actions, setActions] = useState<ReactNode>(null);
+  const [typing, setTyping] = useState(false);
+  const [asking, setAsking] = useState<Asking | null>(null);
+  const answerTo = useRef<((a: Answer) => void) | null>(null);
   const seq = useRef(0);
   const scroll = useRef<ScrollView>(null);
+  const skipName = useRef(false);
   const stats = useRef({
     seconds: 0,
     mate: '' as string,
@@ -82,11 +94,27 @@ export default function WelcomeTour() {
 
   const push = (it: NewItem) => setItems((list) => [...list, { ...(it as Item), id: ++seq.current }]);
   const unbusy = () => setItems((list) => list.filter((x) => x.kind !== 'busy'));
-  /** Saree3 says a line (typed out), then the next thing happens */
+  /** Saree3 types a line ("typing…" dots first), then the next thing happens */
   const say = async (text: string, m: MuntiMood = 'talk') => {
     setMood(m);
+    setTyping(true);
     push({ kind: 'say', text });
     await wait(typingMs(text) + 250);
+    setTyping(false);
+  };
+  /** Saree3 waits for your answer: a quick reply or the chat box. Your answer shows as your bubble. */
+  const ask = (a: Asking) =>
+    new Promise<Answer>((resolve) => {
+      answerTo.current = resolve;
+      setAsking(a);
+    });
+  const reply = (a: Answer) => {
+    const resolve = answerTo.current;
+    if (!resolve || !a.text.trim()) return;
+    answerTo.current = null;
+    setAsking(null);
+    push({ kind: 'me', text: a.text.trim() });
+    resolve({ ...a, text: a.text.trim() });
   };
 
   // where to start: from what's already done (owner) or the beginning (member)
@@ -95,6 +123,7 @@ export default function WelcomeTour() {
     if (!ready || step) return;
     if (member) return setStep('mhello');
     const s = stepFrom(row.data!, me.data!, tasks.data ?? [], team.data ?? []);
+    skipName.current = s === 'company';
     const map: Record<string, OwnerStep> = {
       name: 'hello',
       company: 'who',
@@ -112,7 +141,6 @@ export default function WelcomeTour() {
   // run each step's script once when it starts
   useEffect(() => {
     if (!step) return;
-    setActions(null);
     run(step);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
@@ -127,6 +155,7 @@ export default function WelcomeTour() {
     router.replace('/');
   };
   const firstName = (me.data ? (lang === 'ar' && me.data.full_name_ar) || me.data.full_name : '').split(' ')[0];
+  const ideas = (): Chip[] => [t('idea1'), t('idea2'), t('idea3')].map((label) => ({ label, quiet: true }));
 
   // ─── the script ─────────────────────────────────────────────────────────────
   async function run(s: Step) {
@@ -135,18 +164,32 @@ export default function WelcomeTour() {
         await say(t('hi1'), 'wave');
         await say(t('hi2'), 'star');
         await say(t('hi3'), 'talk');
-        setActions(
-          <Row>
-            <Big label={t('hiYes')} onPress={() => answer(t('hiYes'), () => setStep('who'))} />
-            <Big label={t('hiWhat')} quiet onPress={() => answer(t('hiWhat'), whatDo)} />
-          </Row>,
-        );
-        return;
+        const a = await ask({ chips: [{ label: t('hiYes') }, { label: t('hiWhat'), quiet: true }] });
+        if (a.chip === 1) {
+          await say(t('what1'), 'think');
+          await say(t('what2'), 'star');
+          await ask({ chips: [{ label: t('hiYes') }] });
+        }
+        return setStep('who');
       }
-      case 'who':
-        await say(t('who1'), 'celebrate');
-        setActions(<WhoForm t={t} defaultName={/[@.]/.test(me.data?.full_name ?? '') ? '' : (me.data?.full_name ?? '')} onDone={whoDone} />);
-        return;
+      case 'who': {
+        if (!skipName.current) {
+          await say(t('whoAskName'), 'wave');
+          // a real name from sign-up (not just the email) is one tap away
+          const known = me.data?.full_name ?? '';
+          const a = await ask({
+            chips: known && !/[@.]/.test(known) ? [{ label: known }] : undefined,
+            input: { placeholder: t('whoName') },
+          });
+          setMyName(qc, me.data!.id, a.text).catch(() => {});
+          await say(t('whoNameReact', { name: a.text.split(' ')[0] }), 'celebrate');
+        }
+        await say(t('whoAskCompany'), 'talk');
+        const c = await ask({ input: { placeholder: t('whoCompany') } });
+        setAccountName(qc, c.text).catch(() => {});
+        await say(t('whoCompanyReact', { company: c.text }), 'star');
+        return setStep('demo');
+      }
       case 'demo': {
         await say(t('demo1'), 'think');
         push({ kind: 'mic' });
@@ -167,108 +210,147 @@ export default function WelcomeTour() {
         await wait(4 * 750 + 400);
         await say(t('demoEnd'), 'star');
         markOnboarding(qc, { demo_seen: true }).catch(() => {});
-        setActions(<Big label={t('demoMine')} onPress={() => answer(t('demoMine'), () => setStep('try'))} />);
-        return;
+        await ask({ chips: [{ label: t('demoMine') }] });
+        return setStep('try');
       }
-      case 'try':
+      case 'try': {
         await say(t('try1'), 'talk');
-        setActions(<TryBox t={t} rec={rec} ideas={[t('idea1'), t('idea2'), t('idea3')]} onSend={(text, src) => tryTask(text, src)} />);
-        return;
-      case 'team':
+        const startedAt = Date.now();
+        for (;;) {
+          const a = await ask({ chips: ideas(), input: { placeholder: t('tryPh'), mic: true } });
+          const snap = await makeTask(a.text, a.src === 'voice' ? 'voice' : 'text');
+          if (snap) {
+            const c = cardFor(snap);
+            push({ kind: 'card', card: c });
+            await wait(c.callouts.length * 750 + 300);
+            break;
+          }
+          await say(t('tryNoTask', { example: t('idea1') }), 'oops');
+        }
+        stats.current.seconds = Math.max(3, Math.round((Date.now() - startedAt) / 1000));
+        await say(t('tryDone', { s: stats.current.seconds }), 'celebrate');
+        await ask({ chips: [{ label: t('tryNext') }] });
+        return setStep('team');
+      }
+      case 'team': {
         await say(t('team1'), 'talk');
-        setActions(<TeamForm t={t} onAdd={teamAdd} onSkip={() => answer(t('teamSkip'), () => setStep('grad'))} />);
-        return;
+        await say(t('teamAskName'), 'wave');
+        const n = await ask({ chips: [{ label: t('teamSkip'), quiet: true }], input: { placeholder: t('teamName') } });
+        if (n.chip === 0) return setStep('grad');
+        const mate = n.text.split(' ')[0];
+        await say(t('teamAskEmail', { name: mate }), 'talk');
+        let email = '';
+        for (;;) {
+          email = (await ask({ input: { placeholder: t('teamEmail'), email: true } })).text.toLowerCase();
+          if (EMAIL.test(email)) break;
+          await say(t('teamBadEmail2'), 'oops');
+        }
+        await say(t('teamAskRole', { name: mate }), 'think');
+        const roles = t('roles').split('|');
+        const r = await ask({
+          chips: [...roles.map((label) => ({ label, quiet: true })), { label: t('teamRoleSkip'), quiet: true }],
+          input: { placeholder: t('teamRole') },
+        });
+        setMood('think');
+        push({ kind: 'busy', text: '📩 …' });
+        try {
+          await confirmOrg(
+            {
+              full_name: n.text,
+              email,
+              title: r.chip === roles.length ? null : r.text,
+              role: 'employee',
+              manager_id: me.data!.id,
+            } as never,
+            lang === 'ar' ? 'ar' : 'en',
+          );
+          await qc.invalidateQueries({ queryKey: ['team'] });
+        } catch {
+          // the tour goes on; the team screen can retry the invite
+        }
+        unbusy();
+        stats.current.mate = mate;
+        stats.current.mateDone = true;
+        await say(t('teamAdded', { name: mate }), 'celebrate');
+        return setStep('handoff');
+      }
       case 'handoff': {
         const mate = stats.current.mate || (team.data ?? []).find((p) => p.id !== me.data?.id)?.full_name?.split(' ')[0] || '';
         stats.current.mate = mate;
         await say(t('hand1', { name: mate }), 'talk');
-        setActions(
-          <TryBox t={t} rec={rec} initial={t('handSuggest', { name: mate })} sendLabel={t('handSend')} onSend={(text, src) => handTask(text, src)} />,
-        );
-        return;
+        const a = await ask({
+          chips: [{ label: t('handSuggest', { name: mate }), quiet: true }],
+          input: { placeholder: t('tryPh'), mic: true },
+        });
+        const snap = await makeTask(a.text, a.src === 'voice' ? 'voice' : 'text');
+        if (snap) {
+          const c = cardFor(snap);
+          push({ kind: 'card', card: c });
+          await wait(c.callouts.length * 750 + 300);
+          stats.current.handed = true;
+        }
+        await say(t('handDone', { name: mate }), 'star');
+        return setStep('grad');
       }
-      case 'grad':
+      case 'grad': {
         setMood('celebrate');
-        setActions(null);
-        return;
+        const following = (tasks.data ?? []).filter((x) => x.assigner_id === me.data?.id && !['done', 'cancelled'].includes(x.status)).length;
+        push({
+          kind: 'grad',
+          lines: [
+            ...(stats.current.seconds ? [t('gradTask', { s: stats.current.seconds })] : []),
+            ...(stats.current.mateDone ? [t('gradTeam', { name: stats.current.mate })] : []),
+            ...(stats.current.handed ? [t('gradHand')] : []),
+            ...(following ? [t('gradFollow', { count: following, n: following })] : []),
+          ],
+        });
+        await wait(1800);
+        return keepTeaching();
+      }
       // ─── member tour ───
-      case 'mhello':
+      case 'mhello': {
         await say(t('m1', { name: firstName }), 'wave');
         await say(t('m2'), 'talk');
         push({ kind: 'notif' });
-        setActions(
-          <Row>
-            <Big
-              label={t('mDone')}
-              onPress={() =>
-                answer(t('mDone'), async () => {
-                  await say(t('mDoneReact'), 'celebrate');
-                  setStep('mproof');
-                })
-              }
-            />
-            <Big
-              label={t('mOnTrack')}
-              quiet
-              onPress={() =>
-                answer(t('mOnTrack'), async () => {
-                  await say(t('mOnTrackReact'), 'star');
-                  setStep('mproof');
-                })
-              }
-            />
-            <Big
-              label={t('mBlocked')}
-              quiet
-              onPress={() =>
-                answer(t('mBlocked'), async () => {
-                  await say(t('mBlockedReact'), 'think');
-                  setStep('mproof');
-                })
-              }
-            />
-          </Row>,
-        );
-        return;
+        const a = await ask({
+          chips: [{ label: t('mDone') }, { label: t('mOnTrack'), quiet: true }, { label: t('mBlocked'), quiet: true }],
+        });
+        const react: [string, MuntiMood][] = [
+          ['mDoneReact', 'celebrate'],
+          ['mOnTrackReact', 'star'],
+          ['mBlockedReact', 'think'],
+        ];
+        const [line, m] = react[a.chip ?? 0];
+        await say(t(line), m);
+        return setStep('mproof');
+      }
       case 'mproof':
         await say(t('m3'), 'talk');
-        setActions(<Big label={t('mGot')} onPress={() => answer(t('mGot'), () => setStep('mgrad'))} />);
-        return;
+        await ask({ chips: [{ label: t('mGot') }] });
+        return setStep('mgrad');
       case 'mgrad':
         await say(t('mGrad'), 'celebrate');
-        setActions(<Big label={t('gradHome')} onPress={goHome} />);
-        return;
+        return keepTeaching();
     }
   }
 
-  /** the user's choice shows as their bubble, then the next thing */
-  function answer(text: string, then: () => void | Promise<void>) {
-    setActions(null);
-    push({ kind: 'me', text });
-    then();
-  }
-  async function whatDo() {
-    await say(t('what1'), 'think');
-    await say(t('what2'), 'star');
-    setActions(<Big label={t('hiYes')} onPress={() => answer(t('hiYes'), () => setStep('who'))} />);
-  }
-  async function whoDone(name: string, company: string) {
-    setActions(null);
-    push({ kind: 'me', text: `${name} · ${company}` });
-    try {
-      await setMyName(qc, me.data!.id, name);
-      await setAccountName(qc, company);
-    } catch {
-      // the tour goes on; the names can be fixed in Settings
+  /** after graduating: Saree3 keeps teaching on Home (one thing per app open), or takes a coffee break until
+   *  you call him back from More */
+  async function keepTeaching() {
+    await say(t('keepAsk'), 'think');
+    const a = await ask({ chips: [{ label: t('keepYes') }, { label: t('keepNo'), quiet: true }] });
+    if (a.chip === 1) {
+      setCoachPaused(qc, true).catch(() => {});
+      await say(t('keepNoReact'), 'sleep');
+    } else {
+      await say(t('keepYesReact'), 'celebrate');
     }
-    await say(t('whoHi', { name: name.split(' ')[0], company }), 'celebrate');
-    setStep('demo');
+    await ask({ chips: [{ label: t('gradHome') }] });
+    return goHome();
   }
 
-  /** your turn: the real task, through the real chat; the card + callouts point at what Muntej understood */
+  /** the real task, through the real chat; the card + callouts point at what Muntej understood */
   async function makeTask(text: string, source: 'text' | 'voice'): Promise<TaskSnapshot | null> {
-    setActions(null);
-    push({ kind: 'me', text });
     setMood('think');
     push({ kind: 'busy', text: t('tryThinking') });
     try {
@@ -304,97 +386,41 @@ export default function WelcomeTour() {
       ],
     };
   }
-  async function tryTask(text: string, source: 'text' | 'voice', startedAt = Date.now()) {
-    const snap = await makeTask(text, source);
-    if (!snap) {
-      await say(t('tryNoTask', { example: t('idea1') }), 'oops');
-      setActions(<TryBox t={t} rec={rec} ideas={[t('idea1'), t('idea2'), t('idea3')]} onSend={(x, src) => tryTask(x, src, startedAt)} />);
-      return;
-    }
-    const c = cardFor(snap);
-    push({ kind: 'card', card: c });
-    await wait(c.callouts.length * 750 + 300);
-    stats.current.seconds = Math.max(3, Math.round((Date.now() - startedAt) / 1000));
-    await say(t('tryDone', { s: stats.current.seconds }), 'celebrate');
-    setActions(<Big label={t('tryNext')} onPress={() => answer(t('tryNext'), () => setStep('team'))} />);
-  }
-  async function teamAdd(name: string, email: string, role: string) {
-    setActions(null);
-    push({ kind: 'me', text: `${name} · ${email}` });
-    setBusy(true);
-    try {
-      await confirmOrg(
-        {
-          full_name: name,
-          email,
-          title: role || null,
-          role: 'employee',
-          manager_id: me.data!.id,
-        } as never,
-        lang === 'ar' ? 'ar' : 'en',
-      );
-      await qc.invalidateQueries({ queryKey: ['team'] });
-    } catch {
-      // shown below as the normal line; the team screen can retry
-    } finally {
-      setBusy(false);
-    }
-    stats.current.mate = name.split(' ')[0];
-    stats.current.mateDone = true;
-    await say(t('teamAdded', { name: stats.current.mate }), 'celebrate');
-    setStep('handoff');
-  }
-  async function handTask(text: string, source: 'text' | 'voice') {
-    const snap = await makeTask(text, source);
-    if (snap) {
-      const c = cardFor(snap);
-      push({ kind: 'card', card: c });
-      await wait(c.callouts.length * 750 + 300);
-      stats.current.handed = true;
-    }
-    await say(t('handDone', { name: stats.current.mate }), 'star');
-    setStep('grad');
-  }
 
   // ─── layout ─────────────────────────────────────────────────────────────────
   const idx = step ? steps.indexOf(step) : 0;
-  const following = (tasks.data ?? []).filter((x) => x.assigner_id === me.data?.id && !['done', 'cancelled'].includes(x.status)).length;
+  const toEnd = () => scroll.current?.scrollToEnd({ animated: true });
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.bg }}>
-      {/* big Saree3 + progress + Later */}
+      {/* one slim row: Saree3 (typing… / here with you), progress, Later */}
       <View
         style={{
           paddingTop: insets.top + spacing.sm,
+          paddingBottom: spacing.sm,
           paddingHorizontal: spacing.screen,
-          alignItems: 'center',
           gap: spacing.sm,
           backgroundColor: colors.surface,
-          borderBottomStartRadius: 28,
-          borderBottomEndRadius: 28,
-          boxShadow: shadows.card,
-          paddingBottom: spacing.lg,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
         }}
       >
-        <View
-          style={{
-            flexDirection: 'row',
-            alignSelf: 'stretch',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <Dots total={steps.length} at={idx} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <Munti size="md" mood={mood} settleAfter={mood === 'talk' ? 2200 : undefined} />
+          <View style={{ flex: 1 }}>
+            <AppText weight="extrabold" style={{ fontSize: 17 }}>
+              {t('me')}
+            </AppText>
+            <AppText variant="caption" weight="semibold" color={typing ? 'primary' : 'green'}>
+              {typing ? t('typing') : `● ${t('here')}`}
+            </AppText>
+          </View>
           {step !== 'grad' && step !== 'mgrad' && (
             <Pressable
               onPress={later}
               accessibilityRole="button"
               hitSlop={10}
-              style={{
-                minHeight: 36,
-                justifyContent: 'center',
-                paddingHorizontal: 8,
-              }}
+              style={{ minHeight: sizes.touch, justifyContent: 'center', paddingHorizontal: 8 }}
             >
               <AppText variant="small" color="textMuted">
                 {t('later')}
@@ -402,17 +428,14 @@ export default function WelcomeTour() {
             </Pressable>
           )}
         </View>
-        <Munti size="lg" mood={mood} settleAfter={mood === 'talk' ? 2200 : undefined} />
+        <Dots total={steps.length} at={idx} />
       </View>
 
       <ScrollView
         ref={scroll}
-        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
-        contentContainerStyle={{
-          padding: spacing.screen,
-          gap: spacing.md,
-          paddingBottom: spacing.xxl,
-        }}
+        onContentSizeChange={toEnd}
+        onLayout={toEnd}
+        contentContainerStyle={{ padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xl }}
         keyboardShouldPersistTaps="handled"
       >
         {!ready && <ActivityIndicator color={colors.primary} />}
@@ -427,49 +450,32 @@ export default function WelcomeTour() {
             <BuildCard key={it.id} card={it.card} />
           ) : it.kind === 'notif' ? (
             <FakeNotification key={it.id} title={t('mNotifTitle')} body={t('mNotifBody')} />
+          ) : it.kind === 'grad' ? (
+            <Graduation key={it.id} lines={it.lines} title={t('grad1')} footer={t('grad2')} />
           ) : (
-            <View
-              key={it.id}
-              style={{
-                flexDirection: 'row',
-                gap: spacing.sm,
-                alignItems: 'center',
-              }}
-            >
+            <View key={it.id} style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
               <ActivityIndicator size="small" color={colors.primary} />
               <AppText color="textMuted">{it.text}</AppText>
             </View>
           ),
         )}
-        {step === 'grad' && (
-          <Graduation
-            lines={[
-              ...(stats.current.seconds ? [t('gradTask', { s: stats.current.seconds })] : []),
-              ...(stats.current.mateDone ? [t('gradTeam', { name: stats.current.mate })] : []),
-              ...(stats.current.handed ? [t('gradHand')] : []),
-              ...(following ? [t('gradFollow', { count: following, n: following })] : []),
-            ]}
-            title={t('grad1')}
-            footer={t('grad2')}
-            home={t('gradHome')}
-            onHome={goHome}
-          />
-        )}
+        {/* quick replies sit in the conversation, right under Saree3's question */}
+        {!!asking?.chips && <QuickReplies chips={asking.chips} onPick={(c, i) => reply({ text: c.label, src: 'chip', chip: i })} />}
       </ScrollView>
 
-      {/* what you can do now */}
-      {(!!actions || busy) && (
-        <View
-          style={{
-            paddingHorizontal: spacing.screen,
-            paddingTop: spacing.md,
-            paddingBottom: Math.max(insets.bottom, spacing.lg),
-            backgroundColor: colors.bg,
-            gap: spacing.sm,
-          }}
-        >
-          {busy ? <ActivityIndicator color={colors.primary} /> : actions}
-        </View>
+      {/* the one chat box, only while Saree3 is waiting for a typed (or spoken) answer */}
+      {!!asking?.input && (
+        <ChatBar
+          key={seq.current}
+          t={t}
+          rec={rec}
+          placeholder={asking.input.placeholder}
+          email={asking.input.email}
+          mic={asking.input.mic}
+          focus={!asking.chips}
+          bottom={Math.max(insets.bottom, spacing.md)}
+          onSend={(text, src) => reply({ text, src })}
+        />
       )}
     </KeyboardAvoidingView>
   );
@@ -478,27 +484,61 @@ export default function WelcomeTour() {
 type T = (k: string, o?: Record<string, unknown>) => string;
 type Recorder = ReturnType<typeof useVoiceRecorder>;
 
-/** your turn: type, tap an idea, or talk (Saree3 writes it down) */
-function TryBox({
+/** tappable answers, on your side of the conversation */
+function QuickReplies({ chips, onPick }: { chips: Chip[]; onPick: (c: Chip, i: number) => void }) {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.sm }}>
+      {chips.map((c, i) => (
+        <Pressable
+          key={c.label}
+          onPress={() => onPick(c, i)}
+          accessibilityRole="button"
+          style={({ pressed }) => ({
+            minHeight: sizes.touch,
+            justifyContent: 'center',
+            paddingHorizontal: spacing.lg,
+            borderRadius: radius.pill,
+            backgroundColor: c.quiet ? colors.surface : colors.primary,
+            borderWidth: 1.5,
+            borderColor: c.quiet ? colors.borderBlue : colors.primary,
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <AppText weight="bold" color={c.quiet ? 'primary' : 'onDark'} style={{ writingDirection: contentDirection(c.label) }}>
+            {c.label}
+          </AppText>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** the chat box: type, or tap the mic and talk (Saree3 writes it down and sends it) */
+function ChatBar({
   t,
   rec,
-  ideas,
-  initial,
-  sendLabel,
+  placeholder,
+  email,
+  mic,
+  focus,
+  bottom,
   onSend,
 }: {
   t: T;
   rec: Recorder;
-  ideas?: string[];
-  initial?: string;
-  sendLabel?: string;
+  placeholder: string;
+  email?: boolean;
+  mic?: boolean;
+  focus?: boolean;
+  bottom: number;
   onSend: (text: string, src: 'text' | 'voice') => void;
 }) {
   const { isRTL } = useDirection();
-  const [text, setText] = useState(initial ?? '');
+  const [text, setText] = useState('');
   const [talking, setTalking] = useState<'idle' | 'rec' | 'writing'>('idle');
   const [err, setErr] = useState<string | null>(null);
-  const mic = async () => {
+  const send = () => text.trim() && onSend(text.trim(), 'text');
+  const talk = async () => {
     setErr(null);
     if (talking === 'idle') {
       try {
@@ -524,137 +564,125 @@ function TryBox({
     }
   };
   return (
-    <View style={{ gap: spacing.sm }}>
-      {!!ideas && (
-        <>
-          <AppText variant="caption" color="textMuted">
-            {t('tryStuck')}
-          </AppText>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            {ideas.map((x) => (
-              <Pressable
-                key={x}
-                onPress={() => setText(x)}
-                style={({ pressed }) => ({
-                  paddingHorizontal: 14,
-                  minHeight: 40,
-                  justifyContent: 'center',
-                  borderRadius: radius.pill,
-                  backgroundColor: colors.purpleTint,
-                  borderWidth: 1,
-                  borderColor: colors.purpleBorder,
-                  opacity: pressed ? 0.8 : 1,
-                })}
-              >
-                <AppText variant="small" weight="bold" color="purpleText">
-                  {x}
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <TextInput
-          value={talking === 'writing' ? t('tryWriting') : talking === 'rec' ? '' : text}
-          onChangeText={setText}
-          placeholder={talking === 'rec' ? '🔴 …' : t('tryPh')}
-          placeholderTextColor={colors.textFaint}
-          editable={talking === 'idle'}
-          multiline
-          style={{
-            flex: 1,
-            minHeight: 52,
-            maxHeight: 120,
-            borderRadius: 26,
-            borderWidth: 2,
-            borderColor: colors.primary,
-            backgroundColor: colors.surface,
-            paddingHorizontal: spacing.lg,
-            paddingVertical: spacing.md,
-            color: colors.text,
-            textAlign: isRTL ? 'right' : 'left',
-            writingDirection: contentDirection(text),
-          }}
-        />
-        <Pressable
-          onPress={mic}
-          accessibilityRole="button"
-          accessibilityLabel={talking === 'rec' ? t('tryStop') : t('tryHold')}
-          style={{
-            width: 52,
-            height: 52,
-            borderRadius: 26,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: talking === 'rec' ? colors.red : colors.primaryTint,
-          }}
-        >
-          {talking === 'writing' ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : talking === 'rec' ? (
-            <Square color={colors.onDark} size={20} fill={colors.onDark} />
-          ) : (
-            <Mic color={colors.primary} size={24} />
-          )}
-        </Pressable>
-      </View>
+    <View
+      style={{
+        paddingHorizontal: spacing.screen,
+        paddingTop: spacing.sm,
+        paddingBottom: bottom,
+        backgroundColor: colors.surface,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        gap: 4,
+      }}
+    >
       {!!err && (
         <AppText variant="small" color="red">
           {err}
         </AppText>
       )}
-      <Big
-        label={sendLabel ?? t('trySend')}
-        disabled={!text.trim() || talking !== 'idle'}
-        onPress={() => onSend(text.trim(), 'text')}
-        icon={<Send color={colors.onDark} size={18} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />}
-      />
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
+        <TextInput
+          value={talking === 'writing' ? t('tryWriting') : talking === 'rec' ? '' : text}
+          onChangeText={setText}
+          placeholder={talking === 'rec' ? `🔴 ${t('demoListening')}` : placeholder}
+          placeholderTextColor={colors.textFaint}
+          editable={talking === 'idle'}
+          autoFocus={focus}
+          multiline={!email}
+          autoCapitalize={email ? 'none' : 'sentences'}
+          autoCorrect={!email}
+          keyboardType={email ? 'email-address' : 'default'}
+          returnKeyType="send"
+          submitBehavior={email ? 'submit' : 'blurAndSubmit'}
+          onSubmitEditing={send}
+          style={{
+            flex: 1,
+            minHeight: 48,
+            maxHeight: 120,
+            borderRadius: 24,
+            borderWidth: 1.5,
+            borderColor: colors.borderBlue,
+            backgroundColor: colors.bg,
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.md,
+            color: colors.text,
+            fontSize: 16,
+            textAlign: email ? 'left' : isRTL ? 'right' : 'left',
+            writingDirection: email ? 'ltr' : contentDirection(text),
+          }}
+        />
+        {mic && (
+          <RoundButton
+            label={talking === 'rec' ? t('tryStop') : t('tryHold')}
+            onPress={talk}
+            bg={talking === 'rec' ? colors.red : colors.primaryTint}
+          >
+            {talking === 'writing' ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : talking === 'rec' ? (
+              <Square color={colors.onDark} size={18} fill={colors.onDark} />
+            ) : (
+              <Mic color={colors.primary} size={22} />
+            )}
+          </RoundButton>
+        )}
+        <RoundButton label={t('trySend')} onPress={send} bg={colors.primary} disabled={!text.trim() || talking !== 'idle'}>
+          <Send color={colors.onDark} size={20} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
+        </RoundButton>
+      </View>
     </View>
   );
 }
 
-function WhoForm({ t, defaultName, onDone }: { t: T; defaultName: string; onDone: (name: string, company: string) => void }) {
-  const [name, setName] = useState(defaultName);
-  const [company, setCompany] = useState('');
+function RoundButton({
+  label,
+  onPress,
+  bg,
+  disabled,
+  children,
+}: {
+  label: string;
+  onPress: () => void;
+  bg: string;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <View style={{ gap: spacing.sm }}>
-      <Field value={name} onChange={setName} placeholder={t('whoName')} />
-      <Field value={company} onChange={setCompany} placeholder={t('whoCompany')} />
-      <Big label={t('whoGo')} disabled={!name.trim() || !company.trim()} onPress={() => onDone(name.trim(), company.trim())} />
-    </View>
-  );
-}
-
-function TeamForm({ t, onAdd, onSkip }: { t: T; onAdd: (name: string, email: string, role: string) => void; onSkip: () => void }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('');
-  const okEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <Field value={name} onChange={setName} placeholder={t('teamName')} />
-      <Field value={email} onChange={setEmail} placeholder={t('teamEmail')} email />
-      {!!email && !okEmail && (
-        <AppText variant="caption" color="red">
-          {t('teamBadEmail')}
-        </AppText>
-      )}
-      <Field value={role} onChange={setRole} placeholder={t('teamRole')} />
-      <Big label={t('teamAdd')} disabled={!name.trim() || !okEmail} onPress={() => onAdd(name.trim(), email.trim().toLowerCase(), role.trim())} />
-      <Big label={t('teamSkip')} quiet onPress={onSkip} />
-    </View>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: bg,
+        opacity: disabled ? 0.4 : pressed ? 0.85 : 1,
+      })}
+    >
+      {children}
+    </Pressable>
   );
 }
 
 // ─── building blocks ──────────────────────────────────────────────────────────
 
-/** Saree3's line, typed out letter by letter */
+/** Saree3's line: "typing…" dots for a moment, then the words appear letter by letter */
 function SayLine({ text }: { text: string }) {
-  const [n, setN] = useState(0);
+  const [n, setN] = useState(-1);
   useEffect(() => {
-    const id = setInterval(() => setN((v) => (v >= text.length ? v : v + 2)), 22);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | undefined;
+    const start = setTimeout(() => {
+      setN(0);
+      id = setInterval(() => setN((v) => (v >= text.length ? v : v + 2)), 22);
+    }, DOTS_MS);
+    return () => {
+      clearTimeout(start);
+      clearInterval(id);
+    };
   }, [text]);
   return (
     <View
@@ -676,7 +704,7 @@ function SayLine({ text }: { text: string }) {
           writingDirection: contentDirection(text),
         }}
       >
-        {text.slice(0, n)}
+        {n < 0 ? '• • •' : text.slice(0, n)}
       </AppText>
     </View>
   );
@@ -911,7 +939,7 @@ function FakeNotification({ title, body }: { title: string; body: string }) {
   );
 }
 
-function Graduation({ title, lines, footer, home, onHome }: { title: string; lines: string[]; footer: string; home: string; onHome: () => void }) {
+function Graduation({ title, lines, footer }: { title: string; lines: string[]; footer: string }) {
   return (
     <View style={{ gap: spacing.md, alignItems: 'stretch' }}>
       <Confetti />
@@ -936,7 +964,6 @@ function Graduation({ title, lines, footer, home, onHome }: { title: string; lin
       <AppText color="textSoft" align="center">
         {footer}
       </AppText>
-      <Big label={home} onPress={onHome} />
     </View>
   );
 }
@@ -1017,75 +1044,5 @@ function Dots({ total, at }: { total: number; at: number }) {
         />
       ))}
     </View>
-  );
-}
-
-function Row({ children }: { children: ReactNode }) {
-  return <View style={{ gap: spacing.sm }}>{children}</View>;
-}
-
-function Big({
-  label,
-  onPress,
-  quiet,
-  disabled,
-  icon,
-}: {
-  label: string;
-  onPress: () => void;
-  quiet?: boolean;
-  disabled?: boolean;
-  icon?: ReactNode;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      style={({ pressed }) => ({
-        minHeight: sizes.touch + 10,
-        borderRadius: radius.pill,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingHorizontal: spacing.xl,
-        backgroundColor: quiet ? colors.surface : colors.primary,
-        borderWidth: quiet ? 1.5 : 0,
-        borderColor: colors.borderBlue,
-        opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
-      })}
-    >
-      {icon}
-      <AppText weight="extrabold" style={{ fontSize: 17 }} color={quiet ? 'primary' : 'onDark'}>
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
-
-function Field({ value, onChange, placeholder, email }: { value: string; onChange: (v: string) => void; placeholder: string; email?: boolean }) {
-  const { isRTL } = useDirection();
-  return (
-    <TextInput
-      value={value}
-      onChangeText={onChange}
-      placeholder={placeholder}
-      placeholderTextColor={colors.textFaint}
-      autoCapitalize={email ? 'none' : 'words'}
-      autoCorrect={!email}
-      keyboardType={email ? 'email-address' : 'default'}
-      style={{
-        minHeight: 52,
-        borderRadius: 16,
-        borderWidth: 1.5,
-        borderColor: colors.borderBlue,
-        backgroundColor: colors.surface,
-        paddingHorizontal: spacing.lg,
-        color: colors.text,
-        fontSize: 16,
-        textAlign: email ? 'left' : isRTL ? 'right' : 'left',
-      }}
-    />
   );
 }

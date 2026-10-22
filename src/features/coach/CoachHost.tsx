@@ -19,13 +19,24 @@ import { useIncomingCount } from '@/features/incoming/api';
 import { useLaunchCardOn } from '@/features/launch/launch';
 import { useOnboarding } from '@/features/onboarding/api';
 import { Munti } from '@/features/munti/Munti';
+import { PAUSED_KEY, setCoachPaused } from './api';
 import { COACH_NS } from './strings';
 
 const HOMES = ['/01-home', '/25-employee-home'];
 const DELAY_MS = 5000;
-const WEEK = 7 * 86_400_000;
+const DAY = 86_400_000;
+const WEEK = 7 * DAY;
+// Saree3 keeps teaching after the tour: one of these per app open, in order, each once
+const LESSONS: { key: string; href: Href; managers?: boolean }[] = [
+  { key: 'lesson_voice', href: '/02-capture' },
+  { key: 'lesson_brief', href: '/05-brief', managers: true },
+  { key: 'lesson_paste', href: '/42-incoming' },
+  { key: 'lesson_meeting', href: '/45-record-meeting' },
+  { key: 'lesson_more', href: '/44-more' },
+];
 const RATINGS = ['😍', '🙂', '😐', '🙁'];
-const rpc = supabase.rpc.bind(supabase) as unknown as (fn: string, args?: object) => Promise<{ error: { message: string } | null }>;
+// a supabase request is only a "thenable" (no .catch): wrap it in a real Promise so .catch(() => {}) works
+const rpc = (fn: string, args?: object) => Promise.resolve((supabase.rpc as (f: string, a?: object) => PromiseLike<unknown>)(fn, args));
 
 type Tip = { kind: 'tip'; key: string; text: string; href?: Href };
 type Ask = { kind: 'ask'; moment: string; text: string };
@@ -68,6 +79,8 @@ export function CoachHost() {
     const s = seen.data;
     const all = tasks.data;
     if (!m || !s || !all) return null;
+    // on a coffee break: nothing until called back from More
+    if (s.moments.has(PAUSED_KEY)) return null;
     const name = (x: TaskWithPeople) => (x.owner ? ((lang === 'ar' && x.owner.full_name_ar) || x.owner.full_name).split(' ')[0] : '');
     const now = Date.now();
     const mine = (x: TaskWithPeople) => x.assigner_id === m.id && x.owner_id && x.owner_id !== m.id;
@@ -75,7 +88,9 @@ export function CoachHost() {
     // feedback: after big moments, at most once a week
     if (now - s.lastAsk > WEEK) {
       const ob = onboarding.data;
-      if (ob?.finished_at && !s.asked.has('onboarding_done')) return { kind: 'ask', moment: 'onboarding_done', text: t('fb_onboarding_done') };
+      // a day after graduating, so the first lessons come first
+      if (ob?.finished_at && now - Date.parse(ob.finished_at) > DAY && !s.asked.has('onboarding_done'))
+        return { kind: 'ask', moment: 'onboarding_done', text: t('fb_onboarding_done') };
       if (all.some((x) => mine(x) && x.status === 'done') && !s.asked.has('first_handoff'))
         return { kind: 'ask', moment: 'first_handoff', text: t('fb_first_handoff') };
       const since = ob?.started_at ? Date.parse(ob.started_at) : Date.parse(m.created_at);
@@ -103,13 +118,25 @@ export function CoachHost() {
       if (c) return c;
     }
     const proof = all.find(
-      (x) => x.owner_id === m.id && ((x as { proof_required?: string }).proof_required ?? 'none') !== 'none' && !['done', 'cancelled', 'submitted'].includes(x.status),
+      (x) =>
+        x.owner_id === m.id &&
+        ((x as { proof_required?: string }).proof_required ?? 'none') !== 'none' &&
+        !['done', 'cancelled', 'submitted'].includes(x.status),
     );
     if (proof) {
       const c = tip('proof_needed', proof, { pathname: '/14-task-detail', params: { id: proof.id } });
       if (c) return c;
     }
-    if (incoming.count > 0) return tip('incoming_found', null, '/42-incoming');
+    if (incoming.count > 0) {
+      const c = tip('incoming_found', null, '/42-incoming');
+      if (c) return c;
+    }
+    // nothing happening: the next lesson, one per app open
+    for (const l of LESSONS) {
+      if (l.managers && m.role === 'employee') continue;
+      const c = tip(l.key, null, l.href);
+      if (c) return c;
+    }
     return null;
   }, [me.data, seen.data, tasks.data, onboarding.data, incoming.count, lang, t]);
 
@@ -173,6 +200,23 @@ export function CoachHost() {
 
 function TipCard({ tip, onShow, onClose }: { tip: Tip; onShow: () => void; onClose: () => void }) {
   const { t } = useScreenT(COACH_NS);
+  const qc = useQueryClient();
+  const [bye, setBye] = useState(false);
+  // "thanks, I've got it": Saree3 goes on a coffee break until called back from More
+  const pause = () => {
+    setCoachPaused(qc, true).catch(() => {});
+    setBye(true);
+    setTimeout(onClose, 2600);
+  };
+  if (bye)
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <Munti size="md" mood="sleep" />
+        <AppText weight="bold" style={{ flex: 1 }}>
+          {t('pausedBye')}
+        </AppText>
+      </View>
+    );
   return (
     <>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
@@ -193,6 +237,11 @@ function TipCard({ tip, onShow, onClose }: { tip: Tip; onShow: () => void; onClo
         {!!tip.href && <Button label={t('showMe')} size="md" onPress={onShow} style={{ flex: 1 }} />}
         <Button label={t('gotIt')} variant="outline" size="md" onPress={onClose} style={{ flex: 1 }} />
       </View>
+      <Pressable onPress={pause} accessibilityRole="button" style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center' }}>
+        <AppText variant="small" weight="semibold" color="textMuted">
+          {t('pauseBtn')}
+        </AppText>
+      </Pressable>
     </>
   );
 }
@@ -254,7 +303,14 @@ function AskCard({ ask, onDone }: { ask: Ask; onDone: () => void }) {
           placeholder={t('fbComment')}
           placeholderTextColor={colors.textFaint}
           multiline
-          style={{ minHeight: sizes.touch, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, color: colors.text }}
+          style={{
+            minHeight: sizes.touch,
+            borderRadius: radius.md,
+            borderWidth: 1,
+            borderColor: colors.border,
+            padding: spacing.md,
+            color: colors.text,
+          }}
         />
       )}
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>

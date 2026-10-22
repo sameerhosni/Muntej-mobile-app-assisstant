@@ -35,6 +35,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
 import { useIncomingCount } from '@/features/incoming/api';
 import { MORE_NS } from '@/features/more/strings';
+import { CoachSwitch } from '@/features/coach/CoachSwitch';
 
 type Tile = { key: string; href: Href; Icon: ComponentType<LucideProps>; bg: ColorToken; fg: string; who: 'all' | 'manager' | 'super'; count?: number };
 
@@ -103,6 +104,8 @@ export default function MoreScreen() {
           </AppText>
         </View>
         <AppText color="textSoft">{t('sub')}</AppText>
+        {/* Saree3 the teacher: on, or on a coffee break (call him back here) */}
+        <CoachSwitch />
 
         {groups.map((g) => {
           const tiles = g.tiles.filter(visible);
