@@ -1,0 +1,144 @@
+<!doctype html>
+<!-- muntej.app/download — where the ad lands. Arabic first (RTL), English toggle. One job: get the app installed.
+     To point at a newer Android build, change ANDROID_URL below. -->
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Muntej · منتج</title>
+  <meta name="description" content="Say it once. Muntej handles the rest. قولها لمنتج… وانساها">
+  <link rel="icon" href="symbol.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F3F6FB; --surface: #FFFFFF; --text: #0B1A33; --soft: #3B475E; --muted: #66728A;
+      --primary: #1F6FEB; --purple: #6D4AFF; --border: #E6EBF3;
+      --brand: linear-gradient(90deg, #5B3BFF, #C13BF0, #FF4FA0, #FF9F1C, #FFD60A);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Tajawal, Inter, system-ui, sans-serif; line-height: 1.6; }
+    html[lang="en"] body { font-family: Inter, system-ui, sans-serif; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+    header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0; }
+    header img { height: 30px; }
+    .lang { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 700; color: var(--primary); cursor: pointer; min-height: 44px; }
+    .hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: center; padding: 28px 0 40px; }
+    h1 { font-size: clamp(32px, 6vw, 54px); line-height: 1.15; margin: 0 0 14px; font-weight: 800; }
+    h1 .g { background: var(--brand); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .lead { font-size: 19px; color: var(--soft); margin: 0 0 26px; }
+    .cta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 10px; background: var(--primary); color: #fff; text-decoration: none; font-weight: 800; font-size: 18px; padding: 16px 26px; border-radius: 999px; box-shadow: 0 8px 20px rgba(31,111,235,0.30); min-height: 56px; }
+    .btn:hover { filter: brightness(1.05); }
+    .qr { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 14px; }
+    .qr canvas, .qr img { width: 96px; height: 96px; background: #fff; padding: 6px; border-radius: 12px; border: 1px solid var(--border); }
+    .phone { background: var(--surface); border-radius: 32px; padding: 22px; box-shadow: 0 14px 40px rgba(11,42,91,0.12); border: 1px solid var(--border); }
+    .bubble { border-radius: 18px; padding: 12px 16px; margin: 8px 0; max-width: 88%; font-size: 15px; }
+    .me { background: var(--primary); color: #fff; margin-inline-start: auto; }
+    .bot { background: var(--bg); color: var(--text); }
+    .card { border: 1px solid #D6E2F5; border-inline-start: 4px solid var(--primary); border-radius: 16px; padding: 12px 14px; margin: 8px 0; font-size: 14px; }
+    .card b { display: block; margin-bottom: 4px; }
+    .chip { display: inline-block; background: #E8F0FE; color: var(--primary); border-radius: 999px; padding: 2px 10px; margin: 4px 4px 0 0; font-size: 12px; font-weight: 700; }
+    .line { height: 4px; border-radius: 4px; background: var(--brand); margin: 6px 0 30px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding-bottom: 40px; }
+    .step { background: var(--surface); border-radius: 20px; padding: 20px; border: 1px solid var(--border); }
+    .step .n { width: 36px; height: 36px; border-radius: 12px; background: #EFEBFF; color: var(--purple); font-weight: 800; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+    .step h3 { margin: 0 0 6px; font-size: 18px; }
+    .step p { margin: 0; color: var(--soft); font-size: 15px; }
+    footer { color: var(--muted); font-size: 13px; padding: 26px 0 40px; text-align: center; }
+    footer a { color: var(--primary); }
+    @media (max-width: 760px) {
+      .hero { grid-template-columns: 1fr; padding-top: 10px; }
+      .steps { grid-template-columns: 1fr; }
+      .qr { display: none; }
+      .btn { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="wordmark.png" alt="Muntej">
+      <button class="lang" id="lang" type="button">English</button>
+    </header>
+
+    <section class="hero">
+      <div>
+        <h1 data-t="h1"></h1>
+        <p class="lead" data-t="lead"></p>
+        <div class="cta">
+          <a class="btn" id="dl" href="#"><span>⬇</span><span data-t="download"></span></a>
+          <div class="qr"><div id="qr"></div><span data-t="scan"></span></div>
+        </div>
+      </div>
+      <div class="phone" aria-hidden="true">
+        <div class="bubble me" data-t="demoMe"></div>
+        <div class="bubble bot" data-t="demoBot"></div>
+        <div class="card"><b data-t="demoTask"></b><span class="chip" data-t="demoWho"></span><span class="chip" data-t="demoDue"></span><span class="chip" data-t="demoCheck"></span></div>
+      </div>
+    </section>
+
+    <div class="line"></div>
+
+    <section class="steps">
+      <div class="step"><div class="n">1</div><h3 data-t="s1"></h3><p data-t="s1p"></p></div>
+      <div class="step"><div class="n">2</div><h3 data-t="s2"></h3><p data-t="s2p"></p></div>
+      <div class="step"><div class="n">3</div><h3 data-t="s3"></h3><p data-t="s3p"></p></div>
+    </section>
+
+    <footer><span data-t="footer"></span> · <a href="mailto:sales@muntej.app">sales@muntej.app</a></footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+    // the Android app (internal build). Change this when a newer build or the Play Store listing is ready.
+    var ANDROID_URL = 'https://expo.dev/accounts/nizamys-team/projects/nizamy-muntej/builds/3dcac193-c0b9-476a-9fde-c8f49eb3c186';
+    var T = {
+      ar: {
+        h1: 'قولها لمنتج… <span class="g">وانساها</span>',
+        lead: 'تقول المهمة مرة وحدة، بصوتك أو بكلمة. منتج يختار الشخص، ويتابع، ويذكّر، ويجمع الإثبات. أنت ما تلاحق أحد.',
+        download: 'حمّل التطبيق لأندرويد',
+        scan: 'امسح من جوالك',
+        demoMe: 'خل سارة ترسل تقرير الربع الثالث قبل الخميس',
+        demoBot: 'تم ✓ سجلتها لسارة. بتابع معها الثلاثاء، وأذكّرها لو تأخرت.',
+        demoTask: 'تقرير الربع الثالث',
+        demoWho: 'سارة', demoDue: 'الخميس ٥ م', demoCheck: 'متابعة الثلاثاء ٩ ص',
+        s1: 'حمّل وادخل بإيميلك', s1p: 'يوصلك رمز دخول على الإيميل. حسابك جاهز وأنت المسؤول فيه.',
+        s2: 'سريع يعلّمك في دقيقتين', s2p: 'يوريك كيف تسوي أول مهمة، ويضيف فريقك معك خطوة بخطوة.',
+        s3: 'وانساها', s3p: 'منتج يتابع ويذكّر ويجمع الإثبات، وما يجيك إلا القرار اللي يحتاجك.',
+        footer: 'منتج · مساعد المهام الذكي للشركات السعودية',
+        lang: 'English'
+      },
+      en: {
+        h1: 'Say it once. <span class="g">Muntej handles the rest.</span>',
+        lead: 'Say a task once, by voice or text. Muntej picks the right person, follows up, reminds and collects the proof. You never chase anyone.',
+        download: 'Download for Android',
+        scan: 'Scan with your phone',
+        demoMe: 'Ask Sara to send the Q3 report by Thursday',
+        demoBot: 'Done ✓ Added for Sara. I’ll check in on Tuesday and remind her if it slips.',
+        demoTask: 'Q3 report',
+        demoWho: 'Sara', demoDue: 'Thu 5 PM', demoCheck: 'Check-in Tue 9 AM',
+        s1: 'Download and sign in', s1p: 'You get a sign-in code by email. Your account is ready and you are its admin.',
+        s2: 'Saree3 shows you in 2 minutes', s2p: 'Your first task, then your team, step by step, right in the chat.',
+        s3: 'Forget it', s3p: 'Muntej follows up, reminds and collects proof. Only the decisions that need you reach you.',
+        footer: 'Muntej · the AI task assistant for Saudi companies',
+        lang: 'العربية'
+      }
+    };
+    function apply(lang) {
+      var t = T[lang];
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.querySelectorAll('[data-t]').forEach(function (el) { el.innerHTML = t[el.getAttribute('data-t')]; });
+      document.getElementById('lang').textContent = t.lang;
+      try { localStorage.setItem('muntej.lang', lang); } catch (e) {}
+    }
+    var start = 'ar';
+    try { start = localStorage.getItem('muntej.lang') || (navigator.language || '').slice(0, 2) === 'en' && 'en' || 'ar'; } catch (e) {}
+    apply(start === 'en' ? 'en' : 'ar');
+    document.getElementById('lang').onclick = function () { apply(document.documentElement.lang === 'ar' ? 'en' : 'ar'); };
+    document.getElementById('dl').href = ANDROID_URL;
+    try { new QRCode(document.getElementById('qr'), { text: ANDROID_URL, width: 96, height: 96 }); } catch (e) {}
+  </script>
+</body>
+</html>
