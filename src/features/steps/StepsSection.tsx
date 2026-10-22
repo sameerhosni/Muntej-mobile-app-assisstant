@@ -16,7 +16,7 @@ import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRec
 import { transcribeAudio } from '@/features/capture/api';
 import { munti } from '@/features/munti/store';
 import { useCompleteTask, isFinished } from '@/features/tasks/useCompleteTask';
-import { dueIn, useStepActions, useStepSuggestion, type Step } from './api';
+import { dueIn, useStepActions, useStepSuggestion, type ParsedStep, type Step } from './api';
 import { STEPS_NS } from './strings';
 
 type Props = { task: TaskWithPeople & { subtasks?: Step[]; definition_of_done?: string | null; estimate_hours?: number | null } };
@@ -62,7 +62,10 @@ export function StepsSection({ task }: Props) {
   // typing: Enter adds and keeps the box ready; a pasted list (several lines) adds one step per line
   const onDraft = (v: string) => {
     if (v.includes('\n')) {
-      const lines = v.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+      const lines = v
+        .split(/\r?\n/)
+        .map((x) => x.trim())
+        .filter(Boolean);
       setDraft('');
       if (lines.length) run('add', () => actions.add(task.id, lines));
       return;
@@ -76,19 +79,22 @@ export function StepsSection({ task }: Props) {
     run('add', () => actions.add(task.id, [v]));
   };
 
-  // saying them: record → write down → Muntej splits into steps with a person / date when named
+  // saying them: record (a clear red "recording" bar with a timer) → write down → Muntej splits into steps → you see
+  // what was heard and the steps, and add them with one tap (nothing is added without you: noise can be misheard)
   const recorder = useVoiceRecorder();
   const [voice, setVoice] = useState<'idle' | 'rec' | 'work'>('idle');
+  const [heard, setHeard] = useState<{ text: string; steps: ParsedStep[] } | null>(null);
   const toggleVoice = async () => {
     if (voice === 'rec') {
+      const tooShort = recorder.durationMillis < 1200;
       setVoice('work');
       const uri = await recorder.stop().catch(() => null);
       try {
-        if (!uri || recorder.wasSilent()) throw new Error(t('saidNone'));
+        if (!uri || tooShort || recorder.wasSilent()) throw new Error(t('saidNone'));
         const text = await transcribeAudio(uri);
         const { steps: parsed } = await actions.parse(task.id, text);
         if (!parsed.length) throw new Error(t('saidNone'));
-        for (const s of parsed) await actions.add(task.id, [s.title], s.owner_id, s.due_at);
+        setHeard({ text, steps: parsed });
       } catch (e) {
         setError((e as Error).message || t('error'));
       } finally {
@@ -97,6 +103,7 @@ export function StepsSection({ task }: Props) {
       return;
     }
     setError(null);
+    setHeard(null);
     try {
       await recorder.start();
       setVoice('rec');
@@ -115,10 +122,12 @@ export function StepsSection({ task }: Props) {
         munti.flash('green');
         munti.say(left === 0 ? t('cheerLast') : t('cheer', { count: left, n: left }), 'celebrate', { ms: 3500 });
       }
-    }).finally(() => setOptimistic((m) => {
-      const { [s.id]: _x, ...rest } = m;
-      return rest;
-    }));
+    }).finally(() =>
+      setOptimistic((m) => {
+        const { [s.id]: _x, ...rest } = m;
+        return rest;
+      }),
+    );
   };
 
   const doneCount = steps.filter((s) => optimistic[s.id] ?? s.done).length;
@@ -149,7 +158,13 @@ export function StepsSection({ task }: Props) {
             return (
               <View
                 key={s.id}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: i === steps.length - 1 ? 0 : 1, borderBottomColor: colors.border }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.sm,
+                  borderBottomWidth: i === steps.length - 1 ? 0 : 1,
+                  borderBottomColor: colors.border,
+                }}
               >
                 <Pressable
                   onPress={() => tick(s)}
@@ -173,7 +188,12 @@ export function StepsSection({ task }: Props) {
                     {done && <Check color={colors.onDark} size={13} strokeWidth={3} />}
                   </View>
                 </Pressable>
-                <Pressable onPress={() => setEditing(s)} accessibilityRole="button" accessibilityLabel={`${t('edit')}: ${s.title}`} style={{ flex: 1, minHeight: sizes.touch, justifyContent: 'center', paddingVertical: 6 }}>
+                <Pressable
+                  onPress={() => setEditing(s)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('edit')}: ${s.title}`}
+                  style={{ flex: 1, minHeight: sizes.touch, justifyContent: 'center', paddingVertical: 6 }}
+                >
                   <AppText
                     color={done ? 'textFaint' : 'text'}
                     numberOfLines={2}
@@ -204,7 +224,12 @@ export function StepsSection({ task }: Props) {
               {t('allDoneAsk')}
             </AppText>
           </View>
-          <Button label={t('finish')} size="md" loading={busy === 'finish'} onPress={() => run('finish', async () => void (await completeTask(task)))} />
+          <Button
+            label={t('finish')}
+            size="md"
+            loading={busy === 'finish'}
+            onPress={() => run('finish', async () => void (await completeTask(task)))}
+          />
         </Card>
       )}
 
@@ -297,8 +322,42 @@ export function StepsSection({ task }: Props) {
         </Card>
       )}
 
+      {/* what Saree3 heard: the steps wait for your OK */}
+      {heard && (
+        <Card padding={spacing.lg} style={{ gap: spacing.sm, borderWidth: 1.5, borderColor: colors.primary }}>
+          <AppText variant="small" color="textSoft" style={{ writingDirection: contentDirection(heard.text) }}>
+            {t('heard', { text: heard.text })}
+          </AppText>
+          <AppText weight="bold">{t('addThese', { count: heard.steps.length })}</AppText>
+          {heard.steps.map((s, i) => (
+            <AppText key={i} style={{ writingDirection: contentDirection(s.title) }}>
+              {`• ${s.title}`}
+            </AppText>
+          ))}
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Button
+              label={t('addThem')}
+              size="md"
+              loading={busy === 'add'}
+              style={{ flex: 1 }}
+              onPress={() => {
+                const list = heard.steps;
+                setHeard(null);
+                run('add', async () => {
+                  for (const s of list) await actions.add(task.id, [s.title], s.owner_id, s.due_at);
+                });
+              }}
+            />
+            <Button label={t('sayAgain')} variant="outline" size="md" style={{ flex: 1 }} onPress={toggleVoice} />
+          </View>
+        </Card>
+      )}
+
       {/* add: type (Enter keeps going), paste a list, or say them */}
-      {open && (
+      {open && voice === 'rec' && (
+        <RecordingBar label={t('listening')} ms={recorder.durationMillis} level={recorder.level} onStop={toggleVoice} stopLabel={t('sayIt')} />
+      )}
+      {open && voice !== 'rec' && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <TextInput
             value={draft}
@@ -306,7 +365,7 @@ export function StepsSection({ task }: Props) {
             onSubmitEditing={addDraft}
             blurOnSubmit={false}
             returnKeyType="done"
-            placeholder={voice === 'rec' ? t('listening') : voice === 'work' ? t('working') : t('addPlaceholder')}
+            placeholder={voice === 'work' ? t('working') : t('addPlaceholder')}
             placeholderTextColor={voice === 'idle' ? colors.textFaint : colors.primary}
             selectionColor={colors.primary}
             accessibilityLabel={t('addPlaceholder')}
@@ -340,18 +399,11 @@ export function StepsSection({ task }: Props) {
                 borderRadius: sizes.touch / 2,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: voice === 'rec' ? colors.red : colors.primaryTint,
-                boxShadow: voice === 'rec' ? shadows.primary : undefined,
+                backgroundColor: colors.primaryTint,
                 opacity: pressed ? 0.85 : 1,
               })}
             >
-              {voice === 'work' ? (
-                <ActivityIndicator color={colors.primary} />
-              ) : voice === 'rec' ? (
-                <Square color={colors.onDark} fill={colors.onDark} size={14} />
-              ) : (
-                <Mic color={colors.primary} size={18} strokeWidth={2} />
-              )}
+              {voice === 'work' ? <ActivityIndicator color={colors.primary} /> : <Mic color={colors.primary} size={18} strokeWidth={2} />}
             </Pressable>
           )}
         </View>
@@ -368,14 +420,18 @@ export function StepsSection({ task }: Props) {
           step={editing}
           meId={me.data?.id ?? null}
           onClose={() => setEditing(null)}
-          onSave={(patch) => run('save', async () => {
-            await actions.set(editing.id, patch);
-            setEditing(null);
-          })}
-          onDelete={() => run('del', async () => {
-            await actions.remove(editing.id);
-            setEditing(null);
-          })}
+          onSave={(patch) =>
+            run('save', async () => {
+              await actions.set(editing.id, patch);
+              setEditing(null);
+            })
+          }
+          onDelete={() =>
+            run('del', async () => {
+              await actions.remove(editing.id);
+              setEditing(null);
+            })
+          }
         />
       )}
     </View>
@@ -416,7 +472,15 @@ function StepSheet({
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(11,26,51,0.35)' }} onPress={onClose} accessibilityLabel={t('cancel')} />
-      <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.cardLg, borderTopRightRadius: radius.cardLg, padding: spacing.screen, gap: spacing.md }}>
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderTopLeftRadius: radius.cardLg,
+          borderTopRightRadius: radius.cardLg,
+          padding: spacing.screen,
+          gap: spacing.md,
+        }}
+      >
         <AppText variant="section">{t('edit')}</AppText>
         <TextField label={t('stepTitle')} value={title} onChangeText={setTitle} />
         <AppText variant="small" weight="semibold" color="textMuted">
@@ -438,9 +502,71 @@ function StepSheet({
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Button label={t('delete')} variant="ghost" size="md" onPress={onDelete} style={{ flex: 1 }} />
-          <Button label={t('save')} size="md" disabled={!title.trim()} onPress={() => onSave({ title: title.trim(), owner_id: owner, due_at: due })} style={{ flex: 1 }} />
+          <Button
+            label={t('save')}
+            size="md"
+            disabled={!title.trim()}
+            onPress={() => onSave({ title: title.trim(), owner_id: owner, due_at: due })}
+            style={{ flex: 1 }}
+          />
         </View>
       </View>
     </Modal>
+  );
+}
+
+/** recording, unmistakably: red dot, timer, live level bars, a big stop button */
+function RecordingBar({ label, ms, level, onStop, stopLabel }: { label: string; ms: number; level: number; onStop: () => void; stopLabel: string }) {
+  const sec = Math.floor(ms / 1000);
+  const bars = [0.5, 0.8, 1, 0.7, 0.9, 0.6, 1, 0.75, 0.55, 0.85];
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+        minHeight: sizes.touch + 12,
+        paddingHorizontal: spacing.lg,
+        borderRadius: radius.tile,
+        backgroundColor: colors.redTint,
+        borderWidth: 1.5,
+        borderColor: colors.red,
+      }}
+    >
+      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red, opacity: sec % 2 ? 0.35 : 1 }} />
+      <View style={{ flex: 1, gap: 4 }}>
+        <AppText variant="small" weight="bold" color="red">
+          {label}
+        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, height: 16 }}>
+          {bars.map((b, i) => (
+            <View
+              key={i}
+              style={{ width: 3, borderRadius: 2, backgroundColor: colors.red, height: 3 + Math.round(13 * Math.max(0.15, level) * b) }}
+            />
+          ))}
+          <AppText variant="caption" weight="bold" color="red" style={{ marginStart: spacing.sm, writingDirection: 'ltr' }}>
+            {`${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`}
+          </AppText>
+        </View>
+      </View>
+      <Pressable
+        onPress={onStop}
+        accessibilityRole="button"
+        accessibilityLabel={stopLabel}
+        style={({ pressed }) => ({
+          width: sizes.touch,
+          height: sizes.touch,
+          borderRadius: sizes.touch / 2,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.red,
+          opacity: pressed ? 0.85 : 1,
+        })}
+      >
+        <Square color={colors.onDark} fill={colors.onDark} size={16} />
+      </Pressable>
+    </View>
   );
 }
