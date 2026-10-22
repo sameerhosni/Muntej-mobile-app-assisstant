@@ -335,7 +335,24 @@ function SuggestionRow({
         {meta}
         {s.confidence < 0.5 ? ` · ${t('maybe')}` : ''}
       </AppText>
-      {!!s.quote && (
+      {/* what the email said about it: the details, what "done" means, what to send back, the budget */}
+      {!!s.description && (
+        <AppText variant="small" color="textSoft" numberOfLines={5} style={{ writingDirection: contentDirection(s.description) }}>
+          {s.description}
+        </AppText>
+      )}
+      {!!s.definition_of_done && (
+        <AppText variant="caption" weight="semibold" color="greenText" style={{ writingDirection: contentDirection(s.definition_of_done) }}>
+          {`✓ ${s.definition_of_done}`}
+        </AppText>
+      )}
+      {((!!s.proof_required && s.proof_required !== 'none') || !!s.budget) && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {!!s.proof_required && s.proof_required !== 'none' && <Chip label={`📎 ${t(`proof_${s.proof_required}`)}`} />}
+          {!!s.budget && <Chip label={`💰 ${s.budget}`} />}
+        </View>
+      )}
+      {!!s.quote && !s.description && (
         <AppText variant="caption" color="textFaint" numberOfLines={2} style={{ writingDirection: contentDirection(s.quote) }}>
           “{s.quote}”
         </AppText>

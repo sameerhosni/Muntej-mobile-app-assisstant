@@ -144,7 +144,18 @@ export const google: Provider = {
         items.push({
           externalId: m.id,
           source: 'gmail',
-          text: [`Subject: ${subject}`, `From: ${from}`, '', body].join('\n').slice(0, 8000),
+          // To / Cc / Date: who it's addressed to (often the owner) and when it was sent ("tomorrow" is relative to it)
+          text: [
+            `Subject: ${subject}`,
+            `From: ${from}`,
+            ...(h('to') ? [`To: ${h('to')}`] : []),
+            ...(h('cc') ? [`Cc: ${h('cc')}`] : []),
+            ...(m.internalDate ? [`Date: ${new Date(Number(m.internalDate)).toISOString()}`] : []),
+            '',
+            body,
+          ]
+            .join('\n')
+            .slice(0, 8000),
           sender: from.replace(/\s*<[^>]+>\s*$/, '').replace(/"/g, '') || from,
           subject: subject || null,
           receivedAt: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null,

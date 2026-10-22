@@ -36,7 +36,16 @@ const plain = (html: string) =>
     .replace(/\n\s*\n+/g, '\n')
     .trim();
 
-type Mail = { id: string; subject: string | null; from?: { emailAddress?: { name?: string; address?: string } }; body?: { content?: string }; receivedDateTime: string };
+type Addr = { emailAddress?: { name?: string; address?: string } };
+type Mail = {
+  id: string;
+  subject: string | null;
+  from?: Addr;
+  toRecipients?: Addr[];
+  ccRecipients?: Addr[];
+  body?: { content?: string };
+  receivedDateTime: string;
+};
 type Chat = { id: string; topic: string | null; lastMessagePreview?: { createdDateTime?: string } | null };
 type ChatMsg = {
   id: string;
@@ -45,10 +54,26 @@ type ChatMsg = {
   body?: { content?: string };
   mentions?: { mentioned?: { user?: { id?: string } } }[];
 };
-type Event = { id: string; subject: string | null; organizer?: { emailAddress?: { name?: string } }; body?: { content?: string }; end?: { dateTime?: string } };
+type Event = {
+  id: string;
+  subject: string | null;
+  organizer?: { emailAddress?: { name?: string } };
+  body?: { content?: string };
+  end?: { dateTime?: string };
+};
 
+const addr = (a?: Addr) => `${a?.emailAddress?.name ?? ''} <${a?.emailAddress?.address ?? ''}>`;
+// To / Cc / Date: who it's addressed to (often the owner) and when it was sent ("tomorrow" is relative to it)
 const mailText = (m: Mail) =>
-  [`Subject: ${m.subject ?? ''}`, `From: ${m.from?.emailAddress?.name ?? ''} <${m.from?.emailAddress?.address ?? ''}>`, '', plain(m.body?.content ?? '')]
+  [
+    `Subject: ${m.subject ?? ''}`,
+    `From: ${addr(m.from)}`,
+    ...(m.toRecipients?.length ? [`To: ${m.toRecipients.map(addr).join(', ')}`] : []),
+    ...(m.ccRecipients?.length ? [`Cc: ${m.ccRecipients.map(addr).join(', ')}`] : []),
+    `Date: ${m.receivedDateTime}`,
+    '',
+    plain(m.body?.content ?? ''),
+  ]
     .join('\n')
     .slice(0, 8000);
 
@@ -90,7 +115,10 @@ export const microsoft: Provider = {
     }),
 
   account: async (t) => {
-    const me = await graph<{ id: string; mail?: string | null; userPrincipalName?: string; displayName?: string }>(t, '/me?$select=id,mail,userPrincipalName,displayName');
+    const me = await graph<{ id: string; mail?: string | null; userPrincipalName?: string; displayName?: string }>(
+      t,
+      '/me?$select=id,mail,userPrincipalName,displayName',
+    );
     return { label: me.mail ?? me.userPrincipalName ?? me.displayName ?? 'Microsoft 365', cursor: { me_id: me.id } };
   },
 
@@ -100,7 +128,7 @@ export const microsoft: Provider = {
     const meId = typeof cursor.me_id === 'string' ? cursor.me_id : (await graph<{ id: string }>(t, '/me?$select=id')).id;
     const items: Fetched[] = [];
     const textBody = { Prefer: 'outlook.body-content-type="text"' };
-    const sel = '$select=id,subject,from,body,receivedDateTime&$top=20';
+    const sel = '$select=id,subject,from,toRecipients,ccRecipients,body,receivedDateTime&$top=20';
 
     // Outlook: flagged mail touched since the last check
     try {
@@ -109,13 +137,24 @@ export const microsoft: Provider = {
         `/me/messages?$filter=${encodeURIComponent(`flag/flagStatus eq 'flagged' and lastModifiedDateTime ge ${since}`)}&${sel}`,
         textBody,
       );
-      for (const m of flagged.value) items.push({ externalId: m.id, source: 'outlook', text: mailText(m), sender: m.from?.emailAddress?.name, subject: m.subject, receivedAt: m.receivedDateTime });
+      for (const m of flagged.value)
+        items.push({
+          externalId: m.id,
+          source: 'outlook',
+          text: mailText(m),
+          sender: m.from?.emailAddress?.name,
+          subject: m.subject,
+          receivedAt: m.receivedDateTime,
+        });
     } catch (e) {
       console.warn('outlook flagged', (e as Error).message);
     }
     // Outlook: anything dropped in a folder called "Muntej"
     try {
-      const folders = await graph<{ value: { id: string }[] }>(t, `/me/mailFolders?$filter=${encodeURIComponent("displayName eq 'Muntej'")}&$select=id`);
+      const folders = await graph<{ value: { id: string }[] }>(
+        t,
+        `/me/mailFolders?$filter=${encodeURIComponent("displayName eq 'Muntej'")}&$select=id`,
+      );
       if (folders.value[0]) {
         const inFolder = await graph<{ value: Mail[] }>(
           t,
@@ -124,7 +163,14 @@ export const microsoft: Provider = {
         );
         for (const m of inFolder.value)
           if (!items.some((x) => x.externalId === m.id))
-            items.push({ externalId: m.id, source: 'outlook', text: mailText(m), sender: m.from?.emailAddress?.name, subject: m.subject, receivedAt: m.receivedDateTime });
+            items.push({
+              externalId: m.id,
+              source: 'outlook',
+              text: mailText(m),
+              sender: m.from?.emailAddress?.name,
+              subject: m.subject,
+              receivedAt: m.receivedDateTime,
+            });
       }
     } catch (e) {
       console.warn('outlook folder', (e as Error).message);

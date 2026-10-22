@@ -15,6 +15,10 @@ export type Suggestion = {
   due_at: string | null;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   definition_of_done: string | null;
+  /** the details the message gave (older suggestions don't have them) */
+  description?: string | null;
+  proof_required?: 'none' | 'any' | 'file' | 'image' | 'link';
+  budget?: string | null;
   estimate_hours: number | null;
   confidence: number;
   quote: string;
