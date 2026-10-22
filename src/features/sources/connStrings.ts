@@ -61,7 +61,7 @@ const en = {
   tokenSafe: 'Kept encrypted on Muntej’s server. Only used to read tasks assigned to you.',
   // what each tool reads
   r_microsoft: 'Outlook flagged mail · Teams mentions · meeting notes',
-  r_google: 'Gmail · Calendar · Meet notes · Google Chat',
+  r_google: 'New Gmail mail · meetings that ended · you OK each task',
   r_slack: 'Messages that mention you or are saved for later',
   r_jira: 'Issues assigned to you',
   r_clickup: 'Tasks assigned to you',
@@ -135,7 +135,7 @@ const ar: typeof en = {
   field_key: 'المفتاح (API key)',
   tokenSafe: 'ينحفظ مشفّر في سيرفر منتج. يُستخدم بس لقراءة المهام المسندة لك.',
   r_microsoft: 'إيميلات أوتلوك المعلّمة · منشن تيمز · ملاحظات الاجتماعات',
-  r_google: 'جيميل · التقويم · ملاحظات ميت · قوقل شات',
+  r_google: 'إيميلات جيميل الجديدة · الاجتماعات اللي خلصت · توافق على كل مهمة',
   r_slack: 'الرسائل اللي تمنشنك أو محفوظة لبعدين',
   r_jira: 'التذاكر المسندة لك',
   r_clickup: 'المهام المسندة لك',

@@ -195,6 +195,8 @@ export type IngestInput = {
    * suggestion owned by the person (it was assigned to them there), added by itself unless it duplicates an open task
    */
   structured?: { title: string; due_at: string | null; priority: 'low' | 'medium' | 'high' | 'urgent'; description?: string | null; link?: string | null };
+  /** every task found waits for the person's OK (Gmail): nothing is added by itself */
+  confirmFirst?: boolean;
 };
 
 /** Reads a message and saves it as an incoming item (auto-adding the sure tasks). Same message twice → the same item. */
@@ -282,7 +284,7 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const { data: ap } = await admin.from('autopilot_prefs').select('rules').eq('profile_id', input.profileId).maybeSingle();
   // a task assigned to you in a task tool is sure even without a due date
   const sure = (s: Suggestion) => isSure(s) || (!!st && s.state === 'new' && !s.duplicate_of);
-  if ((ap?.rules as Record<string, boolean> | undefined)?.incoming_auto !== false && item.suggestions.some(sure)) {
+  if (!input.confirmFirst && (ap?.rules as Record<string, boolean> | undefined)?.incoming_auto !== false && item.suggestions.some(sure)) {
     for (const s of item.suggestions) {
       if (!sure(s)) continue;
       try {

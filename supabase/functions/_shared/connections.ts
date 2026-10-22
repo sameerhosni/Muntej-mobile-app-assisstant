@@ -4,6 +4,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { requireEnv } from './http.ts';
 import { ingestMessage, OPEN, type Creator } from './intake-core.ts';
 import { microsoft } from './providers/microsoft.ts';
+import { google } from './providers/google.ts';
 import { clickup } from './providers/clickup.ts';
 import { jira } from './providers/jira.ts';
 import { trello } from './providers/trello.ts';
@@ -25,6 +26,8 @@ export type Fetched = {
 
 export type Provider = {
   id: ProviderId;
+  /** what it finds always waits for the person's OK in Incoming (never added by itself, even when sure) */
+  confirmFirst?: boolean;
   /** the server has this tool's app credentials (client id + secret) */
   configured: () => boolean;
   authorizeUrl: (o: { state: string; redirectUri: string; challenge: string }) => string;
@@ -61,7 +64,7 @@ export type TaskSync = {
 /** every tool shown on the Sources screen; only those in PROVIDERS can connect today */
 export const ALL_PROVIDERS = ['microsoft', 'google', 'slack', 'jira', 'clickup', 'trello', 'notion', 'azure_devops'] as const;
 export type ProviderId = (typeof ALL_PROVIDERS)[number];
-export const PROVIDERS: Partial<Record<ProviderId, Provider>> = { microsoft, clickup, jira, trello };
+export const PROVIDERS: Partial<Record<ProviderId, Provider>> = { microsoft, google, clickup, jira, trello };
 
 export const CALLBACK_URL = `${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/connect/callback`;
 
@@ -69,10 +72,13 @@ export const CALLBACK_URL = `${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/
 
 let keyPromise: Promise<CryptoKey> | null = null;
 function key() {
-  keyPromise ??= crypto.subtle.importKey('raw', Uint8Array.from(atob(requireEnv('CONNECTIONS_KEY')), (c) => c.charCodeAt(0)), 'AES-GCM', false, [
-    'encrypt',
-    'decrypt',
-  ]);
+  keyPromise ??= crypto.subtle.importKey(
+    'raw',
+    Uint8Array.from(atob(requireEnv('CONNECTIONS_KEY')), (c) => c.charCodeAt(0)),
+    'AES-GCM',
+    false,
+    ['encrypt', 'decrypt'],
+  );
   return keyPromise;
 }
 const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
@@ -95,7 +101,10 @@ export async function open(data: string): Promise<Tokens> {
 // ─── PKCE / state ─────────────────────────────────────────────────────────────
 
 export function randomToken(bytes = 32) {
-  return b64(crypto.getRandomValues(new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return b64(crypto.getRandomValues(new Uint8Array(bytes)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 export async function challengeOf(verifier: string) {
   const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
@@ -104,7 +113,11 @@ export async function challengeOf(verifier: string) {
 
 /** standard OAuth2 token call (authorization_code / refresh_token) → Tokens */
 export async function tokenRequest(url: string, params: Record<string, string>): Promise<Tokens> {
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params) });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params),
+  });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok || !body.access_token) {
     const msg = String(body.error_description ?? body.error ?? `token error ${res.status}`);
@@ -163,7 +176,10 @@ type LinkRow = {
 
 /** two due dates are the same day (tools keep dates, Muntej keeps times) */
 const sameDue = (a: string | null | undefined, b: string | null | undefined) =>
-  (!a && !b) || (!!a && !!b && new Date(Date.parse(a) + 3 * 3_600_000).toISOString().slice(0, 10) === new Date(Date.parse(b) + 3 * 3_600_000).toISOString().slice(0, 10));
+  (!a && !b) ||
+  (!!a &&
+    !!b &&
+    new Date(Date.parse(a) + 3 * 3_600_000).toISOString().slice(0, 10) === new Date(Date.parse(b) + 3 * 3_600_000).toISOString().slice(0, 10));
 
 export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise<SyncResult> {
   const out: SyncResult = { read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0 };
@@ -179,7 +195,10 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
     if (tokens.expires_at && tokens.expires_at < Date.now() + 60_000) {
       if (!tokens.refresh_token) throw new Error('Sign in again');
       tokens = await provider.refresh(tokens);
-      await admin.from('connection_secrets').update({ data: await seal(tokens), updated_at: nowIso() }).eq('connection_id', conn.id);
+      await admin
+        .from('connection_secrets')
+        .update({ data: await seal(tokens), updated_at: nowIso() })
+        .eq('connection_id', conn.id);
     }
     const cur = conn.cursor ?? {};
     let nextCursor = cur;
@@ -205,10 +224,18 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         await admin.from('task_links').update({ synced_at: nowIso() }).eq('id', l.id);
         out.updated++;
       }
-      const [{ data: team }, { data: openTasks }] = await Promise.all([
-        admin.from('profiles').select('id, full_name, full_name_ar, title, skills').eq('status', 'active'),
-        admin.from('tasks').select('id, title, owner_id').in('status', OPEN),
-      ]);
+      // only the person's own company: its team (who a task can go to) and its open tasks (duplicates)
+      const { data: owner } = await admin.from('profiles').select('account_id').eq('id', conn.profile_id).single();
+      const { data: team } = await admin
+        .from('profiles')
+        .select('id, full_name, full_name_ar, title, skills')
+        .eq('status', 'active')
+        .eq('hidden', false)
+        .eq('account_id', owner?.account_id);
+      const teamIds = (team ?? []).map((p) => p.id as string);
+      const { data: openTasks } = teamIds.length
+        ? await admin.from('tasks').select('id, title, owner_id').in('status', OPEN).in('owner_id', teamIds)
+        : { data: [] };
       const create: Creator = async (p) => {
         const { data, error } = await admin.rpc('create_task_as', { p, actor: conn.profile_id });
         if (error) throw new Error(error.message);
@@ -234,6 +261,7 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
           open: openTasks ?? [],
           create,
           structured: it.task,
+          confirmFirst: provider.confirmFirst,
         });
         if (item.duplicate_message) continue;
         out.read++;
@@ -245,7 +273,14 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
           await admin
             .from('task_links')
             .upsert(
-              { task_id: made.task_id, connection_id: conn.id, provider: conn.provider, external_id: it.externalId, external_url: it.task?.link ?? null, direction: 'in' },
+              {
+                task_id: made.task_id,
+                connection_id: conn.id,
+                provider: conn.provider,
+                external_id: it.externalId,
+                external_url: it.task?.link ?? null,
+                direction: 'in',
+              },
               { onConflict: 'connection_id,external_id', ignoreDuplicates: true },
             );
         }
@@ -293,10 +328,20 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
     // ── 3. keep linked tasks in step (status both ways, Muntej's title / due changes go to the tool) ──
     if (provider.tasks && links.length) {
       const openHere = links.filter((l) => l.task && !FINISHED.includes(l.task.status) && !l.closed_there);
-      const closed = openHere.length ? await provider.tasks.closedAmong(tokens, cur, openHere.slice(0, 40).map((l) => l.external_id)) : new Set<string>();
+      const closed = openHere.length
+        ? await provider.tasks.closedAmong(
+            tokens,
+            cur,
+            openHere.slice(0, 40).map((l) => l.external_id),
+          )
+        : new Set<string>();
       for (const l of openHere) {
         if (!closed.has(l.external_id)) continue;
-        await admin.from('tasks').update({ status: 'done', closed_at: nowIso(), progress: 100 }).eq('id', l.task_id).not('status', 'in', '(done,cancelled)');
+        await admin
+          .from('tasks')
+          .update({ status: 'done', closed_at: nowIso(), progress: 100 })
+          .eq('id', l.task_id)
+          .not('status', 'in', '(done,cancelled)');
         await admin.from('task_links').update({ closed_there: true, synced_at: nowIso() }).eq('id', l.id);
         await admin.from('activity_log').insert({
           actor_type: 'muntej',
@@ -314,7 +359,9 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         await admin.from('task_links').update({ closed_there: true, synced_at: nowIso() }).eq('id', l.id);
         out.closedThere++;
       }
-      const changed = links.filter((l) => l.task && !FINISHED.includes(l.task.status) && !closed.has(l.external_id) && l.task.updated_at > l.synced_at);
+      const changed = links.filter(
+        (l) => l.task && !FINISHED.includes(l.task.status) && !closed.has(l.external_id) && l.task.updated_at > l.synced_at,
+      );
       for (const l of changed.slice(0, MAX_WRITES)) {
         await provider.tasks.update(tokens, cur, l.external_id, { title: l.task!.title, due_at: l.task!.due_at });
         await admin.from('task_links').update({ synced_at: nowIso() }).eq('id', l.id);
