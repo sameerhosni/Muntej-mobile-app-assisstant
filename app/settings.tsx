@@ -10,6 +10,7 @@ import { AppText, Avatar, BrandSymbol, BrandWordmark, Button, Card, Chip, IconBa
 import { useScreenT } from '@/lib/i18n/register';
 import { MORE_NS } from '@/features/more/strings';
 import { AccountSwitcher } from '@/features/accounts/AccountSwitcher';
+import { DeleteAccount } from '@/features/accounts/DeleteAccount';
 import { PROTO_NS } from '@/features/prototype/strings';
 import { useMyProfile, useSignOut } from '@/lib/api';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
@@ -354,6 +355,9 @@ export default function SettingsScreen() {
       </Card>
         </>
       )}
+
+      {/* members can delete their own account (admins / super admin: hidden, and the server refuses) */}
+      <DeleteAccount role={realRole} />
 
       {/* about: the brand + version */}
       <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xxl }}>
