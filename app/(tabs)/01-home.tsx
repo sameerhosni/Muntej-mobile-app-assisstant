@@ -26,6 +26,7 @@ import { Spotlight } from '@/features/launch/Spotlight';
 import { MySteps } from '@/features/steps/MySteps';
 import { NS } from '@/features/home/strings';
 import { NextDays } from '@/features/home/NextDays';
+import { GettingStarted } from '@/features/onboarding/GettingStarted';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
 import { MORE_NS } from '@/features/more/strings';
 function greetingKey(date = new Date()) {
@@ -81,6 +82,9 @@ export default function ManagerHome() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
+          {/* a new account: Saree3's getting-started steps until they're done */}
+          <GettingStarted />
+
           {/* 2. the team at a glance + what Muntej is handling by itself */}
           <View style={{ gap: spacing.md }}>
             <Spotlight id="home.pulse">

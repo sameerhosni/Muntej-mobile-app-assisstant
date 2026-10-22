@@ -26,6 +26,8 @@ type Props = {
   onStop: () => void;
   onCancel: () => void;
   bottomInset: number;
+  /** Saree3's onboarding points at the box ("now you try"): a glowing outline */
+  glow?: boolean;
 };
 
 /** Pinned chat composer; turns into a listening strip while recording. */
@@ -49,6 +51,8 @@ export function Composer(p: Props) {
           backgroundColor: colors.surface,
           borderRadius: 32,
           boxShadow: shadows.raised,
+          borderWidth: 2,
+          borderColor: p.glow ? colors.primary : colors.transparent,
           paddingVertical: spacing.sm,
           paddingStart: spacing.sm,
           paddingEnd: spacing.sm,

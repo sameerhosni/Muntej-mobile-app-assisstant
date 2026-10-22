@@ -1085,6 +1085,41 @@ export type Database = {
           },
         ]
       }
+      onboarding: {
+        Row: {
+          account_named: boolean
+          demo_seen: boolean
+          dismissed: boolean
+          finished_at: string | null
+          profile_id: string
+          started_at: string
+        }
+        Insert: {
+          account_named?: boolean
+          demo_seen?: boolean
+          dismissed?: boolean
+          finished_at?: string | null
+          profile_id: string
+          started_at?: string
+        }
+        Update: {
+          account_named?: boolean
+          demo_seen?: boolean
+          dismissed?: boolean
+          finished_at?: string | null
+          profile_id?: string
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           account_id: string
@@ -1846,6 +1881,16 @@ export type Database = {
         Args: { p_note?: string; p_reply: string; p_task: string }
         Returns: string
       }
+      create_account: {
+        Args: {
+          p_admin_email: string
+          p_admin_name: string
+          p_admin_name_ar: string
+          p_name: string
+          p_name_ar: string
+        }
+        Returns: Json
+      }
       create_task_as: { Args: { actor: string; p: Json }; Returns: string }
       create_task_with_plan: { Args: { p: Json }; Returns: string }
       current_account_id: { Args: never; Returns: string }
@@ -1902,6 +1947,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      onboarding_mark: { Args: { p: Json }; Returns: undefined }
       reannounce_feature: {
         Args: { p_key: string; p_profiles: string[] }
         Returns: number
@@ -1921,6 +1967,10 @@ export type Database = {
       same_account: { Args: { target: string }; Returns: boolean }
       save_push_token: {
         Args: { p_device_name?: string; p_platform: string; p_token: string }
+        Returns: undefined
+      }
+      set_account_name: {
+        Args: { p_name: string; p_name_ar?: string }
         Returns: undefined
       }
       set_step: { Args: { p: Json; p_id: string }; Returns: undefined }
