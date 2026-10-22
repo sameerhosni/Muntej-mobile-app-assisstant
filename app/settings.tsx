@@ -8,6 +8,7 @@ import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Spa
 import Constants from 'expo-constants';
 import { AppText, Avatar, BrandSymbol, BrandWordmark, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle, Toggle } from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
+import { MORE_NS } from '@/features/more/strings';
 import { PROTO_NS } from '@/features/prototype/strings';
 import { useMyProfile, useSignOut } from '@/lib/api';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
@@ -33,6 +34,7 @@ export default function SettingsScreen() {
   const signOut = useSignOut();
   const { t: tp } = useScreenT(PROTO_NS);
   const { t: tt } = useScreenT(TEAM_NS);
+  const { t: tmore } = useScreenT(MORE_NS);
   const { t: tm } = useScreenT(MUNTI_NS);
   const { t: ta } = useScreenT(ALERTS_NS);
   const { t: tl } = useScreenT(LAUNCH_NS);
@@ -175,6 +177,24 @@ export default function SettingsScreen() {
           <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
         </Card>
       )}
+
+      {/* every deeper screen in one place (screen 44) */}
+      <Card
+        onPress={() => router.push('/44-more')}
+        accessibilityLabel={`${tmore('title')} · ${tmore('sub')}`}
+        style={{ flexDirection: 'row', alignItems: 'center' }}
+      >
+        <IconBadge size={44} bg="purpleTint">
+          <LayoutGrid color={colors.purple} size={20} strokeWidth={2} />
+        </IconBadge>
+        <View style={{ flex: 1, gap: 2 }}>
+          <AppText variant="cardTitle">{tmore('title')}</AppText>
+          <AppText variant="caption" color="textMuted" numberOfLines={2}>
+            {tmore('sub')}
+          </AppText>
+        </View>
+        <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
+      </Card>
 
       <Card
         onPress={() => router.push('/39-team')}

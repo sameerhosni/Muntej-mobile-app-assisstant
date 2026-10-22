@@ -4,7 +4,7 @@
 // requested_by me, manager_id = my manager) via src/features/pushback/usePushback. Points pill = demo wallet.
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Calendar,
@@ -39,7 +39,9 @@ export default function PushbackScreen() {
   const insets = useSafeAreaInsets();
   const { balance } = useWallet();
   const me = useMyProfile();
-  const { model, profileId } = usePushbackModel(lang);
+  // ?task=<id> from the task page's "Too busy?": talk about that task
+  const { task: taskParam } = useLocalSearchParams<{ task?: string }>();
+  const { model, profileId } = usePushbackModel(lang, taskParam);
   const send = useSendPushback();
   const [step, setStep] = useState<Step>('ask');
   const [decisionId, setDecisionId] = useState<string | null>(null);

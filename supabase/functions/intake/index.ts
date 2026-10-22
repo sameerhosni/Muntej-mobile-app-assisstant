@@ -10,7 +10,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
-import { createFromSuggestion, ingestMessage, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
+import { createFromSuggestion, ingestMessage, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 
 async function loadItem(admin: SupabaseClient, profileId: string, id: unknown): Promise<Item> {
   const { data, error } = await admin.from('incoming_items').select('*').eq('id', String(id ?? '')).maybeSingle();
@@ -49,7 +49,9 @@ serve(async (req) => {
   switch (body.action) {
     case 'ingest': {
       const text = String(body.text ?? '');
-      if (text.trim().length > MAX_TEXT) throw new HttpError(413, 'That message is too long — paste the part with the requests');
+      const source = body.source === 'share' || body.source === 'meeting' ? body.source : 'paste';
+      if (text.trim().length > (source === 'meeting' ? MAX_MEETING_TEXT : MAX_TEXT))
+        throw new HttpError(413, 'That message is too long — paste the part with the requests');
       const [{ data: team }, { data: open }] = await Promise.all([
         db.from('profiles').select('id, full_name, full_name_ar, title, skills').neq('status', 'deleted'),
         db.from('tasks').select('id, title, owner_id').in('status', OPEN),
@@ -58,7 +60,7 @@ serve(async (req) => {
         await ingestMessage(admin, {
           profileId,
           text,
-          source: body.source === 'share' ? 'share' : 'paste',
+          source,
           sender: (body.sender as string) ?? null,
           subject: (body.subject as string) ?? null,
           team: team ?? [],

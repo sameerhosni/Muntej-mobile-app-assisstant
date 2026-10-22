@@ -10,6 +10,8 @@ import { HttpError, requireEnv } from './http.ts';
 import { buildPlan } from './followup-plan.ts';
 
 export const MAX_TEXT = 12_000;
+/** a recorded meeting's transcript is longer than a pasted message */
+export const MAX_MEETING_TEXT = 40_000;
 const MAX_TASKS = 10;
 export const OPEN = ['draft', 'assigned', 'in_progress', 'blocked', 'submitted', 'returned'];
 
@@ -144,7 +146,7 @@ export async function saveItem(admin: SupabaseClient, item: Item) {
 }
 
 // incoming source → tasks.source (enum task_source); tools without their own value are 'text'
-const TASK_SOURCE: Record<string, string> = { email: 'email', outlook: 'email', gmail: 'email', whatsapp: 'whatsapp', teams: 'teams', slack: 'slack', jira: 'jira', azure_devops: 'azure_devops', google_chat: 'google_chat' };
+const TASK_SOURCE: Record<string, string> = { meeting: 'meeting', email: 'email', outlook: 'email', gmail: 'email', whatsapp: 'whatsapp', teams: 'teams', slack: 'slack', jira: 'jira', azure_devops: 'azure_devops', google_chat: 'google_chat' };
 
 /** Turns one suggestion into a real task (with its follow-up plan) via `create`. */
 export async function createFromSuggestion(admin: SupabaseClient, profileId: string, item: Item, s: Suggestion, create: Creator) {
@@ -199,7 +201,7 @@ export type IngestInput = {
 export async function ingestMessage(admin: SupabaseClient, input: IngestInput): Promise<Item & { duplicate_message?: boolean }> {
   const text = input.text.trim();
   if (!text) throw new HttpError(400, 'Paste a message first');
-  const body = text.slice(0, MAX_TEXT);
+  const body = text.slice(0, input.source === 'meeting' ? MAX_MEETING_TEXT : MAX_TEXT);
   const externalId = input.externalId ?? (await sha256(body.replace(/\s+/g, ' ').toLowerCase()));
 
   const existing = await admin

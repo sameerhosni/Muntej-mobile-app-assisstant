@@ -1,9 +1,9 @@
 // Screen 39 · Team (org structure) — no mockup; v2 light style per design/TOKENS.md
 // Live: everyone in profiles as a collapsible tree (top level = no manager). Search flattens to "name + path".
 // Tap a person → sheet with details, skills and task numbers; Edit / Add under / Mark deleted per permission (RPC re-checks).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, UserPlus, X } from 'lucide-react-native';
 import { AppText, Button, Card, FilterChips, IconButton, SearchField } from '@/components/ui';
@@ -107,6 +107,16 @@ export default function TeamScreen() {
     setSelectedId(null);
     setForm({ kind: 'add', managerId: isAdminRole(me?.role) ? null : (me?.id ?? null) });
   };
+  // ?add=1 ("Add team" from Everything Muntej does): open the add form once the profile is known
+  const { add } = useLocalSearchParams<{ add?: string }>();
+  const opened = useRef(false);
+  useEffect(() => {
+    if (add === '1' && me && !opened.current) {
+      opened.current = true;
+      addTop();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [add, me]);
 
   const renderNode = (p: Person, depth: number): React.ReactNode => {
     const kids = (index.children.get(p.id) ?? []).filter((c) => visibleIds.has(c.id));

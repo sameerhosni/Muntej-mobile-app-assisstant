@@ -17,6 +17,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
 import { ReviewBar } from '@/features/review/ReviewBar';
 import { ProofSection } from '@/features/proof/ProofSection';
+import { PlanAndHelp } from '@/features/task-detail/PlanAndHelp';
 import type { Enum } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
 import { shortName } from '@/features/decisions/people';
@@ -282,6 +283,13 @@ export default function TaskDetailScreen() {
             </View>
           </Card>
         </View>
+
+        {/* Muntej's follow-up plan + "Who should take it?" / "Too busy?" right where they're needed */}
+        {live && d && (
+          <View style={{ paddingHorizontal: spacing.screen }}>
+            <PlanAndHelp task={d} me={me.data} team={team.data ?? []} />
+          </View>
+        )}
 
         {/* steps: live tasks get the real steps section; the prototype tour keeps the design's demo */}
         {live && d ? (

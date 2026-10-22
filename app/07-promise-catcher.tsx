@@ -3,7 +3,7 @@
 // (TODO in demo.ts: wire confirmed promises to createTask).
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banknote, Calendar, Check, Clock, MessageCircle, Mic, ShieldCheck, X } from 'lucide-react-native';
 import { AppText, Avatar, Button, Gradient, IconBadge, IconButton, PointsCoin, ProgressBar, StatTile } from '@/components/ui';
@@ -18,7 +18,8 @@ type Verdict = 'ok' | 'skip';
 
 const BOTTOM_SPACE = 150;
 
-export default function PromiseCatcherScreen() {
+/** The original design demo, kept for reference (not routed). */
+export function PromiseCatcherScreenDemo() {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const insets = useSafeAreaInsets();
@@ -329,4 +330,9 @@ export default function PromiseCatcherScreen() {
       </View>
     </SafeAreaView>
   );
+}
+
+/** The real promise catcher is Incoming: pasted messages and recorded meetings, tasks to Add / Ignore. */
+export default function PromiseCatcherScreen() {
+  return <Redirect href="/42-incoming" />;
 }

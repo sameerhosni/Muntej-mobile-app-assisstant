@@ -9,7 +9,7 @@
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Gift, Inbox, Receipt, Target, Trophy } from 'lucide-react-native';
+import { Gift, Hourglass, Inbox, LayoutGrid, Receipt, Trophy } from 'lucide-react-native';
 import { AppText, Avatar, BrandChip, Hero, PointsCoin } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -26,12 +26,14 @@ import { SareeLine, Shortcuts, type Shortcut } from '@/features/home/SimpleHome'
 import { NS as HOME_NS } from '@/features/home/strings';
 import { NS } from '@/features/employee-home/strings';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
+import { MORE_NS } from '@/features/more/strings';
 import { MySteps } from '@/features/steps/MySteps';
 
 export default function EmployeeHome() {
   const { t } = useScreenT(NS);
   const { t: th } = useScreenT(HOME_NS);
   const { t: ti } = useScreenT(INCOMING_NS);
+  const { t: tm } = useScreenT(MORE_NS);
   const { lang } = useDirection();
   const me = useMyProfile();
   const qc = useQueryClient();
@@ -45,8 +47,11 @@ export default function EmployeeHome() {
     { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
     { key: 'rewards', label: th('sc_rewards'), Icon: Gift, href: '/26-rewards', bg: 'orangeTint', fg: colors.orange },
     { key: 'quest', label: th('sc_quest'), Icon: Trophy, href: '/30-team-quests', bg: 'primaryTint', fg: colors.primary },
-    { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
+    // waiting on someone? Muntej reminds them for you (screen 09)
+    { key: 'waiting', label: tm('waiting'), Icon: Hourglass, href: '/09-reverse-followup', bg: 'purpleTint', fg: colors.purple },
     { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary, feature: 'incoming' },
+    // Objectives, Record a meeting, Too busy?… live in "Everything Muntej does"
+    { key: 'more', label: tm('shortcut'), Icon: LayoutGrid, href: '/44-more', bg: 'chip', fg: colors.textSoft },
   ];
 
   return (

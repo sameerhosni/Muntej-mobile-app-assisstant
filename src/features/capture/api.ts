@@ -50,7 +50,8 @@ export async function toError(error: unknown): Promise<Error> {
 const TRANSCRIBE_TIMEOUT_MS = 45_000;
 export class TranscribeTimeoutError extends Error {}
 
-export async function transcribeAudio(uri: string): Promise<string> {
+/** timeoutMs: a long recording (a meeting) takes longer to write down than a voice note */
+export async function transcribeAudio(uri: string, timeoutMs = TRANSCRIBE_TIMEOUT_MS): Promise<string> {
   if (Platform.OS === 'web') {
     const form = new FormData();
     const blob = await (await fetch(uri)).blob();
@@ -76,7 +77,7 @@ export async function transcribeAudio(uri: string): Promise<string> {
   let res: Response;
   // a weak connection must not leave "Writing down what you said…" on screen forever
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), TRANSCRIBE_TIMEOUT_MS);
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
     res = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/transcribe`, {
       method: 'POST',

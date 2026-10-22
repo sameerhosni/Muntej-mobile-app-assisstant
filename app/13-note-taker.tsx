@@ -3,7 +3,7 @@
 // (no microphone). "Stop & extract tasks" shows the done card and opens Promise Catcher (/07-promise-catcher).
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { Animated, Pressable, ScrollView, View } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import {
@@ -43,7 +43,8 @@ const DEMO_VALUE = { minutes: 45, sar: 150, notes: 0 };
 /** Short pause on the done card before Promise Catcher opens. */
 const OPEN_REVIEW_MS = 1200;
 
-export default function NoteTakerScreen() {
+/** The original design demo, kept for reference (not routed). */
+export function NoteTakerScreenDemo() {
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
   const [done, setDone] = useState(false);
@@ -364,4 +365,9 @@ function SectionLabel({ Icon, iconColor, label }: { Icon: ComponentType<LucidePr
       </AppText>
     </View>
   );
+}
+
+/** The real note taker: record the meeting in the room, Muntej finds the tasks (screen 45). */
+export default function NoteTakerScreen() {
+  return <Redirect href="/45-record-meeting" />;
 }

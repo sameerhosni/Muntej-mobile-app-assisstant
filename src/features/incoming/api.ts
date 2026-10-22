@@ -80,8 +80,8 @@ export function useIncomingActions() {
     if (tasks) await invalidateTaskData(qc);
   };
   return {
-    ingest: async (text: string, source: 'paste' | 'share' = 'paste') => {
-      const item = await call<IncomingItem>({ action: 'ingest', text, source });
+    ingest: async (text: string, source: 'paste' | 'share' | 'meeting' = 'paste', subject?: string) => {
+      const item = await call<IncomingItem>({ action: 'ingest', text, source, subject });
       await done();
       return item;
     },

@@ -25,6 +25,10 @@ export type WaitItem = {
   waitColor: ColorToken;
   /** Neutral reminder Muntej sends when nudged. */
   msg: string;
+  /** who gets the reminder and what it's about (live items only; nudge_waiting checks it server-side) */
+  toId?: string | null;
+  taskId?: string | null;
+  decisionId?: string | null;
 };
 
 function firstName(p: Named | null | undefined, lang: string) {
@@ -105,6 +109,9 @@ export function liveItems(ctx: {
       waitHours: w.hours,
       waitColor: waitColor(w.hours),
       msg: t('msgDecision', { what, wait: w.label }),
+      toId: d.manager_id,
+      taskId: null,
+      decisionId: d.id,
     });
   }
 
@@ -128,6 +135,9 @@ export function liveItems(ctx: {
       waitHours: w.hours,
       waitColor: waitColor(w.hours),
       msg: t('msgTask', { what: task.title, wait: w.label }),
+      toId: task.owner_id === me.id ? (task.helper_id ?? task.assigner_id) : task.owner_id,
+      taskId: task.id,
+      decisionId: null,
     });
   }
 

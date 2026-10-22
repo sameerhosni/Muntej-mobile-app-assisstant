@@ -55,7 +55,8 @@ const DEMO: PushbackModel = {
   slipDays: 2,
 };
 
-export function usePushbackModel(lang: string) {
+/** taskId: the task opened from its own page ("Too busy?"); otherwise the newest one */
+export function usePushbackModel(lang: string, taskId?: string) {
   const me = useMyProfile();
   const team = useTeam();
   const tasks = useTasks({ ownerId: me.data?.id });
@@ -72,7 +73,7 @@ export function usePushbackModel(lang: string) {
     const active = (tasks.data ?? []).filter((t) => t.owner_id === profile?.id && ACTIVE_STATUSES.includes(t.status));
     if (!profile || active.length === 0) return { ...DEMO, ...base };
 
-    const newest = [...active].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    const newest = active.find((t) => t.id === taskId) ?? [...active].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
     const thisWeek = active
       .filter((t) => t.id !== newest.id)
       .filter((t) => !t.due_at || new Date(t.due_at).getTime() <= now + 7 * DAY_MS)
@@ -102,7 +103,7 @@ export function usePushbackModel(lang: string) {
       topTitle: top?.task.title ?? null,
       slipDays: Math.max(1, Math.ceil(newHours / perDay)),
     };
-  }, [me.data, team.data, tasks.data, lang]);
+  }, [me.data, team.data, tasks.data, lang, taskId]);
 
   return {
     model,

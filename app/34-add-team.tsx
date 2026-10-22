@@ -2,7 +2,7 @@
 // Demo data: parsed staff list + contacts (src/features/addTeam/demo.ts). Group link uses the native Share sheet.
 import { useMemo, useState, type ComponentType } from 'react';
 import { Pressable, ScrollView, Share, View } from 'react-native';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Rect } from 'react-native-svg';
 import {
@@ -36,7 +36,8 @@ const WAYS: { id: Way; Icon: ComponentType<LucideProps> }[] = [
 
 const FOOTER_SPACE = 190;
 
-export default function AddTeamScreen() {
+/** The original design demo, kept for reference (not routed). */
+export function AddTeamScreenDemo() {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const insets = useSafeAreaInsets();
@@ -405,4 +406,9 @@ function PersonRow({ name, sub, warn, gradient, checked, last, label, onToggle }
       </View>
     </Pressable>
   );
+}
+
+/** Adding people happens on the real Team screen (opens the add form). */
+export default function AddTeamScreen() {
+  return <Redirect href="/39-team?add=1" />;
 }

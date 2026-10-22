@@ -1,6 +1,6 @@
 // Screen 09 · Reverse follow-up — see design/v2/html/ReverseFollowup.dc.html (Arabic: ReverseFollowupAR.dc.html)
 // Employee screen. Live data: pending decisions I requested (age) + blocked tasks I own or help on.
-// Falls back to the design's three sample items. "Nudge politely" is demo state only (no message is sent yet).
+// Falls back to the design's three sample items. "Remind them for me" sends a real reminder (nudge_waiting) for live items.
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
@@ -11,6 +11,7 @@ import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { ACTIVE_STATUSES, useDecisions, useMyProfile, useTasks, useTeam } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { formatNumber } from '@/features/home/value';
 import { LEVEL, useWallet } from '@/features/rewards/wallet';
 import { demoItems, liveItems, type WaitItem, type WaitKind } from '@/features/reverse-followup/model';
@@ -39,6 +40,17 @@ export default function ReverseFollowupScreen() {
   const [voiceHint, setVoiceHint] = useState(false);
   const [filter, setFilter] = useState<WaitFilter>('all');
 
+  // "Remind them for me": live items → a real reminder from Muntej (nudge_waiting); the sample just flips
+  const [nudgeError, setNudgeError] = useState<string | null>(null);
+  const nudge = async (it: WaitItem) => {
+    setNudgeError(null);
+    if (!it.sample && it.toId) {
+      const rpc = supabase.rpc as unknown as (fn: string, a: object) => Promise<{ error: { message: string } | null }>;
+      const { error } = await rpc('nudge_waiting', { p_to: it.toId, p_task: it.taskId ?? null, p_decision: it.decisionId ?? null, p_message: it.msg });
+      if (error) return setNudgeError(error.message);
+    }
+    setNudged((n) => ({ ...n, [it.id]: true }));
+  };
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
@@ -167,10 +179,15 @@ export default function ReverseFollowupScreen() {
                   key={it.id}
                   item={it}
                   done={!!nudged[it.id]}
-                  onNudge={() => setNudged((n) => ({ ...n, [it.id]: true }))}
+                  onNudge={() => nudge(it)}
                 />
               ))}
             </>
+          )}
+          {!!nudgeError && (
+            <AppText variant="small" color="red">
+              {nudgeError}
+            </AppText>
           )}
         </View>
       </ScrollView>

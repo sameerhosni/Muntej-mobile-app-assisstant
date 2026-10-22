@@ -6,12 +6,12 @@
 //   3. "Needs you": decisions only — tasks found in messages, decisions, finished work (one-tap Approve)
 //   4. who needs support (late / blocked / sent back / overbooked); Muntej is already following up with them
 //   5. next 3 days: the most important work coming up (team + yours); then your own tasks, tick to finish
-//   6. shortcuts: Your week (value receipt), Team, Objectives, Autopilot, Add from a message (Incoming)
+//   6. shortcuts: Your week, Team, Add from a message, Record a meeting, More (everything else: 44-more)
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Inbox, Receipt, RotateCw, Target, Users } from 'lucide-react-native';
+import { Inbox, LayoutGrid, Mic, Receipt, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppText, Avatar, BrandChip, Hero } from '@/components/ui';
 import { colors, spacing } from '@/theme/tokens';
@@ -27,6 +27,7 @@ import { MySteps } from '@/features/steps/MySteps';
 import { NS } from '@/features/home/strings';
 import { NextDays } from '@/features/home/NextDays';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
+import { MORE_NS } from '@/features/more/strings';
 function greetingKey(date = new Date()) {
   const h = date.getHours();
   return h < 12 ? 'home.morning' : h < 18 ? 'home.afternoon' : 'home.evening';
@@ -36,6 +37,7 @@ export default function ManagerHome() {
   const { t } = useTranslation();
   const { t: th } = useScreenT(NS);
   const { t: ti } = useScreenT(INCOMING_NS);
+  const { t: tm } = useScreenT(MORE_NS);
   const { lang } = useDirection();
   const me = useMyProfile();
   const { active: protoActive } = useProto();
@@ -105,9 +107,10 @@ export default function ManagerHome() {
             items={[
               { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
               { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
-              { key: 'obj', label: th('sc_objectives'), Icon: Target, href: '/40-objectives', bg: 'purpleTint', fg: colors.purple },
-              { key: 'auto', label: th('sc_autopilot'), Icon: RotateCw, href: '/03-autopilot', bg: 'amberTint', fg: colors.amberText, feature: 'autopilot' },
               { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary, feature: 'incoming' },
+              { key: 'meeting', label: tm('meeting'), Icon: Mic, href: '/45-record-meeting', bg: 'redTint', fg: colors.red },
+              // Objectives, Autopilot, Roadmap… live in "Everything Muntej does" (Autopilot is also the "Muntej is on it" card)
+              { key: 'more', label: tm('shortcut'), Icon: LayoutGrid, href: '/44-more', bg: 'chip', fg: colors.textSoft },
             ]}
           />
         </View>
