@@ -9,6 +9,7 @@
 // tasks come as a BulkCard (untick any, Apply, then Undo for 5 minutes). A new task for several people or one that
 // looks like an open task asks first (PeopleCard / DuplicateCard). Repeating work ("standup every Monday") comes as a
 // RecurringCard to confirm. Task cards show the estimate and Muntej's predicted finish.
+import { InviteLinkCard, type InviteLinkPayload } from '@/features/invite/InviteLinkCard';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -602,9 +603,12 @@ export default function MuntejChatScreen() {
           const createdList = payloadPart(m.payload, 'created_list');
           const rec = payloadPart(m.payload, 'recurring_proposal');
           const brief = payloadPart(m.payload, 'brief');
+          const invite = (m.payload as { invite_link?: InviteLinkPayload } | null)?.invite_link;
           const isLatest = m.id === lastAssistantId && !pending;
           let card = null;
-          if (brief) {
+          if (invite) {
+            card = <InviteLinkCard key={`inv-${m.id}`} invite={invite} />;
+          } else if (brief) {
             card = (
               <BriefCard
                 key={`br-${m.id}`}

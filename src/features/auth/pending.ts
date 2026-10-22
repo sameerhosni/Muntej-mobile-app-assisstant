@@ -16,3 +16,17 @@ export function getPendingLogin(): PendingLogin | null {
 export function clearPendingLogin() {
   pending = null;
 }
+
+// an invite code typed on the sign-in screen: joined right after the code is verified
+let inviteCode: string | null = null;
+
+export function setPendingInvite(code: string | null) {
+  inviteCode = code?.trim() || null;
+}
+
+/** the pending invite code, once (cleared when read) */
+export function takePendingInvite(): string | null {
+  const c = inviteCode;
+  inviteCode = null;
+  return c;
+}

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, UserPlus, X } from 'lucide-react-native';
+import { ChevronLeft, Share2, UserPlus, X } from 'lucide-react-native';
 import { AppText, Button, Card, FilterChips, IconButton, SearchField } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -197,6 +197,12 @@ export default function TeamScreen() {
             </View>
           )}
           <View style={{ flex: 1 }} />
+          {/* invite with a code: WhatsApp, email or any app */}
+          {lead && (
+            <IconButton label={t('inviteCode')} onPress={() => router.push('/48-invite')}>
+              <Share2 color={colors.primary} size={20} strokeWidth={2} />
+            </IconButton>
+          )}
           {lead && (
             <IconButton label={t('addTop')} onPress={addTop}>
               <UserPlus color={colors.primary} size={20} strokeWidth={2} />

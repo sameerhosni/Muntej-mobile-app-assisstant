@@ -23,6 +23,7 @@
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve, type Caller } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
+import { inviteByEmail, inviterInfo } from '../_shared/invite.ts';
 import { deliverPending } from '../_shared/notify.ts';
 
 /** Push the alerts this request just created (assignments, reviews, changes for someone else) right away
@@ -115,15 +116,18 @@ const ObjectiveFields = z.object({
   due_at: z.string().nullable().describe('ISO 8601 datetime with +03:00 offset'),
 });
 
-// accounts (multi-tenant): open a new company account (super admin), work in another account, list them
+// accounts (multi-tenant): open a new company account (super admin), work in another account, list them, or invite
+// someone into this one with a code (a ready WhatsApp / share message)
 const AccountChange = z.object({
-  op: z.enum(['create', 'switch', 'list']),
+  op: z.enum(['create', 'switch', 'list', 'invite']),
   account_id: z.string().nullable().describe('id from accounts, for switch'),
   name: z.string().nullable().describe('new account (company) name in Latin letters, for create'),
   name_ar: z.string().nullable().describe('the name in Arabic letters when you can write it'),
   admin_full_name: z.string().nullable().describe("the new account's admin, Latin letters"),
   admin_full_name_ar: z.string().nullable(),
   admin_email: z.string().nullable(),
+  invitee_name: z.string().nullable().describe('for invite: who to invite, first name as the user said it'),
+  invitee_phone: z.string().nullable().describe('for invite: their mobile number as given (e.g. 0555123456), else null'),
 });
 
 const ObjectiveChange = z.object({
@@ -233,7 +237,7 @@ Each turn, choose ONE action:
   WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team (never former_team) using, in order: skill level and years in the skills the work needs, title, recent_tasks similar to this one, then the lower load (stats.open / open_estimate_hours vs weekly_hours; avoid people marked overloaded or with late tasks when someone similar is free). Put the data-based reason in owner_reason (one short clause, user's language, e.g. "Selenium 4/5, 3 years, only 2 open tasks"). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
 - "org": the user wants to change the team itself (people, not tasks): add someone ("add Reem as QA engineer under Khalid, 5 years, Selenium and API testing" → op "add", person_id null, fields full_name, full_name_ar when you can write it, title + title_ar, manager_id, years_experience, skills_detail), move someone ("move Saad under Maha" → op "move", fields.manager_id), change details ("Faisal is now an admin" → role; "Khalid works 35 hours a week" → weekly_capacity_hours; "Noura knows Docker now" → skills_detail with just that skill; op "update"), or someone left / came back ("Noura left the company" → op "status", status "deleted"). Fill ONLY the fields that change, all others null. person_id must come from team or former_team. Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short.
   OBJECTIVE LINK: objectives lists the company objectives the user can see (each task can belong to one). On create, set task.objective_id to the active objective the task clearly belongs to (same topic, client, project or deliverable; owner in that objective's team is a hint, never enough on its own); if none clearly fits, null — never force a link. When you link it, say so in the reply ("added to objective «X»" / "وحطيتها تحت هدف «X»").
-- "account": ACCOUNTS (companies using Muntej). "Create an account for Al-Rajhi Trading, admin Ali ali@rajhi.com" → op "create" with name (+ name_ar when you can), admin_full_name (+ _ar), admin_email (only when user.is_super_admin; otherwise action none and say only the super admin opens accounts). "Switch to / open / work in Al-Rajhi" → op "switch" with account_id from accounts. "Show my accounts" / "which accounts" → op "list". The server writes the reply. Adding PEOPLE to the current account is still "org" (op add, with their email so they get an invite).
+- "account": ACCOUNTS (companies using Muntej). "Create an account for Al-Rajhi Trading, admin Ali ali@rajhi.com" → op "create" with name (+ name_ar when you can), admin_full_name (+ _ar), admin_email (only when user.is_super_admin; otherwise action none and say only the super admin opens accounts). "Switch to / open / work in Al-Rajhi" → op "switch" with account_id from accounts. "Show my accounts" / "which accounts" → op "list". The server writes the reply. Adding PEOPLE to the current account is still "org" (op add, with their email so they get an invite). "Invite Faisal on WhatsApp 0555…" / "send an invite link to Noura" / "give me a code to invite my team" / "ادعُ فيصل على الواتساب" → op "invite" with invitee_name and invitee_phone when said (no email needed: they join with a code). With an EMAIL and no phone, use "org" add instead.
 - "objective": the user wants to create, change, cancel or spread out an OBJECTIVE (a bigger goal with a start and end date that tasks roll up to): "new objective: launch the Riyadh branch by end of March" → op "create" with fields.title (+ title_ar when you can), due_at, start_at (null = from now), owner_id (null = the user), description; "move objective X to April" / "make Khalid accountable for X" / "rename X" → op "update" with only the changing fields; "cancel objective X" → op "cancel"; "spread / distribute X's tasks over its time" → op "distribute". objective_id must come from objectives (null only for create). Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short. Changing an objective's dates also moves its open tasks inside the new window.
 - OBJECTIVE QUESTIONS ("how are our objectives?", "which objectives are at risk?", "what's blocking objective X?", "كيف أهدافنا؟"): action "none", answer in 1-3 short sentences from objectives[] only: progress_pct (tasks done) vs time_used_pct (time passed), tasks.late, tasks.unassigned, at_risk, and issues (late, unassigned, blocked, outside_window = tasks due after the objective ends or before it starts). Name the real tasks/people in issues; never invent numbers. An objective with no tasks yet is a risk when time is passing. Suggest a fix when obvious (assign the unassigned task, move a date, distribute).
 - "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). "Put it under objective X" → update.objective_id; "take it out of the objective" → update.unlink_objective true (otherwise false). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null. The user may point at another task by its title, client or owner ("move the lease task to Thursday", "مهمة فيصل خلها بكرة"): match it in recent_chat_tasks or open_tasks.
@@ -2182,20 +2186,11 @@ async function undoMany(db: Caller['db'], profileId: string, raw: string[], ar: 
 
 // ─── accounts by conversation ───────────────────────────────────────────────────
 
+// where people download the app until muntej.app hosts the download page (same as src/features/invite/api.ts)
+const DOWNLOAD_URL = 'https://expo.dev/accounts/nizamys-team/projects/nizamy-muntej/builds/3dcac193-c0b9-476a-9fde-c8f49eb3c186';
+
 type MyAccount = { id: string; name: string; name_ar: string | null; status: string; people: number; member: boolean; active: boolean };
 
-/**
- * Emails a Muntej invitation (Supabase Auth "invite", sent through the project's SMTP: sales@muntej.app) and creates
- * their login, which handle_new_user links to every profile with that email. An email that already has a login
- * (someone joining a second account) gets no email: the new account simply shows up in their Settings.
- */
-async function inviteByEmail(email: string, name: string | null): Promise<'invited' | 'has_login' | 'failed'> {
-  const { error } = await adminClient().auth.admin.inviteUserByEmail(email, { data: { full_name: name ?? undefined } });
-  if (!error) return 'invited';
-  if (/already|registered|exists/i.test(error.message)) return 'has_login';
-  console.error('invite failed', email, error.message);
-  return 'failed';
-}
 
 const accountLabel = (a: Pick<MyAccount, 'name' | 'name_ar'>, ar: boolean) => (ar && a.name_ar) || a.name;
 
@@ -2207,6 +2202,32 @@ async function runAccount(
   ar: boolean,
 ): Promise<{ reply: string; payload: Record<string, unknown> | null }> {
   const say = (en: string, arText: string) => (ar ? arText : en);
+
+  // invite into this account with a code: the app shows WhatsApp / share buttons with the message ready
+  if (a.op === 'invite') {
+    const { data, error } = await db.rpc('create_invite_code');
+    if (error)
+      return {
+        reply: say('Only managers and admins can invite people. Ask your manager for an invite.', 'الدعوات للمدراء والمسؤولين بس. اطلب من مديرك يدعوه.'),
+        payload: null,
+      };
+    const c = data as { code: string; account_name: string };
+    const { data: meId } = await db.rpc('current_profile_id');
+    const { data: me } = await db.from('profiles').select('full_name, full_name_ar').eq('id', meId as string).maybeSingle();
+    const inviter = ((ar ? me?.full_name_ar : null) ?? me?.full_name ?? '').split(' ')[0];
+    const name = a.invitee_name?.trim() ?? '';
+    const code = `MNT-${c.code}`;
+    const message = ar
+      ? `هلا${name ? ` ${name}` : ''}! 👋 ${inviter} يدعوك تنضم لفريق ${c.account_name} على منتج، المساعد اللي يتابع الشغل بدال الفريق.\n١) حمّل التطبيق: ${DOWNLOAD_URL}\n٢) سجّل دخول بإيميلك\n٣) اكتب رمز الدعوة: ${code}\nوخلاص، أنت معنا 🚀`
+      : `Hi${name ? ` ${name}` : ''}! 👋 ${inviter} invites you to join ${c.account_name} on Muntej, the assistant that follows up on work for the team.\n1) Download the app: ${DOWNLOAD_URL}\n2) Sign in with your email\n3) Enter the invite code: ${code}\nThat’s it, you’re in 🚀`;
+    const who = name || say('them', 'له');
+    return {
+      reply: a.invitee_phone
+        ? say(`Ready ✓ Tap WhatsApp and send it to ${who}. Whoever joins with ${code} lands in ${c.account_name}, in your team.`, `جاهزة ✓ اضغط واتساب وأرسلها لـ ${who}. اللي ينضم بالرمز ${code} يدخل ${c.account_name} في فريقك على طول.`)
+        : say(`Your invite code is ${code} ✓ Share it on WhatsApp or any app. Whoever joins with it lands in ${c.account_name}, in your team.`, `رمز الدعوة ${code} ✓ شاركه على الواتساب أو أي تطبيق. اللي ينضم فيه يدخل ${c.account_name} في فريقك على طول.`),
+      payload: { invite_link: { code, message, phone: a.invitee_phone ?? null, name: name || null, account_name: c.account_name } },
+    };
+  }
 
   if (a.op === 'list') {
     if (!accounts.length) return { reply: say("You're not in any account yet.", 'للحين ما أنت في أي حساب.'), payload: null };
@@ -2489,7 +2510,7 @@ async function applyOrg(db: Caller['db'], profileId: string, raw: unknown, ar: b
   const { data: person } = await db.from('profiles').select('full_name, full_name_ar, email, user_id').eq('id', id as string).single();
   const name = person ? ((ar ? person.full_name_ar : null) ?? person.full_name) : '';
   // a new person with an email and no login yet gets an invitation email (sales@muntej.app)
-  const invite = isNew && person?.email && !person.user_id ? await inviteByEmail(person.email, person.full_name) : null;
+  const invite = isNew && person?.email && !person.user_id ? await inviteByEmail(person.email, person.full_name, await inviterInfo(profileId)) : null;
   const invited =
     invite === 'invited'
       ? ar

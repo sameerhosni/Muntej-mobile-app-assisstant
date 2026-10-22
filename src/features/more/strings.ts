@@ -44,6 +44,8 @@ const en = {
   agentsSub: 'Your own repeating helpers',
   week: 'Your week',
   weekSub: 'Forget rate and time saved',
+  invite: 'Invite people',
+  inviteSub: 'Share a code, or join a team with one',
   growth: 'Growth',
   growthSub: 'Every account’s first steps + feedback',
 };
@@ -91,6 +93,8 @@ const ar: typeof en = {
   agentsSub: 'مساعدينك المتكررين',
   week: 'أسبوعك',
   weekSub: 'نسبة النسيان والوقت اللي وفّرته',
+  invite: 'ادعُ ناس',
+  inviteSub: 'شارك رمز، أو انضم لفريق برمز',
   growth: 'النمو',
   growthSub: 'أول خطوات كل حساب + الآراء',
 };

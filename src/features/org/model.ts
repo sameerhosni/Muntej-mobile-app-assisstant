@@ -1,4 +1,5 @@
 // Org data for screen 39: people, tree, permissions (mirrors upsert_person; the RPC re-checks) and task numbers.
+import { emailInvite } from '@/features/invite/api';
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -213,6 +214,8 @@ export function useUpsertPerson() {
     mutationFn: async (p: PersonPayload): Promise<string> => {
       const { data, error } = await supabase.rpc('upsert_person', { p: p as never });
       if (error) throw new Error(error.message);
+      // someone new with an email: they get the invitation email (same as adding them in the chat)
+      if (!(p as { id?: string }).id && (p as { email?: string | null }).email) await emailInvite(data as string).catch(() => {});
       return data as string;
     },
     onSuccess: () => {
