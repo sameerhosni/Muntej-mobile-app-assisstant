@@ -7,7 +7,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Check, ChevronLeft, CopyCheck, Inbox, Pencil, Plug, X } from 'lucide-react-native';
+import { ArrowDownUp, Check, ChevronLeft, CopyCheck, Inbox, Pencil, Plug, X } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, IconBadge, IconButton, TextField } from '@/components/ui';
 import { colors, fontFamily, fontSize, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -28,7 +28,9 @@ export default function IncomingScreen() {
   const params = useLocalSearchParams<{ text?: string }>();
   const incoming = useIncoming();
   // the list itself: newest first, 10 messages at a time
-  const pages = useIncomingPages();
+  // by date and time: newest first unless flipped
+  const [newestFirst, setNewestFirst] = useState(true);
+  const pages = useIncomingPages(newestFirst);
   const actions = useIncomingActions();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -83,11 +85,34 @@ export default function IncomingScreen() {
         <AppText color="textMuted">{t('subtitle')}</AppText>
         {/* your email, connected right here; opening the screen reads it, the found tasks wait below for an OK */}
         <EmailAccounts />
-        {waiting > 0 && (
-          <AppText weight="bold" color="primary">
-            {t('waiting', { count: waiting, n: waiting })}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <AppText weight="bold" color="primary" style={{ flex: 1 }}>
+            {waiting > 0 ? t('waiting', { count: waiting, n: waiting }) : ''}
           </AppText>
-        )}
+          {items.length > 1 && (
+            <Pressable
+              onPress={() => setNewestFirst((v) => !v)}
+              accessibilityRole="button"
+              style={({ pressed }) => ({
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                minHeight: sizes.touch,
+                paddingHorizontal: spacing.md,
+                borderRadius: radius.pill,
+                backgroundColor: colors.surface,
+                borderWidth: 1,
+                borderColor: colors.border,
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <ArrowDownUp color={colors.textSoft} size={14} />
+              <AppText variant="small" weight="semibold" color="textSoft">
+                {newestFirst ? t('newestFirst') : t('oldestFirst')}
+              </AppText>
+            </Pressable>
+          )}
+        </View>
 
         {pages.isLoading && <ActivityIndicator color={colors.primary} />}
         {pages.isError && (
@@ -206,12 +231,18 @@ function ItemCard({ item }: { item: IncomingItem }) {
 
   return (
     <Card style={{ gap: spacing.md }}>
+      {/* source + when it arrived (date and time, never cut), then who sent it */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <Chip label={t(`src_${item.source}`)} tone="primary" />
-        <AppText variant="caption" color="textFaint" style={{ flex: 1 }} numberOfLines={1}>
-          {[item.sender, time].filter(Boolean).join(' · ')}
+        <AppText variant="small" weight="bold" color="textSoft" style={{ flex: 1 }}>
+          {time}
         </AppText>
       </View>
+      {!!item.sender && (
+        <AppText variant="caption" color="textFaint" numberOfLines={1}>
+          {item.sender}
+        </AppText>
+      )}
       {!!item.summary && (
         <AppText weight="bold" style={{ writingDirection: contentDirection(item.summary) }}>
           {item.summary}

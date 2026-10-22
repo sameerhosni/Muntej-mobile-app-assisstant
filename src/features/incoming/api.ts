@@ -59,19 +59,19 @@ export function useIncoming() {
   });
 }
 
-/** The Tasks from email list: newest first, 10 messages a page ("Show more" loads the next 10). */
+/** The Tasks from email list by date and time (newest or oldest first), 10 messages a page ("Show more" loads the next 10). */
 export const PAGE = 10;
-export function useIncomingPages() {
+export function useIncomingPages(newestFirst = true) {
   return useInfiniteQuery({
-    queryKey: [...KEY, 'pages'],
+    queryKey: [...KEY, 'pages', newestFirst],
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<IncomingItem[]> => {
       const { data, error } = await untyped
         .from('incoming_items')
         .select('id, source, sender, subject, body, summary, received_at, status, suggestions')
         .eq('status', 'new')
-        .order('received_at', { ascending: false })
-        .order('id', { ascending: false })
+        .order('received_at', { ascending: !newestFirst })
+        .order('id', { ascending: !newestFirst })
         .range(pageParam, pageParam + PAGE - 1);
       if (error) throw new Error(error.message);
       return (data ?? []) as IncomingItem[];
