@@ -187,6 +187,7 @@ export function TaskCard({
                 alignItems: 'center',
                 gap: 6,
                 alignSelf: 'flex-start',
+                maxWidth: '100%',
                 paddingVertical: 4,
                 paddingHorizontal: spacing.sm,
                 borderRadius: radius.pill,
@@ -194,7 +195,7 @@ export function TaskCard({
               }}
             >
               <TrendingUp color={prediction.late_days > 0 ? colors.red : colors.greenText} size={12} strokeWidth={2.2} />
-              <AppText variant="caption" weight="semibold" color={prediction.late_days > 0 ? 'red' : 'greenText'}>
+              <AppText variant="caption" weight="semibold" color={prediction.late_days > 0 ? 'red' : 'greenText'} style={{ flexShrink: 1 }}>
                 {t('likely', { date: formatDue(prediction.at, lang), pct: prediction.confidence })}
                 {prediction.late_days > 0 ? ` · ${t('likelyLate', { count: prediction.late_days })}` : ''}
               </AppText>
@@ -205,7 +206,7 @@ export function TaskCard({
           {!!nextCheckAt && task.status !== 'done' && (
             <Pill bg="primaryTint">
               <BellRing color={colors.primary} size={12} strokeWidth={2.2} />
-              <AppText variant="caption" weight="semibold" color="primary">
+              <AppText variant="caption" weight="semibold" color="primary" style={{ flexShrink: 1 }}>
                 {t('nextCheck', { when: formatDue(nextCheckAt, lang) })}
               </AppText>
             </Pill>
@@ -492,6 +493,7 @@ function Pill({ bg, children }: { bg: ColorToken; children: React.ReactNode }) {
         gap: 4,
         backgroundColor: colors[bg],
         borderRadius: radius.pill,
+        maxWidth: '100%',
         paddingHorizontal: spacing.sm,
         paddingVertical: 3,
       }}

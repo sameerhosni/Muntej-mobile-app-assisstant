@@ -46,6 +46,9 @@ export function AppText({
 
   return (
     <Text
+      // Android's default "highQuality" line breaking measures Arabic in our fonts a little short: the last word
+      // wrapped onto a line the bubble didn't make room for, so it vanished. "simple" measures what it draws.
+      textBreakStrategy="simple"
       {...rest}
       style={[
         {
