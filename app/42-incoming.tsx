@@ -3,11 +3,11 @@
 // reads the new mail, and every task found waits below with Add task / Edit / Ignore. Pasting a message (WhatsApp,
 // notes) is folded at the bottom; ?text= (muntej://42-incoming?text=…) opens it pre-filled. Other tools: Sources.
 // Data: src/features/incoming/api.ts.
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, CopyCheck, Inbox, Plug } from 'lucide-react-native';
+import { Check, ChevronLeft, CopyCheck, Inbox, Pencil, Plug, X } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, IconBadge, IconButton, TextField } from '@/components/ui';
 import { colors, fontFamily, fontSize, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -15,7 +15,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useTeam, type Profile } from '@/lib/api';
 import { formatDue } from '@/features/capture/format';
 import { contentDirection } from '@/features/chat/Bubbles';
-import { useIncoming, useIncomingActions, type IncomingItem, type Suggestion, type SuggestionEdit } from '@/features/incoming/api';
+import { useIncoming, useIncomingActions, useIncomingPages, type IncomingItem, type Suggestion, type SuggestionEdit } from '@/features/incoming/api';
 import { NS } from '@/features/incoming/strings';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
@@ -27,6 +27,8 @@ export default function IncomingScreen() {
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
   const params = useLocalSearchParams<{ text?: string }>();
   const incoming = useIncoming();
+  // the list itself: newest first, 10 messages at a time
+  const pages = useIncomingPages();
   const actions = useIncomingActions();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -60,15 +62,15 @@ export default function IncomingScreen() {
   };
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  const items = incoming.data ?? [];
-  const waiting = items.reduce((n, it) => n + it.suggestions.filter((s) => s.state === 'new').length, 0);
+  const items = (pages.data?.pages ?? []).flat();
+  const waiting = (incoming.data ?? []).reduce((n, it) => n + it.suggestions.filter((s) => s.state === 'new').length, 0);
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.screen, paddingTop: 20, gap: spacing.lg, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={incoming.isRefetching} onRefresh={() => incoming.refetch()} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={pages.isRefetching} onRefresh={() => pages.refetch()} tintColor={colors.primary} />}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <IconButton label={t('back')} onPress={back}>
@@ -87,15 +89,15 @@ export default function IncomingScreen() {
           </AppText>
         )}
 
-        {incoming.isLoading && <ActivityIndicator color={colors.primary} />}
-        {incoming.isError && (
+        {pages.isLoading && <ActivityIndicator color={colors.primary} />}
+        {pages.isError && (
           <Card tone="red" padding={spacing.lg}>
             <AppText variant="small" color="red">
               {t('loadError')}
             </AppText>
           </Card>
         )}
-        {!incoming.isLoading && !incoming.isError && items.length === 0 && (
+        {!pages.isLoading && !pages.isError && items.length === 0 && (
           <Card style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.xxl }}>
             <IconBadge size={44} bg="primaryTint" round>
               <Inbox color={colors.primary} size={20} strokeWidth={2} />
@@ -108,6 +110,9 @@ export default function IncomingScreen() {
         {items.map((it) => (
           <ItemCard key={it.id} item={it} />
         ))}
+        {pages.hasNextPage && (
+          <Button label={t('showMore')} variant="outline" size="md" loading={pages.isFetchingNextPage} onPress={() => pages.fetchNextPage()} />
+        )}
 
         {/* paste a message instead (WhatsApp, notes…): folded until asked for; open when something was shared */}
         {!pasteOpen ? (
@@ -346,12 +351,61 @@ function SuggestionRow({
           </View>
         </View>
       ) : (
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Button label={t('accept')} size="md" loading={busy} onPress={() => onAccept()} style={{ flex: 1.3 }} />
-          <Button label={t('edit')} variant="outline" size="md" disabled={busy} onPress={() => setEditing(true)} style={{ flex: 1 }} />
-          <Button label={t('ignore')} variant="ghost" size="md" disabled={busy} onPress={onIgnore} style={{ flex: 1 }} />
+        // one clear "Add" (with a check), Edit and Ignore as round icon buttons: never wraps, thumb-sized
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <Pressable
+            onPress={() => onAccept()}
+            disabled={busy}
+            accessibilityRole="button"
+            style={({ pressed }) => ({
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: spacing.sm,
+              minHeight: sizes.touch,
+              borderRadius: radius.pill,
+              backgroundColor: colors.primary,
+              opacity: busy ? 0.6 : pressed ? 0.85 : 1,
+            })}
+          >
+            {busy ? <ActivityIndicator color={colors.onDark} /> : <Check color={colors.onDark} size={18} strokeWidth={2.6} />}
+            <AppText weight="bold" color="onDark" numberOfLines={1}>
+              {t('accept')}
+            </AppText>
+          </Pressable>
+          <RoundIcon label={t('edit')} disabled={busy} onPress={() => setEditing(true)}>
+            <Pencil color={colors.primary} size={18} />
+          </RoundIcon>
+          <RoundIcon label={t('ignore')} disabled={busy} onPress={onIgnore}>
+            <X color={colors.textMuted} size={20} />
+          </RoundIcon>
         </View>
       )}
     </View>
+  );
+}
+
+function RoundIcon({ label, onPress, disabled, children }: { label: string; onPress: () => void; disabled?: boolean; children: ReactNode }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        width: sizes.touch,
+        height: sizes.touch,
+        borderRadius: sizes.touch / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1.5,
+        borderColor: colors.border,
+        backgroundColor: colors.surface,
+        opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+      })}
+    >
+      {children}
+    </Pressable>
   );
 }

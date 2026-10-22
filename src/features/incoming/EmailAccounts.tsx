@@ -9,6 +9,7 @@ import { AppText, Card } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
 import { useConnectionActions, useConnections, useProviders, type ProviderId } from '@/features/sources/connections';
+import { readSince } from './api';
 import { NS } from './strings';
 
 const EMAIL_TOOLS: ProviderId[] = ['google', 'microsoft'];
@@ -22,6 +23,9 @@ export function EmailAccounts() {
   const providers = useProviders();
   const actions = useConnectionActions();
   const [checking, setChecking] = useState(false);
+  // while reading: an estimated % (the server reads in one go) and how many mails it has read so far (live count)
+  const [progress, setProgress] = useState<{ pct: number; read: number } | null>(null);
+  const startedAt = useRef(0);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const autoChecked = useRef(false);
 
@@ -33,16 +37,39 @@ export function EmailAccounts() {
     if (!mine.length) return;
     setChecking(true);
     setNote(null);
+    startedAt.current = Date.now();
+    setProgress({ pct: 0, read: 0 });
     let found = 0;
     try {
       for (const c of mine) found += (await actions.syncNow(c.provider)).tasks ?? 0;
+      setProgress((p) => ({ pct: 100, read: p?.read ?? 0 }));
       setNote({ ok: true, text: found ? t('emailFound', { count: found, n: found }) : t('emailNothing') });
     } catch {
       setNote({ ok: false, text: t('emailCheckFailed') });
     } finally {
       setChecking(false);
+      setTimeout(() => setProgress(null), 900);
     }
   };
+
+  // the % climbs towards 95 while the server works, the count comes from what it has saved so far
+  useEffect(() => {
+    if (!checking) return;
+    const since = new Date(startedAt.current - 1000).toISOString();
+    const tick = setInterval(() => {
+      const pct = Math.min(95, Math.round(100 * (1 - Math.exp(-(Date.now() - startedAt.current) / 20_000))));
+      setProgress((p) => (p ? { ...p, pct: Math.max(p.pct, pct) } : p));
+    }, 500);
+    const count = setInterval(() => {
+      readSince(since)
+        .then((read) => setProgress((p) => (p ? { ...p, read } : p)))
+        .catch(() => {});
+    }, 1500);
+    return () => {
+      clearInterval(tick);
+      clearInterval(count);
+    };
+  }, [checking]);
 
   // just came back from signing in, or opened the screen: read the email now
   useEffect(() => {
@@ -121,7 +148,27 @@ export function EmailAccounts() {
         </Pressable>
       ))}
 
-      {mine.length > 0 && (
+      {progress && (
+        <View accessibilityLiveRegion="polite" style={{ gap: 6 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <AppText variant="small" weight="bold" color="primary">
+              {progress.pct >= 100 ? t('emailDone') : t('emailChecking')}
+            </AppText>
+            <AppText variant="small" weight="extrabold" color="primary" style={{ writingDirection: 'ltr' }}>
+              {`${progress.pct}%`}
+            </AppText>
+          </View>
+          <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.primaryTint, overflow: 'hidden' }}>
+            <View style={{ width: `${progress.pct}%`, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />
+          </View>
+          {progress.read > 0 && (
+            <AppText variant="caption" color="textMuted">
+              {t('emailReadSoFar', { count: progress.read, n: progress.read })}
+            </AppText>
+          )}
+        </View>
+      )}
+      {mine.length > 0 && !progress && (
         <Pressable
           onPress={checkNow}
           disabled={checking}

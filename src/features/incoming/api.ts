@@ -1,6 +1,6 @@
 // Incoming: messages from other tools that Muntej read and turned into task suggestions (table incoming_items,
 // written only by the intake Edge Function). The person accepts, edits or ignores each suggestion.
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toError } from '@/features/capture/api';
 import { invalidateTaskData } from '@/features/chat/api';
@@ -57,6 +57,33 @@ export function useIncoming() {
       return (data ?? []) as IncomingItem[];
     },
   });
+}
+
+/** The Tasks from email list: newest first, 10 messages a page ("Show more" loads the next 10). */
+export const PAGE = 10;
+export function useIncomingPages() {
+  return useInfiniteQuery({
+    queryKey: [...KEY, 'pages'],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<IncomingItem[]> => {
+      const { data, error } = await untyped
+        .from('incoming_items')
+        .select('id, source, sender, subject, body, summary, received_at, status, suggestions')
+        .eq('status', 'new')
+        .order('received_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(pageParam, pageParam + PAGE - 1);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as IncomingItem[];
+    },
+    getNextPageParam: (last, all) => (last.length < PAGE ? undefined : all.length * PAGE),
+  });
+}
+
+/** messages Muntej read since `since` (Check my email shows it counting up) */
+export async function readSince(since: string): Promise<number> {
+  const { count } = await untyped.from('incoming_items').select('id', { count: 'exact', head: true }).gte('created_at', since);
+  return count ?? 0;
 }
 
 /** How many task suggestions are waiting (for the Home row). */
