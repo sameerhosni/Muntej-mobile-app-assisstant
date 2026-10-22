@@ -44,6 +44,8 @@ const en = {
   agentsSub: 'Your own repeating helpers',
   week: 'Your week',
   weekSub: 'Forget rate and time saved',
+  growth: 'Growth',
+  growthSub: 'Every account’s first steps + feedback',
 };
 
 const ar: typeof en = {
@@ -89,6 +91,8 @@ const ar: typeof en = {
   agentsSub: 'مساعدينك المتكررين',
   week: 'أسبوعك',
   weekSub: 'نسبة النسيان والوقت اللي وفّرته',
+  growth: 'النمو',
+  growthSub: 'أول خطوات كل حساب + الآراء',
 };
 
 export const MORE_NS = registerStrings('more', { en, ar });

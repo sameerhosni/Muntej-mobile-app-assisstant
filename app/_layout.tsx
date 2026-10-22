@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { ViewingBanner } from '@/features/accounts/AccountSwitcher';
+import { CoachHost } from '@/features/coach/CoachHost';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -108,6 +109,8 @@ function RootNavigator() {
       <ShareIntake signedIn={signedIn} />
       {signedIn && <HelperButton />}
       {signedIn && <LaunchCard />}
+      {/* Saree3's first-time tips + one-tap feedback (one card per app open, after onboarding) */}
+      {signedIn && <CoachHost />}
       {signedIn && <ProtoBar />}
     </View>
   );

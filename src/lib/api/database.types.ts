@@ -497,6 +497,35 @@ export type Database = {
           },
         ]
       }
+      coach_moments: {
+        Row: {
+          acted: boolean
+          key: string
+          profile_id: string
+          shown_at: string
+        }
+        Insert: {
+          acted?: boolean
+          key: string
+          profile_id: string
+          shown_at?: string
+        }
+        Update: {
+          acted?: boolean
+          key?: string
+          profile_id?: string
+          shown_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_moments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       connection_secrets: {
         Row: {
           connection_id: string
@@ -834,6 +863,51 @@ export type Database = {
           title_ar?: string
         }
         Relationships: []
+      }
+      feedback: {
+        Row: {
+          account_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          moment: string
+          profile_id: string
+          rating: number | null
+        }
+        Insert: {
+          account_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          moment: string
+          profile_id: string
+          rating?: number | null
+        }
+        Update: {
+          account_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          moment?: string
+          profile_id?: string
+          rating?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       followups: {
         Row: {
@@ -1881,6 +1955,10 @@ export type Database = {
         Args: { p_note?: string; p_reply: string; p_task: string }
         Returns: string
       }
+      coach_seen: {
+        Args: { p_acted?: boolean; p_key: string }
+        Returns: undefined
+      }
       create_account: {
         Args: {
           p_admin_email: string
@@ -1898,6 +1976,11 @@ export type Database = {
       delete_task: { Args: { p_task: string }; Returns: undefined }
       distribute_tasks: { Args: { p_objective: string }; Returns: number }
       evidence_task_id: { Args: { object_name: string }; Returns: string }
+      give_feedback: {
+        Args: { p_comment?: string; p_moment: string; p_rating: number }
+        Returns: undefined
+      }
+      growth_overview: { Args: never; Returns: Json }
       is_admin: { Args: never; Returns: boolean }
       is_below: { Args: { boss: string; target: string }; Returns: boolean }
       is_manager_of: { Args: { target: string }; Returns: boolean }

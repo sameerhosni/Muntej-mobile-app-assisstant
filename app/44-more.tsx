@@ -20,6 +20,7 @@ import {
   Mic,
   Plug,
   Receipt,
+  Sprout,
   RotateCw,
   Target,
   TrendingUp,
@@ -35,7 +36,7 @@ import { useMyProfile } from '@/lib/api';
 import { useIncomingCount } from '@/features/incoming/api';
 import { MORE_NS } from '@/features/more/strings';
 
-type Tile = { key: string; href: Href; Icon: ComponentType<LucideProps>; bg: ColorToken; fg: string; who: 'all' | 'manager'; count?: number };
+type Tile = { key: string; href: Href; Icon: ComponentType<LucideProps>; bg: ColorToken; fg: string; who: 'all' | 'manager' | 'super'; count?: number };
 
 export default function MoreScreen() {
   const { t } = useScreenT(MORE_NS);
@@ -81,11 +82,14 @@ export default function MoreScreen() {
         { key: 'achievements', href: '/21-achievements', Icon: Award, bg: 'amberTint', fg: colors.amberText, who: 'all' },
         { key: 'agents', href: '/22-agents', Icon: Bot, bg: 'purpleTint', fg: colors.purple, who: 'manager' },
         { key: 'week', href: '/32-receipt', Icon: Receipt, bg: 'greenTint', fg: colors.green, who: 'all' },
+        // the super admin's view of every account's first steps + feedback
+        { key: 'growth', href: '/46-growth', Icon: Sprout, bg: 'greenTint', fg: colors.green, who: 'super' },
       ],
     },
   ];
   // the pushback screen is the employee's tool: managers don't need it in their list
-  const visible = (x: Tile) => (x.who === 'all' || manager) && !(manager && x.key === 'pushback');
+  const visible = (x: Tile) =>
+    (x.who === 'super' ? me.data?.role === 'super_admin' : x.who === 'all' || manager) && !(manager && x.key === 'pushback');
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>

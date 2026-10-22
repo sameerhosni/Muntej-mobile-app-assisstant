@@ -4,7 +4,7 @@ import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { Profile, TaskWithPeople } from '@/lib/api';
 
-export type OnboardingRow = { profile_id: string; account_named: boolean; demo_seen: boolean; dismissed: boolean; finished_at: string | null };
+export type OnboardingRow = { profile_id: string; account_named: boolean; demo_seen: boolean; dismissed: boolean; started_at: string; finished_at: string | null };
 
 /** The onboarding chat's steps, in order. "value" is the moment right after the first task (not stored). */
 export type Step = 'name' | 'company' | 'demo' | 'try' | 'value' | 'team' | 'handoff' | 'done';
