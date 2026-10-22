@@ -19,7 +19,6 @@ import { shortName } from '@/features/decisions/people';
 import { invalidateTaskData, setTaskStatus } from '@/features/chat/api';
 import { autoApproveAt, countdown, leftText, openReview, useNow } from './countdown';
 import { REVIEW_BAR_NS } from './barStrings';
-import { PROOF_NS } from '@/features/proof/strings';
 
 const WORKING = ['draft', 'assigned', 'in_progress', 'blocked', 'returned'];
 
@@ -27,7 +26,6 @@ type TaskLike = { id: string; status: string; owner_id: string | null; assigner_
 
 export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | undefined; team: Profile[] }) {
   const { t } = useScreenT(REVIEW_BAR_NS);
-  const { t: tp } = useScreenT(PROOF_NS);
   const { lang, isRTL } = useDirection();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -60,9 +58,7 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
       setNote(okText(result));
       await refresh();
     } catch (e) {
-      // the proof gate (require_proof): say what to attach, not the code
-      const proof = /PROOF_NEEDED:(\w+)/.exec((e as Error).message)?.[1];
-      setError(proof ? tp(`needFirst_${proof}`) : t('failed', { reason: (e as Error).message }));
+      setError(t('failed', { reason: (e as Error).message }));
     } finally {
       setBusy(null);
     }
