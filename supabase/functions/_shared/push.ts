@@ -3,7 +3,8 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { requireEnv } from './http.ts';
 
-export type PushMessage = { title: string; body: string; data?: Record<string, unknown> };
+/** categoryId: the app's notification buttons (e.g. 'checkin' = Done / On track / Blocked) */
+export type PushMessage = { title: string; body: string; data?: Record<string, unknown>; categoryId?: string };
 
 /** Service-role client: push tokens are private to their owners, so only the server may read other people's. */
 export function adminClient(): SupabaseClient {
@@ -30,7 +31,16 @@ export async function sendPush(profileIds: string[], msg: PushMessage, admin = a
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(
-        batch.map((to) => ({ to, title: msg.title, body: msg.body, data: msg.data ?? {}, sound: 'default', channelId: 'muntej', priority: 'high' })),
+        batch.map((to) => ({
+          to,
+          title: msg.title,
+          body: msg.body,
+          data: msg.data ?? {},
+          sound: 'default',
+          channelId: 'muntej',
+          priority: 'high',
+          ...(msg.categoryId ? { categoryId: msg.categoryId } : {}),
+        })),
       ),
     });
     if (!res.ok) {

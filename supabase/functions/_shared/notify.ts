@@ -48,6 +48,22 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   new_feature: null,
 };
 
+// Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
+// updates may push (up to DAILY_PUSHES a day); the rest never push: they stay in the Alerts list and are counted in
+// the next morning brief (whatsapp_status 'batched').
+export const EXCEPTION_KINDS = new Set<AlertKind>(['task_assigned', 'new_submission', 'decision_waiting', 'escalated', 'no_reply', 'objective_missed']);
+export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
+  'task_done_on_time',
+  'task_done_early',
+  'five_star',
+  'objective_achieved',
+  'task_at_risk',
+  'objective_at_risk',
+  'overload',
+  'new_feature',
+]);
+export const DAILY_PUSHES = 3;
+
 export type QuietHours = { enabled?: boolean; prayer_times?: boolean; after?: string; friday?: boolean; ramadan?: boolean };
 export type Prefs = {
   channels?: Record<string, boolean>;
@@ -195,7 +211,7 @@ type PendingAlert = {
 export async function deliverPending(
   admin: SupabaseClient,
   opts: { only?: string[]; ignoreQuiet?: boolean } = {},
-): Promise<{ pushed: number; held: number; off: number; whatsapped: number }> {
+): Promise<{ pushed: number; held: number; off: number; whatsapped: number; batched: number }> {
   const now = new Date();
   let q = admin
     .from('alerts')
@@ -209,7 +225,7 @@ export async function deliverPending(
   const { data, error } = await q;
   if (error) throw error;
   const rows = (data ?? []) as PendingAlert[];
-  const out = { pushed: 0, held: 0, off: 0, whatsapped: 0 };
+  const out = { pushed: 0, held: 0, off: 0, whatsapped: 0, batched: 0 };
   if (!rows.length) return out;
 
   const ids = [...new Set(rows.map((r) => r.profile_id))];
@@ -219,6 +235,23 @@ export async function deliverPending(
   ]);
   const people = new Map((ppl ?? []).map((p) => [p.id as string, p]));
   const waConfigured = !!Deno.env.get('WHATSAPP_TOKEN') && !!Deno.env.get('WHATSAPP_PHONE_ID');
+
+  // everyday pushes each person already got today (Riyadh): the budget
+  const riyadh = new Date(now.getTime() + 3 * 3_600_000);
+  const dayStart = new Date(Date.UTC(riyadh.getUTCFullYear(), riyadh.getUTCMonth(), riyadh.getUTCDate()) - 3 * 3_600_000);
+  const { data: pushedToday } = await admin
+    .from('alerts')
+    .select('profile_id, kind')
+    .in('profile_id', ids)
+    .eq('sent_push', true)
+    .gte('delivered_at', dayStart.toISOString());
+  const budgetUsed = new Map<string, number>();
+  for (const r of (pushedToday ?? []) as { profile_id: string; kind: AlertKind }[])
+    if (!EXCEPTION_KINDS.has(r.kind)) budgetUsed.set(r.profile_id, (budgetUsed.get(r.profile_id) ?? 0) + 1);
+  const batch = async (a: PendingAlert) => {
+    await admin.from('alerts').update({ delivered_at: now.toISOString(), sent_push: false, whatsapp_status: 'batched' }).eq('id', a.id);
+    out.batched++;
+  };
 
   // decide per alert: switched off / held for quiet hours / to send (grouped per person)
   const toSend = new Map<string, PendingAlert[]>();
@@ -238,6 +271,15 @@ export async function deliverPending(
         out.held++;
         continue;
       }
+    }
+    // the budget: exceptions always go; brief-only kinds never push; the rest until today's budget is used
+    if (!opts.ignoreQuiet && !EXCEPTION_KINDS.has(a.kind)) {
+      const used = budgetUsed.get(a.profile_id) ?? 0;
+      if (BRIEF_ONLY_KINDS.has(a.kind) || used >= DAILY_PUSHES) {
+        await batch(a);
+        continue;
+      }
+      budgetUsed.set(a.profile_id, used + 1);
     }
     toSend.set(a.profile_id, [...(toSend.get(a.profile_id) ?? []), a]);
   }

@@ -7,6 +7,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Device from 'expo-device';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/tokens';
+import i18n from '@/lib/i18n';
 
 export type PushStatus = 'unsupported' | 'checking' | 'denied' | 'on' | 'error';
 
@@ -50,6 +51,7 @@ async function register() {
         lightColor: colors.primary,
       });
     }
+    await registerCheckinButtons();
     let { status: perm } = await Notifications.getPermissionsAsync();
     if (perm !== 'granted') perm = (await Notifications.requestPermissionsAsync()).status;
     if (perm !== 'granted') return setStatus('denied');
@@ -67,6 +69,44 @@ async function register() {
     console.warn('[push] registration failed', e);
     setStatus('error');
   }
+}
+
+// ── one-tap check-in (BRD v1.2 FR-FUP-02): Done / On track / Blocked right on the notification ──
+// The server sends check-ins with categoryId 'checkin' (send-followups). The buttons open the app for a moment so the
+// answer is saved even if Muntej wasn't running; the task opens with the answer applied.
+const CHECKIN_ACTIONS = ['done', 'on_track', 'blocked'] as const;
+type CheckinAction = (typeof CHECKIN_ACTIONS)[number];
+
+async function registerCheckinButtons() {
+  if (!Notifications) return;
+  const ar = i18n.language === 'ar';
+  await Notifications.setNotificationCategoryAsync('checkin', [
+    { identifier: 'done', buttonTitle: ar ? 'خلصت ✓' : 'Done ✓', options: { opensAppToForeground: true } },
+    { identifier: 'on_track', buttonTitle: ar ? 'ماشية تمام' : 'On track', options: { opensAppToForeground: true } },
+    {
+      identifier: 'blocked',
+      buttonTitle: ar ? 'واقفة' : 'Blocked',
+      textInput: { submitButtonTitle: ar ? 'أرسل' : 'Send', placeholder: ar ? 'وش اللي موقفها؟' : "What's in the way?" },
+      options: { opensAppToForeground: true },
+    },
+  ]).catch((e) => console.warn('[push] check-in buttons', e));
+}
+
+/** a check-in button was tapped: save the answer (checkin_reply), then open the task */
+async function answerCheckin(taskId: string, action: CheckinAction, note: string | undefined) {
+  const rpc = supabase.rpc as unknown as (fn: string, args: object) => Promise<{ error: { message: string } | null }>;
+  const { error } = await rpc('checkin_reply', { p_task: taskId, p_reply: action, p_note: note ?? null });
+  if (error) console.warn('[push] check-in answer failed', error.message);
+}
+
+function handleResponse(r: import('expo-notifications').NotificationResponse) {
+  const data = r.notification.request.content.data as { taskId?: string } | undefined;
+  const action = r.actionIdentifier as CheckinAction;
+  if (data?.taskId && CHECKIN_ACTIONS.includes(action)) {
+    answerCheckin(data.taskId, action, r.userText).finally(() => openFrom(data));
+    return;
+  }
+  openFrom(data);
 }
 
 /** A tapped notification opens its task; anything else (grouped updates, decisions, overload, a test) opens Alerts.
@@ -98,8 +138,8 @@ export function usePushNotifications(signedIn: boolean) {
   useEffect(() => {
     if (!Notifications || !signedIn) return;
     // app was opened by tapping a notification
-    Notifications.getLastNotificationResponseAsync().then((r) => r && openFrom(r.notification.request.content.data));
-    const sub = Notifications.addNotificationResponseReceivedListener((r) => openFrom(r.notification.request.content.data));
+    Notifications.getLastNotificationResponseAsync().then((r) => r && handleResponse(r));
+    const sub = Notifications.addNotificationResponseReceivedListener(handleResponse);
     return () => sub.remove();
   }, [signedIn]);
 }

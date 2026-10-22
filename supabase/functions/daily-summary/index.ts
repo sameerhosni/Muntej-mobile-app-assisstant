@@ -82,6 +82,10 @@ const W = {
     logSummary: 'Sent your morning summary ({via})',
     logReason: 'Daily summary at {time}, as set in Alerts',
     newFor: 'New for you ✨',
+    allClear: 'All {n} tasks are moving. Nothing needs you today ✓',
+    allClearPush: 'Nothing needs you today ✓',
+    since: 'Since yesterday',
+    sinceN: '{n} updates are waiting quietly in the app',
   },
   ar: {
     subjectMgr: 'فريقك اليوم · {date}',
@@ -114,6 +118,10 @@ const W = {
     logSummary: 'أرسل ملخّص الصباح ({via})',
     logReason: 'الملخّص اليومي الساعة {time} حسب إعدادات التنبيهات',
     newFor: 'جديد لك ✨',
+    allClear: 'كل المهام ماشية ({n}). ما فيه شي يحتاجك اليوم ✓',
+    allClearPush: 'ما فيه شي يحتاجك اليوم ✓',
+    since: 'من أمس',
+    sinceN: '{n} تحديثات تنتظرك بهدوء في التطبيق',
   },
 } as const;
 
@@ -191,6 +199,14 @@ function managerSummary(me: Person, w: World, now: Date, lang: Lang): Summary | 
   if (!needs.length && !support.length && !mine.length && !working.length) return null;
 
   const date = when(now.toISOString(), lang);
+  // nothing needs them: one line, counted not listed (BRD v1.2 FR-BRF-04)
+  if (!needs.length && !support.length && !mine.length)
+    return {
+      subject: say(lang, 'subjectMgr', { date }),
+      headline: say(lang, 'allClear', { n: num(working.length, lang) }),
+      sections: [],
+      short: say(lang, 'allClearPush'),
+    };
   return {
     subject: say(lang, 'subjectMgr', { date }),
     headline: say(lang, 'pulse', { working: num(working.length, lang), late: num(late.length, lang), done: num(doneYesterday.length, lang) }),
@@ -373,6 +389,21 @@ async function sendOne(admin: SupabaseClient, me: Person, w: World, prefs: Prefs
     s.sections.push({
       title: say(lang, 'newFor'),
       items: fresh.slice(0, 2).map((f) => (lang === 'ar' ? `${f.title_ar}: ${f.benefit_ar}` : `${f.title}: ${f.benefit}`)),
+    });
+
+  // the everyday updates the notification budget kept quiet since yesterday (whatsapp_status 'batched'): counted here
+  const { data: quiet } = await admin
+    .from('alerts')
+    .select('title, title_ar')
+    .eq('profile_id', me.id)
+    .eq('whatsapp_status', 'batched')
+    .is('read_at', null)
+    .gte('created_at', new Date(now.getTime() - DAY).toISOString())
+    .order('created_at', { ascending: false });
+  if (quiet?.length)
+    s.sections.push({
+      title: say(lang, 'since'),
+      items: [say(lang, 'sinceN', { n: num(quiet.length, lang) }), ...quiet.slice(0, 3).map((a) => ((lang === 'ar' && a.title_ar) || a.title) as string)],
     });
 
   const hello = say(lang, 'hello', { name: firstName(me, lang) });

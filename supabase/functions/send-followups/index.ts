@@ -36,7 +36,9 @@ serve(async (req) => {
   const from = new Date(now.getTime() - 60 * 60 * 1000);
   const { data: due, error } = await admin
     .from('followups')
-    .select('id, task_id, recipient_id, message, message_ar, channel, task:tasks(title, status), recipient:profiles!followups_recipient_id_fkey(locale)')
+    .select(
+      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, status, owner_id, created_at), recipient:profiles!followups_recipient_id_fkey(locale)',
+    )
     .eq('status', 'scheduled')
     .gte('scheduled_at', from.toISOString())
     .lte('scheduled_at', now.toISOString())
@@ -48,8 +50,32 @@ serve(async (req) => {
   let skipped = 0;
   let held = 0;
   const prefs = await loadPrefs(admin, [...new Set((due ?? []).map((f) => f.recipient_id).filter((x): x is string => !!x))]);
+  // check-in limits (BRD FR-FUP-07): what each person / task already got today (Riyadh), and who answered in the last 24 h
+  const dayStart = riyadhDayStart(now);
+  const people = [...new Set((due ?? []).map((f) => f.recipient_id).filter((x): x is string => !!x))];
+  const taskIds = [...new Set((due ?? []).map((f) => f.task_id))];
+  const [{ data: sentToday }, { data: answered }] = await Promise.all([
+    people.length
+      ? admin.from('followups').select('task_id, recipient_id').eq('status', 'sent').gte('sent_at', dayStart.toISOString()).in('recipient_id', people)
+      : Promise.resolve({ data: [] }),
+    taskIds.length
+      ? admin
+          .from('activity_log')
+          .select('task_id, actor_id')
+          .in('task_id', taskIds)
+          .in('action', ['update_received', 'task_status_changed', 'task_updated'])
+          .gte('created_at', new Date(now.getTime() - DAY).toISOString())
+      : Promise.resolve({ data: [] }),
+  ]);
+  const perPerson = new Map<string, number>();
+  const perTask = new Set<string>();
+  for (const s of (sentToday ?? []) as { task_id: string; recipient_id: string }[]) {
+    perPerson.set(s.recipient_id, (perPerson.get(s.recipient_id) ?? 0) + 1);
+    perTask.add(s.task_id);
+  }
+  const ownerAnswered = new Set(((answered ?? []) as { task_id: string; actor_id: string | null }[]).map((a) => `${a.task_id}:${a.actor_id}`));
   for (const f of due ?? []) {
-    const task = f.task as unknown as { title: string; status: string } | null;
+    const task = f.task as unknown as { title: string; status: string; owner_id: string | null; created_at: string } | null;
     const locale = (f.recipient as unknown as { locale?: string } | null)?.locale;
     // a task that was finished or cancelled since the plan was made needs no more chasing
     if (!task || ['done', 'cancelled'].includes(task.status) || !f.recipient_id) {
@@ -69,8 +95,32 @@ serve(async (req) => {
       held++;
       continue;
     }
+    // a check-in (not the hand-off message right after creating) to the owner: one-tap buttons + the daily limits
+    const checkin = task.owner_id === f.recipient_id && Date.parse(f.scheduled_at) > Date.parse(task.created_at) + 30 * 60_000;
+    if (checkin) {
+      // they told Muntej something in the last 24 h: silence after that means on track, no need to ask
+      if (ownerAnswered.has(`${f.task_id}:${f.recipient_id}`)) {
+        await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
+        skipped++;
+        continue;
+      }
+      // at most one check-in per task and three per person a day: the rest waits for the next working morning
+      if (perTask.has(f.task_id) || (perPerson.get(f.recipient_id) ?? 0) >= 3) {
+        await admin.from('followups').update({ scheduled_at: nextWorkingMorning(now).toISOString() }).eq('id', f.id);
+        held++;
+        continue;
+      }
+    }
     const text = locale === 'ar' && f.message_ar ? f.message_ar : f.message;
-    const delivered = await sendPush([f.recipient_id], { title: task.title, body: text, data: { taskId: f.task_id } }, admin);
+    const delivered = await sendPush(
+      [f.recipient_id],
+      { title: task.title, body: text, data: { taskId: f.task_id, checkin }, ...(checkin ? { categoryId: 'checkin' } : {}) },
+      admin,
+    );
+    if (delivered) {
+      perTask.add(f.task_id);
+      perPerson.set(f.recipient_id, (perPerson.get(f.recipient_id) ?? 0) + 1);
+    }
     await admin
       .from('followups')
       .update(delivered ? { status: 'sent', sent_at: now.toISOString() } : { status: 'skipped' })
@@ -97,3 +147,19 @@ serve(async (req) => {
   });
   return json({ due: due?.length ?? 0, sent: sentCount, skipped, held, alerts });
 });
+
+const DAY = 86_400_000;
+const RIYADH = 3 * 3_600_000;
+
+/** 00:00 Riyadh today */
+function riyadhDayStart(now: Date): Date {
+  const l = new Date(now.getTime() + RIYADH);
+  return new Date(Date.UTC(l.getUTCFullYear(), l.getUTCMonth(), l.getUTCDate()) - RIYADH);
+}
+
+/** 09:00 Riyadh on the next working day (Sun–Thu) */
+function nextWorkingMorning(now: Date): Date {
+  let d = riyadhDayStart(now).getTime() + DAY;
+  while ([5, 6].includes(new Date(d + RIYADH).getUTCDay())) d += DAY;
+  return new Date(d + 9 * 3_600_000);
+}
