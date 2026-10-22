@@ -33,6 +33,8 @@ async function deliverNow() {
 import { buildPlan } from '../_shared/followup-plan.ts';
 
 const Priority = z.enum(['low', 'medium', 'high', 'urgent']);
+// the proof the finished work must show (tasks.proof_required): checked before it can be sent for review
+const Proof = z.enum(['none', 'any', 'file', 'image', 'link']);
 
 const NewTask = z.object({
   title: z.string(),
@@ -49,6 +51,7 @@ const NewTask = z.object({
   objective_id: z.string().nullable().describe('id from objectives (status active) when the task clearly belongs to one, else null'),
   also_for_ids: z.array(z.string()).describe('Other people named for this same work besides owner_id (ids from team); [] when one person'),
   estimate_hours: z.number().nullable().describe('Hours of work when the user says it ("8 hours of work", "takes two days" = 16), else null'),
+  proof: Proof.describe('What the finished work must show, see PROOF'),
 });
 
 const TaskUpdate = z.object({
@@ -65,6 +68,7 @@ const TaskUpdate = z.object({
   objective_id: z.string().nullable().describe('Link the task to this objective (id from objectives); null = unchanged'),
   unlink_objective: z.boolean().describe('true only when the user wants the task taken out of its objective'),
   estimate_hours: z.number().nullable().describe('New estimate in hours ("it takes 12 hours"); null = unchanged'),
+  proof: Proof.nullable().describe('New proof rule when the user asks ("needs a photo", "no proof needed"); null = unchanged'),
 });
 
 const Role = z.enum(['super_admin', 'admin', 'manager', 'employee']);
@@ -226,6 +230,7 @@ Each turn, choose ONE action:
 - "bulk": the user wants the SAME change on several tasks at once: "mark all my tasks done", "خلص كل مهامي", "move all high-priority tasks to Sunday", "give all Faisal's tasks to Noura", "cancel all overdue tasks", "delete the security tasks". Fill bulk.filter (mine_only for "my tasks", owner_id for someone's tasks, assigned_by_me, priority, late_only, due_before, title_contains, objective_id) OR bulk.task_ids when they listed specific tasks, and bulk.change (kind status + status / due + due_at / priority + priority / owner + owner_id / cancel / delete). Nothing changes until the user confirms on a preview card that lists the tasks: the server writes the reply. Use "status"/"update"/"cancel" instead when exactly one task is meant.
 - SEVERAL PEOPLE: when a new task names more than one person ("for Ahmed, Sarah and Ali", "لفيصل وعبدالله"), use "create" with the first person as owner_id and the others in task.also_for_ids; the server asks the user whether it's one task each or one shared task. Otherwise also_for_ids = [].
 - "recurring": work that REPEATS ("standup every Monday 10:00 for Faisal", "monthly report on the 1st", "every other Tuesday", "كل يوم أحد", "rotate weekly between Faisal and Noura") → op "create" with fields (title, owner_id or rotation_ids, freq, every, weekdays, month_day, time_of_day, starts_on/ends_on when said, priority, definition_of_done, estimate_hours). Changing an existing schedule from recurring[] ("move all future standups to Tuesday", "make it 9am") → op "update" with only the changing fields (+ recurring_id). "Skip next Monday's standup" → skip_next; "pause the standup for 2 weeks" → pause + pause_until; "start it again" → resume; "stop the monthly report" → stop. Questions about them ("what repeats?") → "none" and answer from recurring[]. Nothing is created until the user confirms the schedule on a card: the server writes the reply.
+- PROOF: on create, set task.proof to what the finished work should show: a document, report, deck, design, contract or sheet → "file"; a website, page, ticket or online item → "link"; on-site or physical work (installed, delivered, cleaned, printed, visited) → "image"; client- or executive-facing deliverables without a clear form → "any"; quick internal asks, calls, reminders and personal to-dos → "none". On update, set update.proof only when the user asks for or drops a proof requirement.
 - ESTIMATES: when the user says how long work takes ("8 hours of work", "takes two days" = 16 h), put it in task.estimate_hours / update.estimate_hours; the server turns it into a due date in working days (after the owner's current workload) when no date was said — then leave due_at null (never work the date out yourself), do NOT call the due date missing and don't mention a date: the server adds it to your reply. Each open task has likely_done (Muntej's prediction from the owner's queue and past speed) and likely_late_days: use them for "when will X be done?" / "what will be late?" questions, saying it's an estimate.
 - "cancel": the user wants a task stopped ("cancel it", "الغها", "ما نحتاجها"). Put its id in target_task_id (most recent task unless another is meant).
 - "delete": the user wants a task removed completely ("delete it", "احذفها"). Put its id in target_task_id. Deleting needs one tap to confirm, so say you've shown it and they just need to confirm. Prefer "cancel" when they only mean it's no longer needed.
@@ -700,6 +705,7 @@ serve(async (req) => {
         objective_id: str('objective_id'),
         unlink_objective: a.unlink_objective === true,
         estimate_hours: typeof a.estimate_hours === 'number' ? a.estimate_hours : null,
+        proof: (str('proof_required') as z.infer<typeof Proof> | null) ?? null,
       },
       target_task_id: null,
       org: null,
@@ -736,6 +742,7 @@ serve(async (req) => {
         objective_id: str('objective_id'),
         also_for_ids: [],
         estimate_hours: typeof a.estimate_hours === 'number' ? a.estimate_hours : null,
+        proof: (str('proof') as z.infer<typeof Proof> | null) ?? 'none',
       },
       update: null,
       target_task_id: null,
@@ -973,6 +980,7 @@ ${message}` : message },
     const { data, error } = await db.rpc('create_task_with_plan', { p: { ...t, followup_plan, source, transcript: message || null } });
     if (error) throw new HttpError(400, error.message);
     const id = data as string;
+    if (t.proof && t.proof !== 'none') await db.from('tasks').update({ proof_required: t.proof }).eq('id', id);
     // only active objectives get new work (a missed one is linked by asking explicitly)
     const objective = wantObjective && liveObjectives.some((o) => o.id === wantObjective && o.status === 'active') ? wantObjective : null;
     if (objective) {
@@ -1078,6 +1086,7 @@ ${message}` : message },
     if (u.goal) patch.goal = u.goal;
     if (u.definition_of_done) patch.definition_of_done = u.definition_of_done;
     if (u.budget) patch.budget = u.budget;
+    if (u.proof) patch.proof_required = u.proof;
     // hours of work: saved on the task; with no due date (now or in this message) it also sets one in working days
     const est = u.estimate_hours && u.estimate_hours > 0 && u.estimate_hours <= 2000 ? u.estimate_hours : null;
     const target0 = taskById.get(u.task_id);
@@ -1105,7 +1114,11 @@ ${message}` : message },
       };
       ownerReason = patch.owner_id ? u.owner_reason : null;
     } else if (changes) {
-      const { estimate_hours: estPatch, ...rpcPatch } = patch;
+      const { estimate_hours: estPatch, proof_required: proofPatch, ...rpcPatch } = patch;
+      if (proofPatch) {
+        const { error } = await db.from('tasks').update({ proof_required: proofPatch }).eq('id', u.task_id);
+        if (error) throw new HttpError(400, error.message);
+      }
       if (Object.keys(rpcPatch).length) {
         const { error } = await db.rpc('update_task_from_chat', { p_task: u.task_id, patch: rpcPatch });
         if (error) throw new HttpError(400, error.message);

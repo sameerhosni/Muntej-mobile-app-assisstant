@@ -457,3 +457,6 @@ verify_jwt = false
 
 [functions.brand]
 verify_jwt = false
+
+[functions.verify-proof]
+verify_jwt = false

@@ -59,6 +59,13 @@
           "microphonePermission": "Muntej uses the microphone so you can say a task out loud."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Muntej uses your photos so you can attach proof of finished work.",
+          "cameraPermission": "Muntej uses the camera so you can photograph proof of finished work."
+        }
+      ],
       "expo-asset",
       [
         "expo-notifications",

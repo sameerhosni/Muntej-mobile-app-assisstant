@@ -125,7 +125,7 @@ async function run(admin: SupabaseClient, dry: boolean) {
     admin.from('autopilot_prefs').select('profile_id, rules, chase_reminders, auto_approve_days'),
     admin.from('autopilot_marks').select('key, created_at').gte('created_at', new Date(now - 60 * DAY).toISOString()),
     admin.from('decisions').select('task_id').eq('status', 'pending'),
-    admin.from('reviews').select('id, task_id, reviewer_id, created_at, auto_approve_at').is('decision', null),
+    admin.from('reviews').select('id, task_id, reviewer_id, created_at, auto_approve_at, ai_check').is('decision', null),
   ]);
   for (const r of [peopleRes, tasksRes, prefsRes, marksRes, decRes, revRes]) if (r.error) throw r.error;
 
@@ -406,7 +406,16 @@ async function run(admin: SupabaseClient, dry: boolean) {
   // ── 5. reviews: remind after 1 working day, approve by itself after N ──
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const alerts: Record<string, unknown>[] = [];
-  for (const r of (revRes.data ?? []) as { id: string; task_id: string; reviewer_id: string | null; created_at: string; auto_approve_at: string | null }[]) {
+  type ReviewRow = {
+    id: string;
+    task_id: string;
+    reviewer_id: string | null;
+    created_at: string;
+    auto_approve_at: string | null;
+    /** Muntej's proof check (verify-proof) */
+    ai_check: { verdict: string; missing: string[] } | null;
+  };
+  for (const r of (revRes.data ?? []) as ReviewRow[]) {
     const t = byId.get(r.task_id);
     if (!t || t.status !== 'submitted') continue;
     const owner = active(t.owner_id);
@@ -435,6 +444,8 @@ async function run(admin: SupabaseClient, dry: boolean) {
         ar: `اعتمد «${t.title}» بنفسه (ما انراجعت خلال ${limit} أيام عمل)`,
         why: `Waiting for ${first(reviewer)} since ${whenText(r.created_at, false)}`,
       });
+      // what Muntej's proof check found missing, if anything (so "approved by itself" never hides a gap)
+      const flagged = r.ai_check?.verdict === 'missing' ? r.ai_check.missing.slice(0, 2).join('; ') : '';
       for (const to of [owner, reviewer]) {
         alerts.push({
           profile_id: to.id,
@@ -442,9 +453,15 @@ async function run(admin: SupabaseClient, dry: boolean) {
           subject_id: owner.id,
           task_id: t.id,
           title: to.id === owner.id ? `Muntej approved "${t.title}" ✓` : `Muntej approved "${t.title}" for you`,
-          body: to.id === owner.id ? 'Nice work. It counts as done.' : `${first(owner)}'s work waited ${limit} working days for a review.`,
+          body:
+            to.id === owner.id
+              ? 'Nice work. It counts as done.'
+              : `${first(owner)}'s work waited ${limit} working days for a review.${flagged ? ` Muntej's proof check flagged: ${flagged}.` : ''}`,
           title_ar: to.id === owner.id ? `منتج اعتمد «${t.title}» ✓` : `منتج اعتمد «${t.title}» عنك`,
-          body_ar: to.id === owner.id ? 'شغل حلو. انحسبت خالصة.' : `شغل ${first(owner, true)} انتظر المراجعة ${limit} أيام عمل.`,
+          body_ar:
+            to.id === owner.id
+              ? 'شغل حلو. انحسبت خالصة.'
+              : `شغل ${first(owner, true)} انتظر المراجعة ${limit} أيام عمل.${flagged ? ` مراجعة منتج للإثبات لقت ناقص: ${flagged}.` : ''}`,
           dedupe_key: `auto_approve:${r.id}:${to.id}`,
         });
       }

@@ -16,6 +16,7 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
 import { ReviewBar } from '@/features/review/ReviewBar';
+import { ProofSection } from '@/features/proof/ProofSection';
 import type { Enum } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
 import { shortName } from '@/features/decisions/people';
@@ -365,7 +366,12 @@ export default function TaskDetailScreen() {
         </View>
         )}
 
-        {/* proof */}
+        {/* proof: live tasks get the real block (what's needed, attached, add, Muntej's check); the demo keeps the grid */}
+        {live && d ? (
+          <View style={{ paddingHorizontal: spacing.screen }}>
+            <ProofSection task={d} me={me.data} />
+          </View>
+        ) : (
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.sm }}>
           <AppText variant="section">{t('proof')}</AppText>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -394,6 +400,7 @@ export default function TaskDetailScreen() {
             </Pressable>
           </View>
         </View>
+        )}
       </ScrollView>
 
       {live && d ? (
