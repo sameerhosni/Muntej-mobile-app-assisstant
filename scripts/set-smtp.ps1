@@ -20,10 +20,11 @@ $pass = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServi
 $pass = ($pass -replace '\s', '')
 if ($pass.Length -lt 16) { Write-Host 'That does not look like a Gmail app password (16 letters). Nothing changed.' -ForegroundColor Red; exit 1 }
 
-$otp = Get-Content "$root\supabase\templates\otp-code.html" -Raw -Encoding UTF8
-$invite = Get-Content "$root\supabase\templates\invite.html" -Raw -Encoding UTF8
+# plain .NET reads: Get-Content attaches file details that ConvertTo-Json would send as objects, not text
+$otp = [IO.File]::ReadAllText("$root\supabase\templates\otp-code.html", [Text.Encoding]::UTF8)
+$invite = [IO.File]::ReadAllText("$root\supabase\templates\invite.html", [Text.Encoding]::UTF8)
 # the Arabic subjects live in a UTF-8 file: Windows PowerShell misreads non-English text inside a script file
-$words = Get-Content "$root\supabase\templates\email-subjects.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+$words = [IO.File]::ReadAllText("$root\supabase\templates\email-subjects.json", [Text.Encoding]::UTF8) | ConvertFrom-Json
 
 $body = @{
   external_email_enabled                = $true
