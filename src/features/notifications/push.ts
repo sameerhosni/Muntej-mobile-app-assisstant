@@ -94,7 +94,7 @@ async function registerCheckinButtons() {
 
 /** a check-in button was tapped: save the answer (checkin_reply), then open the task */
 async function answerCheckin(taskId: string, action: CheckinAction, note: string | undefined) {
-  const rpc = supabase.rpc as unknown as (fn: string, args: object) => Promise<{ error: { message: string } | null }>;
+  const rpc = supabase.rpc.bind(supabase) as unknown as (fn: string, args: object) => Promise<{ error: { message: string } | null }>;
   const { error } = await rpc('checkin_reply', { p_task: taskId, p_reply: action, p_note: note ?? null });
   if (error) console.warn('[push] check-in answer failed', error.message);
 }

@@ -47,10 +47,11 @@ export async function getCaller(req: Request): Promise<Caller> {
   const { data: userData, error } = await db.auth.getUser(auth.slice(7));
   if (error || !userData.user) throw new HttpError(401, 'Not signed in');
 
-  const { data: profile } = await db.from('profiles').select('id').eq('user_id', userData.user.id).single();
-  if (!profile) throw new HttpError(403, 'No profile for this user');
+  // one login can be in several accounts: the profile of the account they're working in now (account_sessions)
+  const { data: profileId } = await db.rpc('current_profile_id');
+  if (!profileId) throw new HttpError(403, 'You are not invited to Muntej yet. Ask your admin to add you.');
 
-  return { db, userId: userData.user.id, profileId: profile.id };
+  return { db, userId: userData.user.id, profileId: profileId as string };
 }
 
 /** Wraps a handler with CORS preflight + error → JSON mapping. */

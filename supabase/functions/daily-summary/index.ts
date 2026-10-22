@@ -346,7 +346,8 @@ async function sendWhatsAppSummary(phone: string, lang: Lang, s: Summary): Promi
 async function loadWorld(admin: SupabaseClient): Promise<World> {
   const since = new Date(Date.now() - 14 * DAY).toISOString();
   const [peopleRes, tasksRes, decRes, revRes] = await Promise.all([
-    admin.from('profiles').select(PERSON_COLS).neq('status', 'deleted'),
+    // hidden = the super admin's viewing seat in an account: never part of the work
+    admin.from('profiles').select(PERSON_COLS).neq('status', 'deleted').eq('hidden', false),
     admin
       .from('tasks')
       .select('id, title, owner_id, assigner_id, status, due_at, closed_at, estimate_hours')

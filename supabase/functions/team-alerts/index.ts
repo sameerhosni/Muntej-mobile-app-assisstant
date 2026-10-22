@@ -42,6 +42,7 @@ type Person = {
   phone: string | null;
   whatsapp_connected: boolean;
   weekly_capacity_hours: number | null;
+  account_id: string;
 };
 
 type Task = {
@@ -197,7 +198,7 @@ async function insertNew(admin: SupabaseClient, rows: AlertRow[]): Promise<Inser
   return out;
 }
 
-const PERSON_COLS = 'id, full_name, full_name_ar, role, manager_id, status, locale, phone, whatsapp_connected, weekly_capacity_hours';
+const PERSON_COLS = 'id, full_name, full_name_ar, role, manager_id, status, locale, phone, whatsapp_connected, weekly_capacity_hours, account_id';
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
@@ -226,7 +227,8 @@ serve(async (req) => {
 
   const since = new Date(now.getTime() - DAY).toISOString();
   const [peopleRes, openRes, doneRes, starRes] = await Promise.all([
-    admin.from('profiles').select(PERSON_COLS).neq('status', 'deleted'),
+    // hidden = the super admin's viewing seat in an account: never part of the work
+    admin.from('profiles').select(PERSON_COLS).neq('status', 'deleted').eq('hidden', false),
     admin
       .from('tasks')
       .select('id, title, owner_id, status, due_at, start_at, created_at, closed_at, progress, estimate_hours')
@@ -258,7 +260,8 @@ serve(async (req) => {
   const managersOf = (personId: string): string[] => {
     const m = active(people.get(personId)?.manager_id);
     if (m) return [m.id];
-    return admins.map((a) => a.id).filter((id) => id !== personId);
+    // an admin of the same account only (accounts never mix)
+    return admins.filter((a) => a.account_id === people.get(personId)?.account_id).map((a) => a.id).filter((id) => id !== personId);
   };
 
   const rows: AlertRow[] = [];

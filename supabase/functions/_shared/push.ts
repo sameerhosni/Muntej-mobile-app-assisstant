@@ -17,8 +17,15 @@ export function adminClient(): SupabaseClient {
  * Tokens Expo reports as no longer registered are removed.
  */
 export async function sendPush(profileIds: string[], msg: PushMessage, admin = adminClient()): Promise<number> {
-  const ids = [...new Set(profileIds.filter(Boolean))];
+  let ids = [...new Set(profileIds.filter(Boolean))];
   if (!ids.length) return 0;
+  // one login can be in several accounts (one profile each): its phone was registered under one of them
+  const { data: logins } = await admin.from('profiles').select('user_id').in('id', ids).not('user_id', 'is', null);
+  const userIds = [...new Set((logins ?? []).map((r) => r.user_id as string))];
+  if (userIds.length) {
+    const { data: same } = await admin.from('profiles').select('id').in('user_id', userIds);
+    ids = [...new Set([...ids, ...(same ?? []).map((r) => r.id as string)])];
+  }
   const { data: rows, error } = await admin.from('push_tokens').select('token').in('profile_id', ids);
   if (error) throw error;
   const tokens = (rows ?? []).map((r) => r.token as string);

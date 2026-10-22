@@ -115,6 +115,17 @@ const ObjectiveFields = z.object({
   due_at: z.string().nullable().describe('ISO 8601 datetime with +03:00 offset'),
 });
 
+// accounts (multi-tenant): open a new company account (super admin), work in another account, list them
+const AccountChange = z.object({
+  op: z.enum(['create', 'switch', 'list']),
+  account_id: z.string().nullable().describe('id from accounts, for switch'),
+  name: z.string().nullable().describe('new account (company) name in Latin letters, for create'),
+  name_ar: z.string().nullable().describe('the name in Arabic letters when you can write it'),
+  admin_full_name: z.string().nullable().describe("the new account's admin, Latin letters"),
+  admin_full_name_ar: z.string().nullable(),
+  admin_email: z.string().nullable(),
+});
+
 const ObjectiveChange = z.object({
   op: z.enum(['create', 'update', 'cancel', 'distribute']),
   objective_id: z.string().nullable().describe('id from objectives; null only for create'),
@@ -193,12 +204,13 @@ const Brief = z.object({
 const ChatOutput = z.object({
   language: z.enum(['en', 'ar']),
   reply: z.string(),
-  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'recurring', 'cancel', 'delete', 'org', 'objective']),
+  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'recurring', 'cancel', 'delete', 'org', 'objective', 'account']),
   task: NewTask.nullable().describe('Only when action = create'),
   update: TaskUpdate.nullable().describe('Only when action = update; null fields mean "unchanged"'),
   target_task_id: z.string().nullable().describe('Only when action = cancel or delete'),
   org: OrgChange.nullable().describe('Only when action = org'),
   objective: ObjectiveChange.nullable().describe('Only when action = objective'),
+  account: AccountChange.nullable().describe('Only when action = account'),
   status_change: StatusChange.nullable().describe('Only when action = status'),
   bulk: BulkChange.nullable().describe('Only when action = bulk'),
   recurring: RecurringChange.nullable().describe('Only when action = recurring'),
@@ -221,6 +233,7 @@ Each turn, choose ONE action:
   WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team (never former_team) using, in order: skill level and years in the skills the work needs, title, recent_tasks similar to this one, then the lower load (stats.open / open_estimate_hours vs weekly_hours; avoid people marked overloaded or with late tasks when someone similar is free). Put the data-based reason in owner_reason (one short clause, user's language, e.g. "Selenium 4/5, 3 years, only 2 open tasks"). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
 - "org": the user wants to change the team itself (people, not tasks): add someone ("add Reem as QA engineer under Khalid, 5 years, Selenium and API testing" → op "add", person_id null, fields full_name, full_name_ar when you can write it, title + title_ar, manager_id, years_experience, skills_detail), move someone ("move Saad under Maha" → op "move", fields.manager_id), change details ("Faisal is now an admin" → role; "Khalid works 35 hours a week" → weekly_capacity_hours; "Noura knows Docker now" → skills_detail with just that skill; op "update"), or someone left / came back ("Noura left the company" → op "status", status "deleted"). Fill ONLY the fields that change, all others null. person_id must come from team or former_team. Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short.
   OBJECTIVE LINK: objectives lists the company objectives the user can see (each task can belong to one). On create, set task.objective_id to the active objective the task clearly belongs to (same topic, client, project or deliverable; owner in that objective's team is a hint, never enough on its own); if none clearly fits, null — never force a link. When you link it, say so in the reply ("added to objective «X»" / "وحطيتها تحت هدف «X»").
+- "account": ACCOUNTS (companies using Muntej). "Create an account for Al-Rajhi Trading, admin Ali ali@rajhi.com" → op "create" with name (+ name_ar when you can), admin_full_name (+ _ar), admin_email (only when user.is_super_admin; otherwise action none and say only the super admin opens accounts). "Switch to / open / work in Al-Rajhi" → op "switch" with account_id from accounts. "Show my accounts" / "which accounts" → op "list". The server writes the reply. Adding PEOPLE to the current account is still "org" (op add, with their email so they get an invite).
 - "objective": the user wants to create, change, cancel or spread out an OBJECTIVE (a bigger goal with a start and end date that tasks roll up to): "new objective: launch the Riyadh branch by end of March" → op "create" with fields.title (+ title_ar when you can), due_at, start_at (null = from now), owner_id (null = the user), description; "move objective X to April" / "make Khalid accountable for X" / "rename X" → op "update" with only the changing fields; "cancel objective X" → op "cancel"; "spread / distribute X's tasks over its time" → op "distribute". objective_id must come from objectives (null only for create). Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short. Changing an objective's dates also moves its open tasks inside the new window.
 - OBJECTIVE QUESTIONS ("how are our objectives?", "which objectives are at risk?", "what's blocking objective X?", "كيف أهدافنا؟"): action "none", answer in 1-3 short sentences from objectives[] only: progress_pct (tasks done) vs time_used_pct (time passed), tasks.late, tasks.unassigned, at_risk, and issues (late, unassigned, blocked, outside_window = tasks due after the objective ends or before it starts). Name the real tasks/people in issues; never invent numbers. An objective with no tasks yet is a risk when time is passing. Suggest a fix when obvious (assign the unassigned task, move a date, distribute).
 - "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). "Put it under objective X" → update.objective_id; "take it out of the objective" → update.unlink_objective true (otherwise false). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null. The user may point at another task by its title, client or owner ("move the lease task to Thursday", "مهمة فيصل خلها بكرة"): match it in recent_chat_tasks or open_tasks.
@@ -305,9 +318,11 @@ type PersonRow = {
   email: string | null;
   whatsapp_connected: boolean;
   telegram_connected: boolean;
+  /** the super admin's viewing seat in an account: never part of the team */
+  hidden: boolean;
 };
 const PERSON_COLS =
-  'id, full_name, full_name_ar, role, title, title_ar, skills, skills_detail, locale, manager_id, status, years_experience, weekly_capacity_hours, phone, email, whatsapp_connected, telegram_connected';
+  'id, full_name, full_name_ar, role, title, title_ar, skills, skills_detail, locale, manager_id, status, years_experience, weekly_capacity_hours, phone, email, whatsapp_connected, telegram_connected, hidden';
 
 /** keys upsert_person accepts from a chat proposal (the RPC itself enforces who may change what) */
 const ORG_KEYS = [
@@ -402,10 +417,13 @@ serve(async (req) => {
   ]);
   // repeating schedules the caller can see (a missing table just means none)
   const { data: recurringRows } = await db.from('recurring_tasks').select(RECURRING_COLS).eq('status', 'active').limit(50);
+  // accounts this login can work in (my_accounts: all of them for the super admin)
+  const { data: accountRows } = await db.rpc('my_accounts');
+  const myAccounts = (accountRows ?? []) as MyAccount[];
   const recurring = (recurringRows ?? []) as RecurringRow[];
   // everyone (incl. people who left) for names and org changes; `team` = people who can still get work
   const everyone = (people ?? []) as PersonRow[];
-  const team = everyone.filter((p) => p.status !== 'deleted');
+  const team = everyone.filter((p) => p.status !== 'deleted' && !p.hidden);
   const allTasks = (tasks ?? []) as TaskRow[];
   const nameOf = (id: string | null) => (id ? everyone.find((p) => p.id === id)?.full_name ?? null : null);
   const open = allTasks.filter((t) => ACTIVE.includes(t.status));
@@ -610,7 +628,9 @@ serve(async (req) => {
 
   const context = {
     current_time_riyadh: `${riyadhNow} (${now.toISOString()} UTC)`,
-    user: { id: profileId, name: nameOf(profileId), role: meRow?.role ?? null },
+    user: { id: profileId, name: nameOf(profileId), role: meRow?.role ?? null, is_super_admin: meRow?.role === 'super_admin' },
+    // the accounts this login can work in (all of them for the super admin); active = the one this chat is in
+    accounts: myAccounts.map((a) => ({ id: a.id, name: a.name, name_ar: a.name_ar, people: a.people, member: a.member, active: a.active })),
     team: team.map((p) => ({
       id: p.id,
       name: p.full_name,
@@ -716,6 +736,7 @@ serve(async (req) => {
       suggestions: [],
       candidates: [],
       brief: null,
+      account: null,
     };
   } else if (body.apply_create?.task) {
     // a choice on a people / duplicate card: the task as proposed, created without asking again
@@ -754,6 +775,7 @@ serve(async (req) => {
       suggestions: [],
       candidates: [],
       brief: null,
+      account: null,
     };
   } else {
   // ── ask the model ──
@@ -1347,6 +1369,15 @@ ${message}` : message },
     parsed.suggestions = [];
   }
 
+  // ── accounts: create (super admin), switch, list — done right away, the server words the reply ──
+  let accountPayload: Record<string, unknown> | null = null;
+  if (parsed.action === 'account' && parsed.account) {
+    const r = await runAccount(db, parsed.account, myAccounts, meRow?.role === 'super_admin', parsed.language === 'ar');
+    parsed.reply = r.reply;
+    accountPayload = r.payload;
+    parsed.suggestions = [];
+  }
+
   // ── task card snapshot ──
   let payload: Record<string, unknown> | null = null;
   if (recurringProposal) {
@@ -1608,6 +1639,8 @@ ${message}` : message },
       ? `تقصد مهمة «${t.title}»${owner ? ` (${owner})` : ''}؟ بعدّل: ${parts.join('، ')}. أكّد لي وأسويها.`
       : `Do you mean "${t.title}"${owner ? ` (${owner})` : ''}? I'll change: ${parts.join(', ')}. Confirm and I'll do it.`;
   }
+
+  if (accountPayload) payload = accountPayload;
 
   if (estimateNote && (action === 'created' || action === 'updated')) parsed.reply = `${parsed.reply} ${estimateNote}`;
 
@@ -2139,6 +2172,84 @@ async function undoMany(db: Caller['db'], profileId: string, raw: string[], ar: 
   return json({ messages: [botMsg] });
 }
 
+// ─── accounts by conversation ───────────────────────────────────────────────────
+
+type MyAccount = { id: string; name: string; name_ar: string | null; status: string; people: number; member: boolean; active: boolean };
+
+/**
+ * Emails a Muntej invitation (Supabase Auth "invite", sent through the project's SMTP: sales@muntej.app) and creates
+ * their login, which handle_new_user links to every profile with that email. An email that already has a login
+ * (someone joining a second account) gets no email: the new account simply shows up in their Settings.
+ */
+async function inviteByEmail(email: string, name: string | null): Promise<'invited' | 'has_login' | 'failed'> {
+  const { error } = await adminClient().auth.admin.inviteUserByEmail(email, { data: { full_name: name ?? undefined } });
+  if (!error) return 'invited';
+  if (/already|registered|exists/i.test(error.message)) return 'has_login';
+  console.error('invite failed', email, error.message);
+  return 'failed';
+}
+
+const accountLabel = (a: Pick<MyAccount, 'name' | 'name_ar'>, ar: boolean) => (ar && a.name_ar) || a.name;
+
+async function runAccount(
+  db: Caller['db'],
+  a: z.infer<typeof AccountChange>,
+  accounts: MyAccount[],
+  superAdmin: boolean,
+  ar: boolean,
+): Promise<{ reply: string; payload: Record<string, unknown> | null }> {
+  const say = (en: string, arText: string) => (ar ? arText : en);
+
+  if (a.op === 'list') {
+    if (!accounts.length) return { reply: say("You're not in any account yet.", 'للحين ما أنت في أي حساب.'), payload: null };
+    const lines = accounts.map(
+      (x) => `${x.active ? '● ' : '○ '}${accountLabel(x, ar)} (${x.people} ${say('people', 'شخص')})${x.member ? '' : say(' · viewing only', ' · مشاهدة فقط')}`,
+    );
+    return { reply: `${say('Your accounts:', 'حساباتك:')}\n${lines.join('\n')}`, payload: null };
+  }
+
+  if (a.op === 'switch') {
+    const target = accounts.find((x) => x.id === a.account_id);
+    if (!target) return { reply: say("I couldn't find that account. Say \"show my accounts\" to see them.", 'ما لقيت هالحساب. قل "وريني حساباتي" وأعرضها لك.'), payload: null };
+    if (target.active) return { reply: say(`You're already in ${accountLabel(target, false)}.`, `أنت أصلاً في ${accountLabel(target, true)}.`), payload: null };
+    const { error } = await db.rpc('switch_account', { p_account: target.id });
+    if (error) return { reply: say(`I couldn't switch: ${error.message}`, `ما قدرت أبدّل: ${error.message}`), payload: null };
+    return {
+      reply: say(`Done, you're now working in ${accountLabel(target, false)}.`, `تم، الحين أنت شغال في ${accountLabel(target, true)}.`),
+      payload: { account_switched: { id: target.id, name: accountLabel(target, ar) } },
+    };
+  }
+
+  // create: the super admin only (create_account checks it again)
+  if (!superAdmin) return { reply: say('Only the super admin can open new accounts.', 'فتح الحسابات الجديدة للمسؤول العام بس.'), payload: null };
+  if (!a.name || !a.admin_email)
+    return { reply: say("What's the company's name and its admin's email?", 'وش اسم الشركة وإيميل المسؤول فيها؟'), payload: null };
+  const { data, error } = await db.rpc('create_account', {
+    p_name: a.name,
+    p_name_ar: a.name_ar,
+    p_admin_name: a.admin_full_name,
+    p_admin_name_ar: a.admin_full_name_ar,
+    p_admin_email: a.admin_email,
+  });
+  if (error) return { reply: say(`I couldn't create it: ${error.message}`, `ما قدرت أنشئه: ${error.message}`), payload: null };
+  const made = data as { account_id: string; admin_email: string };
+  const invite = await inviteByEmail(made.admin_email, a.admin_full_name);
+  const admin = (ar ? a.admin_full_name_ar : null) ?? a.admin_full_name ?? made.admin_email;
+  const sent =
+    invite === 'invited'
+      ? say(` I emailed ${made.admin_email} an invitation.`, ` وأرسلت دعوة على ${made.admin_email}.`)
+      : invite === 'has_login'
+        ? say(` ${admin} already uses Muntej, so the new account shows up in their Settings.`, ` ${admin} يستخدم منتج أصلاً، فالحساب الجديد يطلع له في الإعدادات.`)
+        : say(` The invitation email didn't go out; ${admin} can still sign in with ${made.admin_email}.`, ` ما انرسلت الدعوة، بس ${admin} يقدر يدخل بإيميله ${made.admin_email}.`);
+  return {
+    reply:
+      say(`Done, "${a.name}" is open with ${admin} as its admin.`, `تم، فتحت حساب «${a.name_ar ?? a.name}» والمسؤول فيه ${admin}.`) +
+      sent +
+      say(' Say "switch to ' + a.name + '" to look inside.', ` قل "بدّل لـ${a.name_ar ?? a.name}" وتدخل تشوفه.`),
+    payload: { account_created: { id: made.account_id, name: a.name } },
+  };
+}
+
 // ─── team changes by conversation ───────────────────────────────────────────────
 
 type OrgChange = z.infer<typeof OrgChange>;
@@ -2368,12 +2479,20 @@ async function applyOrg(db: Caller['db'], profileId: string, raw: unknown, ar: b
   if (error) throw new HttpError(400, error.message);
   await deliverNow();
 
-  const { data: person } = await db.from('profiles').select('full_name, full_name_ar').eq('id', id as string).single();
+  const { data: person } = await db.from('profiles').select('full_name, full_name_ar, email, user_id').eq('id', id as string).single();
   const name = person ? ((ar ? person.full_name_ar : null) ?? person.full_name) : '';
+  // a new person with an email and no login yet gets an invitation email (sales@muntej.app)
+  const invite = isNew && person?.email && !person.user_id ? await inviteByEmail(person.email, person.full_name) : null;
+  const invited =
+    invite === 'invited'
+      ? ar
+        ? ` وأرسلت له دعوة على ${person!.email}.`
+        : ` I emailed ${person!.email} an invitation.`
+      : '';
   const reply = isNew
     ? ar
-      ? `تم، أضفت ${name} للفريق.`
-      : `Done, ${name} is now on the team.`
+      ? `تم، أضفت ${name} للفريق.${invited}`
+      : `Done, ${name} is now on the team.${invited}`
     : patch.status === 'deleted'
       ? ar
         ? `تم، سجّلت إن ${name} ترك الشركة.`

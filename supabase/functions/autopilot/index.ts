@@ -26,6 +26,7 @@ type Person = {
   status: string;
   locale: string;
   weekly_capacity_hours: number | null;
+  account_id: string;
 };
 type Task = {
   id: string;
@@ -117,7 +118,8 @@ async function run(admin: SupabaseClient, dry: boolean) {
   const actions: Action[] = [];
 
   const [peopleRes, tasksRes, prefsRes, marksRes, decRes, revRes] = await Promise.all([
-    admin.from('profiles').select('id, full_name, full_name_ar, role, manager_id, status, locale, weekly_capacity_hours').neq('status', 'deleted'),
+    // hidden = the super admin's viewing seat in an account: never part of the work
+    admin.from('profiles').select('id, full_name, full_name_ar, role, manager_id, status, locale, weekly_capacity_hours, account_id').neq('status', 'deleted').eq('hidden', false),
     admin
       .from('tasks')
       .select('id, title, owner_id, assigner_id, status, priority, due_at, updated_at, created_at, progress, estimate_hours')
@@ -136,7 +138,10 @@ async function run(admin: SupabaseClient, dry: boolean) {
   };
   const admins = [...people.values()].filter((p) => p.status === 'active' && (p.role === 'admin' || p.role === 'super_admin'));
   const managerOf = (personId: string, fallback?: string | null): Person | undefined =>
-    active(people.get(personId)?.manager_id) ?? active(fallback && fallback !== personId ? fallback : null) ?? admins.find((a) => a.id !== personId);
+    active(people.get(personId)?.manager_id) ??
+    active(fallback && fallback !== personId ? fallback : null) ??
+    // no manager: an admin of the SAME account (accounts never mix)
+    admins.find((a) => a.id !== personId && a.account_id === people.get(personId)?.account_id);
   const first = (p: Person | undefined, ar = false) => ((ar && p?.full_name_ar) || p?.full_name || '').split(' ')[0];
 
   const prefsOf = new Map(

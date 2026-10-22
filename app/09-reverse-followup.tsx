@@ -45,7 +45,7 @@ export default function ReverseFollowupScreen() {
   const nudge = async (it: WaitItem) => {
     setNudgeError(null);
     if (!it.sample && it.toId) {
-      const rpc = supabase.rpc as unknown as (fn: string, a: object) => Promise<{ error: { message: string } | null }>;
+      const rpc = supabase.rpc.bind(supabase) as unknown as (fn: string, a: object) => Promise<{ error: { message: string } | null }>;
       const { error } = await rpc('nudge_waiting', { p_to: it.toId, p_task: it.taskId ?? null, p_decision: it.decisionId ?? null, p_message: it.msg });
       if (error) return setNudgeError(error.message);
     }

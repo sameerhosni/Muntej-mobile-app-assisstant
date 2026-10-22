@@ -26,6 +26,9 @@ function unwrap<T>(res: { data: T | null; error: { message: string } | null }): 
 const TASK_SELECT =
   '*, owner:profiles!tasks_owner_id_fkey(id, full_name, full_name_ar, avatar_color), helper:profiles!tasks_helper_id_fkey(id, full_name, full_name_ar), workspace:workspaces(id, name, name_ar, color)';
 
+/** Signed in, but no account has invited this email yet (handle_new_user creates no profile without an invite). */
+export class NotInvitedError extends Error {}
+
 /** The signed-in user's profile. For admins, `role` follows the "View as" switch; `actual_role` is the real one. */
 export function useMyProfile() {
   const { session } = useAuth();
@@ -35,8 +38,15 @@ export function useMyProfile() {
   return useQuery({
     queryKey: qk.me,
     enabled: !!userId,
-    queryFn: async (): Promise<Profile> =>
-      unwrap(await supabase.from('profiles').select('*').eq('user_id', userId!).single()),
+    // "not invited" won't change by asking again
+    retry: (n, e) => !(e instanceof NotInvitedError) && n < 3,
+    // one login can be in several accounts: the profile of the account they're working in (current_profile_id)
+    queryFn: async (): Promise<Profile> => {
+      const { data: id, error } = await (supabase.rpc as unknown as (fn: string) => Promise<{ data: string | null; error: { message: string } | null }>)('current_profile_id');
+      if (error) throw new Error(error.message);
+      if (!id) throw new NotInvitedError('not invited');
+      return unwrap(await supabase.from('profiles').select('*').eq('id', id).single());
+    },
     select,
   });
 }
@@ -47,7 +57,8 @@ export function useTeam() {
     queryKey: qk.team,
     queryFn: async (): Promise<Profile[]> =>
       // people who left (status deleted) stay in the org page but not in pickers and team lists
-      unwrap(await supabase.from('profiles').select('*').neq('status', 'deleted').order('full_name')),
+      // hidden = the super admin's viewing seat in an account: never in team lists
+      unwrap(await supabase.from('profiles').select('*').neq('status', 'deleted').eq('hidden', false).order('full_name')),
   });
 }
 

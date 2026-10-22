@@ -2,6 +2,7 @@ import '@/lib/i18n';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Stack } from 'expo-router';
+import { ViewingBanner } from '@/features/accounts/AccountSwitcher';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -77,6 +78,8 @@ function RootNavigator() {
     <View style={{ flex: 1, direction, backgroundColor: colors.bg }}>
       {/* light theme → dark status-bar text; Hero switches to light while it is on screen */}
       <StatusBar style="dark" />
+      {/* super admin looking into another account: always visible, one tap back to their own */}
+      {signedIn && <ViewingBanner />}
       <Stack
         screenOptions={{
           headerShown: false,

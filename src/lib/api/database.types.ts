@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_sessions: {
+        Row: {
+          account_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_sessions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          name_ar: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          name_ar?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          name_ar?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       achievements: {
         Row: {
           achieved_at: string
@@ -252,6 +305,8 @@ export type Database = {
           body_ar: string | null
           created_at: string
           dedupe_key: string
+          deliver_after: string | null
+          delivered_at: string | null
           id: string
           kind: string
           profile_id: string
@@ -269,6 +324,8 @@ export type Database = {
           body_ar?: string | null
           created_at?: string
           dedupe_key: string
+          deliver_after?: string | null
+          delivered_at?: string | null
           id?: string
           kind: string
           profile_id: string
@@ -286,6 +343,8 @@ export type Database = {
           body_ar?: string | null
           created_at?: string
           dedupe_key?: string
+          deliver_after?: string | null
+          delivered_at?: string | null
           id?: string
           kind?: string
           profile_id?: string
@@ -318,6 +377,74 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      autopilot_marks: {
+        Row: {
+          created_at: string
+          key: string
+          profile_id: string | null
+          task_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          profile_id?: string | null
+          task_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          profile_id?: string | null
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_marks_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_marks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      autopilot_prefs: {
+        Row: {
+          auto_approve_days: number
+          chase_reminders: number
+          profile_id: string
+          rules: Json
+          updated_at: string
+        }
+        Insert: {
+          auto_approve_days?: number
+          chase_reminders?: number
+          profile_id: string
+          rules?: Json
+          updated_at?: string
+        }
+        Update: {
+          auto_approve_days?: number
+          chase_reminders?: number
+          profile_id?: string
+          rules?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autopilot_prefs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -366,6 +493,126 @@ export type Database = {
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      connection_secrets: {
+        Row: {
+          connection_id: string
+          data: string
+          updated_at: string
+        }
+        Insert: {
+          connection_id: string
+          data: string
+          updated_at?: string
+        }
+        Update: {
+          connection_id?: string
+          data?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connection_secrets_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: true
+            referencedRelation: "connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      connections: {
+        Row: {
+          account_label: string | null
+          created_at: string
+          cursor: Json
+          export_on: boolean
+          export_target: Json | null
+          found_day: string | null
+          found_today: number
+          id: string
+          import_on: boolean
+          last_error: string | null
+          last_sync_at: string | null
+          profile_id: string
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_label?: string | null
+          created_at?: string
+          cursor?: Json
+          export_on?: boolean
+          export_target?: Json | null
+          found_day?: string | null
+          found_today?: number
+          id?: string
+          import_on?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
+          profile_id: string
+          provider: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_label?: string | null
+          created_at?: string
+          cursor?: Json
+          export_on?: boolean
+          export_target?: Json | null
+          found_day?: string | null
+          found_today?: number
+          id?: string
+          import_on?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
+          profile_id?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connections_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_summaries: {
+        Row: {
+          channels: string[]
+          day: string
+          kind: string
+          profile_id: string
+          sent_at: string
+        }
+        Insert: {
+          channels?: string[]
+          day: string
+          kind?: string
+          profile_id: string
+          sent_at?: string
+        }
+        Update: {
+          channels?: string[]
+          day?: string
+          kind?: string
+          profile_id?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_summaries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -507,6 +754,87 @@ export type Database = {
           },
         ]
       }
+      feature_events: {
+        Row: {
+          adopted_at: string | null
+          feature_key: string
+          later_count: number
+          profile_id: string
+          seen_at: string | null
+          state: string
+          tried_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          adopted_at?: string | null
+          feature_key: string
+          later_count?: number
+          profile_id: string
+          seen_at?: string | null
+          state: string
+          tried_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adopted_at?: string | null
+          feature_key?: string
+          later_count?: number
+          profile_id?: string
+          seen_at?: string | null
+          state?: string
+          tried_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_events_feature_key_fkey"
+            columns: ["feature_key"]
+            isOneToOne: false
+            referencedRelation: "features"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "feature_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      features: {
+        Row: {
+          audience: string
+          benefit: string
+          benefit_ar: string
+          key: string
+          released_at: string
+          sort: number
+          title: string
+          title_ar: string
+        }
+        Insert: {
+          audience?: string
+          benefit: string
+          benefit_ar: string
+          key: string
+          released_at?: string
+          sort?: number
+          title: string
+          title_ar: string
+        }
+        Update: {
+          audience?: string
+          benefit?: string
+          benefit_ar?: string
+          key?: string
+          released_at?: string
+          sort?: number
+          title?: string
+          title_ar?: string
+        }
+        Relationships: []
+      }
       followups: {
         Row: {
           channel: Database["public"]["Enums"]["followup_channel"]
@@ -561,6 +889,62 @@ export type Database = {
           },
         ]
       }
+      incoming_items: {
+        Row: {
+          body: string
+          created_at: string
+          decided_at: string | null
+          external_id: string
+          id: string
+          owner_id: string
+          received_at: string
+          sender: string | null
+          source: string
+          status: string
+          subject: string | null
+          suggestions: Json
+          summary: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          decided_at?: string | null
+          external_id: string
+          id?: string
+          owner_id: string
+          received_at?: string
+          sender?: string | null
+          source: string
+          status?: string
+          subject?: string | null
+          suggestions?: Json
+          summary?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          decided_at?: string | null
+          external_id?: string
+          id?: string
+          owner_id?: string
+          received_at?: string
+          sender?: string | null
+          source?: string
+          status?: string
+          subject?: string | null
+          suggestions?: Json
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incoming_items_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_prefs: {
         Row: {
           channels: Json
@@ -591,6 +975,41 @@ export type Database = {
             foreignKeyName: "notification_prefs_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oauth_states: {
+        Row: {
+          created_at: string
+          profile_id: string
+          provider: string
+          redirect: string
+          state: string
+          verifier: string | null
+        }
+        Insert: {
+          created_at?: string
+          profile_id: string
+          provider: string
+          redirect: string
+          state: string
+          verifier?: string | null
+        }
+        Update: {
+          created_at?: string
+          profile_id?: string
+          provider?: string
+          redirect?: string
+          state?: string
+          verifier?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oauth_states_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -668,11 +1087,13 @@ export type Database = {
       }
       profiles: {
         Row: {
+          account_id: string
           avatar_color: string | null
           created_at: string
           email: string | null
           full_name: string
           full_name_ar: string | null
+          hidden: boolean
           id: string
           locale: string
           manager_id: string | null
@@ -692,11 +1113,13 @@ export type Database = {
           years_experience: number | null
         }
         Insert: {
+          account_id: string
           avatar_color?: string | null
           created_at?: string
           email?: string | null
           full_name: string
           full_name_ar?: string | null
+          hidden?: boolean
           id?: string
           locale?: string
           manager_id?: string | null
@@ -716,11 +1139,13 @@ export type Database = {
           years_experience?: number | null
         }
         Update: {
+          account_id?: string
           avatar_color?: string | null
           created_at?: string
           email?: string | null
           full_name?: string
           full_name_ar?: string | null
+          hidden?: boolean
           id?: string
           locale?: string
           manager_id?: string | null
@@ -740,6 +1165,13 @@ export type Database = {
           years_experience?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_manager_id_fkey"
             columns: ["manager_id"]
@@ -784,8 +1216,143 @@ export type Database = {
           },
         ]
       }
+      recurring_tasks: {
+        Row: {
+          created_at: string
+          created_by: string
+          definition_of_done: string | null
+          ends_on: string | null
+          estimate_hours: number | null
+          every: number
+          freq: string
+          goal: string | null
+          helper_id: string | null
+          id: string
+          last_task_id: string | null
+          month_day: number | null
+          next_due_at: string | null
+          objective_id: string | null
+          owner_id: string | null
+          paused_until: string | null
+          priority: Database["public"]["Enums"]["task_priority"]
+          rot_index: number
+          rotation: string[]
+          skip_next: boolean
+          starts_on: string
+          status: string
+          time_of_day: string
+          title: string
+          updated_at: string
+          weekdays: number[]
+          workspace_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          definition_of_done?: string | null
+          ends_on?: string | null
+          estimate_hours?: number | null
+          every?: number
+          freq: string
+          goal?: string | null
+          helper_id?: string | null
+          id?: string
+          last_task_id?: string | null
+          month_day?: number | null
+          next_due_at?: string | null
+          objective_id?: string | null
+          owner_id?: string | null
+          paused_until?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"]
+          rot_index?: number
+          rotation?: string[]
+          skip_next?: boolean
+          starts_on?: string
+          status?: string
+          time_of_day?: string
+          title: string
+          updated_at?: string
+          weekdays?: number[]
+          workspace_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          definition_of_done?: string | null
+          ends_on?: string | null
+          estimate_hours?: number | null
+          every?: number
+          freq?: string
+          goal?: string | null
+          helper_id?: string | null
+          id?: string
+          last_task_id?: string | null
+          month_day?: number | null
+          next_due_at?: string | null
+          objective_id?: string | null
+          owner_id?: string | null
+          paused_until?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"]
+          rot_index?: number
+          rotation?: string[]
+          skip_next?: boolean
+          starts_on?: string
+          status?: string
+          time_of_day?: string
+          title?: string
+          updated_at?: string
+          weekdays?: number[]
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_tasks_helper_id_fkey"
+            columns: ["helper_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_tasks_last_task_id_fkey"
+            columns: ["last_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_tasks_objective_id_fkey"
+            columns: ["objective_id"]
+            isOneToOne: false
+            referencedRelation: "objectives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_tasks_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_tasks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
+          ai_check: Json | null
+          auto_approve_at: string | null
           created_at: string
           criteria: string[]
           decided_at: string | null
@@ -800,6 +1367,8 @@ export type Database = {
           task_id: string
         }
         Insert: {
+          ai_check?: Json | null
+          auto_approve_at?: string | null
           created_at?: string
           criteria?: string[]
           decided_at?: string | null
@@ -814,6 +1383,8 @@ export type Database = {
           task_id: string
         }
         Update: {
+          ai_check?: Json | null
+          auto_approve_at?: string | null
           created_at?: string
           criteria?: string[]
           decided_at?: string | null
@@ -895,10 +1466,45 @@ export type Database = {
           },
         ]
       }
+      step_suggestions: {
+        Row: {
+          created_at: string
+          like_task_title: string | null
+          source: string
+          steps: Json
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          like_task_title?: string | null
+          source?: string
+          steps?: Json
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          like_task_title?: string | null
+          source?: string
+          steps?: Json
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "step_suggestions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subtasks: {
         Row: {
           created_at: string
+          created_by: string | null
           done: boolean
+          done_at: string | null
+          due_at: string | null
           id: string
           owner_id: string | null
           position: number
@@ -908,7 +1514,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           done?: boolean
+          done_at?: string | null
+          due_at?: string | null
           id?: string
           owner_id?: string | null
           position?: number
@@ -918,7 +1527,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           done?: boolean
+          done_at?: string | null
+          due_at?: string | null
           id?: string
           owner_id?: string | null
           position?: number
@@ -928,6 +1540,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "subtasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "subtasks_owner_id_fkey"
             columns: ["owner_id"]
             isOneToOne: false
@@ -936,6 +1555,60 @@ export type Database = {
           },
           {
             foreignKeyName: "subtasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_links: {
+        Row: {
+          closed_there: boolean
+          connection_id: string
+          created_at: string
+          direction: string
+          external_id: string
+          external_url: string | null
+          id: string
+          provider: string
+          synced_at: string
+          task_id: string
+        }
+        Insert: {
+          closed_there?: boolean
+          connection_id: string
+          created_at?: string
+          direction: string
+          external_id: string
+          external_url?: string | null
+          id?: string
+          provider: string
+          synced_at?: string
+          task_id: string
+        }
+        Update: {
+          closed_there?: boolean
+          connection_id?: string
+          created_at?: string
+          direction?: string
+          external_id?: string
+          external_url?: string | null
+          id?: string
+          provider?: string
+          synced_at?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_links_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_links_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
@@ -958,10 +1631,12 @@ export type Database = {
           goal: string | null
           helper_id: string | null
           id: string
+          manager_touches: number
           objective_id: string | null
           owner_id: string | null
           priority: Database["public"]["Enums"]["task_priority"]
           progress: number
+          proof_required: string
           source: Database["public"]["Enums"]["task_source"]
           source_ref: string | null
           start_at: string | null
@@ -984,10 +1659,12 @@ export type Database = {
           goal?: string | null
           helper_id?: string | null
           id?: string
+          manager_touches?: number
           objective_id?: string | null
           owner_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
           progress?: number
+          proof_required?: string
           source?: Database["public"]["Enums"]["task_source"]
           source_ref?: string | null
           start_at?: string | null
@@ -1010,10 +1687,12 @@ export type Database = {
           goal?: string | null
           helper_id?: string | null
           id?: string
+          manager_touches?: number
           objective_id?: string | null
           owner_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"]
           progress?: number
+          proof_required?: string
           source?: Database["public"]["Enums"]["task_source"]
           source_ref?: string | null
           start_at?: string | null
@@ -1142,6 +1821,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_steps: {
+        Args: {
+          p_due?: string
+          p_owner?: string
+          p_task: string
+          p_titles: string[]
+        }
+        Returns: number
+      }
+      bulk_update_tasks: {
+        Args: { p_change: Json; p_ids: string[] }
+        Returns: Json
+      }
       can_edit_objective: { Args: { o_id: string }; Returns: boolean }
       can_lead: { Args: never; Returns: boolean }
       can_see_objective: { Args: { o_id: string }; Returns: boolean }
@@ -1150,7 +1842,13 @@ export type Database = {
       can_see_workspace: { Args: { w_id: string }; Returns: boolean }
       cancel_objective: { Args: { p_objective: string }; Returns: undefined }
       cancel_task: { Args: { p_task: string }; Returns: undefined }
+      checkin_reply: {
+        Args: { p_note?: string; p_reply: string; p_task: string }
+        Returns: string
+      }
+      create_task_as: { Args: { actor: string; p: Json }; Returns: string }
       create_task_with_plan: { Args: { p: Json }; Returns: string }
+      current_account_id: { Args: never; Returns: string }
       current_profile_id: { Args: never; Returns: string }
       delete_task: { Args: { p_task: string }; Returns: undefined }
       distribute_tasks: { Args: { p_objective: string }; Returns: number }
@@ -1158,20 +1856,95 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_below: { Args: { boss: string; target: string }; Returns: boolean }
       is_manager_of: { Args: { target: string }; Returns: boolean }
+      is_manager_touch: {
+        Args: { p_action: string; p_summary: string }
+        Returns: boolean
+      }
       is_super_admin: { Args: never; Returns: boolean }
       link_task: {
         Args: { p_objective: string; p_task: string }
         Returns: undefined
       }
+      mark_alerts_read: { Args: never; Returns: number }
+      mark_feature: {
+        Args: { p_key: string; p_state: string }
+        Returns: string
+      }
+      my_accounts: {
+        Args: never
+        Returns: {
+          active: boolean
+          id: string
+          member: boolean
+          name: string
+          name_ar: string
+          people: number
+          status: string
+        }[]
+      }
+      my_steps: {
+        Args: never
+        Returns: {
+          done: boolean
+          due_at: string
+          id: string
+          task_id: string
+          task_title: string
+          title: string
+        }[]
+      }
+      nudge_waiting: {
+        Args: {
+          p_decision: string
+          p_message: string
+          p_task: string
+          p_to: string
+        }
+        Returns: undefined
+      }
+      reannounce_feature: {
+        Args: { p_key: string; p_profiles: string[] }
+        Returns: number
+      }
+      recurring_action: {
+        Args: { p_action: string; p_id: string; p_until?: string }
+        Returns: undefined
+      }
+      recurring_next: {
+        Args: {
+          after: string
+          r: Database["public"]["Tables"]["recurring_tasks"]["Row"]
+        }
+        Returns: string
+      }
       refresh_objective: { Args: { p_objective: string }; Returns: undefined }
+      same_account: { Args: { target: string }; Returns: boolean }
       save_push_token: {
         Args: { p_device_name?: string; p_platform: string; p_token: string }
         Returns: undefined
+      }
+      set_step: { Args: { p: Json; p_id: string }; Returns: undefined }
+      set_task_status: {
+        Args: {
+          p_log?: boolean
+          p_note?: string
+          p_status: string
+          p_task: string
+        }
+        Returns: string
       }
       shift_task_due: {
         Args: { new_due: string; p_task: string }
         Returns: undefined
       }
+      spawn_recurring_tasks: { Args: { p_only?: string }; Returns: number }
+      switch_account: { Args: { p_account: string }; Returns: string }
+      tick_my_step: {
+        Args: { p_done?: boolean; p_id: string }
+        Returns: undefined
+      }
+      undo_chat_task: { Args: { p_task: string }; Returns: undefined }
+      undo_task_changes: { Args: { p_log: string }; Returns: number }
       update_task_from_chat: {
         Args: { p_task: string; patch: Json }
         Returns: undefined
@@ -1179,6 +1952,11 @@ export type Database = {
       upsert_objective: { Args: { p: Json }; Returns: string }
       upsert_person: { Args: { p: Json }; Returns: string }
       upsert_person_inner: { Args: { p: Json }; Returns: string }
+      upsert_recurring: { Args: { p: Json }; Returns: string }
+      working_mornings_after: {
+        Args: { p_from: string; p_n: number }
+        Returns: string
+      }
     }
     Enums: {
       actor_type: "muntej" | "user" | "agent"

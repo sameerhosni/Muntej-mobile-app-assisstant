@@ -183,6 +183,11 @@ export default function MuntejChatScreen() {
         setPending(null);
         qc.invalidateQueries({ queryKey: chatKey });
         if (rows.some((r) => r.action !== 'none')) invalidateTaskData(qc);
+        // "switch to X": everything on screen belonged to the old account → start fresh in the new one
+        if (rows.some((r) => !!(r.payload as { account_switched?: unknown } | null)?.account_switched)) {
+          qc.clear();
+          router.replace('/');
+        }
       } catch (e) {
         setPending({ ...p, status: 'error', error: (e as Error).message || t('failed') });
       }

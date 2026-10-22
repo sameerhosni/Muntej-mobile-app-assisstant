@@ -9,6 +9,7 @@ import Constants from 'expo-constants';
 import { AppText, Avatar, BrandSymbol, BrandWordmark, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle, Toggle } from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
 import { MORE_NS } from '@/features/more/strings';
+import { AccountSwitcher } from '@/features/accounts/AccountSwitcher';
 import { PROTO_NS } from '@/features/prototype/strings';
 import { useMyProfile, useSignOut } from '@/lib/api';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
@@ -177,6 +178,9 @@ export default function SettingsScreen() {
           <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
         </Card>
       )}
+
+      {/* which account you're in; switch when you have more than one (super admin: all) */}
+      <AccountSwitcher />
 
       {/* every deeper screen in one place (screen 44) */}
       <Card

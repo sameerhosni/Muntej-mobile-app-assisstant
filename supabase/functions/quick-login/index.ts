@@ -18,8 +18,12 @@ serve(async (req) => {
   if (!email || String(body.code ?? '').trim() !== code) throw new HttpError(401, 'Wrong code');
 
   const admin = adminClient();
-  const { data: person } = await admin.from('profiles').select('id, status').ilike('email', email).maybeSingle();
-  if (!person || person.status === 'deleted') throw new HttpError(404, 'No Muntej account for this email. Ask your manager to add you.');
+  // once real email codes work, the shared code can be kept for a few emails only (QUICK_LOGIN_EMAILS, comma-separated)
+  const only = (Deno.env.get('QUICK_LOGIN_EMAILS') ?? '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+  if (only.length && !only.includes(email.toLowerCase())) throw new HttpError(401, 'Wrong code');
+  // one email can be in several accounts (one profile each): any membership that isn't removed is enough
+  const { data: people } = await admin.from('profiles').select('id, status').ilike('email', email).eq('hidden', false);
+  if (!(people ?? []).some((p) => p.status !== 'deleted')) throw new HttpError(404, 'No Muntej account for this email. Ask your manager to add you.');
 
   // a magic-link token for this email (the person exists in Muntej; create their sign-in user on first use)
   let link = await admin.auth.admin.generateLink({ type: 'magiclink', email });

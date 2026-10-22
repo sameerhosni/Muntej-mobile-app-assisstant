@@ -1,7 +1,8 @@
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuth } from '@/features/auth/AuthProvider';
-import { useMyProfile } from '@/lib/api';
+import { NotInvitedError, useMyProfile } from '@/lib/api';
+import { NotInvited } from '@/features/accounts/NotInvited';
 import { homeRouteFor } from '@/features/screens/registry';
 import { colors } from '@/theme/tokens';
 
@@ -17,5 +18,7 @@ export default function Index() {
       </View>
     );
   }
+  // signed in, but no account has invited this email
+  if (me.error instanceof NotInvitedError) return <NotInvited />;
   return <Redirect href={homeRouteFor(me.data?.role)} />;
 }
