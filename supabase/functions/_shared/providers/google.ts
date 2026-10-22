@@ -5,16 +5,18 @@
 // Scopes: gmail.readonly, calendar.readonly (read only: Muntej never sends, deletes or changes mail or events).
 //
 // What Muntej reads (only what's new since the last check, never the whole mailbox):
-//   Gmail     every new mail in the inbox (not promotions / social / updates / forums, not mail you sent)
+//   Gmail     every new mail in the inbox (not promotions / social, not Muntej's own sign-in code mails); the first
+//             check reads the last 7 days
 //   Calendar  meetings that just ended and have notes / an agenda in the invite
 // Everything found WAITS for the person's OK in "Add from a message" (owner's decision: Gmail tasks are confirmed,
 // never added by themselves): see confirmFirst.
 import { tokenRequest, type Fetched, type Provider, type Tokens } from '../connections.ts';
 
 const SCOPES = 'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly';
-const FIRST_LOOK_BACK_MS = 24 * 3_600_000; // the first check reads the last day, not years of history
+const FIRST_LOOK_BACK_MS = 7 * 24 * 3_600_000; // the first check reads the last week, not years of history
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
-const INBOX_QUERY = 'in:inbox -category:promotions -category:social -category:updates -category:forums -from:me';
+// work mail often lands in Updates / Forums (tool notifications), and people email themselves tasks: both are read
+const INBOX_QUERY = 'in:inbox -category:promotions -category:social -subject:"Muntej code"';
 
 async function api<T>(t: Tokens, url: string): Promise<T> {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${t.access_token}` } });
