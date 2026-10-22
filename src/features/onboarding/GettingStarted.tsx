@@ -25,13 +25,15 @@ export function GettingStarted() {
   const team = useTeam();
   const r = row.data;
   const ready = !!r && !!me.data && !!tasks.data && !!team.data;
-  const p = ready ? progressOf(r!, me.data!, tasks.data ?? [], team.data ?? []) : null;
+  // invited members have a one-step tour; owners count their 4 real steps
+  const member = (r as { kind?: string } | null | undefined)?.kind === 'member';
+  const p = ready ? (member ? { done: 0, total: 1 } : progressOf(r!, me.data!, tasks.data ?? [], team.data ?? [])) : null;
 
-  // a brand-new account: straight into Saree3's welcome, once
+  // not finished and not paused: straight into Saree3's tour, once per app open
   useEffect(() => {
-    if (ready && !r!.finished_at && !r!.dismissed && p!.done === 0 && !autoOpened) {
+    if (ready && !r!.finished_at && !r!.dismissed && !autoOpened) {
       autoOpened = true;
-      router.push('/02-capture');
+      router.push('/47-welcome');
     }
   }, [ready, r, p]);
 
@@ -39,7 +41,7 @@ export function GettingStarted() {
 
   const go = async () => {
     if (r!.dismissed) await markOnboarding(qc, { dismissed: false }).catch(() => {});
-    router.push('/02-capture');
+    router.push('/47-welcome');
   };
 
   return (

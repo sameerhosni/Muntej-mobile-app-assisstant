@@ -1,6 +1,6 @@
 import { registerStrings } from '@/lib/i18n/register';
 
-// Saree3's onboarding chat (Coach.tsx) and the Home "Getting started" strip.
+// The Home "Getting started" strip (the tour itself: tourStrings.ts).
 const en = {
   hello: "Hi! I'm Saree3, Muntej's helper 👋 I'll show you how it works in 2 minutes. First, what should I call you?",
   helloNamed: "Hi {{name}}! I'm Saree3, Muntej's helper 👋 I'll show you how it works in 2 minutes.",

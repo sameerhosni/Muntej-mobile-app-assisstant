@@ -73,7 +73,6 @@ import { BriefCard } from '@/features/chat/BriefCard';
 import { Candidates } from '@/features/chat/Candidates';
 import { FocusBar } from '@/features/chat/FocusBar';
 import { Composer, type VoiceState } from '@/features/chat/Composer';
-import { useOnboardingCoach } from '@/features/onboarding/Coach';
 import { NS } from '@/features/chat/strings';
 import {
   BulkCard,
@@ -218,8 +217,6 @@ export default function MuntejChatScreen() {
     if (busy || !text.trim()) return;
     const v = text;
     setText('');
-    // onboarding: "what should I call you / your company?" answers are Saree3's, not tasks
-    if (coach.intercept(v)) return;
     send(v, 'text');
   };
 
@@ -311,8 +308,6 @@ export default function MuntejChatScreen() {
 
   // ── task cards ─────────────────────────────────────────────────────────────
   const messages = chat.data?.messages ?? [];
-  // a brand-new account: Saree3 teaches right here (src/features/onboarding/Coach.tsx)
-  const coach = useOnboardingCoach({ messages, setText, focusInput: () => input.current?.focus() });
   const liveTasks = chat.data?.tasks ?? {};
   const lastAssistantId = [...messages].reverse().find((m) => m.role === 'assistant')?.id;
 
@@ -479,7 +474,7 @@ export default function MuntejChatScreen() {
   const firstName = me.data ? personName(me.data, lang).split(' ')[0] : '';
   const gone = new Set(chat.data?.gone ?? []);
   const meId = me.data?.id;
-  const empty = !chat.isLoading && !chat.isError && messages.length === 0 && !pending && !coach.active;
+  const empty = !chat.isLoading && !chat.isError && messages.length === 0 && !pending;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior="padding">
@@ -766,9 +761,6 @@ export default function MuntejChatScreen() {
           );
         })}
 
-        {/* Saree3's onboarding prompt sits before the reply being sent */}
-        {coach.render}
-
         {pending && (
           <UserBubble
             text={pending.content}
@@ -813,7 +805,6 @@ export default function MuntejChatScreen() {
         onStop={stopRecording}
         onCancel={cancelRecording}
         bottomInset={insets.bottom}
-        glow={coach.glow}
       />
 
     </KeyboardAvoidingView>
