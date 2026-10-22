@@ -259,7 +259,7 @@ export default function TeamScreen() {
       >
         {/* a Modal is its own root: set the language direction again */}
         <View style={{ flex: 1, direction, backgroundColor: colors.bg }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
             <View
               style={{
                 flexDirection: 'row',

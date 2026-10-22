@@ -62,7 +62,7 @@ export default function HowToScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior="padding">
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingBottom: FOOTER_SPACE + insets.bottom, gap: spacing.xxl }}
         showsVerticalScrollIndicator={false}

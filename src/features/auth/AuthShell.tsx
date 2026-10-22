@@ -8,7 +8,7 @@ import { colors, spacing } from '@/theme/tokens';
 export function AuthShell({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
   const { t } = useTranslation();
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.bg }} behavior="padding">
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <Hero style={{ paddingBottom: 34 }}>
           {/* the brand: symbol + "Muntej" wordmark (Latin, so it doesn't flip in Arabic) */}

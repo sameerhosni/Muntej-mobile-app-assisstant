@@ -381,7 +381,7 @@ function ObjectiveDetail({ id, waiting }: { id: string | undefined; waiting: boo
 
       <Modal visible={editOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditOpen(false)}>
         <View style={{ flex: 1, direction, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? insets.top : 0 }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
               <IconButton label={t('close')} onPress={() => setEditOpen(false)}>
                 <X color={colors.text} size={20} strokeWidth={2} />

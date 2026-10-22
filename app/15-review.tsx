@@ -163,7 +163,7 @@ export default function ReviewScreen() {
   const toggleCriterion = (c: string) => setCriteria((list) => (list.includes(c) ? list.filter((x) => x !== c) : [...list, c]));
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: colors.bg }}>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top + spacing.xs, paddingBottom: panelH + insets.bottom + 40, paddingHorizontal: spacing.screen, gap: spacing.lg }}
         showsVerticalScrollIndicator={false}

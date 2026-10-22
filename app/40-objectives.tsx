@@ -258,7 +258,7 @@ export default function ObjectivesScreen() {
       <Modal visible={formOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setFormOpen(false)}>
         {/* a Modal is its own root: set the language direction again */}
         <View style={{ flex: 1, direction, backgroundColor: colors.bg, paddingTop: Platform.OS === 'android' ? insets.top : 0 }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
               <IconButton label={t('close')} onPress={() => setFormOpen(false)}>
                 <X color={colors.text} size={20} strokeWidth={2} />

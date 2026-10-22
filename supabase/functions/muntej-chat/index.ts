@@ -1666,6 +1666,14 @@ ${message}` : message },
   // ── tell the people this changed things for (new owner, reviewer, …): alerts written by the triggers ──
   await deliverNow();
 
+  // "switch to X": only now, once both messages are saved under the current account's profile (saving them after
+  // the switch would be refused: the chat would belong to a profile in the other account)
+  const switchTo = (accountPayload?.account_switched as { id?: string } | undefined)?.id;
+  if (switchTo) {
+    const { error: e3 } = await db.rpc('switch_account', { p_account: switchTo });
+    if (e3) throw new HttpError(400, e3.message);
+  }
+
   return json({ messages: userMsg ? [userMsg, botMsg] : [botMsg] });
 });
 
@@ -2212,8 +2220,7 @@ async function runAccount(
     const target = accounts.find((x) => x.id === a.account_id);
     if (!target) return { reply: say("I couldn't find that account. Say \"show my accounts\" to see them.", 'ما لقيت هالحساب. قل "وريني حساباتي" وأعرضها لك.'), payload: null };
     if (target.active) return { reply: say(`You're already in ${accountLabel(target, false)}.`, `أنت أصلاً في ${accountLabel(target, true)}.`), payload: null };
-    const { error } = await db.rpc('switch_account', { p_account: target.id });
-    if (error) return { reply: say(`I couldn't switch: ${error.message}`, `ما قدرت أبدّل: ${error.message}`), payload: null };
+    // the switch itself happens after this turn's messages are saved (they belong to the account the chat is in now)
     return {
       reply: say(`Done, you're now working in ${accountLabel(target, false)}.`, `تم، الحين أنت شغال في ${accountLabel(target, true)}.`),
       payload: { account_switched: { id: target.id, name: accountLabel(target, ar) } },
