@@ -1,5 +1,5 @@
 {
-  "sender_name": "Muntej منتج",
-  "code_subject": "Your Muntej code · رمز دخول منتج",
-  "invite_subject": "You're invited to Muntej · انضفت لمنتج"
+    "sender_name":  "Muntej منتج",
+    "code_subject":  "{{ .Token }} is your Muntej code · رمز دخول منتج",
+    "invite_subject":  "You\u0027re invited to Muntej · انضفت لمنتج"
 }

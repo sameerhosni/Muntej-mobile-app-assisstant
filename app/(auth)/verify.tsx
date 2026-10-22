@@ -1,6 +1,7 @@
 // Screen · Verify code (OTP) — no mockup; dark style per design/TOKENS.md
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
+import { requireOptionalNativeModule } from 'expo';
 import { router } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +13,9 @@ import { AuthShell } from '@/features/auth/AuthShell';
 import { otpSchema, type OtpForm } from '@/features/auth/validation';
 import { DEMO_CODE, isDemoPhone } from '@/features/auth/demoPersonas';
 import { getPendingLogin } from '@/features/auth/pending';
+
+// "Paste code" needs expo-clipboard (in builds after 1.1): hidden where the native part is missing
+const canPaste = Platform.OS === 'web' || !!requireOptionalNativeModule('ExpoClipboard');
 
 export default function VerifyScreen() {
   const { t } = useTranslation();
@@ -26,7 +30,7 @@ export default function VerifyScreen() {
   }, [phone, email]);
   const [serverError, setServerError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const { control, handleSubmit, formState } = useForm<OtpForm>({
+  const { control, handleSubmit, formState, setValue } = useForm<OtpForm>({
     resolver: zodResolver(otpSchema),
     defaultValues: { code: demo ? DEMO_CODE : '' },
   });
@@ -95,6 +99,20 @@ export default function VerifyScreen() {
           />
         )}
       />
+      {/* copied the code from the email: one tap fills it in and signs in */}
+      {canPaste && (
+        <Button
+          label={t('auth.pasteCode')}
+          variant="outline"
+          onPress={async () => {
+            const Clipboard = require('expo-clipboard') as typeof import('expo-clipboard');
+            const digits = ((await Clipboard.getStringAsync()) || '').match(/\d{6}/)?.[0];
+            if (!digits) return;
+            setValue('code', digits);
+            onSubmit();
+          }}
+        />
+      )}
       <Button label={t('auth.verify')} onPress={onSubmit} loading={formState.isSubmitting} />
       {notice && (
         <AppText variant="caption" color="green">

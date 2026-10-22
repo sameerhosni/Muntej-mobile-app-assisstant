@@ -161,6 +161,7 @@ const en = {
     codeHint: 'Sent to {{to}}',
     codeLabel: '6-digit code',
     verify: 'Sign in',
+    pasteCode: 'Paste code from email',
     resend: 'Resend code',
     resent: 'New code sent',
     changeEmail: 'Change email',

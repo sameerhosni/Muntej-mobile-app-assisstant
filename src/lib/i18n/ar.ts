@@ -164,6 +164,7 @@ const ar: Translations = {
     codeHint: 'أرسلناه على {{to}}',
     codeLabel: 'الرمز (٦ أرقام)',
     verify: 'دخول',
+    pasteCode: 'الصق الرمز من الإيميل',
     resend: 'أرسل الرمز مرة ثانية',
     resent: 'أرسلنا رمز جديد',
     changeEmail: 'غيّر الإيميل',
