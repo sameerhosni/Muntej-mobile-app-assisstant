@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { ViewingBanner } from '@/features/accounts/AccountSwitcher';
 import { CoachHost } from '@/features/coach/CoachHost';
+import { QuietBoundary } from '@/components/QuietBoundary';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -107,10 +108,23 @@ function RootNavigator() {
         </Stack.Protected>
       </Stack>
       <ShareIntake signedIn={signedIn} />
-      {signedIn && <HelperButton />}
-      {signedIn && <LaunchCard />}
+      {/* floating overlays: a crash in one hides it, never the whole app */}
+      {signedIn && (
+        <QuietBoundary name="helper">
+          <HelperButton />
+        </QuietBoundary>
+      )}
+      {signedIn && (
+        <QuietBoundary name="launch">
+          <LaunchCard />
+        </QuietBoundary>
+      )}
       {/* Saree3's first-time tips + one-tap feedback (one card per app open, after onboarding) */}
-      {signedIn && <CoachHost />}
+      {signedIn && (
+        <QuietBoundary name="coach">
+          <CoachHost />
+        </QuietBoundary>
+      )}
       {signedIn && <ProtoBar />}
     </View>
   );

@@ -1,9 +1,9 @@
 // Screen 05 · Weekly brief — see design/v2/html/Brief.dc.html (Arabic: BriefAR.dc.html)
 // Live data: tasks (closed / on-time / team pulse / kudos suggestion), useHomeStats (hours saved, follow-ups),
 // activity_log (month value), pending decisions. Falls back to the design's demo week when there are no tasks.
-// Audio brief is a visual demo player (no audio file yet). Accepting the kudos suggestion is local state.
+// The audio brief is read aloud by the speak Edge Function (useSpokenBrief). Accepting the kudos suggestion is local state.
 import { useMemo, useState, type ReactNode } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { Banknote, CalendarDays, ChevronRight, CircleCheck, Clock, Hand, Pause, Play, Send, Sparkles, TrendingUp } from 'lucide-react-native';
 import { AppText, Avatar, avatarGradientFor, Card, Gradient, Hero, IconBadge, PointsCoin, StatTile } from '@/components/ui';
@@ -15,7 +15,8 @@ import { formatNumber, hoursSaved, MIN_PER_FOLLOWUP, MIN_PER_UPDATE, sarSaved } 
 import { person } from '@/features/demo/team';
 import { DAY_MS, firstName, onTimeRate, personName, startOfWeek, touchedIn } from '@/features/dashboard/metrics';
 import { BRIEF_DEMO } from '@/features/brief/demo';
-import { clock, useDemoAudio } from '@/features/brief/useDemoAudio';
+import { clock } from '@/features/brief/useDemoAudio';
+import { useSpokenBrief } from '@/features/brief/useSpokenBrief';
 import { NS } from '@/features/brief/strings';
 
 const AUDIO_SEC = 60;
@@ -42,7 +43,6 @@ export default function BriefScreen() {
   const stats = useHomeStats();
   const activity = useActivity(500);
   const calls = usePendingDecisionCount();
-  const audio = useDemoAudio(AUDIO_SEC);
   const [accepted, setAccepted] = useState(false);
 
   const taskList = tasks.data ?? [];
@@ -156,6 +156,8 @@ export default function BriefScreen() {
     followups: formatNumber(v.followups, lang),
     calls: formatNumber(v.calls, lang),
   });
+  // read aloud for real (Saudi Arabic or English), made on the first tap
+  const audio = useSpokenBrief(audioScript, lang);
   const waveOn = audio.playing || audio.pos > 0 ? Math.round(audio.progress * WAVE.length) : WAVE_IDLE_ON;
   const refreshing = tasks.isRefetching || stats.isRefetching;
   const onRefresh = () => {
@@ -202,7 +204,7 @@ export default function BriefScreen() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -24, gap: spacing.lg }}>
-          {/* 1-minute audio brief (demo player) */}
+          {/* 1-minute audio brief, read aloud by Muntej */}
           <Card elevation="raised" padding={spacing.lg} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingHorizontal: spacing.xl }}>
             <Pressable
               onPress={audio.toggle}
@@ -212,7 +214,9 @@ export default function BriefScreen() {
               style={({ pressed }) => ({ width: 48, height: 48, borderRadius: 24, boxShadow: shadows.primary, opacity: pressed ? 0.85 : 1 })}
             >
               <Gradient name="primary" style={{ flex: 1, borderRadius: 24, alignItems: 'center', justifyContent: 'center' }}>
-                {audio.playing ? (
+                {audio.loading ? (
+                  <ActivityIndicator color={colors.onDark} />
+                ) : audio.playing ? (
                   <Pause color={colors.onDark} fill={colors.onDark} size={18} strokeWidth={1.5} />
                 ) : (
                   <Play color={colors.onDark} fill={colors.onDark} size={18} strokeWidth={1.5} style={{ marginStart: 2 }} />
@@ -236,7 +240,7 @@ export default function BriefScreen() {
               </View>
             </View>
             <AppText variant="caption" weight="bold" color="textMuted" style={{ writingDirection: 'ltr' }}>
-              {clock(audio.pos)} / {clock(AUDIO_SEC)}
+              {audio.failed ? '⚠️' : `${clock(audio.pos)} / ${clock(audio.duration || AUDIO_SEC)}`}
             </AppText>
           </Card>
 
