@@ -328,7 +328,21 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     })
     .select('*')
     .single();
-  if (error) throw error;
+  if (error) {
+    // two checks read the same message at the same moment (the 10-minute job and "Check my email now"): the other one
+    // saved it first, so this is simply the same message again
+    if ((error as { code?: string }).code === '23505') {
+      const { data: same } = await admin
+        .from('incoming_items')
+        .select('*')
+        .eq('owner_id', input.profileId)
+        .eq('source', input.source)
+        .eq('external_id', externalId)
+        .maybeSingle();
+      if (same) return { ...(same as Item), duplicate_message: true };
+    }
+    throw error;
+  }
   let item = data as Item;
 
   // autopilot: tasks Muntej is sure about are added straight away; only the unclear ones wait for the person

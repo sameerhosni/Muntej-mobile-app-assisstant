@@ -7,6 +7,7 @@ import { Check, Mail, User, Calendar, BellRing } from 'lucide-react-native';
 import { AppText, Button } from '@/components/ui';
 import { colors, radius, shadows, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
+import { useDirection } from '@/lib/i18n';
 import { Munti } from '@/features/munti/Munti';
 import { walkthrough, useWalkRun, type Demo } from './store';
 import { WALK_NS } from './strings';
@@ -17,6 +18,7 @@ const DIM = 'rgba(11,26,51,0.74)';
 
 export function Walkthrough() {
   const { t } = useScreenT(WALK_NS);
+  const { isRTL } = useDirection();
   const run = useWalkRun();
   const { width, height } = useWindowDimensions();
   const [rect, setRect] = useState<Rect | null>(null);
@@ -64,7 +66,9 @@ export function Walkthrough() {
       {!rect ? (
         <View style={{ flex: 1, backgroundColor: DIM }} />
       ) : (
-        <View style={{ flex: 1 }}>
+        // positions are measured on screen (left = physical left): this layer stays LTR so an Arabic layout doesn't mirror
+        // the outline to the other side; the bubble's own text follows the app language
+        <View style={{ flex: 1, direction: 'ltr' }}>
           {/* the dim around the lit element (four panels, the element itself stays clear) */}
           <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: Math.max(0, rect.y), backgroundColor: DIM }} />
           <View style={{ position: 'absolute', left: 0, right: 0, top: rect.y + rect.h, bottom: 0, backgroundColor: DIM }} />
@@ -98,6 +102,7 @@ export function Walkthrough() {
               padding: spacing.lg,
               gap: spacing.sm,
               boxShadow: shadows.raised,
+              direction: isRTL ? 'rtl' : 'ltr',
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
@@ -110,10 +115,13 @@ export function Walkthrough() {
               </View>
             </View>
             {demo && step.demo && <DemoView kind={step.demo} />}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <AppText variant="caption" color="textFaint" style={{ flex: 1 }}>
-                {run.steps.length > 1 ? t('step', { at: run.at + 1, n: run.steps.length }) : ''}
+            {/* "1 of 3" on its own line, the buttons below it (side by side they squeezed it onto 3 lines) */}
+            {run.steps.length > 1 && (
+              <AppText variant="caption" color="textFaint" numberOfLines={1}>
+                {t('step', { at: run.at + 1, n: run.steps.length })}
               </AppText>
+            )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm }}>
               <Pressable onPress={() => walkthrough.end(false)} accessibilityRole="button" hitSlop={8} style={{ padding: 8 }}>
                 <AppText weight="semibold" color="textMuted">
                   {t('skip')}

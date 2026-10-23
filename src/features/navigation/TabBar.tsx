@@ -63,13 +63,13 @@ export function TabBar({ state, navigation, role, badges = {} }: Props) {
           return (
             <View key="mic" style={{ flex: 1, alignItems: 'center' }}>
               {/* Saree3's walkthrough lights this up: "say it here, once" */}
-              <TourTarget id="mic">
+              {/* the lift (-34) is on the wrapper, so the highlight frames the raised mic itself */}
+              <TourTarget id="mic" style={{ marginTop: -34 }}>
                 <Pressable
                   onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'voice' } })}
                   accessibilityRole="button"
                   accessibilityLabel={t('tabs.sayTask')}
                   style={({ pressed }) => ({
-                    marginTop: -34,
                     width: sizes.micButton,
                     height: sizes.micButton,
                     borderRadius: sizes.micButton / 2,

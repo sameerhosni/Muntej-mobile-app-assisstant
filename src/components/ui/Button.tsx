@@ -23,17 +23,7 @@ const toneText = { blue: 'primary', purple: 'purple', amber: 'amberText' } as co
 const toneBorder = { blue: colors.borderBlue, purple: colors.purpleBorder, amber: colors.gold } as const;
 
 /** Pill button: primary = gradient fill with glow, outline = white with tinted border. */
-export function Button({
-  label,
-  onPress,
-  variant = 'primary',
-  tone = 'blue',
-  size = 'lg',
-  icon,
-  loading,
-  disabled,
-  style,
-}: Props) {
+export function Button({ label, onPress, variant = 'primary', tone = 'blue', size = 'lg', icon, loading, disabled, style }: Props) {
   const height = size === 'lg' ? sizes.buttonHeight : sizes.touch;
   const primary = variant === 'primary';
   const content = loading ? (
@@ -47,8 +37,8 @@ export function Button({
     </View>
   );
 
-  // the inner layer grows from its own size (flexGrow), never from zero (flex: 1): on Android a gradient measured from
-  // zero inside a centred column stretched the button down the whole screen
+  // the gradient is only a painted background (absolute fill) and never sizes the button: on Android a gradient in the
+  // layout measured itself tall inside a centred column and stretched the button down the whole screen
   return (
     <Pressable
       onPress={onPress}
@@ -67,16 +57,25 @@ export function Button({
       ]}
     >
       {primary ? (
-        <Gradient
-          name={tone === 'purple' ? 'purple' : tone === 'amber' ? 'warning' : 'primary'}
-          style={{ flexGrow: 1, minHeight: height, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.screen }}
+        <View
+          style={{
+            minHeight: height,
+            borderRadius: radius.pill,
+            overflow: 'hidden',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: spacing.screen,
+          }}
         >
+          <Gradient
+            name={tone === 'purple' ? 'purple' : tone === 'amber' ? 'warning' : 'primary'}
+            style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}
+          />
           {content}
-        </Gradient>
+        </View>
       ) : (
         <View
           style={{
-            flexGrow: 1,
             minHeight: height,
             borderRadius: radius.pill,
             alignItems: 'center',
