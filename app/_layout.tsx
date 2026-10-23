@@ -17,6 +17,7 @@ import { colors } from '@/theme/tokens';
 import { loadSavedLanguage, useDirection } from '@/lib/i18n';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { useLiveUpdates } from '@/lib/useLiveUpdates';
 import { SCREENS } from '@/features/screens/registry';
 import { ProtoBar } from '@/features/prototype/ProtoBar';
 import { HelperButton } from '@/features/munti/HelperButton';
@@ -53,6 +54,8 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
+  // a new version applies at once (no closing the app twice)
+  useLiveUpdates();
   const [fontsLoaded, fontError] = useFonts(appFonts);
   const [langReady, setLangReady] = useState(false);
   const { session, ready: authReady, needsMfa } = useAuth();
