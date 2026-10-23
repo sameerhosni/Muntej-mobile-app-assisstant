@@ -367,7 +367,7 @@ function SectionLabel({ Icon, iconColor, label }: { Icon: ComponentType<LucidePr
   );
 }
 
-/** The real note taker: record the meeting in the room, Muntej finds the tasks (screen 45). */
+/** Meetings come from Google Calendar / Meet now (Connect your tools): the old note taker opens there. */
 export default function NoteTakerScreen() {
-  return <Redirect href="/45-record-meeting" />;
+  return <Redirect href="/12-sources" />;
 }

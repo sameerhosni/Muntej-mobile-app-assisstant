@@ -13,7 +13,10 @@
 // never added by themselves): see confirmFirst.
 import { tokenRequest, type Fetched, type Provider, type Tokens } from '../connections.ts';
 
-const SCOPES = 'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly';
+// meetings.space.readonly: Google Meet transcripts (Meet REST API; enable "Google Meet REST API" in Google Cloud)
+const SCOPES =
+  'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/meetings.space.readonly';
+const MEET = 'https://meet.googleapis.com/v2';
 const FIRST_LOOK_BACK_MS = 7 * 24 * 3_600_000; // the first check reads the last week, not years of history
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 // work mail often lands in Updates / Forums (tool notifications), and people email themselves tasks: both are read
@@ -124,83 +127,148 @@ export const google: Provider = {
 
   account: async (t) => {
     const me = await api<{ email?: string; name?: string }>(t, 'https://openidconnect.googleapis.com/v1/userinfo');
-    return { label: me.email ?? me.name ?? 'Google' };
+    // whether this sign-in allowed Meet (older ones didn't: the app asks to sign in again for it)
+    return { label: me.email ?? me.name ?? 'Google', cursor: { meet_ok: (t.scope ?? '').includes('meetings') } };
   },
 
-  fetchNew: async (t, cursor) => {
+  fetchNew: async (t, cursor, features = {}) => {
     const now = new Date();
     const since = typeof cursor.since === 'string' ? cursor.since : new Date(now.getTime() - FIRST_LOOK_BACK_MS).toISOString();
     const items: Fetched[] = [];
+    // the account's switches (Sources screen): each part is on unless turned off
+    const on = (k: 'gmail' | 'calendar' | 'meet') => features[k] !== false;
 
     // Gmail: every new inbox mail since the last check (Gmail's "after:" is in whole seconds)
-    try {
-      const q = `${INBOX_QUERY} after:${Math.floor(Date.parse(since) / 1000)}`;
-      const list = await api<{ messages?: { id: string }[] }>(t, `${GMAIL}/messages?${new URLSearchParams({ q, maxResults: '20' })}`);
-      for (const { id } of list.messages ?? []) {
-        const m = await api<GMessage>(t, `${GMAIL}/messages/${id}?format=full`);
-        const h = (name: string) => m.payload?.headers?.find((x) => x.name.toLowerCase() === name)?.value ?? '';
-        const from = h('from');
-        const subject = h('subject');
-        const body = withoutQuoted(bodyOf(m.payload));
-        if (!body && !subject) continue;
-        items.push({
-          externalId: m.id,
-          source: 'gmail',
-          // To / Cc / Date: who it's addressed to (often the owner) and when it was sent ("tomorrow" is relative to it)
-          text: [
-            `Subject: ${subject}`,
-            `From: ${from}`,
-            ...(h('to') ? [`To: ${h('to')}`] : []),
-            ...(h('cc') ? [`Cc: ${h('cc')}`] : []),
-            ...(m.internalDate ? [`Date: ${new Date(Number(m.internalDate)).toISOString()}`] : []),
-            '',
-            body,
-          ]
-            .join('\n')
-            .slice(0, 8000),
-          sender: from.replace(/\s*<[^>]+>\s*$/, '').replace(/"/g, '') || from,
-          subject: subject || null,
-          receivedAt: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null,
-        });
+    if (on('gmail'))
+      try {
+        const q = `${INBOX_QUERY} after:${Math.floor(Date.parse(since) / 1000)}`;
+        const list = await api<{ messages?: { id: string }[] }>(t, `${GMAIL}/messages?${new URLSearchParams({ q, maxResults: '20' })}`);
+        for (const { id } of list.messages ?? []) {
+          const m = await api<GMessage>(t, `${GMAIL}/messages/${id}?format=full`);
+          const h = (name: string) => m.payload?.headers?.find((x) => x.name.toLowerCase() === name)?.value ?? '';
+          const from = h('from');
+          const subject = h('subject');
+          const body = withoutQuoted(bodyOf(m.payload));
+          if (!body && !subject) continue;
+          items.push({
+            externalId: m.id,
+            source: 'gmail',
+            // To / Cc / Date: who it's addressed to (often the owner) and when it was sent ("tomorrow" is relative to it)
+            text: [
+              `Subject: ${subject}`,
+              `From: ${from}`,
+              ...(h('to') ? [`To: ${h('to')}`] : []),
+              ...(h('cc') ? [`Cc: ${h('cc')}`] : []),
+              ...(m.internalDate ? [`Date: ${new Date(Number(m.internalDate)).toISOString()}`] : []),
+              '',
+              body,
+            ]
+              .join('\n')
+              .slice(0, 8000),
+            sender: from.replace(/\s*<[^>]+>\s*$/, '').replace(/"/g, '') || from,
+            subject: subject || null,
+            receivedAt: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null,
+          });
+        }
+      } catch (e) {
+        if ((e as Error).message === 'Sign in again') throw e;
+        console.warn('gmail', (e as Error).message);
       }
-    } catch (e) {
-      if ((e as Error).message === 'Sign in again') throw e;
-      console.warn('gmail', (e as Error).message);
-    }
 
     // Calendar: meetings that ended since the last check and carry notes / an agenda
-    try {
-      const events = await api<{ items?: GEvent[] }>(
-        t,
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?${new URLSearchParams({
-          timeMin: new Date(Date.parse(since) - 8 * 3_600_000).toISOString(),
-          timeMax: now.toISOString(),
-          singleEvents: 'true',
-          orderBy: 'startTime',
-          maxResults: '25',
-        })}`,
-      );
-      for (const ev of events.items ?? []) {
-        if (ev.status === 'cancelled') continue;
-        const end = Date.parse(ev.end?.dateTime ?? ev.end?.date ?? '');
-        if (Number.isNaN(end) || end < Date.parse(since) || end > now.getTime()) continue;
-        const notes = plain(ev.description ?? '');
-        if (notes.length < 80) continue; // an empty invite has nothing to act on
-        items.push({
-          externalId: `cal:${ev.id}`,
-          source: 'calendar',
-          text: `Meeting: ${ev.summary ?? ''}\nOrganizer: ${ev.organizer?.displayName ?? ev.organizer?.email ?? ''}\n\n${notes}`.slice(0, 8000),
-          sender: ev.organizer?.displayName ?? ev.organizer?.email ?? null,
-          subject: ev.summary ?? null,
-          receivedAt: new Date(end).toISOString(),
-        });
+    if (on('calendar'))
+      try {
+        const events = await api<{ items?: GEvent[] }>(
+          t,
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?${new URLSearchParams({
+            timeMin: new Date(Date.parse(since) - 8 * 3_600_000).toISOString(),
+            timeMax: now.toISOString(),
+            singleEvents: 'true',
+            orderBy: 'startTime',
+            maxResults: '25',
+          })}`,
+        );
+        for (const ev of events.items ?? []) {
+          if (ev.status === 'cancelled') continue;
+          const end = Date.parse(ev.end?.dateTime ?? ev.end?.date ?? '');
+          if (Number.isNaN(end) || end < Date.parse(since) || end > now.getTime()) continue;
+          const notes = plain(ev.description ?? '');
+          if (notes.length < 80) continue; // an empty invite has nothing to act on
+          items.push({
+            externalId: `cal:${ev.id}`,
+            source: 'calendar',
+            text: `Meeting: ${ev.summary ?? ''}\nOrganizer: ${ev.organizer?.displayName ?? ev.organizer?.email ?? ''}\n\n${notes}`.slice(0, 8000),
+            sender: ev.organizer?.displayName ?? ev.organizer?.email ?? null,
+            subject: ev.summary ?? null,
+            receivedAt: new Date(end).toISOString(),
+          });
+        }
+      } catch (e) {
+        if ((e as Error).message === 'Sign in again') throw e;
+        console.warn('google calendar', (e as Error).message);
       }
-    } catch (e) {
-      if ((e as Error).message === 'Sign in again') throw e;
-      console.warn('google calendar', (e as Error).message);
-    }
+
+    // Google Meet: meetings that ended since the last check and have a transcript (Workspace plans with transcripts,
+    // when the host turned on transcription or "Take notes with Gemini"): who said what → the action items
+    const meetOk = (t.scope ?? '').includes('meetings');
+    if (on('meet') && meetOk)
+      try {
+        const filter = `end_time>="${new Date(Date.parse(since) - 6 * 3_600_000).toISOString()}"`;
+        const recs = await api<{ conferenceRecords?: MeetRecord[] }>(
+          t,
+          `${MEET}/conferenceRecords?${new URLSearchParams({ filter, pageSize: '10' })}`,
+        );
+        for (const rec of recs.conferenceRecords ?? []) {
+          if (!rec.endTime) continue;
+          const text = await meetTranscript(t, rec.name);
+          if (text.length < 80) continue; // no transcript (yet), or nothing said
+          items.push({
+            externalId: `meet:${rec.name}`,
+            source: 'meet',
+            text: `Google Meet meeting (${rec.startTime ?? ''} → ${rec.endTime})\n\n${text}`.slice(0, 38_000),
+            sender: 'Google Meet',
+            subject: null,
+            receivedAt: rec.endTime,
+          });
+        }
+      } catch (e) {
+        if ((e as Error).message === 'Sign in again') throw e;
+        console.warn('google meet', (e as Error).message);
+      }
 
     // a little overlap: the same message is never read twice (external id), so nothing slips between runs
-    return { items, cursor: { ...cursor, since: new Date(now.getTime() - 2 * 60_000).toISOString() } };
+    return { items, cursor: { ...cursor, meet_ok: meetOk, since: new Date(now.getTime() - 2 * 60_000).toISOString() } };
   },
 };
+
+type MeetRecord = { name: string; startTime?: string; endTime?: string };
+type MeetTranscript = { name: string; state?: string };
+type MeetEntry = { participant?: string; text?: string };
+type MeetParticipant = {
+  name: string;
+  signedinUser?: { displayName?: string };
+  anonymousUser?: { displayName?: string };
+  phoneUser?: { displayName?: string };
+};
+
+/** one Meet call's transcript as "Name: what they said" lines (empty when the meeting had none) */
+async function meetTranscript(t: Tokens, record: string): Promise<string> {
+  const { transcripts } = await api<{ transcripts?: MeetTranscript[] }>(t, `${MEET}/${record}/transcripts`);
+  const ready = (transcripts ?? []).filter((x) => x.state === 'FILE_GENERATED' || x.state === 'ENDED');
+  if (!ready.length) return '';
+  const { participants } = await api<{ participants?: MeetParticipant[] }>(t, `${MEET}/${record}/participants?pageSize=100`);
+  const who = new Map(
+    (participants ?? []).map((p) => [p.name, p.signedinUser?.displayName ?? p.anonymousUser?.displayName ?? p.phoneUser?.displayName ?? '']),
+  );
+  const lines: string[] = [];
+  for (const tr of ready) {
+    let page: string | undefined;
+    do {
+      const q = new URLSearchParams({ pageSize: '100', ...(page ? { pageToken: page } : {}) });
+      const res = await api<{ transcriptEntries?: MeetEntry[]; nextPageToken?: string }>(t, `${MEET}/${tr.name}/entries?${q}`);
+      for (const e of res.transcriptEntries ?? []) if (e.text) lines.push(`${who.get(e.participant ?? '') || '?'}: ${e.text}`);
+      page = res.nextPageToken;
+    } while (page && lines.length < 2000);
+  }
+  return lines.join('\n');
+}

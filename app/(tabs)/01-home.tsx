@@ -115,7 +115,6 @@ export default function ManagerHome() {
               { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
               { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
               { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary, feature: 'incoming' },
-              { key: 'meeting', label: tm('meeting'), Icon: Mic, href: '/45-record-meeting', bg: 'redTint', fg: colors.red },
               // Objectives, Autopilot, Roadmap… live in "Everything Muntej does" (Autopilot is also the "Muntej is on it" card)
               { key: 'more', label: tm('shortcut'), Icon: LayoutGrid, href: '/44-more', bg: 'chip', fg: colors.textSoft },
             ]}

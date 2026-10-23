@@ -211,7 +211,10 @@ function ToolRow({
       onNote(
         r.error
           ? { tone: 'red', text: t('problem', { msg: r.error }) }
-          : { tone: 'green', text: t('checkedResult2', { tasks: n(r.tasks), sent: n(r.sent ?? 0), closed: n((r.closedHere ?? 0) + (r.closedThere ?? 0)) }) },
+          : {
+              tone: 'green',
+              text: t('checkedResult2', { tasks: n(r.tasks), sent: n(r.sent ?? 0), closed: n((r.closedHere ?? 0) + (r.closedThere ?? 0)) }),
+            },
       );
     });
   const disconnect = () => {
@@ -229,7 +232,11 @@ function ToolRow({
   const status = conn
     ? conn.status === 'error'
       ? t('problem', { msg: conn.last_error ?? '' })
-      : [t('connectedAs', { who: conn.account_label ?? name }), conn.last_sync_at ? t('checked', { when: ago(conn.last_sync_at) }) : t('never'), found ? t('foundToday', { count: found, n: n(found) }) : null]
+      : [
+          t('connectedAs', { who: conn.account_label ?? name }),
+          conn.last_sync_at ? t('checked', { when: ago(conn.last_sync_at) }) : t('never'),
+          found ? t('foundToday', { count: found, n: n(found) }) : null,
+        ]
           .filter(Boolean)
           .join(' · ')
     : null;
@@ -264,6 +271,8 @@ function ToolRow({
       )}
 
       {conn && <Directions id={id} conn={conn} twoWay={twoWay} onNote={onNote} />}
+      {/* Google: switch Gmail / Calendar / Meet on or off for each linked account */}
+      {conn && id === 'google' && <GoogleParts onNote={onNote} />}
 
       {conn ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -399,7 +408,16 @@ function Directions({
 
       <Modal visible={picking} transparent animationType="slide" onRequestClose={() => setPicking(false)}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(11,26,51,0.35)' }} onPress={() => setPicking(false)} accessibilityLabel={t('cancel')} />
-        <View style={{ maxHeight: '70%', backgroundColor: colors.surface, borderTopLeftRadius: radius.cardLg, borderTopRightRadius: radius.cardLg, padding: spacing.screen, gap: spacing.md }}>
+        <View
+          style={{
+            maxHeight: '70%',
+            backgroundColor: colors.surface,
+            borderTopLeftRadius: radius.cardLg,
+            borderTopRightRadius: radius.cardLg,
+            padding: spacing.screen,
+            gap: spacing.md,
+          }}
+        >
           <AppText variant="section">{t('pickTitle')}</AppText>
           {!targets ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
@@ -435,6 +453,63 @@ function Directions({
           <Button label={t('cancel')} variant="outline" size="md" onPress={() => setPicking(false)} />
         </View>
       </Modal>
+    </View>
+  );
+}
+
+/** Google: what each linked account may read (Gmail, Calendar, Google Meet transcripts), each with its own switch.
+ *  Meet needs the newer sign-in (meetings access): older connections get "Allow Google Meet" instead of a switch. */
+function GoogleParts({ onNote }: { onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void }) {
+  const { t } = useScreenT(CONN_NS);
+  const conns = useConnections();
+  const actions = useConnectionActions();
+  const [saving, setSaving] = useState<string | null>(null);
+  const google = (conns.data ?? []).filter((c) => c.provider === 'google');
+  const set = async (c: Connection, part: string, on: boolean) => {
+    setSaving(`${c.id}:${part}`);
+    onNote(null);
+    try {
+      await actions.settings('google', { features: { [part]: on } }, c.id);
+    } catch (e) {
+      onNote({ tone: 'red', text: (e as Error).message || t('error') });
+    } finally {
+      setSaving(null);
+    }
+  };
+  return (
+    <View style={{ gap: spacing.md, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm }}>
+      {google.map((c) => (
+        <View key={c.id} style={{ gap: spacing.xs }}>
+          {google.length > 1 && (
+            <AppText variant="caption" weight="bold" color="textMuted">
+              {c.account_label}
+            </AppText>
+          )}
+          {(['gmail', 'calendar', 'meet'] as const).map((part) => {
+            const allowed = part !== 'meet' || c.cursor?.meet_ok === true;
+            return (
+              <View key={part} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 52 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <AppText weight="bold">{t(`part_${part}`)}</AppText>
+                  <AppText variant="caption" color="textMuted">
+                    {allowed ? t(`part_${part}Hint`) : t('meetAllowHint')}
+                  </AppText>
+                </View>
+                {allowed ? (
+                  <Toggle
+                    value={c.features?.[part] !== false}
+                    onValueChange={(v) => set(c, part, v)}
+                    disabled={saving === `${c.id}:${part}`}
+                    accessibilityLabel={t(`part_${part}`)}
+                  />
+                ) : (
+                  <Button label={t('meetAllow')} size="md" onPress={() => actions.connect('google').catch(() => {})} />
+                )}
+              </View>
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }

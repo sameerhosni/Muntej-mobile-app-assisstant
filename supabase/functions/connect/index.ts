@@ -164,12 +164,21 @@ serve(async (req) => {
           patch.export_target = { ...tgt, since: new Date().toISOString() };
         }
       }
-      const { data, error } = await admin
+      // one account's switches (Google: gmail / calendar / meet), merged into what it has
+      const f = (body as { features?: Record<string, unknown> }).features;
+      if (f && body.id) {
+        const { data: cur } = await admin.from('connections').select('features').eq('id', body.id).eq('profile_id', profileId).maybeSingle();
+        const next = { ...((cur?.features as Record<string, boolean>) ?? {}) };
+        for (const [k, v] of Object.entries(f)) if (['gmail', 'calendar', 'meet'].includes(k) && typeof v === 'boolean') next[k] = v;
+        patch.features = next;
+      }
+      let q = admin
         .from('connections')
         .update(patch)
         .eq('profile_id', profileId)
-        .eq('provider', body.provider ?? '')
-        .select('*');
+        .eq('provider', body.provider ?? '');
+      if (body.id) q = q.eq('id', body.id);
+      const { data, error } = await q.select('*');
       if (error) throw error;
       if (!data?.length) throw new HttpError(404, 'Not connected');
       return json(data[0]);

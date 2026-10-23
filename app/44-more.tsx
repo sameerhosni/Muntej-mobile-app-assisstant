@@ -74,7 +74,6 @@ export default function MoreScreen() {
       key: 'capture',
       tiles: [
         { key: 'incoming', href: '/42-incoming', Icon: Inbox, bg: 'primaryTint', fg: colors.primary, who: 'all', count: incoming.count },
-        { key: 'meeting', href: '/45-record-meeting', Icon: Mic, bg: 'redTint', fg: colors.red, who: 'all' },
         { key: 'sources', href: '/12-sources', Icon: Plug, bg: 'greenTint', fg: colors.green, who: 'all' },
       ],
     },

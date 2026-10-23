@@ -31,7 +31,7 @@ const LESSONS: { key: string; href: Href; managers?: boolean }[] = [
   { key: 'lesson_voice', href: '/02-capture' },
   { key: 'lesson_brief', href: '/05-brief', managers: true },
   { key: 'lesson_paste', href: '/42-incoming' },
-  { key: 'lesson_meeting', href: '/45-record-meeting' },
+  { key: 'lesson_meeting', href: '/12-sources' },
   { key: 'lesson_more', href: '/44-more' },
 ];
 const RATINGS = ['😍', '🙂', '😐', '🙁'];

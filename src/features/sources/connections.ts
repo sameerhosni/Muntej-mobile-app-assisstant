@@ -25,6 +25,10 @@ export type Connection = {
   import_on: boolean;
   export_on: boolean;
   export_target: { id: string; name: string; since?: string } | null;
+  /** what this account may read (Google: gmail / calendar / meet; missing = on) */
+  features: Record<string, boolean>;
+  /** the tool's own bookkeeping; Google's meet_ok = this sign-in allowed Google Meet */
+  cursor: Record<string, unknown> | null;
 };
 /** configured = sign-in is set up on the server; token = the person can connect with their own personal API token */
 export type ProviderInfo = { id: ProviderId; available: boolean; configured: boolean; token: boolean; tokenFields: string[]; twoWay: boolean };
@@ -46,7 +50,9 @@ export function useConnections() {
     queryFn: async (): Promise<Connection[]> => {
       const { data, error } = await untyped
         .from('connections')
-        .select('id, provider, status, account_label, last_sync_at, last_error, found_today, found_day, import_on, export_on, export_target');
+        .select(
+          'id, provider, status, account_label, last_sync_at, last_error, found_today, found_day, import_on, export_on, export_target, features, cursor',
+        );
       if (error) throw new Error(error.message);
       return (data ?? []) as Connection[];
     },
@@ -94,8 +100,12 @@ export function useConnectionActions() {
     /** lists / projects in the person's account that tasks can be sent to */
     targets: (provider: ProviderId) => call<Target[]>({ action: 'targets', provider }),
     /** the two switches and where tasks go */
-    settings: async (provider: ProviderId, patch: { import_on?: boolean; export_on?: boolean; export_target?: Target | null }) => {
-      await call({ action: 'settings', provider, ...patch });
+    settings: async (
+      provider: ProviderId,
+      patch: { import_on?: boolean; export_on?: boolean; export_target?: Target | null; features?: Record<string, boolean> },
+      id?: string,
+    ) => {
+      await call({ action: 'settings', provider, id, ...patch });
       await refresh();
     },
     syncNow: async (provider: ProviderId) => {

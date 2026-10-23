@@ -162,6 +162,7 @@ export async function saveItem(admin: SupabaseClient, item: Item) {
 // incoming source → tasks.source (enum task_source); tools without their own value are 'text'
 const TASK_SOURCE: Record<string, string> = {
   meeting: 'meeting',
+  meet: 'meeting',
   email: 'email',
   outlook: 'email',
   gmail: 'email',
@@ -240,7 +241,7 @@ export type IngestInput = {
 export async function ingestMessage(admin: SupabaseClient, input: IngestInput): Promise<Item & { duplicate_message?: boolean }> {
   const text = input.text.trim();
   if (!text) throw new HttpError(400, 'Paste a message first');
-  const body = text.slice(0, input.source === 'meeting' ? MAX_MEETING_TEXT : MAX_TEXT);
+  const body = text.slice(0, input.source === 'meeting' || input.source === 'meet' ? MAX_MEETING_TEXT : MAX_TEXT);
   const externalId = input.externalId ?? (await sha256(body.replace(/\s+/g, ' ').toLowerCase()));
 
   const existing = await admin

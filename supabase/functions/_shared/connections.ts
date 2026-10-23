@@ -35,8 +35,12 @@ export type Provider = {
   refresh: (t: Tokens) => Promise<Tokens>;
   /** who signed in (shown on the Sources screen) + anything the sync needs to remember about them */
   account: (t: Tokens) => Promise<{ label: string; cursor?: Record<string, unknown> }>;
-  /** what's new since `cursor` (and the cursor to use next time) */
-  fetchNew: (t: Tokens, cursor: Record<string, unknown>) => Promise<{ items: Fetched[]; cursor: Record<string, unknown> }>;
+  /** what's new since `cursor` (and the cursor to use next time); `features` = the account's switches (Gmail / Calendar / Meet…) */
+  fetchNew: (
+    t: Tokens,
+    cursor: Record<string, unknown>,
+    features?: Record<string, boolean>,
+  ) => Promise<{ items: Fetched[]; cursor: Record<string, unknown> }>;
   /**
    * the person can connect with their own personal API token instead of signing in (no admin app setup needed);
    * `verify` checks it and says who it belongs to
@@ -143,6 +147,7 @@ type Conn = {
   import_on?: boolean;
   export_on?: boolean;
   export_target?: { id: string; name: string; since?: string } | null;
+  features?: Record<string, boolean>;
 };
 export type SyncResult = { read: number; tasks: number; sent: number; closedHere: number; closedThere: number; updated: number; error?: string };
 
@@ -211,7 +216,7 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
 
     // ── 1. in: tool → Muntej ──
     if (conn.import_on !== false) {
-      const { items, cursor } = await provider.fetchNew(tokens, cur);
+      const { items, cursor } = await provider.fetchNew(tokens, cur, (conn.features ?? {}) as Record<string, boolean>);
       // items already linked: their title / due date changes come over
       for (const it of items) {
         const l = linkByExt.get(it.externalId);
@@ -270,19 +275,17 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         // a tool task that became a Muntej task is linked, so status and changes stay in step from now on
         const made = it.task ? item.suggestions.find((s) => s.task_id) : undefined;
         if (made?.task_id) {
-          await admin
-            .from('task_links')
-            .upsert(
-              {
-                task_id: made.task_id,
-                connection_id: conn.id,
-                provider: conn.provider,
-                external_id: it.externalId,
-                external_url: it.task?.link ?? null,
-                direction: 'in',
-              },
-              { onConflict: 'connection_id,external_id', ignoreDuplicates: true },
-            );
+          await admin.from('task_links').upsert(
+            {
+              task_id: made.task_id,
+              connection_id: conn.id,
+              provider: conn.provider,
+              external_id: it.externalId,
+              external_url: it.task?.link ?? null,
+              direction: 'in',
+            },
+            { onConflict: 'connection_id,external_id', ignoreDuplicates: true },
+          );
         }
       }
       nextCursor = fresh.length > MAX_ITEMS ? cur : cursor;
