@@ -31,6 +31,8 @@ Last updated: 2026-10-23
 
 Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
+**2026-10-23: built** (build ff6a1108, all four inside). Left: install it on the phones and confirm, then move 2.1–2.4 to Done. Also point the download links (`DOWNLOAD_URL`, invite email, website) at this build.
+
 ## 3. To test on a phone (built, not verified end to end)
 
 | # | Item |
