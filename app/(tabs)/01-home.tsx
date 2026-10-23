@@ -6,8 +6,9 @@
 //   3. "Needs you": decisions only — tasks found in messages, decisions, finished work (one-tap Approve)
 //   4. who needs support (late / blocked / sent back / overbooked); Muntej is already following up with them
 //   5. next 3 days: the most important work coming up (team + yours); then your own tasks, tick to finish
-//   6. shortcuts: Your week, Team, Add from a message, Record a meeting, More (everything else: 44-more)
+//   6. shortcuts: Your week, Team, Tasks from email, Record a meeting, More (everything else: 44-more)
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
+import { ScreenTip } from '@/features/coach/ScreenTip';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -84,6 +85,8 @@ export default function ManagerHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
           {/* a new account: Saree3's getting-started steps until they're done */}
           <GettingStarted />
+          {/* first visit: Saree3 says what Home is for, once */}
+          <ScreenTip id="home" action={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })} />
 
           {/* 2. the team at a glance + what Muntej is handling by itself */}
           <View style={{ gap: spacing.md }}>

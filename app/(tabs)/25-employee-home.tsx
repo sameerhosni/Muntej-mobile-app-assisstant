@@ -6,6 +6,7 @@
 //   3. shortcuts: Your week (value receipt), Rewards, Team quest, Objectives
 // Rewards entry points (progress pill, Rewards shortcut) are hidden for now — see SHOW_REWARDS.
 // Demo: level, streak and points come from the shared demo wallet — no gamification backend yet.
+import { ScreenTip } from '@/features/coach/ScreenTip';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -113,6 +114,7 @@ export default function EmployeeHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.lg }}>
           {/* invited: Saree3's short tour until it's done */}
           <GettingStarted />
+          <ScreenTip id="home" action={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })} />
           {/* 2. today's real tasks (max 3) */}
           <TodayTasks />
           <MySteps />

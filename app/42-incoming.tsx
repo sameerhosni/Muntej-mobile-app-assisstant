@@ -3,6 +3,7 @@
 // reads the new mail, and every task found waits below with Add task / Edit / Ignore. Pasting a message (WhatsApp,
 // notes) is folded at the bottom; ?text= (muntej://42-incoming?text=…) opens it pre-filled. Other tools: Sources.
 // Data: src/features/incoming/api.ts.
+import { ScreenTip } from '@/features/coach/ScreenTip';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -84,6 +85,7 @@ export default function IncomingScreen() {
         </View>
         <AppText color="textMuted">{t('subtitle')}</AppText>
         {/* your email, connected right here; opening the screen reads it, the found tasks wait below for an OK */}
+        <ScreenTip id="email" />
         <EmailAccounts />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <AppText weight="bold" color="primary" style={{ flex: 1 }}>

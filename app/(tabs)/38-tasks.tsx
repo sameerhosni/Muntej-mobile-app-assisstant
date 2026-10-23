@@ -4,6 +4,7 @@
 // managers and anyone who assigns) · Done — with late tasks always on top. Sort and the rarer filters (All, I assigned,
 // Late, Unassigned, No objective, Cancelled) live behind "⋯". Rows are one line; tapping opens the task.
 // ?ids=a,b,c (Saree3's "Show me") shows exactly those tasks, with a banner to go back to the full list.
+import { ScreenTip } from '@/features/coach/ScreenTip';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -91,6 +92,7 @@ export default function TasksScreen() {
         )}
       </View>
 
+      <ScreenTip id="tasks" />
       {/* search + "⋯" (sort and the rarer filters) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <View style={{ flex: 1 }}>

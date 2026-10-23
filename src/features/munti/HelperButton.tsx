@@ -73,6 +73,7 @@ const lastPop = new Map<string, number>();
 // auto pop-ups alternate: how it's going / the value this week
 let popCount = 0;
 const RECEIPT = '/32-receipt' as const;
+const AUTO_POP = false;
 const HOMES = ['/01-home', '/25-employee-home'];
 const RECAP_MS = 9000;
 const APPROVAL_BONUS = 10;
@@ -213,10 +214,11 @@ export function HelperButton() {
   const [popKind, setPopKind] = useState<'perf' | 'value'>('perf');
   const active = s.enabled && !s.hidden;
 
-  // new main screen → pop up by himself after a moment (once per screen per day), then close again
+  // new main screen → used to pop up by himself once per screen per day. Off (owner: too much talk): each screen now
+  // teaches itself once with a ScreenTip card; tapping Saree3 still opens him.
   useEffect(() => {
     setOpen(false);
-    if (!active || !ROUTE_TIPS[pathname]?.fab || lastPop.has(pathname)) return;
+    if (!AUTO_POP || !active || !ROUTE_TIPS[pathname]?.fab || lastPop.has(pathname)) return;
     let close: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
     const pop = setTimeout(async () => {

@@ -2,6 +2,7 @@
 // With ?id= → live task (useTask: subtasks, evidence). Without → the design's demo task "Prepare SPL pitch".
 // "Ask <assigner>" and "Split with AI" are local demo actions; ticking a live subtask writes subtasks.done.
 // "Change with Muntej" (bottom bar) opens the chat locked on this task — the one place changes are made.
+import { ScreenTip } from '@/features/coach/ScreenTip';
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from 'react-native';
 import { TOOL_LABEL, useTaskTools } from '@/features/tasks/toolTags';
@@ -237,6 +238,10 @@ export default function TaskDetailScreen() {
               </AppText>
             </View>
           </View>
+        </View>
+
+        <View style={{ paddingHorizontal: spacing.screen }}>
+          <ScreenTip id="task" />
         </View>
 
         {/* clarity */}

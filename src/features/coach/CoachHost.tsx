@@ -81,6 +81,8 @@ export function CoachHost() {
     if (!m || !s || !all) return null;
     // on a coffee break: nothing until called back from More
     if (s.moments.has(PAUSED_KEY)) return null;
+    // the first visit belongs to Home's own one-time tip (ScreenTip); the bottom card waits for the next app open
+    if (!s.moments.has('screen_home')) return null;
     const name = (x: TaskWithPeople) => (x.owner ? ((lang === 'ar' && x.owner.full_name_ar) || x.owner.full_name).split(' ')[0] : '');
     const now = Date.now();
     const mine = (x: TaskWithPeople) => x.assigner_id === m.id && x.owner_id && x.owner_id !== m.id;

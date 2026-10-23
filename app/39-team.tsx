@@ -1,6 +1,7 @@
 // Screen 39 · Team (org structure) — no mockup; v2 light style per design/TOKENS.md
 // Live: everyone in profiles as a collapsible tree (top level = no manager). Search flattens to "name + path".
 // Tap a person → sheet with details, skills and task numbers; Edit / Add under / Mark deleted per permission (RPC re-checks).
+import { ScreenTip } from '@/features/coach/ScreenTip';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -210,6 +211,7 @@ export default function TeamScreen() {
           )}
         </View>
 
+        <ScreenTip id="team" action={lead ? () => router.push('/48-invite') : undefined} />
         <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
 
         <View accessibilityLabel={t('filtersA11y')}>
