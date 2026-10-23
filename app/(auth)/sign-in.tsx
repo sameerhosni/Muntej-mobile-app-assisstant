@@ -11,9 +11,7 @@ import { useDirection } from '@/lib/i18n';
 import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { DEMO_PERSONAS, type DemoPersona } from '@/features/auth/demoPersonas';
-import { setPendingInvite, setPendingLogin } from '@/features/auth/pending';
-import { useScreenT } from '@/lib/i18n/register';
-import { INVITE_NS } from '@/features/invite/strings';
+import { setPendingLogin } from '@/features/auth/pending';
 import { emailSchema, type EmailForm } from '@/features/auth/validation';
 
 export default function SignInScreen() {
@@ -32,10 +30,6 @@ function errorText(t: (k: string) => string, status?: number) {
 
 function EmailSignIn() {
   const { t } = useTranslation();
-  const { t: ti } = useScreenT(INVITE_NS);
-  // joining a team with an invite code (MNT-XXXXXX): a new login joins that team instead of getting its own
-  const [withCode, setWithCode] = useState(false);
-  const [invite, setInvite] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
   const { control, handleSubmit, formState } = useForm<EmailForm>({
     resolver: zodResolver(emailSchema),
@@ -44,12 +38,7 @@ function EmailSignIn() {
 
   const onSubmit = handleSubmit(async ({ email }) => {
     setServerError(null);
-    const code = withCode ? invite.trim() : '';
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: emailRedirectTo(), ...(code ? { data: { invite_code: code } } : {}) },
-    });
-    setPendingInvite(code || null);
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
     // the email may not be deliverable yet (no verified domain) or codes may be rate-limited: go on to the code
     // screen anyway — the temporary shared code works there
     if (error) console.warn('[sign-in] code email not sent', error.status);
@@ -80,23 +69,6 @@ function EmailSignIn() {
           />
         )}
       />
-      {withCode ? (
-        <TextField
-          label={ti('codeLabel')}
-          placeholder={ti('joinPh')}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          ltr
-          value={invite}
-          onChangeText={setInvite}
-        />
-      ) : (
-        <Pressable onPress={() => setWithCode(true)} accessibilityRole="button" style={{ minHeight: sizes.touch, justifyContent: 'center' }}>
-          <AppText variant="small" weight="bold" color="primary">
-            {ti('haveCode')}
-          </AppText>
-        </Pressable>
-      )}
       <Button label={t('auth.continue')} onPress={onSubmit} loading={formState.isSubmitting} />
     </>
   );

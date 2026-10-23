@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
 import { router } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
@@ -13,8 +12,7 @@ import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { otpSchema, type OtpForm } from '@/features/auth/validation';
 import { DEMO_CODE, isDemoPhone } from '@/features/auth/demoPersonas';
-import { getPendingLogin, takePendingInvite } from '@/features/auth/pending';
-import { redeemCode } from '@/features/invite/api';
+import { getPendingLogin } from '@/features/auth/pending';
 
 // "Paste code" needs expo-clipboard (in builds after 1.1): hidden where the native part is missing
 const canPaste = Platform.OS === 'web' || !!requireOptionalNativeModule('ExpoClipboard');
@@ -30,7 +28,6 @@ export default function VerifyScreen() {
   useEffect(() => {
     if (!phone && !email) router.replace('/sign-in');
   }, [phone, email]);
-  const qc = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { control, handleSubmit, formState, setValue } = useForm<OtpForm>({
@@ -38,24 +35,18 @@ export default function VerifyScreen() {
     defaultValues: { code: demo ? DEMO_CODE : '' },
   });
 
-  // signed in with an invite code: join that team (a brand-new login is already in it; this also tells the inviter)
-  const joinInvite = async () => {
-    const invite = takePendingInvite();
-    if (invite) await redeemCode(qc, invite).catch(() => {});
-  };
-
   const onSubmit = handleSubmit(async ({ code }) => {
     setServerError(null);
     const { error } = phone
       ? await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' })
       : await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
-    if (!error) return joinInvite();
+    if (!error) return;
     // TEMPORARY: not the emailed code → try the shared code (while sign-in emails don't reach everyone);
     // quick-login turns it into a one-time sign-in token
     if (email) {
       const { data, error: fnError } = await supabase.functions.invoke<{ token_hash: string }>('quick-login', { body: { email, code } });
       const res = data?.token_hash ? await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' }) : null;
-      if (!fnError && res && !res.error) return joinInvite();
+      if (!fnError && res && !res.error) return;
     }
     setServerError(t('auth.genericError'));
     // on success the auth guard in app/_layout.tsx swaps to the app automatically

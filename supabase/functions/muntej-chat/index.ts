@@ -128,6 +128,7 @@ const AccountChange = z.object({
   admin_email: z.string().nullable(),
   invitee_name: z.string().nullable().describe('for invite: who to invite, first name as the user said it'),
   invitee_phone: z.string().nullable().describe('for invite: their mobile number as given (e.g. 0555123456), else null'),
+  invitee_email: z.string().nullable().describe('for invite: their email when said, else null'),
 });
 
 const ObjectiveChange = z.object({
@@ -237,7 +238,7 @@ Each turn, choose ONE action:
   WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team (never former_team) using, in order: skill level and years in the skills the work needs, title, recent_tasks similar to this one, then the lower load (stats.open / open_estimate_hours vs weekly_hours; avoid people marked overloaded or with late tasks when someone similar is free). Put the data-based reason in owner_reason (one short clause, user's language, e.g. "Selenium 4/5, 3 years, only 2 open tasks"). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
 - "org": the user wants to change the team itself (people, not tasks): add someone ("add Reem as QA engineer under Khalid, 5 years, Selenium and API testing" → op "add", person_id null, fields full_name, full_name_ar when you can write it, title + title_ar, manager_id, years_experience, skills_detail), move someone ("move Saad under Maha" → op "move", fields.manager_id), change details ("Faisal is now an admin" → role; "Khalid works 35 hours a week" → weekly_capacity_hours; "Noura knows Docker now" → skills_detail with just that skill; op "update"), or someone left / came back ("Noura left the company" → op "status", status "deleted"). Fill ONLY the fields that change, all others null. person_id must come from team or former_team. Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short.
   OBJECTIVE LINK: objectives lists the company objectives the user can see (each task can belong to one). On create, set task.objective_id to the active objective the task clearly belongs to (same topic, client, project or deliverable; owner in that objective's team is a hint, never enough on its own); if none clearly fits, null — never force a link. When you link it, say so in the reply ("added to objective «X»" / "وحطيتها تحت هدف «X»").
-- "account": ACCOUNTS (companies using Muntej). "Create an account for Al-Rajhi Trading, admin Ali ali@rajhi.com" → op "create" with name (+ name_ar when you can), admin_full_name (+ _ar), admin_email (only when user.is_super_admin; otherwise action none and say only the super admin opens accounts). "Switch to / open / work in Al-Rajhi" → op "switch" with account_id from accounts. "Show my accounts" / "which accounts" → op "list". The server writes the reply. Adding PEOPLE to the current account is still "org" (op add, with their email so they get an invite). "Invite Faisal on WhatsApp 0555…" / "send an invite link to Noura" / "give me a code to invite my team" / "ادعُ فيصل على الواتساب" → op "invite" with invitee_name and invitee_phone when said (no email needed: they join with a code). With an EMAIL and no phone, use "org" add instead.
+- "account": ACCOUNTS (companies using Muntej). "Create an account for Al-Rajhi Trading, admin Ali ali@rajhi.com" → op "create" with name (+ name_ar when you can), admin_full_name (+ _ar), admin_email (only when user.is_super_admin; otherwise action none and say only the super admin opens accounts). "Switch to / open / work in Al-Rajhi" → op "switch" with account_id from accounts. "Show my accounts" / "which accounts" → op "list". The server writes the reply. Adding PEOPLE to the current account is still "org" (op add, with their email so they get an invite). "Invite Faisal on WhatsApp 0555…" / "send Noura an invite on WhatsApp" / "ادعُ فيصل على الواتساب" → op "invite" with invitee_name, invitee_email and invitee_phone when said (the server asks for the email when it's missing: the email decides the team, there are no codes). Just an email and no WhatsApp / phone → "org" add instead.
 - "objective": the user wants to create, change, cancel or spread out an OBJECTIVE (a bigger goal with a start and end date that tasks roll up to): "new objective: launch the Riyadh branch by end of March" → op "create" with fields.title (+ title_ar when you can), due_at, start_at (null = from now), owner_id (null = the user), description; "move objective X to April" / "make Khalid accountable for X" / "rename X" → op "update" with only the changing fields; "cancel objective X" → op "cancel"; "spread / distribute X's tasks over its time" → op "distribute". objective_id must come from objectives (null only for create). Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short. Changing an objective's dates also moves its open tasks inside the new window.
 - OBJECTIVE QUESTIONS ("how are our objectives?", "which objectives are at risk?", "what's blocking objective X?", "كيف أهدافنا؟"): action "none", answer in 1-3 short sentences from objectives[] only: progress_pct (tasks done) vs time_used_pct (time passed), tasks.late, tasks.unassigned, at_risk, and issues (late, unassigned, blocked, outside_window = tasks due after the objective ends or before it starts). Name the real tasks/people in issues; never invent numbers. An objective with no tasks yet is a risk when time is passing. Suggest a fix when obvious (assign the unassigned task, move a date, distribute).
 - "update": the message adds or changes details of a task already in the conversation (e.g. "make it Thursday", "add Saad to help", "the deliverable is a test report", "budget 5k", "give it to Maha"). "Put it under objective X" → update.objective_id; "take it out of the objective" → update.unlink_objective true (otherwise false). Target the most recent task in recent_chat_tasks unless the user clearly means another one (then use that task's id from recent_chat_tasks or open_tasks). Only set the fields that change; leave the rest null. The user may point at another task by its title, client or owner ("move the lease task to Thursday", "مهمة فيصل خلها بكرة"): match it in recent_chat_tasks or open_tasks.
@@ -410,15 +411,21 @@ serve(async (req) => {
 
   // ── context (all RLS-scoped to the caller) ──
   const since90 = new Date(Date.now() - 90 * DAY).toISOString();
-  const [{ data: history }, { data: people }, { data: tasks }, { data: workspaces }, { data: achievementRows }, { data: objectiveRows }] = await Promise.all([
-    db.from('chat_messages').select('role, content, task_id, action, created_at').order('created_at', { ascending: false }).limit(20),
-    db.from('profiles').select(PERSON_COLS),
-    db.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }).limit(500),
-    db.from('workspaces').select('id, name, name_ar, goal'),
-    db.from('achievements').select('profile_id, title, title_ar, achieved_at').gte('achieved_at', since90).order('achieved_at', { ascending: false }).limit(300),
-    // RLS: only objectives the caller can see; a missing table (not migrated yet) just means none
-    db.from('objectives').select(OBJECTIVE_COLS).neq('status', 'cancelled').order('due_at', { ascending: true }).limit(200),
-  ]);
+  const [{ data: history }, { data: people }, { data: tasks }, { data: workspaces }, { data: achievementRows }, { data: objectiveRows }] =
+    await Promise.all([
+      db.from('chat_messages').select('role, content, task_id, action, created_at').order('created_at', { ascending: false }).limit(20),
+      db.from('profiles').select(PERSON_COLS),
+      db.from('tasks').select(TASK_COLS).order('created_at', { ascending: false }).limit(500),
+      db.from('workspaces').select('id, name, name_ar, goal'),
+      db
+        .from('achievements')
+        .select('profile_id, title, title_ar, achieved_at')
+        .gte('achieved_at', since90)
+        .order('achieved_at', { ascending: false })
+        .limit(300),
+      // RLS: only objectives the caller can see; a missing table (not migrated yet) just means none
+      db.from('objectives').select(OBJECTIVE_COLS).neq('status', 'cancelled').order('due_at', { ascending: true }).limit(200),
+    ]);
   // repeating schedules the caller can see (a missing table just means none)
   const { data: recurringRows } = await db.from('recurring_tasks').select(RECURRING_COLS).eq('status', 'active').limit(50);
   // accounts this login can work in (my_accounts: all of them for the super admin)
@@ -429,7 +436,7 @@ serve(async (req) => {
   const everyone = (people ?? []) as PersonRow[];
   const team = everyone.filter((p) => p.status !== 'deleted' && !p.hidden);
   const allTasks = (tasks ?? []) as TaskRow[];
-  const nameOf = (id: string | null) => (id ? everyone.find((p) => p.id === id)?.full_name ?? null : null);
+  const nameOf = (id: string | null) => (id ? (everyone.find((p) => p.id === id)?.full_name ?? null) : null);
   const open = allTasks.filter((t) => ACTIVE.includes(t.status));
 
   // ── predicted finish: the owner's queue (open tasks due earlier) + this one, at their daily hours × past speed ──
@@ -470,7 +477,9 @@ serve(async (req) => {
     const hoursOf = (x: TaskRow) => (x.estimate_hours ? Number(x.estimate_hours) : defaultHours);
     const due = t.due_at ? Date.parse(t.due_at) : null;
     const queue = open
-      .filter((x) => x.id !== t.id && x.owner_id === t.owner_id && x.status !== 'submitted' && x.due_at && (due == null || Date.parse(x.due_at) < due))
+      .filter(
+        (x) => x.id !== t.id && x.owner_id === t.owner_id && x.status !== 'submitted' && x.due_at && (due == null || Date.parse(x.due_at) < due),
+      )
       .reduce((sum, x) => sum + hoursOf(x), 0);
     const at = addWorkingHours(new Date(), (queue + hoursOf(t)) * speed, perDayOf(t.owner_id));
     const confidence = samples >= 5 && t.estimate_hours ? 80 : samples >= 2 || t.estimate_hours ? 60 : 40;
@@ -490,7 +499,14 @@ serve(async (req) => {
   const objectiveOf = (t: TaskRow) => ({ objective_id: t.objective_id, objective: objectiveTitle(t.objective_id) });
 
   const chat = (history ?? []).slice().reverse();
-  const recentIds = [...new Set(chat.filter((m) => m.task_id).map((m) => m.task_id as string).reverse())].slice(0, 3);
+  const recentIds = [
+    ...new Set(
+      chat
+        .filter((m) => m.task_id)
+        .map((m) => m.task_id as string)
+        .reverse(),
+    ),
+  ].slice(0, 3);
   const recentChatTasks = recentIds
     .map((id) => allTasks.find((t) => t.id === id))
     .filter((t): t is TaskRow => !!t && t.status !== 'cancelled')
@@ -557,11 +573,16 @@ serve(async (req) => {
     const openHours = estimated.length ? estimated.reduce((s, t) => s + Number(t.estimate_hours), 0) : null;
     const weekly = p.weekly_capacity_hours != null ? Number(p.weekly_capacity_hours) : null;
     // estimates when we have them; otherwise a plain count heuristic (more than ~1 open task per 5 weekly hours)
-    const overloaded =
-      openHours != null && weekly ? openHours > weekly : openMine.length > Math.max(5, Math.round((weekly ?? 40) / 5));
+    const overloaded = openHours != null && weekly ? openHours > weekly : openMine.length > Math.max(5, Math.round((weekly ?? 40) / 5));
     const ach = achievements.filter((a) => a.profile_id === p.id);
     const risks: string[] = [];
-    if (late.length) risks.push(`late: ${late.slice(0, 3).map((t) => t.title).join('; ')}`);
+    if (late.length)
+      risks.push(
+        `late: ${late
+          .slice(0, 3)
+          .map((t) => t.title)
+          .join('; ')}`,
+      );
     if (overloaded) risks.push(openHours != null ? `overloaded: ${openHours}h open vs ${weekly}h/week` : `overloaded: ${openMine.length} open tasks`);
     return {
       done_90d: done.length,
@@ -596,8 +617,7 @@ serve(async (req) => {
     const timeUsed = Math.min(100, Math.max(0, Math.round(((now.getTime() - start) / Math.max(end - start, 1)) * 100)));
     const atRisk =
       o.status === 'missed' ||
-      (o.status === 'active' &&
-        (lateTasks.length > 0 || (linked.length ? timeUsed - progress >= 25 : timeUsed >= 30) || outside.length > 0));
+      (o.status === 'active' && (lateTasks.length > 0 || (linked.length ? timeUsed - progress >= 25 : timeUsed >= 30) || outside.length > 0));
     const titled = (ts: TaskRow[], withOwner = true) =>
       ts.slice(0, 3).map((t) => (withOwner && t.owner_id ? `${t.title} (${firstName(t.owner_id)})` : t.title));
     return {
@@ -623,10 +643,7 @@ serve(async (req) => {
     };
   };
   // active first (soonest end), then missed; max 20 keeps the prompt small
-  const contextObjectives = [
-    ...liveObjectives.filter((o) => o.status === 'active'),
-    ...liveObjectives.filter((o) => o.status === 'missed'),
-  ]
+  const contextObjectives = [...liveObjectives.filter((o) => o.status === 'active'), ...liveObjectives.filter((o) => o.status === 'missed')]
     .slice(0, 20)
     .map(objectiveSummary);
 
@@ -647,16 +664,20 @@ serve(async (req) => {
       manager: firstName(p.manager_id),
       reports: team.filter((x) => x.manager_id === p.id).map((x) => x.full_name.split(' ')[0]),
       years_experience: p.years_experience,
-      skills: (p.skills_detail ?? []).length
-        ? (p.skills_detail ?? []).slice(0, 8).map(skillLine)
-        : (p.skills ?? []).slice(0, 8),
+      skills: (p.skills_detail ?? []).length ? (p.skills_detail ?? []).slice(0, 8).map(skillLine) : (p.skills ?? []).slice(0, 8),
       weekly_hours: p.weekly_capacity_hours,
       prefers: p.locale,
       open_tasks: open.filter((t) => t.owner_id === p.id).length,
-      recent_tasks: allTasks.filter((t) => t.owner_id === p.id).slice(0, 4).map((t) => t.title),
+      recent_tasks: allTasks
+        .filter((t) => t.owner_id === p.id)
+        .slice(0, 4)
+        .map((t) => t.title),
       stats: statsOf(p),
     })),
-    former_team: everyone.filter((p) => p.status === 'deleted').slice(0, 30).map((p) => ({ id: p.id, name: p.full_name, title: p.title })),
+    former_team: everyone
+      .filter((p) => p.status === 'deleted')
+      .slice(0, 30)
+      .map((p) => ({ id: p.id, name: p.full_name, title: p.title })),
     focused_task: focus
       ? {
           id: focus.id,
@@ -782,43 +803,48 @@ serve(async (req) => {
       account: null,
     };
   } else {
-  // ── ask the model ──
-  // gpt-4.1: ~2-4 s replies with good Saudi Arabic; gpt-5-mini was 5-12 s (its reasoning step) for the same quality
-  const model = Deno.env.get('CHAT_MODEL') ?? 'gpt-4.1';
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${requireEnv('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: Deno.env.get('CHAT_REASONING') ?? 'low' } : {}),
-      messages: [
-        { role: 'system', content: SYSTEM },
-        { role: 'system', content: `Context:\n${JSON.stringify(context)}` },
-        ...conversation,
-        // anchor the turn on the focused task so the reply talks about it (the saved message stays as typed)
-        { role: 'user', content: focus ? `[Focused task: "${focus.title}" (id ${focus.id}). This message is about this task only.]
-${message}` : message },
-      ],
-      response_format: { type: 'json_schema', json_schema: { name: 'muntej_chat', strict: true, schema: RESPONSE_SCHEMA } },
-    }),
-  });
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error('OpenAI error', res.status, detail);
-    if (res.status === 429) throw new HttpError(429, 'Muntej is busy, try again in a moment');
-    if (res.status === 401) throw new HttpError(500, 'AI key is invalid (OPENAI_API_KEY)');
-    throw new HttpError(502, `AI error ${res.status}`);
-  }
-  const out = (await res.json()) as { choices?: { message?: { content?: string | null; refusal?: string | null } }[] };
-  const msg = out.choices?.[0]?.message;
-  if (msg?.refusal) throw new HttpError(422, 'Muntej could not process that request');
-  try {
-    const r = ChatOutput.safeParse(JSON.parse(msg?.content ?? ''));
-    if (!r.success) throw new Error('schema');
-    parsed = r.data;
-  } catch {
-    throw new HttpError(502, 'Muntej got confused, try rephrasing');
-  }
+    // ── ask the model ──
+    // gpt-4.1: ~2-4 s replies with good Saudi Arabic; gpt-5-mini was 5-12 s (its reasoning step) for the same quality
+    const model = Deno.env.get('CHAT_MODEL') ?? 'gpt-4.1';
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${requireEnv('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: Deno.env.get('CHAT_REASONING') ?? 'low' } : {}),
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'system', content: `Context:\n${JSON.stringify(context)}` },
+          ...conversation,
+          // anchor the turn on the focused task so the reply talks about it (the saved message stays as typed)
+          {
+            role: 'user',
+            content: focus
+              ? `[Focused task: "${focus.title}" (id ${focus.id}). This message is about this task only.]
+${message}`
+              : message,
+          },
+        ],
+        response_format: { type: 'json_schema', json_schema: { name: 'muntej_chat', strict: true, schema: RESPONSE_SCHEMA } },
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      console.error('OpenAI error', res.status, detail);
+      if (res.status === 429) throw new HttpError(429, 'Muntej is busy, try again in a moment');
+      if (res.status === 401) throw new HttpError(500, 'AI key is invalid (OPENAI_API_KEY)');
+      throw new HttpError(502, `AI error ${res.status}`);
+    }
+    const out = (await res.json()) as { choices?: { message?: { content?: string | null; refusal?: string | null } }[] };
+    const msg = out.choices?.[0]?.message;
+    if (msg?.refusal) throw new HttpError(422, 'Muntej could not process that request');
+    try {
+      const r = ChatOutput.safeParse(JSON.parse(msg?.content ?? ''));
+      if (!r.success) throw new Error('schema');
+      parsed = r.data;
+    } catch {
+      throw new HttpError(502, 'Muntej got confused, try rephrasing');
+    }
   }
 
   // ── act ──
@@ -916,7 +942,9 @@ ${message}` : message },
             : kind === 'owner'
               ? (ar0 ? 'المسؤول ← ' : 'Owner → ') + (displayName(change.owner_id) ?? '')
               : kind === 'cancel'
-                ? (ar0 ? 'إلغاؤها' : 'Cancel')
+                ? ar0
+                  ? 'إلغاؤها'
+                  : 'Cancel'
                 : ar0
                   ? 'حذفها نهائياً (ما تقدر تتراجع)'
                   : "Delete for good (can't be undone)";
@@ -1227,8 +1255,14 @@ ${message}` : message },
           `حلو! أرسلت «${title}» ${reviewer ? `لـ${reviewer} ` : ''}يراجعها، وأعلمك إذا اعتمدها.`,
         ],
         blocked: sc.note
-          ? [`Got it, "${title}" is blocked (${sc.note}). I've noted it so whoever can help sees it.`, `سجلت إن «${title}» واقفة (${sc.note}). كتبتها عشان يشوفها اللي يقدر يساعد.`]
-          : [`Got it, "${title}" is blocked. What's in the way? I'll tell whoever can help.`, `سجلت إن «${title}» واقفة. وش اللي موقفها؟ أبلّغ اللي يقدر يساعد.`],
+          ? [
+              `Got it, "${title}" is blocked (${sc.note}). I've noted it so whoever can help sees it.`,
+              `سجلت إن «${title}» واقفة (${sc.note}). كتبتها عشان يشوفها اللي يقدر يساعد.`,
+            ]
+          : [
+              `Got it, "${title}" is blocked. What's in the way? I'll tell whoever can help.`,
+              `سجلت إن «${title}» واقفة. وش اللي موقفها؟ أبلّغ اللي يقدر يساعد.`,
+            ],
         in_progress: [`OK, "${title}" is in progress.`, `تمام، «${title}» صارت قيد التنفيذ.`],
       };
       const r = replies[result] ?? [`Done, "${title}" is open again.`, `تم، «${title}» رجعت مفتوحة.`];
@@ -1336,7 +1370,10 @@ ${message}` : message },
   if (parsed.action === 'org') {
     const r = parsed.org
       ? proposeOrg(parsed.org, everyone, meRow ?? null, amAdmin, isBelow, parsed.language === 'ar')
-      : { error: parsed.language === 'ar' ? 'ما فهمت وش التعديل على الفريق، وضّح لي أكثر؟' : "I didn't catch the team change. Can you say it another way?" };
+      : {
+          error:
+            parsed.language === 'ar' ? 'ما فهمت وش التعديل على الفريق، وضّح لي أكثر؟' : "I didn't catch the team change. Can you say it another way?",
+        };
     if ('error' in r) parsed.reply = r.error;
     else {
       orgProposal = r.proposal;
@@ -1409,7 +1446,9 @@ ${message}` : message },
       // no objective yet: offer one link when there is an obvious candidate and the model didn't already
       if (suggestions.length < 3 && (action === 'created' || action === 'updated') && !t.objective_id) {
         const active = liveObjectives.filter((o) => o.status === 'active');
-        const already = suggestions.some((s) => /objective|هدف/i.test(s) || active.some((o) => s.includes(o.title) || (o.title_ar && s.includes(o.title_ar))));
+        const already = suggestions.some(
+          (s) => /objective|هدف/i.test(s) || active.some((o) => s.includes(o.title) || (o.title_ar && s.includes(o.title_ar))),
+        );
         // one active objective, or exactly one owned by this task's owner
         const ownerMatches = t.owner_id ? active.filter((o) => o.owner_id === t.owner_id) : [];
         const pick = active.length === 1 ? active[0] : ownerMatches.length === 1 ? ownerMatches[0] : null;
@@ -1462,10 +1501,13 @@ ${message}` : message },
     }
   } else if (parsed.action === 'none' && parsed.candidates.length >= 2) {
     // several tasks fit the description: let the user pick one (the app re-sends the message focused on it)
-    const picks = parsed.candidates.filter((id) => taskById.has(id)).slice(0, 3).map((id) => {
-      const t = taskById.get(id)!;
-      return { id, title: t.title, owner_name: nameOf(t.owner_id), due_at: t.due_at };
-    });
+    const picks = parsed.candidates
+      .filter((id) => taskById.has(id))
+      .slice(0, 3)
+      .map((id) => {
+        const t = taskById.get(id)!;
+        return { id, title: t.title, owner_name: nameOf(t.owner_id), due_at: t.due_at };
+      });
     if (picks.length >= 2) payload = { candidates: picks, original_message: message };
   } else if (parsed.action === 'none' && parsed.brief?.rows.length) {
     const brief = await buildBrief(parsed.brief, parsed.language === 'ar');
@@ -1520,7 +1562,7 @@ ${message}` : message },
     const rows: BriefOut['rows'] = [];
     const used = new Set<string>();
     for (const r of raw.rows.slice(0, 6)) {
-      let task = r.task_id ? taskById.get(r.task_id) ?? null : null;
+      let task = r.task_id ? (taskById.get(r.task_id) ?? null) : null;
       if (task && (!ACTIVE.includes(task.status) || used.has(task.id))) task = null;
       const pid = r.person_id && byId.has(r.person_id) ? r.person_id : (task?.owner_id ?? null);
       if (!task && pid && ['late', 'blocked', 'overloaded', 'at_risk'].includes(r.status)) task = taskForPerson(pid, r.status, used) ?? null;
@@ -1625,10 +1667,19 @@ ${message}` : message },
     const owner = nameOf(t.owner_id);
     const parts: string[] = [];
     const fmt = (iso: string) =>
-      new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+      new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', {
+        timeZone: 'Asia/Riyadh',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(new Date(iso));
     if (proposedPatch.due_at) parts.push(ar ? `الموعد ← ${fmt(proposedPatch.due_at as string)}` : `due → ${fmt(proposedPatch.due_at as string)}`);
-    if (proposedPatch.owner_id) parts.push(ar ? `المسؤول ← ${nameOf(proposedPatch.owner_id as string)}` : `owner → ${nameOf(proposedPatch.owner_id as string)}`);
-    if (proposedPatch.helper_id) parts.push(ar ? `المساعد ← ${nameOf(proposedPatch.helper_id as string)}` : `helper → ${nameOf(proposedPatch.helper_id as string)}`);
+    if (proposedPatch.owner_id)
+      parts.push(ar ? `المسؤول ← ${nameOf(proposedPatch.owner_id as string)}` : `owner → ${nameOf(proposedPatch.owner_id as string)}`);
+    if (proposedPatch.helper_id)
+      parts.push(ar ? `المساعد ← ${nameOf(proposedPatch.helper_id as string)}` : `helper → ${nameOf(proposedPatch.helper_id as string)}`);
     if (proposedPatch.priority) parts.push(ar ? 'الأولوية' : `priority → ${proposedPatch.priority}`);
     if (proposedPatch.title) parts.push(ar ? 'العنوان' : 'title');
     if (proposedPatch.definition_of_done) parts.push(ar ? 'وش يعتبر خالص' : 'what done means');
@@ -1652,11 +1703,7 @@ ${message}` : message },
   // a Confirm tap / card choice has no user message of its own
   let userMsg: unknown = null;
   if (!tapped) {
-    const { data, error: e1 } = await db
-      .from('chat_messages')
-      .insert({ profile_id: profileId, role: 'user', content: message })
-      .select()
-      .single();
+    const { data, error: e1 } = await db.from('chat_messages').insert({ profile_id: profileId, role: 'user', content: message }).select().single();
     if (e1) throw new HttpError(500, e1.message);
     userMsg = data;
   }
@@ -1783,8 +1830,19 @@ type RecurringProposal = {
 };
 /** keys upsert_recurring accepts from a chat proposal */
 const RECURRING_KEYS = [
-  'title', 'owner_id', 'rotation', 'priority', 'definition_of_done', 'estimate_hours',
-  'freq', 'every', 'weekdays', 'month_day', 'time_of_day', 'starts_on', 'ends_on',
+  'title',
+  'owner_id',
+  'rotation',
+  'priority',
+  'definition_of_done',
+  'estimate_hours',
+  'freq',
+  'every',
+  'weekdays',
+  'month_day',
+  'time_of_day',
+  'starts_on',
+  'ends_on',
 ] as const;
 
 const DAY_NAMES = {
@@ -1802,10 +1860,24 @@ function scheduleText(
   const days = (r.weekdays ?? []).map((d) => DAY_NAMES[ar ? 'ar' : 'en'][d]).filter(Boolean);
   const dayList = days.join(ar ? ' و' : ' & ');
   if (r.freq === 'weekdays') return ar ? `كل يوم عمل (أحد–خميس) الساعة ${time}` : `Every workday (Sun–Thu) at ${time}`;
-  if (r.freq === 'daily') return ar ? (every > 1 ? `كل ${every} أيام الساعة ${time}` : `كل يوم الساعة ${time}`) : every > 1 ? `Every ${every} days at ${time}` : `Every day at ${time}`;
+  if (r.freq === 'daily')
+    return ar
+      ? every > 1
+        ? `كل ${every} أيام الساعة ${time}`
+        : `كل يوم الساعة ${time}`
+      : every > 1
+        ? `Every ${every} days at ${time}`
+        : `Every day at ${time}`;
   if (r.freq === 'monthly') {
     const md = r.month_day ?? 1;
-    const dayTxt = md === -1 ? (ar ? 'آخر يوم' : 'the last day') : ar ? `يوم ${md}` : `the ${md}${md === 1 || md === 21 || md === 31 ? 'st' : md === 2 || md === 22 ? 'nd' : md === 3 || md === 23 ? 'rd' : 'th'}`;
+    const dayTxt =
+      md === -1
+        ? ar
+          ? 'آخر يوم'
+          : 'the last day'
+        : ar
+          ? `يوم ${md}`
+          : `the ${md}${md === 1 || md === 21 || md === 31 ? 'st' : md === 2 || md === 22 ? 'nd' : md === 3 || md === 23 ? 'rd' : 'th'}`;
     return ar
       ? `${every > 1 ? `كل ${every} شهور` : 'كل شهر'} ${dayTxt} الساعة ${time} (الجمعة والسبت ← الأحد)`
       : `${every > 1 ? `Every ${every} months` : 'Monthly'} on ${dayTxt} at ${time} (Fri/Sat → Sunday)`;
@@ -1877,8 +1949,12 @@ function proposeRecurring(
   if (patch.definition_of_done) lines.push((ar ? 'تعتبر خالصة: ' : 'Done when: ') + patch.definition_of_done);
   lines.push(
     freq === 'daily' || freq === 'weekdays'
-      ? ar ? 'أسويها الليلة اللي قبلها وأذكّر المسؤول.' : 'I create each one the evening before and remind the owner.'
-      : ar ? 'أسوي كل وحدة قبل موعدها بـ٣ أيام وأذكّر المسؤول.' : 'I create each one 3 days ahead and remind the owner.',
+      ? ar
+        ? 'أسويها الليلة اللي قبلها وأذكّر المسؤول.'
+        : 'I create each one the evening before and remind the owner.'
+      : ar
+        ? 'أسوي كل وحدة قبل موعدها بـ٣ أيام وأذكّر المسؤول.'
+        : 'I create each one 3 days ahead and remind the owner.',
   );
   const reply =
     rc.op === 'create'
@@ -1910,7 +1986,11 @@ async function applyRecurring(
   const { data: id, error } = await db.rpc('upsert_recurring', { p: patch });
   if (error) throw new HttpError(400, error.message);
   await deliverNow();
-  const { data: row } = await db.from('recurring_tasks').select(RECURRING_COLS).eq('id', id as string).single();
+  const { data: row } = await db
+    .from('recurring_tasks')
+    .select(RECURRING_COLS)
+    .eq('id', id as string)
+    .single();
   const r = row as RecurringRow | null;
   const next = r?.next_due_at ? fmtRiyadh(r.next_due_at, ar) : null;
   const made = !!r?.last_task_id;
@@ -2071,7 +2151,7 @@ type BriefApplyItem = { key: string; kind: 'owner' | 'due'; task_id: string; own
 function workingDaysAhead17(t: number, days: number): number {
   const day = (x: number) => new Date(x + RIYADH_MS).getUTCDay();
   let m = t;
-  for (let i = 0; i < days; ) {
+  for (let i = 0; i < days;) {
     m += DAY;
     if (day(m) !== 5 && day(m) !== 6) i++;
   }
@@ -2081,12 +2161,7 @@ function workingDaysAhead17(t: number, days: number): number {
 }
 
 /** One tap (or "Do all") on a brief: each fix through bulk_update_tasks as the caller, so the usual rules and Undo apply. */
-async function applyBrief(
-  db: Caller['db'],
-  profileId: string,
-  raw: { source_id: string; items: BriefApplyItem[] },
-  ar: boolean,
-): Promise<Response> {
+async function applyBrief(db: Caller['db'], profileId: string, raw: { source_id: string; items: BriefApplyItem[] }, ar: boolean): Promise<Response> {
   const items = (Array.isArray(raw?.items) ? raw.items : [])
     .filter((x) => x && UUID.test(x.task_id) && (x.kind === 'owner' ? !!x.owner_id && UUID.test(x.owner_id) : x.kind === 'due' && !!x.due_at))
     .slice(0, 6);
@@ -2104,7 +2179,9 @@ async function applyBrief(
       names.set(p.id, ((ar && p.full_name_ar) || p.full_name).split(' ')[0]);
   }
   const dayFmt = (iso: string) =>
-    new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(iso));
+    new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short' }).format(
+      new Date(iso),
+    );
 
   for (const it of items) {
     const change = it.kind === 'owner' ? { kind: 'owner', owner_id: it.owner_id } : { kind: 'due', due_at: it.due_at };
@@ -2132,11 +2209,7 @@ async function applyBrief(
   // the new owners / the people whose dates moved are told through the usual alerts
   await deliverNow();
 
-  const reply = lines.length
-    ? (ar ? 'تم ✅ ' : 'Done ✅ ') + lines.join(ar ? '، ' : '; ') + '.'
-    : ar
-      ? 'ما قدرت أسويها.'
-      : "I couldn't do that.";
+  const reply = lines.length ? (ar ? 'تم ✅ ' : 'Done ✅ ') + lines.join(ar ? '، ' : '; ') + '.' : ar ? 'ما قدرت أسويها.' : "I couldn't do that.";
   const { data: botMsg, error: e2 } = await db
     .from('chat_messages')
     .insert({
@@ -2177,7 +2250,14 @@ async function undoMany(db: Caller['db'], profileId: string, raw: string[], ar: 
   const reply = ar ? `رجّعتها زي ما كانت (${n} ${n === 1 ? 'مهمة' : 'مهام'}).` : `Undone: ${n} task${n === 1 ? '' : 's'} back as they were.`;
   const { data: botMsg, error: e2 } = await db
     .from('chat_messages')
-    .insert({ profile_id: profileId, role: 'assistant', content: reply, task_id: null, action: 'none', payload: { undo_done: { log_id: ids[0], log_ids: ids } } })
+    .insert({
+      profile_id: profileId,
+      role: 'assistant',
+      content: reply,
+      task_id: null,
+      action: 'none',
+      payload: { undo_done: { log_id: ids[0], log_ids: ids } },
+    })
     .select()
     .single();
   if (e2) throw new HttpError(500, e2.message);
@@ -2191,7 +2271,6 @@ const DOWNLOAD_URL = 'https://expo.dev/accounts/nizamys-team/projects/nizamy-mun
 
 type MyAccount = { id: string; name: string; name_ar: string | null; status: string; people: number; member: boolean; active: boolean };
 
-
 const accountLabel = (a: Pick<MyAccount, 'name' | 'name_ar'>, ar: boolean) => (ar && a.name_ar) || a.name;
 
 async function runAccount(
@@ -2203,44 +2282,72 @@ async function runAccount(
 ): Promise<{ reply: string; payload: Record<string, unknown> | null }> {
   const say = (en: string, arText: string) => (ar ? arText : en);
 
-  // invite into this account with a code: the app shows WhatsApp / share buttons with the message ready
+  // invite on WhatsApp: by EMAIL (the email decides the team, no codes). Add them, email the invitation, and the app
+  // shows WhatsApp / share buttons with "download + sign in with <email>" ready to send
   if (a.op === 'invite') {
-    const { data, error } = await db.rpc('create_invite_code');
-    if (error)
+    const name = a.invitee_name?.trim() ?? '';
+    const email = a.invitee_email?.trim().toLowerCase() ?? '';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
       return {
-        reply: say('Only managers and admins can invite people. Ask your manager for an invite.', 'الدعوات للمدراء والمسؤولين بس. اطلب من مديرك يدعوه.'),
+        reply: say(
+          `What's ${name || 'their'} email? I'll add them and get the WhatsApp message ready: they just sign in with it.`,
+          `وش إيميل ${name || 'الشخص'}؟ أضيفه وأجهّز لك رسالة الواتساب: يسجّل دخول فيه على طول.`,
+        ),
         payload: null,
       };
-    const c = data as { code: string; account_name: string };
     const { data: meId } = await db.rpc('current_profile_id');
-    const { data: me } = await db.from('profiles').select('full_name, full_name_ar').eq('id', meId as string).maybeSingle();
-    const inviter = ((ar ? me?.full_name_ar : null) ?? me?.full_name ?? '').split(' ')[0];
-    const name = a.invitee_name?.trim() ?? '';
-    const code = `MNT-${c.code}`;
+    const { data: me } = await db
+      .from('profiles')
+      .select('full_name, full_name_ar, role, account_id')
+      .eq('id', meId as string)
+      .maybeSingle();
+    if (!me || me.role === 'employee')
+      return {
+        reply: say(
+          'Only managers and admins can invite people. Ask your manager to add them.',
+          'الدعوات للمدراء والمسؤولين بس. اطلب من مديرك يضيفه.',
+        ),
+        payload: null,
+      };
+    const fullName = name || email.split('@')[0].replace(/[._-]+/g, ' ');
+    const { data: personId, error } = await db.rpc('upsert_person', { p: { full_name: fullName, email, role: 'employee', manager_id: meId } });
+    const already = !!error && /already used/i.test(error.message);
+    if (error && !already) return { reply: say(`I couldn't add them: ${error.message}`, `ما قدرت أضيفه: ${error.message}`), payload: null };
+    const { data: acc } = await db.from('accounts').select('name, name_ar').eq('id', me.account_id).maybeSingle();
+    const company = (ar ? acc?.name_ar : null) ?? acc?.name ?? '';
+    if (!already && personId) await inviteByEmail(email, fullName, await inviterInfo(meId as string));
+    const inviter = ((ar ? me.full_name_ar : null) ?? me.full_name ?? '').split(' ')[0];
     const message = ar
-      ? `هلا${name ? ` ${name}` : ''}! 👋 ${inviter} يدعوك تنضم لفريق ${c.account_name} على منتج، المساعد اللي يتابع الشغل بدال الفريق.\n١) حمّل التطبيق: ${DOWNLOAD_URL}\n٢) سجّل دخول بإيميلك\n٣) اكتب رمز الدعوة: ${code}\nوخلاص، أنت معنا 🚀`
-      : `Hi${name ? ` ${name}` : ''}! 👋 ${inviter} invites you to join ${c.account_name} on Muntej, the assistant that follows up on work for the team.\n1) Download the app: ${DOWNLOAD_URL}\n2) Sign in with your email\n3) Enter the invite code: ${code}\nThat’s it, you’re in 🚀`;
-    const who = name || say('them', 'له');
+      ? `هلا${name ? ` ${name}` : ''}! 👋 ${inviter} أضافك لفريق ${company} على منتج، المساعد اللي يتابع الشغل بدال الفريق.\n١) حمّل التطبيق: ${DOWNLOAD_URL}\n٢) سجّل دخول بإيميلك: ${email}\nوخلاص، أنت معنا 🚀`
+      : `Hi${name ? ` ${name}` : ''}! 👋 ${inviter} added you to ${company} on Muntej, the assistant that follows up on work for the team.\n1) Download the app: ${DOWNLOAD_URL}\n2) Sign in with your email: ${email}\nThat’s it, you’re in 🚀`;
+    const who = name || email;
     return {
-      reply: a.invitee_phone
-        ? say(`Ready ✓ Tap WhatsApp and send it to ${who}. Whoever joins with ${code} lands in ${c.account_name}, in your team.`, `جاهزة ✓ اضغط واتساب وأرسلها لـ ${who}. اللي ينضم بالرمز ${code} يدخل ${c.account_name} في فريقك على طول.`)
-        : say(`Your invite code is ${code} ✓ Share it on WhatsApp or any app. Whoever joins with it lands in ${c.account_name}, in your team.`, `رمز الدعوة ${code} ✓ شاركه على الواتساب أو أي تطبيق. اللي ينضم فيه يدخل ${c.account_name} في فريقك على طول.`),
-      payload: { invite_link: { code, message, phone: a.invitee_phone ?? null, name: name || null, account_name: c.account_name } },
+      reply: say(
+        `${already ? `${who} is already in your team.` : `Added ${who} and emailed the invitation ✓`} Tap WhatsApp to tell them too: they just sign in with ${email}.`,
+        `${already ? `${who} موجود في فريقك.` : `أضفت ${who} وأرسلت له الدعوة على الإيميل ✓`} اضغط واتساب وبلّغه بعد: يسجّل دخول بإيميله ${email} وخلاص.`,
+      ),
+      payload: { invite_link: { email, message, phone: a.invitee_phone ?? null, name: name || null, account_name: company } },
     };
   }
 
   if (a.op === 'list') {
     if (!accounts.length) return { reply: say("You're not in any account yet.", 'للحين ما أنت في أي حساب.'), payload: null };
     const lines = accounts.map(
-      (x) => `${x.active ? '● ' : '○ '}${accountLabel(x, ar)} (${x.people} ${say('people', 'شخص')})${x.member ? '' : say(' · viewing only', ' · مشاهدة فقط')}`,
+      (x) =>
+        `${x.active ? '● ' : '○ '}${accountLabel(x, ar)} (${x.people} ${say('people', 'شخص')})${x.member ? '' : say(' · viewing only', ' · مشاهدة فقط')}`,
     );
     return { reply: `${say('Your accounts:', 'حساباتك:')}\n${lines.join('\n')}`, payload: null };
   }
 
   if (a.op === 'switch') {
     const target = accounts.find((x) => x.id === a.account_id);
-    if (!target) return { reply: say("I couldn't find that account. Say \"show my accounts\" to see them.", 'ما لقيت هالحساب. قل "وريني حساباتي" وأعرضها لك.'), payload: null };
-    if (target.active) return { reply: say(`You're already in ${accountLabel(target, false)}.`, `أنت أصلاً في ${accountLabel(target, true)}.`), payload: null };
+    if (!target)
+      return {
+        reply: say('I couldn\'t find that account. Say "show my accounts" to see them.', 'ما لقيت هالحساب. قل "وريني حساباتي" وأعرضها لك.'),
+        payload: null,
+      };
+    if (target.active)
+      return { reply: say(`You're already in ${accountLabel(target, false)}.`, `أنت أصلاً في ${accountLabel(target, true)}.`), payload: null };
     // the switch itself happens after this turn's messages are saved (they belong to the account the chat is in now)
     return {
       reply: say(`Done, you're now working in ${accountLabel(target, false)}.`, `تم، الحين أنت شغال في ${accountLabel(target, true)}.`),
@@ -2267,8 +2374,14 @@ async function runAccount(
     invite === 'invited'
       ? say(` I emailed ${made.admin_email} an invitation.`, ` وأرسلت دعوة على ${made.admin_email}.`)
       : invite === 'has_login'
-        ? say(` ${admin} already uses Muntej, so the new account shows up in their Settings.`, ` ${admin} يستخدم منتج أصلاً، فالحساب الجديد يطلع له في الإعدادات.`)
-        : say(` The invitation email didn't go out; ${admin} can still sign in with ${made.admin_email}.`, ` ما انرسلت الدعوة، بس ${admin} يقدر يدخل بإيميله ${made.admin_email}.`);
+        ? say(
+            ` ${admin} already uses Muntej, so the new account shows up in their Settings.`,
+            ` ${admin} يستخدم منتج أصلاً، فالحساب الجديد يطلع له في الإعدادات.`,
+          )
+        : say(
+            ` The invitation email didn't go out; ${admin} can still sign in with ${made.admin_email}.`,
+            ` ما انرسلت الدعوة، بس ${admin} يقدر يدخل بإيميله ${made.admin_email}.`,
+          );
   return {
     reply:
       say(`Done, "${a.name}" is open with ${admin} as its admin.`, `تم، فتحت حساب «${a.name_ar ?? a.name}» والمسؤول فيه ${admin}.`) +
@@ -2293,14 +2406,36 @@ type OrgProposal = {
 
 const LABELS = {
   en: {
-    full_name: 'Name', full_name_ar: 'Arabic name', title: 'Title', title_ar: 'Arabic title', phone: 'Mobile', email: 'Email',
-    role: 'Role', manager_id: 'Manager', weekly_capacity_hours: 'Weekly hours', years_experience: 'Experience',
-    skills_detail: 'Skills', whatsapp_connected: 'WhatsApp', telegram_connected: 'Telegram', status: 'Status',
+    full_name: 'Name',
+    full_name_ar: 'Arabic name',
+    title: 'Title',
+    title_ar: 'Arabic title',
+    phone: 'Mobile',
+    email: 'Email',
+    role: 'Role',
+    manager_id: 'Manager',
+    weekly_capacity_hours: 'Weekly hours',
+    years_experience: 'Experience',
+    skills_detail: 'Skills',
+    whatsapp_connected: 'WhatsApp',
+    telegram_connected: 'Telegram',
+    status: 'Status',
   },
   ar: {
-    full_name: 'الاسم', full_name_ar: 'الاسم بالعربي', title: 'المسمى', title_ar: 'المسمى بالعربي', phone: 'الجوال', email: 'الإيميل',
-    role: 'الصلاحية', manager_id: 'المدير', weekly_capacity_hours: 'ساعات الأسبوع', years_experience: 'الخبرة',
-    skills_detail: 'المهارات', whatsapp_connected: 'واتساب', telegram_connected: 'تيليجرام', status: 'الحالة',
+    full_name: 'الاسم',
+    full_name_ar: 'الاسم بالعربي',
+    title: 'المسمى',
+    title_ar: 'المسمى بالعربي',
+    phone: 'الجوال',
+    email: 'الإيميل',
+    role: 'الصلاحية',
+    manager_id: 'المدير',
+    weekly_capacity_hours: 'ساعات الأسبوع',
+    years_experience: 'الخبرة',
+    skills_detail: 'المهارات',
+    whatsapp_connected: 'واتساب',
+    telegram_connected: 'تيليجرام',
+    status: 'الحالة',
   },
 } as const;
 const ROLE_LABEL: Record<'en' | 'ar', Record<string, string>> = {
@@ -2325,12 +2460,12 @@ function proposeOrg(
   const say = (en: string, arText: string) => ({ error: ar ? arText : en });
   const label = LABELS[L];
   const arrow = ar ? '←' : '→';
-  const nm = (p: Pick<PersonRow, 'full_name' | 'full_name_ar'>) => (ar ? p.full_name_ar ?? p.full_name : p.full_name);
+  const nm = (p: Pick<PersonRow, 'full_name' | 'full_name_ar'>) => (ar ? (p.full_name_ar ?? p.full_name) : p.full_name);
   const f = org.fields;
   const isNew = org.op === 'add';
   if (!me) return say("I couldn't find your profile.", 'ما لقيت ملفك.');
 
-  const target = isNew ? null : everyone.find((p) => p.id === org.person_id) ?? null;
+  const target = isNew ? null : (everyone.find((p) => p.id === org.person_id) ?? null);
   if (!isNew && !target) return say("I couldn't find that person in the team. Who do you mean?", 'ما لقيت هالشخص في الفريق. مين تقصد؟');
 
   const patch: Record<string, unknown> = {};
@@ -2372,7 +2507,8 @@ function proposeOrg(
   const managerId = f.manager_id ?? (isNew ? me.id : null);
   if (managerId && managerId !== target?.manager_id) {
     const boss = everyone.find((p) => p.id === managerId && p.status !== 'deleted');
-    if (!boss) return say("I couldn't find the new manager in the team. Who should they report to?", 'ما لقيت المدير الجديد في الفريق. مين يكون مديره؟');
+    if (!boss)
+      return say("I couldn't find the new manager in the team. Who should they report to?", 'ما لقيت المدير الجديد في الفريق. مين يكون مديره؟');
     if (target && (boss.id === target.id || isBelow(boss.id, target.id)))
       return say('Someone cannot report to themselves or to a person below them.', 'ما يصير الشخص يرجع لنفسه أو لأحد تحته.');
     patch.manager_id = boss.id;
@@ -2457,8 +2593,7 @@ function proposeOrg(
     if (!canLead) return say('Only managers and admins can change the team.', 'تعديل الفريق للمدراء والمسؤولين بس.');
     if (!isNew && !isBelow(target!.id, me.id)) return say('You can only change people in your own team.', 'تقدر تعدّل على اللي تحتك في الفريق بس.');
     const m = patch.manager_id as string | undefined;
-    if (m && m !== me.id && !isBelow(m, me.id))
-      return say('You can only move people within your own team.', 'تقدر تنقل الناس داخل فريقك بس.');
+    if (m && m !== me.id && !isBelow(m, me.id)) return say('You can only move people within your own team.', 'تقدر تنقل الناس داخل فريقك بس.');
   }
   const adminRole = (r?: string | null) => r === 'admin' || r === 'super_admin';
   if (me.role !== 'super_admin') {
@@ -2507,16 +2642,15 @@ async function applyOrg(db: Caller['db'], profileId: string, raw: unknown, ar: b
   if (error) throw new HttpError(400, error.message);
   await deliverNow();
 
-  const { data: person } = await db.from('profiles').select('full_name, full_name_ar, email, user_id').eq('id', id as string).single();
+  const { data: person } = await db
+    .from('profiles')
+    .select('full_name, full_name_ar, email, user_id')
+    .eq('id', id as string)
+    .single();
   const name = person ? ((ar ? person.full_name_ar : null) ?? person.full_name) : '';
   // a new person with an email and no login yet gets an invitation email (sales@muntej.app)
   const invite = isNew && person?.email && !person.user_id ? await inviteByEmail(person.email, person.full_name, await inviterInfo(profileId)) : null;
-  const invited =
-    invite === 'invited'
-      ? ar
-        ? ` وأرسلت له دعوة على ${person!.email}.`
-        : ` I emailed ${person!.email} an invitation.`
-      : '';
+  const invited = invite === 'invited' ? (ar ? ` وأرسلت له دعوة على ${person!.email}.` : ` I emailed ${person!.email} an invitation.`) : '';
   const reply = isNew
     ? ar
       ? `تم، أضفت ${name} للفريق.${invited}`
@@ -2563,8 +2697,24 @@ type ObjectiveProposal = {
 const OBJECTIVE_OPS: readonly ObjectiveOp[] = ['create', 'update', 'cancel', 'distribute'];
 
 const OBJ_LABELS = {
-  en: { title: 'Title', title_ar: 'Arabic title', description: 'Description', owner_id: 'Accountable', start_at: 'Starts', due_at: 'Ends', status: 'Status' },
-  ar: { title: 'العنوان', title_ar: 'العنوان بالعربي', description: 'الوصف', owner_id: 'المسؤول', start_at: 'يبدأ', due_at: 'ينتهي', status: 'الحالة' },
+  en: {
+    title: 'Title',
+    title_ar: 'Arabic title',
+    description: 'Description',
+    owner_id: 'Accountable',
+    start_at: 'Starts',
+    due_at: 'Ends',
+    status: 'Status',
+  },
+  ar: {
+    title: 'العنوان',
+    title_ar: 'العنوان بالعربي',
+    description: 'الوصف',
+    owner_id: 'المسؤول',
+    start_at: 'يبدأ',
+    due_at: 'ينتهي',
+    status: 'الحالة',
+  },
 } as const;
 
 function isoOrNull(s: string | null | undefined) {
@@ -2606,7 +2756,7 @@ function proposeObjective(
   const f = change.fields;
   const lines: string[] = [];
   const patch: Record<string, unknown> = {};
-  const who = (id: string | null) => (id === ctx.meId ? (ar ? 'أنت' : 'You') : ctx.nameOf(id) ?? (ar ? 'ما أحد' : 'Nobody'));
+  const who = (id: string | null) => (id === ctx.meId ? (ar ? 'أنت' : 'You') : (ctx.nameOf(id) ?? (ar ? 'ما أحد' : 'Nobody')));
   const ownerAllowed = (id: string) => id === ctx.meId || ctx.amAdmin || ctx.isBelow(id, ctx.meId);
   const notInTeam = () => say("I couldn't find that person in the team. Who is accountable?", 'ما لقيت هالشخص في الفريق. مين المسؤول عن الهدف؟');
   const notYours = () => say('You can only make yourself or people in your team accountable.', 'تقدر تخلي المسؤول أنت أو أحد من فريقك بس.');

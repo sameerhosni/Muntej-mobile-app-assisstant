@@ -1,4 +1,4 @@
-// Chat card for "invite Faisal on WhatsApp 0555…": the code and one-tap WhatsApp (to that number when given) or any
+// Chat card for "invite Faisal faisal@x.sa on WhatsApp 0555…": who was invited and one-tap WhatsApp (to that number) or any
 // other app, with the message Saree3 wrote ready to send.
 import type { ReactNode } from 'react';
 import { Linking, Pressable, Share, View } from 'react-native';
@@ -9,15 +9,16 @@ import { useScreenT } from '@/lib/i18n/register';
 import { whatsappUrl } from './api';
 import { INVITE_NS } from './strings';
 
-export type InviteLinkPayload = { code: string; message: string; phone: string | null; name: string | null; account_name: string };
+/** email = who was invited (older cards carried a team code instead) */
+export type InviteLinkPayload = { email?: string; code?: string; message: string; phone: string | null; name: string | null; account_name: string };
 
 export function InviteLinkCard({ invite }: { invite: InviteLinkPayload }) {
   const { t } = useScreenT(INVITE_NS);
   const share = () => Share.share({ message: invite.message }).catch(() => {});
   return (
     <Card padding={spacing.lg} style={{ gap: spacing.md, borderWidth: 1.5, borderColor: colors.primary }}>
-      <AppText selectable weight="extrabold" color="primary" align="center" style={{ fontSize: 24, letterSpacing: 2, writingDirection: 'ltr' }}>
-        {invite.code}
+      <AppText selectable weight="extrabold" color="primary" align="center" style={{ fontSize: 18, writingDirection: 'ltr' }}>
+        {invite.email ?? invite.code}
       </AppText>
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         <Btn
