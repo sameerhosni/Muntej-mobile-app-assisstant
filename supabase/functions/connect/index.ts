@@ -10,7 +10,17 @@
 //   POST { action: 'settings', provider, import_on?, export_on?, export_target? } → the two switches + where tasks go
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
-import { ALL_PROVIDERS, CALLBACK_URL, challengeOf, open, PROVIDERS, randomToken, seal, syncConnection, type ProviderId } from '../_shared/connections.ts';
+import {
+  ALL_PROVIDERS,
+  CALLBACK_URL,
+  challengeOf,
+  open,
+  PROVIDERS,
+  randomToken,
+  seal,
+  syncConnection,
+  type ProviderId,
+} from '../_shared/connections.ts';
 
 const STATE_TTL_MS = 10 * 60_000;
 /** only back into the app (deep link / Expo Go / the local web preview): never an open redirect */
@@ -26,6 +36,10 @@ const NAME: Record<ProviderId, string> = {
   notion: 'Notion',
   azure_devops: 'Azure DevOps',
 };
+
+// email tools: a person can sign in with up to 3 email accounts (work, personal, Outlook…)
+const EMAIL_TOOLS: ProviderId[] = ['google', 'microsoft'];
+const MAX_EMAIL_ACCOUNTS = 3;
 
 async function callback(req: Request): Promise<Response> {
   const url = new URL(req.url);
@@ -44,6 +58,16 @@ async function callback(req: Request): Promise<Response> {
   try {
     const tokens = await provider.exchange({ code, redirectUri: CALLBACK_URL, verifier: st.verifier as string });
     const account = await provider.account(tokens);
+    // email accounts: up to MAX_EMAIL_ACCOUNTS per person (signing in again with the same one just refreshes it)
+    if (EMAIL_TOOLS.includes(st.provider as ProviderId)) {
+      const { data: mine } = await admin
+        .from('connections')
+        .select('provider, account_label')
+        .eq('profile_id', st.profile_id)
+        .in('provider', EMAIL_TOOLS);
+      const again = (mine ?? []).some((c) => c.provider === st.provider && c.account_label === account.label);
+      if (!again && (mine ?? []).length >= MAX_EMAIL_ACCOUNTS) return back({ error: 'limit' });
+    }
     const { data: conn, error } = await admin
       .from('connections')
       .upsert(
@@ -56,7 +80,7 @@ async function callback(req: Request): Promise<Response> {
           cursor: account.cursor ?? {},
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'profile_id,provider' },
+        { onConflict: 'profile_id,provider,account_label' },
       )
       .select('id')
       .single();
@@ -81,7 +105,7 @@ async function callback(req: Request): Promise<Response> {
 serve(async (req) => {
   if (req.method === 'GET' && new URL(req.url).pathname.endsWith('/callback')) return callback(req);
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
-  const body = (await req.json().catch(() => ({}))) as { action?: string; provider?: ProviderId; redirect?: string };
+  const body = (await req.json().catch(() => ({}))) as { action?: string; provider?: ProviderId; redirect?: string; id?: string };
   const { profileId } = await getCaller(req);
   const admin = adminClient();
 
@@ -102,7 +126,13 @@ serve(async (req) => {
     case 'targets': {
       const provider = body.provider ? PROVIDERS[body.provider] : undefined;
       if (!provider?.tasks) throw new HttpError(400, 'This tool only brings tasks in');
-      const { data: conn } = await admin.from('connections').select('id, cursor').eq('profile_id', profileId).eq('provider', body.provider ?? '').maybeSingle();
+      const { data: conn } = await admin
+        .from('connections')
+        .select('id, cursor')
+        .eq('profile_id', profileId)
+        .eq('provider', body.provider ?? '')
+        .limit(1)
+        .maybeSingle();
       if (!conn) throw new HttpError(404, 'Not connected');
       const { data: secret } = await admin.from('connection_secrets').select('data').eq('connection_id', conn.id).single();
       if (!secret) throw new HttpError(409, 'Sign in again');
@@ -115,21 +145,34 @@ serve(async (req) => {
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (typeof b.import_on === 'boolean') patch.import_on = b.import_on;
       if (b.export_target !== undefined)
-        patch.export_target = b.export_target ? { id: String(b.export_target.id), name: String(b.export_target.name).slice(0, 200), since: new Date().toISOString() } : null;
+        patch.export_target = b.export_target
+          ? { id: String(b.export_target.id), name: String(b.export_target.name).slice(0, 200), since: new Date().toISOString() }
+          : null;
       if (typeof b.export_on === 'boolean') {
         patch.export_on = b.export_on;
         // turning it on: only tasks from now on go out (never the whole backlog)
         if (b.export_on && b.export_target === undefined) {
-          const { data: cur } = await admin.from('connections').select('export_target').eq('profile_id', profileId).eq('provider', body.provider ?? '').maybeSingle();
+          const { data: cur } = await admin
+            .from('connections')
+            .select('export_target')
+            .eq('profile_id', profileId)
+            .eq('provider', body.provider ?? '')
+            .limit(1)
+            .maybeSingle();
           const tgt = cur?.export_target as { id: string; name: string } | null;
           if (!tgt) throw new HttpError(400, 'Pick where tasks should go first');
           patch.export_target = { ...tgt, since: new Date().toISOString() };
         }
       }
-      const { data, error } = await admin.from('connections').update(patch).eq('profile_id', profileId).eq('provider', body.provider ?? '').select('*').maybeSingle();
+      const { data, error } = await admin
+        .from('connections')
+        .update(patch)
+        .eq('profile_id', profileId)
+        .eq('provider', body.provider ?? '')
+        .select('*');
       if (error) throw error;
-      if (!data) throw new HttpError(404, 'Not connected');
-      return json(data);
+      if (!data?.length) throw new HttpError(404, 'Not connected');
+      return json(data[0]);
     }
 
     // connect with the person's own personal API token (no admin setup): checked against the tool, then kept encrypted
@@ -137,7 +180,10 @@ serve(async (req) => {
       const provider = body.provider ? PROVIDERS[body.provider] : undefined;
       if (!provider?.personalToken) throw new HttpError(400, 'This tool needs sign-in instead');
       // the tool's fields (token, plus e.g. Jira site + email, Trello API key)
-      const given = ((body as { creds?: Record<string, string> }).creds ?? { token: (body as { token?: string }).token ?? '' }) as Record<string, string>;
+      const given = ((body as { creds?: Record<string, string> }).creds ?? { token: (body as { token?: string }).token ?? '' }) as Record<
+        string,
+        string
+      >;
       const creds: Record<string, string> = {};
       for (const f of provider.personalToken.fields) {
         const v = String(given[f] ?? '').trim();
@@ -164,12 +210,14 @@ serve(async (req) => {
             cursor: account.cursor ?? {},
             updated_at: new Date().toISOString(),
           },
-          { onConflict: 'profile_id,provider' },
+          { onConflict: 'profile_id,provider,account_label' },
         )
         .select('*')
         .single();
       if (error) throw error;
-      await admin.from('connection_secrets').upsert({ connection_id: conn.id, data: await seal({ access_token: token, extra }), updated_at: new Date().toISOString() });
+      await admin
+        .from('connection_secrets')
+        .upsert({ connection_id: conn.id, data: await seal({ access_token: token, extra }), updated_at: new Date().toISOString() });
       await admin.from('activity_log').insert({
         actor_type: 'user',
         actor_id: profileId,
@@ -198,7 +246,14 @@ serve(async (req) => {
     }
 
     case 'disconnect': {
-      const { error } = await admin.from('connections').delete().eq('profile_id', profileId).eq('provider', body.provider ?? '');
+      // one account (id) or every account of that tool
+      let del = admin
+        .from('connections')
+        .delete()
+        .eq('profile_id', profileId)
+        .eq('provider', body.provider ?? '');
+      if (body.id) del = del.eq('id', body.id);
+      const { error } = await del;
       if (error) throw error;
       await admin.from('activity_log').insert({
         actor_type: 'user',
@@ -213,9 +268,22 @@ serve(async (req) => {
     }
 
     case 'sync': {
-      const { data: conn } = await admin.from('connections').select('*').eq('profile_id', profileId).eq('provider', body.provider ?? '').maybeSingle();
-      if (!conn) throw new HttpError(404, 'Not connected');
-      return json(await syncConnection(admin, conn));
+      // one account (id) or every account of that tool, results added up
+      let q = admin
+        .from('connections')
+        .select('*')
+        .eq('profile_id', profileId)
+        .eq('provider', body.provider ?? '');
+      if (body.id) q = q.eq('id', body.id);
+      const { data: conns } = await q;
+      if (!conns?.length) throw new HttpError(404, 'Not connected');
+      const total = { read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0 } as Record<string, number> & { error?: string };
+      for (const c of conns) {
+        const r = await syncConnection(admin, c);
+        for (const k of ['read', 'tasks', 'sent', 'closedHere', 'closedThere', 'updated']) total[k] += (r as Record<string, number>)[k] ?? 0;
+        if (r.error) total.error = r.error;
+      }
+      return json(total);
     }
 
     default:

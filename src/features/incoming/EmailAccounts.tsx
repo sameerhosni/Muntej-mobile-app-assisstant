@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { CheckCircle2, Mail, RefreshCw } from 'lucide-react-native';
+import { CheckCircle2, Mail, RefreshCw, X } from 'lucide-react-native';
 import { AppText, Card } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
@@ -13,6 +13,8 @@ import { readSince } from './api';
 import { NS } from './strings';
 
 const EMAIL_TOOLS: ProviderId[] = ['google', 'microsoft'];
+/** emails one person can connect (the connect function enforces it too) */
+const MAX_EMAILS = 3;
 /** opening the screen re-checks the email when the last check is older than this */
 const FRESH_MS = 2 * 60_000;
 
@@ -30,8 +32,10 @@ export function EmailAccounts() {
   const autoChecked = useRef(false);
 
   const mine = (connections.data ?? []).filter((c) => EMAIL_TOOLS.includes(c.provider));
-  // only the sign-ins this server offers (credentials set)
-  const offered = EMAIL_TOOLS.filter((id) => (providers.data ?? []).some((p) => p.id === id && p.configured) && !mine.some((c) => c.provider === id));
+  // only the sign-ins this server offers (credentials set), while there's room (up to 3 emails; the same tool again =
+  // another account of it, Google asks which one)
+  const offered = mine.length >= MAX_EMAILS ? [] : EMAIL_TOOLS.filter((id) => (providers.data ?? []).some((p) => p.id === id && p.configured));
+  const [removing, setRemoving] = useState<string | null>(null);
 
   const checkNow = async () => {
     if (!mine.length) return;
@@ -41,7 +45,8 @@ export function EmailAccounts() {
     setProgress({ pct: 0, read: 0 });
     let found = 0;
     try {
-      for (const c of mine) found += (await actions.syncNow(c.provider)).tasks ?? 0;
+      // one call per tool reads every account of it
+      for (const p of [...new Set(mine.map((c) => c.provider))]) found += (await actions.syncNow(p)).tasks ?? 0;
       setProgress((p) => ({ pct: 100, read: p?.read ?? 0 }));
       setNote({ ok: true, text: found ? t('emailFound', { count: found, n: found }) : t('emailNothing') });
     } catch {
@@ -74,7 +79,7 @@ export function EmailAccounts() {
   // just came back from signing in, or opened the screen: read the email now
   useEffect(() => {
     if (params.connected) setNote({ ok: true, text: t('emailConnected') });
-    if (params.error) setNote({ ok: false, text: t('emailConnectFailed') });
+    if (params.error) setNote({ ok: false, text: params.error === 'limit' ? t('emailLimit', { n: MAX_EMAILS }) : t('emailConnectFailed') });
   }, [params.connected, params.error, t]);
   useEffect(() => {
     if (autoChecked.current || !connections.data) return;
@@ -119,10 +124,34 @@ export function EmailAccounts() {
                 </AppText>
               </Pressable>
             )}
+            {/* remove this email: first tap asks "Sure?", the second removes it */}
+            <Pressable
+              onPress={async () => {
+                if (removing !== c.id) return setRemoving(c.id);
+                setRemoving(null);
+                await actions.disconnect(c.provider, c.id).catch(() => setNote({ ok: false, text: t('emailCheckFailed') }));
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t('emailRemove')}
+              style={{ minHeight: sizes.touch, minWidth: sizes.touch, alignItems: 'center', justifyContent: 'center' }}
+            >
+              {removing === c.id ? (
+                <AppText variant="small" weight="bold" color="red">
+                  {t('emailRemoveSure')}
+                </AppText>
+              ) : (
+                <X color={colors.textMuted} size={18} />
+              )}
+            </Pressable>
           </View>
         ))
       )}
 
+      {mine.length > 0 && offered.length > 0 && (
+        <AppText variant="caption" color="textMuted">
+          {t('emailAddAnother', { n: MAX_EMAILS - mine.length })}
+        </AppText>
+      )}
       {offered.map((id) => (
         <Pressable
           key={id}

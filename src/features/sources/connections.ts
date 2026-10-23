@@ -86,8 +86,9 @@ export function useConnectionActions() {
       await qc.invalidateQueries({ queryKey: ['tasks'] });
       return r;
     },
-    disconnect: async (provider: ProviderId) => {
-      await call({ action: 'disconnect', provider });
+    /** one account (id) of that tool, or all of them */
+    disconnect: async (provider: ProviderId, id?: string) => {
+      await call({ action: 'disconnect', provider, id });
       await refresh();
     },
     /** lists / projects in the person's account that tasks can be sent to */

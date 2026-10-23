@@ -49,6 +49,7 @@ const SYSTEM = `You are Muntej, an AI task assistant for managers and employees 
 
 Rules:
 - Find only real, actionable work someone has to do (requests, action items, promises with a deadline). Ignore greetings, FYIs, signatures, quoted history, marketing, automated notifications and things already done. No tasks → empty list.
+- Automated mail is NEVER a task: security alerts, sign-in / verification codes, receipts and payment notices, newsletters, "X accepted your invitation", policy / terms updates, system alerts and reports, marketing. Only a real person asking for work (or the user's own note-to-self) makes a task.
 - A short message whose subject or body is itself an instruction ("test the Availo system", "send the price list", "راجع العقد") IS a task, even without "please" or a deadline: the work is for the user (owner = user_id) unless someone else is named. confidence 0.6–0.8. Only a message with no work in it at all (thanks, FYI, a newsletter) has no task.
 - At most ${MAX_TASKS} tasks. Merge duplicates inside the message. Keep titles short (max ~10 words) and in the message's language; Saudi conversational Arabic when Arabic.
 - owner_id (same rules as the chat) must be an id from team. 1) A named person, matched loosely (first names, Arabic/English spellings). "me / I'll / you (to the user) / سأقوم" = user's id. 2) A ROLE or job instead of a name ("the designer", "المحاسب", "QA", "someone from sales", "the developer") → the team member whose title fits it, then whose skills fit the work best (prefer higher skill level). Context counts like a name: the To / Cc lines (an email addressed to Faisal with "please…" is Faisal's), a greeting ("Hi Noura,"), "can you…" to someone in a chat. 3) No name or role: work asked of the reader (the message is addressed to the user) = user's id. 4) Still nobody clearly fits → null. Every task found here waits for the user's OK, so a sensible best fit by role or skill is better than null.
@@ -292,7 +293,10 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
       });
 
   const teamIds = new Set(input.team.map((p) => p.id));
-  const suggestions: Suggestion[] = found.tasks.slice(0, MAX_TASKS).map((t) => {
+  // email: only real tasks reach the person (a "maybe" from a mailbox is noise)
+  const fromMail = ['gmail', 'outlook', 'email'].includes(input.source);
+  const kept = fromMail ? found.tasks.filter((t) => t.confidence >= 0.5) : found.tasks;
+  const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;
     const due = t.due_at && !Number.isNaN(Date.parse(t.due_at)) ? t.due_at : null;
     return {
