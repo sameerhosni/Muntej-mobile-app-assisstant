@@ -3,7 +3,6 @@
 // reads the new mail, and every task found waits below with Add task / Edit / Ignore. Pasting a message (WhatsApp,
 // notes) is folded at the bottom; ?text= (muntej://42-incoming?text=…) opens it pre-filled. Other tools: Sources.
 // Data: src/features/incoming/api.ts.
-import { ScreenTip } from '@/features/coach/ScreenTip';
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
@@ -22,9 +21,17 @@ import { NS } from '@/features/incoming/strings';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { EmailAccounts } from '@/features/incoming/EmailAccounts';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
+
+const EMAIL_STEPS = [
+  { target: 'email.connect', key: 'emailConnect' },
+  { target: 'email.add', key: 'emailAdd', demo: 'add' as const },
+];
 
 export default function IncomingScreen() {
   const { t } = useScreenT(NS);
+  useWalkthrough('email', EMAIL_STEPS);
   const { isRTL } = useDirection();
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
   const params = useLocalSearchParams<{ text?: string }>();
@@ -87,8 +94,9 @@ export default function IncomingScreen() {
         <AppText color="textMuted">{t('subtitle')}</AppText>
         {/* your email, connected right here; opening the screen reads it, the found tasks wait below for an OK */}
         <SetupBar />
-        <ScreenTip id="email" />
-        <EmailAccounts />
+        <TourTarget id="email.connect">
+          <EmailAccounts />
+        </TourTarget>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <AppText weight="bold" color="primary" style={{ flex: 1 }}>
             {waiting > 0 ? t('waiting', { count: waiting, n: waiting }) : ''}
@@ -136,9 +144,15 @@ export default function IncomingScreen() {
             </AppText>
           </Card>
         )}
-        {items.map((it) => (
-          <ItemCard key={it.id} item={it} />
-        ))}
+        {items.map((it, i) =>
+          i === 0 ? (
+            <TourTarget key={it.id} id="email.add">
+              <ItemCard item={it} />
+            </TourTarget>
+          ) : (
+            <ItemCard key={it.id} item={it} />
+          ),
+        )}
         {pages.hasNextPage && (
           <Button label={t('showMore')} variant="outline" size="md" loading={pages.isFetchingNextPage} onPress={() => pages.fetchNextPage()} />
         )}

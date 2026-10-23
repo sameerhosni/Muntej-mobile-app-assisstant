@@ -2,7 +2,6 @@
 // With ?id= → live task (useTask: subtasks, evidence). Without → the design's demo task "Prepare SPL pitch".
 // "Ask <assigner>" and "Split with AI" are local demo actions; ticking a live subtask writes subtasks.done.
 // "Change with Muntej" (bottom bar) opens the chat locked on this task — the one place changes are made.
-import { ScreenTip } from '@/features/coach/ScreenTip';
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from 'react-native';
 import { TOOL_LABEL, useTaskTools } from '@/features/tasks/toolTags';
@@ -17,6 +16,8 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
 import { ReviewBar } from '@/features/review/ReviewBar';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { ProofSection } from '@/features/proof/ProofSection';
 import { PlanAndHelp } from '@/features/task-detail/PlanAndHelp';
 import type { Enum } from '@/lib/api';
@@ -43,7 +44,13 @@ const priorityTone: Record<TaskPriority, { bg: ColorToken; fg: ColorToken }> = {
 function proofFromEvidence(e: Evidence, lang: string, t: (k: string) => string): ProofVM {
   if (e.type === 'voice') {
     const s = e.duration_seconds ?? 0;
-    return { id: e.id, badge: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, label: e.title ?? t('voiceShort'), bg: 'purpleTint', fg: 'purple' };
+    return {
+      id: e.id,
+      badge: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`,
+      label: e.title ?? t('voiceShort'),
+      bg: 'purpleTint',
+      fg: 'purple',
+    };
   }
   if (e.type === 'image') return { id: e.id, badge: 'IMG', label: e.title ?? 'IMG', bg: 'primaryTint', fg: 'primary' };
   if (e.type === 'link') return { id: e.id, badge: 'URL', label: e.title ?? t('link'), bg: 'primaryTint', fg: 'primary' };
@@ -60,8 +67,15 @@ function proofFromEvidence(e: Evidence, lang: string, t: (k: string) => string):
   };
 }
 
+const TASK_STEPS = [
+  { target: 'task.change', key: 'taskChange' },
+  { target: 'task.steps', key: 'taskSteps' },
+  { target: 'task.proof', key: 'taskProof' },
+];
+
 export default function TaskDetailScreen() {
   const { t } = useScreenT(NS);
+  useWalkthrough('task', TASK_STEPS);
   const { lang, isRTL } = useDirection();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -87,17 +101,19 @@ export default function TaskDetailScreen() {
   };
 
   // ---- shape the screen from live data or the design's demo values
-  const title = live ? d?.title ?? '' : t('demoTitle');
+  const title = live ? (d?.title ?? '') : t('demoTitle');
   const ownerName = live ? (d?.owner ? shortName(d.owner, lang) : t('unassigned')) : personLabel(person('faisal'), lang);
   const assignerName = live ? nameOf(d?.assigner_id) || t('manager') : personLabel(person('ahmed'), lang);
-  const dueIso = live ? d?.due_at ?? null : nextThursday5pm();
+  const dueIso = live ? (d?.due_at ?? null) : nextThursday5pm();
   const due = dueIso
-    ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US', { weekday: lang === 'ar' ? 'long' : 'short', hour: 'numeric' }).format(new Date(dueIso))
+    ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US', { weekday: lang === 'ar' ? 'long' : 'short', hour: 'numeric' }).format(
+        new Date(dueIso),
+      )
     : t('noDue');
-  const priority: TaskPriority = live ? d?.priority ?? 'medium' : 'high';
-  const source: Enum<'task_source'> = live ? d?.source ?? 'text' : 'teams';
-  const sourceRef = live ? d?.source_ref ?? null : 'Jira SPL-142';
-  const estimate = live ? d?.estimate_hours ?? null : 22;
+  const priority: TaskPriority = live ? (d?.priority ?? 'medium') : 'high';
+  const source: Enum<'task_source'> = live ? (d?.source ?? 'text') : 'teams';
+  const sourceRef = live ? (d?.source_ref ?? null) : 'Jira SPL-142';
+  const estimate = live ? (d?.estimate_hours ?? null) : 22;
 
   const baseChecks: Record<CheckKey, boolean> = live
     ? { owner: !!d?.owner_id, due: !!d?.due_at, doneDef: !!d?.definition_of_done, budget: !!d?.budget }
@@ -186,7 +202,11 @@ export default function TaskDetailScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + spacing.xs, paddingBottom: BOTTOM_CTA_SPACE + insets.bottom + (d?.status === 'submitted' ? 70 : 0), gap: spacing.xxl }}
+        contentContainerStyle={{
+          paddingTop: insets.top + spacing.xs,
+          paddingBottom: BOTTOM_CTA_SPACE + insets.bottom + (d?.status === 'submitted' ? 70 : 0),
+          gap: spacing.xxl,
+        }}
         showsVerticalScrollIndicator={false}
       >
         {/* header */}
@@ -213,8 +233,15 @@ export default function TaskDetailScreen() {
             </View>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            <MetaChip bg="purpleTint" fg="purpleText" icon={<SourceIcon color={colors.purpleText} size={14} strokeWidth={2} />} label={t(`source.${source}`)} />
-            {sourceRef && <MetaChip bg="primaryTint" fg="primary" icon={<Link2 color={colors.primary} size={14} strokeWidth={2} />} label={sourceRef} />}
+            <MetaChip
+              bg="purpleTint"
+              fg="purpleText"
+              icon={<SourceIcon color={colors.purpleText} size={14} strokeWidth={2} />}
+              label={t(`source.${source}`)}
+            />
+            {sourceRef && (
+              <MetaChip bg="primaryTint" fg="primary" icon={<Link2 color={colors.primary} size={14} strokeWidth={2} />} label={sourceRef} />
+            )}
             {/* the tool this task is linked to (two-way sync): tap to open it there */}
             {tool && (
               <Pressable
@@ -231,17 +258,24 @@ export default function TaskDetailScreen() {
                 />
               </Pressable>
             )}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.orangeTint, borderRadius: radius.pill, paddingVertical: 4, paddingStart: 4, paddingEnd: spacing.md }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: colors.orangeTint,
+                borderRadius: radius.pill,
+                paddingVertical: 4,
+                paddingStart: 4,
+                paddingEnd: spacing.md,
+              }}
+            >
               <PointsCoin size={18} />
               <AppText variant="caption" weight="bold" color="orangeText">
                 {t('points', { pts: formatNumber(REWARD.pts, lang), early: formatNumber(REWARD.early, lang) })}
               </AppText>
             </View>
           </View>
-        </View>
-
-        <View style={{ paddingHorizontal: spacing.screen }}>
-          <ScreenTip id="task" />
         </View>
 
         {/* clarity */}
@@ -254,7 +288,15 @@ export default function TaskDetailScreen() {
                 <AppText weight="bold">{t('clarity')}</AppText>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
                   {checks.map((c) => (
-                    <View key={c.key} style={{ backgroundColor: c.ok ? colors.greenTint : colors.surfaceMuted, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 }}>
+                    <View
+                      key={c.key}
+                      style={{
+                        backgroundColor: c.ok ? colors.greenTint : colors.surfaceMuted,
+                        borderRadius: radius.pill,
+                        paddingHorizontal: 7,
+                        paddingVertical: 2,
+                      }}
+                    >
                       <AppText variant="micro" weight="bold" color={c.ok ? (c.key === 'budget' ? 'green' : 'greenText') : 'amberText'}>
                         {c.ok ? '✓' : '✗'} {t(`check.${c.key}`)}
                       </AppText>
@@ -278,7 +320,17 @@ export default function TaskDetailScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t('askA11y', { name: assignerName, what: t(`checkWhat.${missing}`) })}
                   hitSlop={{ top: 6, bottom: 6 }}
-                  style={({ pressed }) => ({ height: 32, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.gold, backgroundColor: colors.amberTint, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}
+                  style={({ pressed }) => ({
+                    height: 32,
+                    paddingHorizontal: spacing.lg,
+                    borderRadius: radius.pill,
+                    borderWidth: 1,
+                    borderColor: colors.gold,
+                    backgroundColor: colors.amberTint,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: pressed ? 0.85 : 1,
+                  })}
                 >
                   <AppText variant="caption" weight="bold" color="amberStrong">
                     {t('ask', { name: assignerName })}
@@ -299,142 +351,220 @@ export default function TaskDetailScreen() {
         {/* steps: live tasks get the real steps section; the prototype tour keeps the design's demo */}
         {live && d ? (
           <Spotlight id="task.steps" style={{ marginHorizontal: spacing.screen }}>
-            <StepsSection task={d as unknown as Parameters<typeof StepsSection>[0]['task']} />
+            <TourTarget id="task.steps">
+              <StepsSection task={d as unknown as Parameters<typeof StepsSection>[0]['task']} />
+            </TourTarget>
           </Spotlight>
         ) : (
-        <View style={{ paddingHorizontal: spacing.screen, gap: spacing.sm }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <AppText variant="section">{t('subtasks')}</AppText>
-            <View style={{ backgroundColor: colors.greenTint, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 3 }}>
-              <AppText variant="caption" weight="extrabold" color="green">
-                {subs ? `${formatNumber(doneCount, lang)} / ${formatNumber(subs.length, lang)}` : '—'}
-              </AppText>
-            </View>
-          </View>
-          {subs ? (
-            <Card padding={0} style={{ paddingHorizontal: spacing.xl, paddingTop: 2, gap: 0, overflow: 'hidden' }}>
-              {subs.map((s, i) => (
-                <Pressable
-                  key={s.id}
-                  onPress={() => onToggle(s)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: s.done }}
-                  accessibilityLabel={s.name}
-                  style={{ minHeight: sizes.touch, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomWidth: i === subs.length - 1 ? 0 : 1, borderBottomColor: colors.border }}
-                >
-                  <View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: s.done ? colors.green : colors.borderBlue, backgroundColor: s.done ? colors.green : colors.transparent, alignItems: 'center', justifyContent: 'center' }}>
-                    {s.done && <Check color={colors.onDark} size={13} strokeWidth={3} />}
-                  </View>
-                  <AppText color={s.done ? 'textFaint' : 'text'} style={{ flex: 1, textDecorationLine: s.done ? 'line-through' : 'none' }} numberOfLines={2}>
-                    {s.name}
-                  </AppText>
-                  {!!s.who && (
-                    <AppText variant="caption" color="textFaint">
-                      {s.who}
-                    </AppText>
-                  )}
-                </Pressable>
-              ))}
-            </Card>
-          ) : (
-            <Card style={{ gap: spacing.lg }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-                <IconBadge size={38} bg="amberTint">
-                  <AlertTriangle color={colors.amberText} size={18} strokeWidth={1.9} />
-                </IconBadge>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <AppText weight="bold">{estimate ? t('bigTask', { h: formatNumber(estimate, lang) }) : t('bigTaskPlain')}</AppText>
-                  <AppText variant="caption" color="textMuted">
-                    {estimate ? t('slips', { h: formatNumber(estimate, lang) }) : t('slipsPlain')}
-                  </AppText>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.greenTint, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 3 }}>
-                  <Clock color={colors.greenText} size={11} strokeWidth={2.6} />
-                  <AppText variant="micro" weight="bold" color="greenText">
-                    {t('splitSaves')}
-                  </AppText>
-                </View>
+          <View style={{ paddingHorizontal: spacing.screen, gap: spacing.sm }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <AppText variant="section">{t('subtasks')}</AppText>
+              <View style={{ backgroundColor: colors.greenTint, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 3 }}>
+                <AppText variant="caption" weight="extrabold" color="green">
+                  {subs ? `${formatNumber(doneCount, lang)} / ${formatNumber(subs.length, lang)}` : '—'}
+                </AppText>
               </View>
-              <Pressable
-                onPress={split}
-                disabled={splitting}
-                accessibilityRole="button"
-                accessibilityState={{ busy: splitting }}
-                style={({ pressed }) => ({ borderRadius: radius.pill, boxShadow: shadows.purple, opacity: pressed ? 0.88 : 1 })}
-              >
-                <Gradient name="purple" style={{ minHeight: 46, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
-                  {splitting ? <ActivityIndicator color={colors.onDark} /> : <Sparkles color={colors.onDark} fill={colors.onDark} size={16} strokeWidth={1.6} />}
-                  <AppText variant="cardTitle" weight="bold" color="onDark">
-                    {splitting ? t('splitting') : t('split')}
-                  </AppText>
-                </Gradient>
-              </Pressable>
-            </Card>
-          )}
-          {saveFailed && (
-            <AppText variant="caption" color="red">
-              {t('saveFailed')}
-            </AppText>
-          )}
-        </View>
+            </View>
+            {subs ? (
+              <Card padding={0} style={{ paddingHorizontal: spacing.xl, paddingTop: 2, gap: 0, overflow: 'hidden' }}>
+                {subs.map((s, i) => (
+                  <Pressable
+                    key={s.id}
+                    onPress={() => onToggle(s)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: s.done }}
+                    accessibilityLabel={s.name}
+                    style={{
+                      minHeight: sizes.touch,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: spacing.md,
+                      borderBottomWidth: i === subs.length - 1 ? 0 : 1,
+                      borderBottomColor: colors.border,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 7,
+                        borderWidth: 2,
+                        borderColor: s.done ? colors.green : colors.borderBlue,
+                        backgroundColor: s.done ? colors.green : colors.transparent,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {s.done && <Check color={colors.onDark} size={13} strokeWidth={3} />}
+                    </View>
+                    <AppText
+                      color={s.done ? 'textFaint' : 'text'}
+                      style={{ flex: 1, textDecorationLine: s.done ? 'line-through' : 'none' }}
+                      numberOfLines={2}
+                    >
+                      {s.name}
+                    </AppText>
+                    {!!s.who && (
+                      <AppText variant="caption" color="textFaint">
+                        {s.who}
+                      </AppText>
+                    )}
+                  </Pressable>
+                ))}
+              </Card>
+            ) : (
+              <Card style={{ gap: spacing.lg }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+                  <IconBadge size={38} bg="amberTint">
+                    <AlertTriangle color={colors.amberText} size={18} strokeWidth={1.9} />
+                  </IconBadge>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <AppText weight="bold">{estimate ? t('bigTask', { h: formatNumber(estimate, lang) }) : t('bigTaskPlain')}</AppText>
+                    <AppText variant="caption" color="textMuted">
+                      {estimate ? t('slips', { h: formatNumber(estimate, lang) }) : t('slipsPlain')}
+                    </AppText>
+                  </View>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      backgroundColor: colors.greenTint,
+                      borderRadius: radius.pill,
+                      paddingHorizontal: spacing.sm,
+                      paddingVertical: 3,
+                    }}
+                  >
+                    <Clock color={colors.greenText} size={11} strokeWidth={2.6} />
+                    <AppText variant="micro" weight="bold" color="greenText">
+                      {t('splitSaves')}
+                    </AppText>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={split}
+                  disabled={splitting}
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: splitting }}
+                  style={({ pressed }) => ({ borderRadius: radius.pill, boxShadow: shadows.purple, opacity: pressed ? 0.88 : 1 })}
+                >
+                  <Gradient
+                    name="purple"
+                    style={{
+                      minHeight: 46,
+                      borderRadius: radius.pill,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: spacing.sm,
+                    }}
+                  >
+                    {splitting ? (
+                      <ActivityIndicator color={colors.onDark} />
+                    ) : (
+                      <Sparkles color={colors.onDark} fill={colors.onDark} size={16} strokeWidth={1.6} />
+                    )}
+                    <AppText variant="cardTitle" weight="bold" color="onDark">
+                      {splitting ? t('splitting') : t('split')}
+                    </AppText>
+                  </Gradient>
+                </Pressable>
+              </Card>
+            )}
+            {saveFailed && (
+              <AppText variant="caption" color="red">
+                {t('saveFailed')}
+              </AppText>
+            )}
+          </View>
         )}
 
         {/* proof: live tasks get the real block (what's needed, attached, add, Muntej's check); the demo keeps the grid */}
         {live && d ? (
           <View style={{ paddingHorizontal: spacing.screen }}>
-            <ProofSection task={d} me={me.data} />
+            <TourTarget id="task.proof">
+              <ProofSection task={d} me={me.data} />
+            </TourTarget>
           </View>
         ) : (
-        <View style={{ paddingHorizontal: spacing.screen, gap: spacing.sm }}>
-          <AppText variant="section">{t('proof')}</AppText>
-          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            {proof.map((p) => (
-              <View key={p.id} style={{ flex: 1, height: 74, borderRadius: radius.tile, backgroundColor: colors.surface, boxShadow: shadows.tile, alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 2 }}>
-                <View style={{ width: 32, height: 26, borderRadius: 8, backgroundColor: colors[p.bg], alignItems: 'center', justifyContent: 'center' }}>
-                  <AppText variant="micro" weight="extrabold" color={p.fg}>
-                    {p.badge}
+          <View style={{ paddingHorizontal: spacing.screen, gap: spacing.sm }}>
+            <AppText variant="section">{t('proof')}</AppText>
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              {proof.map((p) => (
+                <View
+                  key={p.id}
+                  style={{
+                    flex: 1,
+                    height: 74,
+                    borderRadius: radius.tile,
+                    backgroundColor: colors.surface,
+                    boxShadow: shadows.tile,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 5,
+                    paddingHorizontal: 2,
+                  }}
+                >
+                  <View
+                    style={{ width: 32, height: 26, borderRadius: 8, backgroundColor: colors[p.bg], alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <AppText variant="micro" weight="extrabold" color={p.fg}>
+                      {p.badge}
+                    </AppText>
+                  </View>
+                  <AppText variant="micro" color="textSoft" numberOfLines={1}>
+                    {p.label}
                   </AppText>
                 </View>
-                <AppText variant="micro" color="textSoft" numberOfLines={1}>
-                  {p.label}
-                </AppText>
-              </View>
-            ))}
-            {Array.from({ length: Math.max(0, 4 - proof.length) }).map((_, i) => (
-              <View key={`sp${i}`} style={{ flex: 1 }} />
-            ))}
-            <Pressable
-              onPress={() => router.push('/10-evidence')}
-              accessibilityRole="button"
-              accessibilityLabel={t('attach')}
-              style={({ pressed }) => ({ flex: 1, height: 74, borderRadius: radius.tile, backgroundColor: colors.primaryTint, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.borderDashed, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.85 : 1 })}
-            >
-              <Plus color={colors.primary} size={22} strokeWidth={2} />
-            </Pressable>
+              ))}
+              {Array.from({ length: Math.max(0, 4 - proof.length) }).map((_, i) => (
+                <View key={`sp${i}`} style={{ flex: 1 }} />
+              ))}
+              <Pressable
+                onPress={() => router.push('/10-evidence')}
+                accessibilityRole="button"
+                accessibilityLabel={t('attach')}
+                style={({ pressed }) => ({
+                  flex: 1,
+                  height: 74,
+                  borderRadius: radius.tile,
+                  backgroundColor: colors.primaryTint,
+                  borderWidth: 1.5,
+                  borderStyle: 'dashed',
+                  borderColor: colors.borderDashed,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: pressed ? 0.85 : 1,
+                })}
+              >
+                <Plus color={colors.primary} size={22} strokeWidth={2} />
+              </Pressable>
+            </View>
           </View>
-        </View>
         )}
       </ScrollView>
 
       {live && d ? (
-        <ReviewBar task={d} me={me.data} team={team.data ?? []} />
+        <TourTarget id="task.change">
+          <ReviewBar task={d} me={me.data} team={team.data ?? []} />
+        </TourTarget>
       ) : (
-      <BottomCTA
-        secondary={
-          id
-            ? {
-                label: t('changeWithMuntej'),
-                onPress: () => router.push({ pathname: '/02-capture', params: { mode: 'text', focus: id } }),
-                icon: <MessageSquare color={colors.primary} size={18} strokeWidth={2.2} />,
-              }
-            : undefined
-        }
-        primary={{
-          label: t('submit'),
-          onPress: () => router.push(id ? { pathname: '/15-review', params: { id } } : '/15-review'),
-          icon: <Send color={colors.onDark} size={18} strokeWidth={2.2} style={flip} />,
-        }}
-      />
+        <BottomCTA
+          secondary={
+            id
+              ? {
+                  label: t('changeWithMuntej'),
+                  onPress: () => router.push({ pathname: '/02-capture', params: { mode: 'text', focus: id } }),
+                  icon: <MessageSquare color={colors.primary} size={18} strokeWidth={2.2} />,
+                }
+              : undefined
+          }
+          primary={{
+            label: t('submit'),
+            onPress: () => router.push(id ? { pathname: '/15-review', params: { id } } : '/15-review'),
+            icon: <Send color={colors.onDark} size={18} strokeWidth={2.2} style={flip} />,
+          }}
+        />
       )}
     </View>
   );
@@ -442,7 +572,18 @@ export default function TaskDetailScreen() {
 
 function MetaChip({ bg, fg, icon, label }: { bg: ColorToken; fg: ColorToken; icon: ReactNode; label: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors[bg], borderRadius: radius.pill, paddingVertical: 4, paddingStart: 6, paddingEnd: spacing.md }}>
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        backgroundColor: colors[bg],
+        borderRadius: radius.pill,
+        paddingVertical: 4,
+        paddingStart: 6,
+        paddingEnd: spacing.md,
+      }}
+    >
       {icon}
       <AppText variant="caption" weight="semibold" color={fg}>
         {label}

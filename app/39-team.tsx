@@ -1,7 +1,6 @@
 // Screen 39 · Team (org structure) — no mockup; v2 light style per design/TOKENS.md
 // Live: everyone in profiles as a collapsible tree (top level = no manager). Search flattens to "name + path".
 // Tap a person → sheet with details, skills and task numbers; Edit / Add under / Mark deleted per permission (RPC re-checks).
-import { ScreenTip } from '@/features/coach/ScreenTip';
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
@@ -28,6 +27,8 @@ import {
   type Person,
 } from '@/features/org/model';
 import { PersonRow } from '@/features/org/PersonRow';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { PersonSheet } from '@/features/org/PersonSheet';
 import { PersonForm, type FormMode } from '@/features/org/PersonForm';
 import { Munti } from '@/features/munti/Munti';
@@ -39,8 +40,14 @@ const FILTERS: StatusFilter[] = ['all', 'active', 'pending', 'deleted'];
 /** Levels 0 and 1 start open, so the first three levels show. */
 const OPEN_DEPTH = 2;
 
+const TEAM_STEPS = [
+  { target: 'team.invite', key: 'teamInvite' },
+  { target: 'team.person', key: 'teamPerson' },
+];
+
 export default function TeamScreen() {
   const { t } = useScreenT(NS);
+  useWalkthrough('team', TEAM_STEPS);
   const { lang, isRTL, direction } = useDirection();
   const insets = useSafeAreaInsets();
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
@@ -69,27 +76,21 @@ export default function TeamScreen() {
     [people],
   );
 
-  const visible = useMemo(
-    () => people.filter((p) => (filter === 'all' ? p.status !== 'deleted' : p.status === filter)),
-    [people, filter],
-  );
+  const visible = useMemo(() => people.filter((p) => (filter === 'all' ? p.status !== 'deleted' : p.status === filter)), [people, filter]);
   const visibleIds = useMemo(() => new Set(visible.map((p) => p.id)), [visible]);
 
   const query = search.trim().toLowerCase();
   const matches = useMemo(() => {
     if (!query) return [];
     return visible.filter((p) =>
-      [p.full_name, p.full_name_ar, p.title, p.title_ar, p.email, p.phone, ...p.skills, ...skillsOf(p).map((s) => s.name)].some(
-        (s) => s?.toLowerCase().includes(query),
+      [p.full_name, p.full_name_ar, p.title, p.title_ar, p.email, p.phone, ...p.skills, ...skillsOf(p).map((s) => s.name)].some((s) =>
+        s?.toLowerCase().includes(query),
       ),
     );
   }, [visible, query]);
 
   // a visible person whose manager is hidden (deleted, filtered out) starts its own branch
-  const roots = useMemo(
-    () => visible.filter((p) => !p.manager_id || !visibleIds.has(p.manager_id)),
-    [visible, visibleIds],
-  );
+  const roots = useMemo(() => visible.filter((p) => !p.manager_id || !visibleIds.has(p.manager_id)), [visible, visibleIds]);
 
   const pathOf = (p: Person) => {
     const chain = managerChain(p.id, index.byId);
@@ -201,9 +202,11 @@ export default function TeamScreen() {
           <View style={{ flex: 1 }} />
           {/* invite with a code: WhatsApp, email or any app */}
           {lead && (
-            <IconButton label={t('inviteCode')} onPress={() => router.push('/48-invite')}>
-              <Share2 color={colors.primary} size={20} strokeWidth={2} />
-            </IconButton>
+            <TourTarget id="team.invite">
+              <IconButton label={t('inviteCode')} onPress={() => router.push('/48-invite')}>
+                <Share2 color={colors.primary} size={20} strokeWidth={2} />
+              </IconButton>
+            </TourTarget>
           )}
           {lead && (
             <IconButton label={t('addTop')} onPress={addTop}>
@@ -214,15 +217,10 @@ export default function TeamScreen() {
 
         <SetupBar />
 
-        <ScreenTip id="team" action={lead ? () => router.push('/48-invite') : undefined} />
         <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
 
         <View accessibilityLabel={t('filtersA11y')}>
-          <FilterChips
-            options={FILTERS.map((f) => ({ key: f, label: t(`f_${f}`), count: counts[f] }))}
-            value={filter}
-            onChange={setFilter}
-          />
+          <FilterChips options={FILTERS.map((f) => ({ key: f, label: t(`f_${f}`), count: counts[f] }))} value={filter} onChange={setFilter} />
         </View>
 
         {org.isError && (
@@ -258,16 +256,21 @@ export default function TeamScreen() {
         ) : roots.length === 0 ? (
           <EmptyState onAdd={lead && filter === 'all' ? addTop : undefined} />
         ) : (
-          <View style={{ gap: spacing.sm }}>{roots.map((p) => renderNode(p, 0))}</View>
+          <View style={{ gap: spacing.sm }}>
+            {roots.map((p, i) =>
+              i === 0 ? (
+                <TourTarget key={p.id} id="team.person">
+                  {renderNode(p, 0)}
+                </TourTarget>
+              ) : (
+                renderNode(p, 0)
+              ),
+            )}
+          </View>
         )}
       </ScrollView>
 
-      <Modal
-        visible={modalOpen}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={closeTop}
-      >
+      <Modal visible={modalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeTop}>
         {/* a Modal is its own root: set the language direction again */}
         <View style={{ flex: 1, direction, backgroundColor: colors.bg }}>
           <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>

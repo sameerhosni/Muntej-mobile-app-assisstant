@@ -2,7 +2,6 @@
 // One place for every deeper screen, so Home can stay calm ("the app is optional", BRD v1.2 M10). Grouped by job:
 // Plan · Follow-up · Capture · Team. Managers see all; employees see what's theirs (waiting on others, too busy?,
 // capture, achievements, their week). Live counts only where they're free (Incoming).
-import { ScreenTip } from '@/features/coach/ScreenTip';
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import type { ComponentType } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -108,7 +107,6 @@ export default function MoreScreen() {
         </View>
         <AppText color="textSoft">{t('sub')}</AppText>
         <SetupBar />
-        <ScreenTip id="more" />
         {/* Saree3 the teacher: on, or on a coffee break (call him back here) */}
         <CoachSwitch />
 

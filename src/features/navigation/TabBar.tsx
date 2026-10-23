@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { router, type Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { Award, CircleCheck, Gift, House, ListChecks, Mic, ChartNoAxesColumn, type LucideProps } from 'lucide-react-native';
 import { AppText, Gradient } from '@/components/ui';
 import { colors, radius, shadows, sizes } from '@/theme/tokens';
@@ -61,26 +62,32 @@ export function TabBar({ state, navigation, role, badges = {} }: Props) {
         if (item === 'mic') {
           return (
             <View key="mic" style={{ flex: 1, alignItems: 'center' }}>
-              <Pressable
-                onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'voice' } })}
-                accessibilityRole="button"
-                accessibilityLabel={t('tabs.sayTask')}
-                style={({ pressed }) => ({
-                  marginTop: -34,
-                  width: sizes.micButton,
-                  height: sizes.micButton,
-                  borderRadius: sizes.micButton / 2,
-                  borderWidth: 4,
-                  borderColor: colors.bg,
-                  boxShadow: shadows.mic,
-                  overflow: 'hidden',
-                  transform: [{ scale: pressed ? 0.95 : 1 }],
-                })}
-              >
-                <Gradient name={role === 'employee' ? 'heroEmployee' : 'heroManager'} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <Mic color={colors.onDark} size={26} strokeWidth={2} />
-                </Gradient>
-              </Pressable>
+              {/* Saree3's walkthrough lights this up: "say it here, once" */}
+              <TourTarget id="mic">
+                <Pressable
+                  onPress={() => router.push({ pathname: '/02-capture', params: { mode: 'voice' } })}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('tabs.sayTask')}
+                  style={({ pressed }) => ({
+                    marginTop: -34,
+                    width: sizes.micButton,
+                    height: sizes.micButton,
+                    borderRadius: sizes.micButton / 2,
+                    borderWidth: 4,
+                    borderColor: colors.bg,
+                    boxShadow: shadows.mic,
+                    overflow: 'hidden',
+                    transform: [{ scale: pressed ? 0.95 : 1 }],
+                  })}
+                >
+                  <Gradient
+                    name={role === 'employee' ? 'heroEmployee' : 'heroManager'}
+                    style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Mic color={colors.onDark} size={26} strokeWidth={2} />
+                  </Gradient>
+                </Pressable>
+              </TourTarget>
             </View>
           );
         }
@@ -100,7 +107,9 @@ export function TabBar({ state, navigation, role, badges = {} }: Props) {
             accessibilityLabel={t(item.label)}
             style={{ flex: 1, alignItems: 'center', gap: 3, minHeight: sizes.touch }}
           >
-            <View style={{ position: 'absolute', top: -8, width: 4, height: 4, borderRadius: 2, backgroundColor: focused ? accent : colors.transparent }} />
+            <View
+              style={{ position: 'absolute', top: -8, width: 4, height: 4, borderRadius: 2, backgroundColor: focused ? accent : colors.transparent }}
+            />
             <View>
               <item.Icon color={color} size={22} strokeWidth={1.9} fill={focused ? tint : 'none'} />
               {count > 0 && (

@@ -4,7 +4,6 @@
 // managers and anyone who assigns) · Done — with late tasks always on top. Sort and the rarer filters (All, I assigned,
 // Late, Unassigned, No objective, Cancelled) live behind "⋯". Rows are one line; tapping opens the task.
 // ?ids=a,b,c (Saree3's "Show me") shows exactly those tasks, with a banner to go back to the full list.
-import { ScreenTip } from '@/features/coach/ScreenTip';
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, View } from 'react-native';
@@ -19,12 +18,20 @@ import { formatNumber } from '@/features/home/value';
 import { FILTERS, MORE_FILTERS, TABS, useTaskList, type SortMode, type TaskListFilter } from '@/features/tasks/model';
 import { SortToggle } from '@/features/tasks/SortToggle';
 import { TaskRow } from '@/features/tasks/TaskRow';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { NS } from '@/features/tasks/strings';
 import { Munti } from '@/features/munti/Munti';
 import { MUNTI_NS } from '@/features/munti/tips';
 
+const TASKS_STEPS = [
+  { target: 'tasks.row', key: 'tasksRow', demo: 'tick' as const },
+  { target: 'tasks.search', key: 'tasksSearch' },
+];
+
 export default function TasksScreen() {
   const { t } = useScreenT(NS);
+  useWalkthrough('tasks', TASKS_STEPS);
   const { t: tm } = useScreenT(MUNTI_NS);
   const { lang } = useDirection();
   const insets = useSafeAreaInsets();
@@ -95,12 +102,11 @@ export default function TasksScreen() {
 
       <SetupBar />
 
-      <ScreenTip id="tasks" />
       {/* search + "⋯" (sort and the rarer filters) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <View style={{ flex: 1 }}>
+        <TourTarget id="tasks.search" style={{ flex: 1 }}>
           <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
-        </View>
+        </TourTarget>
         <Pressable
           onPress={() => setSheet(true)}
           accessibilityRole="button"
@@ -210,7 +216,16 @@ export default function TasksScreen() {
       <FlatList
         data={rows}
         keyExtractor={(x) => x.id}
-        renderItem={({ item }) => <TaskRow task={item} />}
+        renderItem={({ item, index }) =>
+          // the first row is the one Saree3's walkthrough lights up ("tap the circle when it's done")
+          index === 0 ? (
+            <TourTarget id="tasks.row">
+              <TaskRow task={item} />
+            </TourTarget>
+          ) : (
+            <TaskRow task={item} />
+          )
+        }
         ListHeaderComponent={header}
         ListEmptyComponent={empty}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}

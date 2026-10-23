@@ -35,6 +35,8 @@ import { transcribeAudio } from '@/features/capture/api';
 import { formatClock } from '@/features/capture/points';
 import { featureUsed, useLaunchCardOn } from '@/features/launch/launch';
 import { MUNTI_NS, ROUTE_TIPS } from './tips';
+import { walkthrough } from '@/features/walkthrough/store';
+import { WALK_NS } from '@/features/walkthrough/strings';
 import { munti, useMunti } from './store';
 import { RANK, usePerformance, type Line, type PerfStatus } from './performance';
 import { timeLabel, useWeekValue, type WeekValue } from './value';
@@ -99,6 +101,7 @@ const SPEAK: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'talk', watc
 
 export function HelperButton() {
   const { t } = useScreenT(MUNTI_NS);
+  const { t: tw } = useScreenT(WALK_NS);
   const { t: tg } = useTranslation();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -170,21 +173,24 @@ export function HelperButton() {
   useEffect(() => {
     if (!value || !HOMES.includes(pathname) || !s.enabled || s.hidden) return;
     const wk = weekKey();
-    const id = setTimeout(async () => {
-      if (riyadhDay() === 0 && value.done + value.chases + value.reports > 0 && (await firstTime(`munti.recap.${wk}`))) {
-        const text =
-          value.role === 'mgr'
-            ? t('recap_mgr', { chases: fmt(value.chases), done: fmt(value.done), ontime: fmt(value.onTime), time })
-            : t('recap_emp', { done: fmt(value.done), ontime: fmt(value.onTime), reports: fmt(value.reports), time });
-        return munti.celebrate(text, { ms: RECAP_MS, action: RECEIPT });
-      }
-      if (value.role === 'mgr' && value.chases >= 10 && (await firstTime(`munti.ms.chases.${wk}`))) {
-        return munti.celebrate(t('ms_chases', { n: fmt(value.chases) }), { ms: RECAP_MS, action: RECEIPT });
-      }
-      if (value.streak >= 5 && (await firstTime(`munti.ms.streak.${wk}`))) {
-        return munti.celebrate(t('ms_streak', { n: fmt(value.streak) }), { ms: RECAP_MS, action: RECEIPT });
-      }
-    }, POP_DELAY_MS + POP_SHOW_MS + 600);
+    const id = setTimeout(
+      async () => {
+        if (riyadhDay() === 0 && value.done + value.chases + value.reports > 0 && (await firstTime(`munti.recap.${wk}`))) {
+          const text =
+            value.role === 'mgr'
+              ? t('recap_mgr', { chases: fmt(value.chases), done: fmt(value.done), ontime: fmt(value.onTime), time })
+              : t('recap_emp', { done: fmt(value.done), ontime: fmt(value.onTime), reports: fmt(value.reports), time });
+          return munti.celebrate(text, { ms: RECAP_MS, action: RECEIPT });
+        }
+        if (value.role === 'mgr' && value.chases >= 10 && (await firstTime(`munti.ms.chases.${wk}`))) {
+          return munti.celebrate(t('ms_chases', { n: fmt(value.chases) }), { ms: RECAP_MS, action: RECEIPT });
+        }
+        if (value.streak >= 5 && (await firstTime(`munti.ms.streak.${wk}`))) {
+          return munti.celebrate(t('ms_streak', { n: fmt(value.streak) }), { ms: RECAP_MS, action: RECEIPT });
+        }
+      },
+      POP_DELAY_MS + POP_SHOW_MS + 600,
+    );
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [valueReady, pathname, s.enabled, s.hidden]);
@@ -200,7 +206,9 @@ export function HelperButton() {
     if (!prev || prev === perf.status) return;
     const better = RANK[perf.status] > RANK[prev];
     // better: "You turned me green! 💚" + what's true now; worse: the status line itself
-    const text = better ? `${t('turned', { color: t(`color_${perf.tone}`), emoji: TURN_EMOJI[perf.tone] })} ${say(perf.message)}` : say(perf.message)!;
+    const text = better
+      ? `${t('turned', { color: t(`color_${perf.tone}`), emoji: TURN_EMOJI[perf.tone] })} ${say(perf.message)}`
+      : say(perf.message)!;
     const id = setTimeout(
       () => (better ? munti.celebrate(text, { ms: RECAP_MS }) : munti.say(text, perf.mood, { ms: RECAP_MS, action: perf.showMe ?? undefined })),
       4800,
@@ -215,7 +223,7 @@ export function HelperButton() {
   const active = s.enabled && !s.hidden;
 
   // new main screen → used to pop up by himself once per screen per day. Off (owner: too much talk): each screen now
-  // teaches itself once with a ScreenTip card; tapping Saree3 still opens him.
+  // teaches itself once with Saree3's walkthrough; tapping Saree3 still opens him.
   useEffect(() => {
     setOpen(false);
     if (!AUTO_POP || !active || !ROUTE_TIPS[pathname]?.fab || lastPop.has(pathname)) return;
@@ -307,7 +315,10 @@ export function HelperButton() {
         const c = geo.current;
         const centerX = c.baseLeft + g.dx + FAB / 2;
         const nextTop = Math.min(c.maxTop, Math.max(c.minTop, c.top + g.dy));
-        const next = { side: centerX < c.screenW / 2 ? ('left' as const) : ('right' as const), ratio: (nextTop - c.minTop) / Math.max(1, c.maxTop - c.minTop) };
+        const next = {
+          side: centerX < c.screenW / 2 ? ('left' as const) : ('right' as const),
+          ratio: (nextTop - c.minTop) / Math.max(1, c.maxTop - c.minTop),
+        };
         setPos(next);
         AsyncStorage.setItem(POS_KEY, JSON.stringify(next)).catch(() => {});
         featureUsed('saree3');
@@ -437,16 +448,25 @@ export function HelperButton() {
       : valueTurn
         ? []
         : [perf ? (say(perf.extra) ?? say(perf.cheer)) : t(route.tip)].filter((x): x is string => !!x);
-  const showMe =
-    toast
-      ? toast.action
-      : !open || supportTurn || talk !== 'idle'
-        ? undefined
-        : valueTurn
-          ? RECEIPT
-          : (perf?.showMe ?? (open === 'tap' && vLine ? RECEIPT : route?.showMe));
+  const showMe = toast
+    ? toast.action
+    : !open || supportTurn || talk !== 'idle'
+      ? undefined
+      : valueTurn
+        ? RECEIPT
+        : (perf?.showMe ?? (open === 'tap' && vLine ? RECEIPT : route?.showMe));
   const fabMood: MuntiMood =
-    talk === 'recording' ? 'talk' : talk === 'thinking' ? 'think' : toast ? toast.mood : perf ? (open ? SPEAK : REST)[perf.status] : open ? 'talk' : 'idle';
+    talk === 'recording'
+      ? 'talk'
+      : talk === 'thinking'
+        ? 'think'
+        : toast
+          ? toast.mood
+          : perf
+            ? (open ? SPEAK : REST)[perf.status]
+            : open
+              ? 'talk'
+              : 'idle';
   // colour: a moment's flash (cheer / done / thinking) on top of his status colour
   const tone: MuntiTone = s.flash?.tone ?? perf?.tone ?? 'brand';
   const glow = TONE_GLOW[tone];
@@ -512,6 +532,19 @@ export function HelperButton() {
       ? { key: 'next', label: t('q_next'), run: () => ask(t('q_next_msg')) }
       : { key: 'team', label: t('q_team'), run: () => ask(t('q_team_msg')) },
     { key: 'add', label: t('q_add'), run: () => go({ pathname: '/02-capture', params: { mode: 'text' } }) },
+    // replay this screen's walkthrough (Saree3 lights up what matters here again)
+    ...(walkthrough.canReplay()
+      ? [
+          {
+            key: 'teach',
+            label: tw('teachPage'),
+            run: () => {
+              setOpen(false);
+              setTimeout(() => walkthrough.replay(), 250);
+            },
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -541,7 +574,12 @@ export function HelperButton() {
                 {bubbleText}
               </AppText>
               {subLines.map((line, i) => (
-                <AppText key={i} variant="small" color={i === subLines.length - 1 && open === 'tap' ? 'textMuted' : 'textSoft'} style={{ lineHeight: 18 }}>
+                <AppText
+                  key={i}
+                  variant="small"
+                  color={i === subLines.length - 1 && open === 'tap' ? 'textMuted' : 'textSoft'}
+                  style={{ lineHeight: 18 }}
+                >
                   {line}
                 </AppText>
               ))}
@@ -678,7 +716,13 @@ export function HelperButton() {
             style={{ width: FAB, height: FAB, borderRadius: FAB / 2 }}
           >
             {/* new key per screen/toast → hops in again */}
-            <Munti key={toast?.id ?? pathname} size="md" tone={tone} mood={fabMood} settleAfter={fabMood === 'talk' && talk === 'idle' ? 2400 : undefined} />
+            <Munti
+              key={toast?.id ?? pathname}
+              size="md"
+              tone={tone}
+              mood={fabMood}
+              settleAfter={fabMood === 'talk' && talk === 'idle' ? 2400 : undefined}
+            />
           </Pressable>
           {supportOn && talk === 'idle' && (
             <View

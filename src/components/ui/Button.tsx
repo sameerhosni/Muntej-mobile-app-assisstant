@@ -47,6 +47,8 @@ export function Button({
     </View>
   );
 
+  // the inner layer grows from its own size (flexGrow), never from zero (flex: 1): on Android a gradient measured from
+  // zero inside a centred column stretched the button down the whole screen
   return (
     <Pressable
       onPress={onPress}
@@ -67,14 +69,14 @@ export function Button({
       {primary ? (
         <Gradient
           name={tone === 'purple' ? 'purple' : tone === 'amber' ? 'warning' : 'primary'}
-          style={{ flex: 1, minHeight: height, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.screen }}
+          style={{ flexGrow: 1, minHeight: height, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.screen }}
         >
           {content}
         </Gradient>
       ) : (
         <View
           style={{
-            flex: 1,
+            flexGrow: 1,
             minHeight: height,
             borderRadius: radius.pill,
             alignItems: 'center',

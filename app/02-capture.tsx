@@ -9,7 +9,6 @@
 // tasks come as a BulkCard (untick any, Apply, then Undo for 5 minutes). A new task for several people or one that
 // looks like an open task asks first (PeopleCard / DuplicateCard). Repeating work ("standup every Monday") comes as a
 // RecurringCard to confirm. Task cards show the estimate and Muntej's predicted finish.
-import { ScreenTip } from '@/features/coach/ScreenTip';
 import { InviteLinkCard, type InviteLinkPayload } from '@/features/invite/InviteLinkCard';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
@@ -545,7 +544,6 @@ export default function MuntejChatScreen() {
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
       >
-        <ScreenTip id="chat" />
         {chat.isLoading && (
           <View style={{ alignItems: 'center', gap: spacing.sm, marginTop: 40 }}>
             <ActivityIndicator color={colors.primary} />

@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import { ViewingBanner } from '@/features/accounts/AccountSwitcher';
 import { CoachHost } from '@/features/coach/CoachHost';
 import { QuietBoundary } from '@/components/QuietBoundary';
+import { Walkthrough } from '@/features/walkthrough/Walkthrough';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -128,6 +129,12 @@ function RootNavigator() {
       {signedIn && (
         <QuietBoundary name="coach">
           <CoachHost />
+        </QuietBoundary>
+      )}
+      {/* Saree3's guided walkthrough: dims the screen around one element at a time */}
+      {signedIn && (
+        <QuietBoundary name="walkthrough">
+          <Walkthrough />
         </QuietBoundary>
       )}
       {signedIn && <ProtoBar />}

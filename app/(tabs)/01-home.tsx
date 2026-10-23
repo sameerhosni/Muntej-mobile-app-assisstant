@@ -8,7 +8,8 @@
 //   5. next 3 days: the most important work coming up (team + yours); then your own tasks, tick to finish
 //   6. shortcuts: Your week, Team, Tasks from email, Record a meeting, More (everything else: 44-more)
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
-import { ScreenTip } from '@/features/coach/ScreenTip';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -35,8 +36,16 @@ function greetingKey(date = new Date()) {
   return h < 12 ? 'home.morning' : h < 18 ? 'home.afternoon' : 'home.evening';
 }
 
+const HOME_STEPS = [
+  { target: 'mic', key: 'homeMic', demo: 'say' as const },
+  { target: 'home.needs', key: 'homeNeeds' },
+  { target: 'home.more', key: 'homeMore' },
+];
+
 export default function ManagerHome() {
   const { t } = useTranslation();
+  // first visit: Saree3 lights up the mic (with a live demo), what needs you, and the shortcuts
+  useWalkthrough('home', HOME_STEPS);
   const { t: th } = useScreenT(NS);
   const { t: ti } = useScreenT(INCOMING_NS);
   const { t: tm } = useScreenT(MORE_NS);
@@ -47,15 +56,13 @@ export default function ManagerHome() {
 
   if (me.data?.role === 'employee' && !protoActive) return <Redirect href="/25-employee-home" />;
 
-  const firstName = (lang === 'ar' && me.data?.full_name_ar ? me.data.full_name_ar : me.data?.full_name ?? '').split(' ')[0];
+  const firstName = (lang === 'ar' && me.data?.full_name_ar ? me.data.full_name_ar : (me.data?.full_name ?? '')).split(' ')[0];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={
-          <RefreshControl refreshing={false} onRefresh={() => qc.invalidateQueries()} tintColor={colors.primary} />
-        }
+        refreshControl={<RefreshControl refreshing={false} onRefresh={() => qc.invalidateQueries()} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
         {/* 1. slim header + Saree3's status line */}
@@ -66,9 +73,9 @@ export default function ManagerHome() {
                 <BrandChip size={40} />
                 <View style={{ gap: 2, flexShrink: 1 }}>
                   <AppText color="onDarkMuted">{t(greetingKey())}</AppText>
-                <AppText variant="titleLg" color="onDark" numberOfLines={1}>
-                  {firstName || ' '}
-                </AppText>
+                  <AppText variant="titleLg" color="onDark" numberOfLines={1}>
+                    {firstName || ' '}
+                  </AppText>
                 </View>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
@@ -85,8 +92,6 @@ export default function ManagerHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
           {/* a new account: Saree3's getting-started steps until they're done */}
           <GettingStarted />
-          {/* first visit: Saree3 says what Home is for, once */}
-          <ScreenTip id="home" action={() => router.push({ pathname: '/02-capture', params: { mode: 'text' } })} />
 
           {/* 2. the team at a glance + what Muntej is handling by itself */}
           <View style={{ gap: spacing.md }}>
@@ -99,7 +104,9 @@ export default function ManagerHome() {
           </View>
 
           {/* 3. what needs you, max 3, with one-tap actions */}
-          <NeedsYou />
+          <TourTarget id="home.needs">
+            <NeedsYou />
+          </TourTarget>
 
           {/* what is coming up in the next 3 working days, most important first */}
           <NextDays />
@@ -110,15 +117,25 @@ export default function ManagerHome() {
           <MySteps />
 
           {/* 6. everything else, one tap away */}
-          <Shortcuts
-            items={[
-              { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
-              { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
-              { key: 'incoming', label: ti('shortcut'), Icon: Inbox, href: '/42-incoming', bg: 'primaryTint', fg: colors.primary, feature: 'incoming' },
-              // Objectives, Autopilot, Roadmap… live in "Everything Muntej does" (Autopilot is also the "Muntej is on it" card)
-              { key: 'more', label: tm('shortcut'), Icon: LayoutGrid, href: '/44-more', bg: 'chip', fg: colors.textSoft },
-            ]}
-          />
+          <TourTarget id="home.more">
+            <Shortcuts
+              items={[
+                { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
+                { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
+                {
+                  key: 'incoming',
+                  label: ti('shortcut'),
+                  Icon: Inbox,
+                  href: '/42-incoming',
+                  bg: 'primaryTint',
+                  fg: colors.primary,
+                  feature: 'incoming',
+                },
+                // Objectives, Autopilot, Roadmap… live in "Everything Muntej does" (Autopilot is also the "Muntej is on it" card)
+                { key: 'more', label: tm('shortcut'), Icon: LayoutGrid, href: '/44-more', bg: 'chip', fg: colors.textSoft },
+              ]}
+            />
+          </TourTarget>
         </View>
       </ScrollView>
     </View>

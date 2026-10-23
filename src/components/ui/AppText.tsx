@@ -57,6 +57,9 @@ export function AppText({
           color: colors[color],
           textAlign: resolveAlign(align, isRTL),
           writingDirection: isRTL ? 'rtl' : 'ltr',
+          // Arabic letters like ر and ي reach a little past the word's edge in our font; Android clipped them ("مدير"
+          // showed as "مدي"), so Arabic text gets a hair of room on each side
+          ...(isRTL ? { paddingHorizontal: 2 } : null),
         },
         style,
       ]}

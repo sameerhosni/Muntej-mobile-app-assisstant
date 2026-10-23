@@ -1,7 +1,6 @@
 // Screen 04 · Decisions — see design/v2/html/Decisions.dc.html (Arabic: DecisionsAR.dc.html)
 // Live data: decisions (pending). Approve / Decline / Move write decisions + tasks + activity_log.
 // When there are no live decisions the empty state offers the design's two sample cards (local state only).
-import { ScreenTip } from '@/features/coach/ScreenTip';
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
@@ -14,6 +13,8 @@ import { useDecisions, useMyProfile, useTeam } from '@/lib/api';
 import { formatNumber, HOURLY_COST_SAR, MIN_PER_FOLLOWUP } from '@/features/home/value';
 import { DEMO_TEAM } from '@/features/demo/team';
 import { DecisionCard } from '@/features/decisions/DecisionCard';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import {
   DECISION_FILTERS,
   demoCards,
@@ -28,8 +29,11 @@ import {
 import { useResolveDecision, useTaskOwners } from '@/features/decisions/useResolveDecision';
 import { NS } from '@/features/decisions/strings';
 
+const DECISIONS_STEPS = [{ target: 'decisions.card', key: 'decisionsCard', demo: 'approve' as const }];
+
 export default function DecisionsScreen() {
   const { t } = useScreenT(NS);
+  useWalkthrough('decisions', DECISIONS_STEPS);
   const { lang } = useDirection();
   const decisions = useDecisions('pending');
   const team = useTeam();
@@ -90,7 +94,7 @@ export default function DecisionsScreen() {
         decision: card.raw,
         outcome: outcome === 'declined' || outcome === 'kept' ? 'declined' : 'approved',
         meId: me.data.id,
-        moveTo: outcome === 'moved' ? moveTo ?? null : null,
+        moveTo: outcome === 'moved' ? (moveTo ?? null) : null,
         ownerId: card.owner?.id ?? null,
       },
       {
@@ -108,9 +112,7 @@ export default function DecisionsScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={
-          <RefreshControl refreshing={decisions.isRefetching} onRefresh={() => decisions.refetch()} tintColor={colors.primary} />
-        }
+        refreshControl={<RefreshControl refreshing={decisions.isRefetching} onRefresh={() => decisions.refetch()} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
         <Hero overlap={36}>
@@ -119,17 +121,22 @@ export default function DecisionsScreen() {
               {loading ? ' ' : headline}
             </AppText>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-              <HeroPill bg="orange" icon={<Hand color={colors.onDark} size={13} strokeWidth={2.2} />}
-                label={t('savesFollowups', { n: formatNumber(followups, lang) })} />
-              <HeroPill bg="primaryLight" icon={<Clock color={colors.onDark} size={13} strokeWidth={2.2} />}
-                label={t('timeValue', { min: formatNumber(minutes, lang), sar: formatNumber(Math.round((minutes / 60) * HOURLY_COST_SAR), lang) })} />
+              <HeroPill
+                bg="orange"
+                icon={<Hand color={colors.onDark} size={13} strokeWidth={2.2} />}
+                label={t('savesFollowups', { n: formatNumber(followups, lang) })}
+              />
+              <HeroPill
+                bg="primaryLight"
+                icon={<Clock color={colors.onDark} size={13} strokeWidth={2.2} />}
+                label={t('timeValue', { min: formatNumber(minutes, lang), sar: formatNumber(Math.round((minutes / 60) * HOURLY_COST_SAR), lang) })}
+              />
             </View>
           </View>
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -36, gap: spacing.lg }}>
           <SetupBar />
-          <ScreenTip id="decisions" />
           {loading && (
             <Card elevation="raised" style={{ alignItems: 'center', paddingVertical: 28 }}>
               <ActivityIndicator color={colors.primary} />
@@ -178,17 +185,27 @@ export default function DecisionsScreen() {
             </View>
           )}
 
-          {shown.map((c, i) => (
-            <DecisionCard
-              key={c.id}
-              card={c}
-              raised={i === 0}
-              outcome={outcomes[c.id]}
-              busy={busyId === c.id}
-              candidates={candidates}
-              onResolve={(o, p) => onResolve(c, o, p)}
-            />
-          ))}
+          {shown.map((c, i) => {
+            const card = (
+              <DecisionCard
+                key={c.id}
+                card={c}
+                raised={i === 0}
+                outcome={outcomes[c.id]}
+                busy={busyId === c.id}
+                candidates={candidates}
+                onResolve={(o, p) => onResolve(c, o, p)}
+              />
+            );
+            // the first card is the one Saree3's walkthrough lights up
+            return i === 0 ? (
+              <TourTarget key={c.id} id="decisions.card">
+                {card}
+              </TourTarget>
+            ) : (
+              card
+            );
+          })}
 
           {failed && (
             <AppText variant="small" color="red" align="center">
