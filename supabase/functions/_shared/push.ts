@@ -9,12 +9,9 @@ export type PushMessage = {
   body: string;
   data?: Record<string, unknown>;
   categoryId?: string;
-  /** a picture; default the Muntej logo, null = none */ image?: string | null;
+  /** an optional picture (shown on the right); the logo itself is the notification icon (left), from the app build */
+  image?: string | null;
 };
-
-// the Muntej logo on every notification (shown as the picture / thumbnail; the small status-bar icon comes with the
-// app build, app.json → expo-notifications icon)
-const LOGO = `${Deno.env.get('SUPABASE_URL') ?? ''}/functions/v1/brand?f=symbol`;
 
 /** Service-role client: push tokens are private to their owners, so only the server may read other people's. */
 export function adminClient(): SupabaseClient {
@@ -57,7 +54,7 @@ export async function sendPush(profileIds: string[], msg: PushMessage, admin = a
           channelId: 'muntej',
           priority: 'high',
           ...(msg.categoryId ? { categoryId: msg.categoryId } : {}),
-          ...(msg.image !== null ? { richContent: { image: msg.image ?? LOGO } } : {}),
+          ...(msg.image ? { richContent: { image: msg.image } } : {}),
         })),
       ),
     });
