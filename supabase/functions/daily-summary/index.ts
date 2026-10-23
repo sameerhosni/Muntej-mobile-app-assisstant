@@ -146,9 +146,15 @@ function chosenTimeUtc(d: Date, hhmm: string) {
 
 // ─── building the summary ─────────────────────────────────────────────────────
 
-type World = { people: Map<string, Person>; tasks: Task[]; decisions: { manager_id: string; title: string; title_ar: string | null }[]; reviews: { task_id: string; reviewer_id: string | null }[] };
+type World = {
+  people: Map<string, Person>;
+  tasks: Task[];
+  decisions: { manager_id: string; title: string; title_ar: string | null }[];
+  reviews: { task_id: string; reviewer_id: string | null }[];
+};
 
-const top = (items: string[], lang: Lang, max = 3) => (items.length > max ? [...items.slice(0, max), say(lang, 'more', { n: num(items.length - max, lang) })] : items);
+const top = (items: string[], lang: Lang, max = 3) =>
+  items.length > max ? [...items.slice(0, max), say(lang, 'more', { n: num(items.length - max, lang) })] : items;
 
 function managerSummary(me: Person, w: World, now: Date, lang: Lang): Summary | null {
   const reports = [...w.people.values()].filter((p) => p.manager_id === me.id && p.status === 'active');
@@ -160,7 +166,9 @@ function managerSummary(me: Person, w: World, now: Date, lang: Lang): Summary | 
   const late = team.filter(isLate).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
   const working = team.filter((x) => OPEN.includes(x.status) && !isLate(x));
   const startYesterday = riyadhMidnightUtc(now) - DAY;
-  const doneYesterday = team.filter((x) => x.status === 'done' && x.closed_at && Date.parse(x.closed_at) >= startYesterday && Date.parse(x.closed_at) < startYesterday + DAY);
+  const doneYesterday = team.filter(
+    (x) => x.status === 'done' && x.closed_at && Date.parse(x.closed_at) >= startYesterday && Date.parse(x.closed_at) < startYesterday + DAY,
+  );
 
   const decisions = w.decisions.filter((d) => d.manager_id === me.id);
   const reviewTaskIds = new Set(w.reviews.filter((r) => r.reviewer_id === me.id).map((r) => r.task_id));
@@ -378,13 +386,18 @@ async function sendOne(admin: SupabaseClient, me: Person, w: World, prefs: Prefs
   // "New for you": up to two features from the last 2 weeks this person hasn't tried (or turned down) yet
   const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar').order('sort');
   const { data: mine } = await admin.from('feature_events').select('feature_key, state').eq('profile_id', me.id);
-  const done = new Set((mine ?? []).filter((e) => ['tried', 'adopted', 'not_interested'].includes(e.state as string)).map((e) => e.feature_key as string));
+  const done = new Set(
+    (mine ?? []).filter((e) => ['tried', 'adopted', 'not_interested'].includes(e.state as string)).map((e) => e.feature_key as string),
+  );
   const mgr = isManager(me, w);
   const fresh = (feats ?? []).filter(
     (f) =>
       Date.now() - Date.parse(f.released_at as string) <= 14 * DAY &&
       !done.has(f.key as string) &&
-      (f.audience === 'all' || (f.audience === 'manager' && mgr) || (f.audience === 'employee' && !mgr) || (f.audience === 'admin' && (me.role === 'admin' || me.role === 'super_admin'))),
+      (f.audience === 'all' ||
+        (f.audience === 'manager' && mgr) ||
+        (f.audience === 'employee' && !mgr) ||
+        (f.audience === 'admin' && (me.role === 'admin' || me.role === 'super_admin'))),
   );
   if (fresh.length)
     s.sections.push({
@@ -404,16 +417,23 @@ async function sendOne(admin: SupabaseClient, me: Person, w: World, prefs: Prefs
   if (quiet?.length)
     s.sections.push({
       title: say(lang, 'since'),
-      items: [say(lang, 'sinceN', { n: num(quiet.length, lang) }), ...quiet.slice(0, 3).map((a) => ((lang === 'ar' && a.title_ar) || a.title) as string)],
+      items: [
+        say(lang, 'sinceN', { n: num(quiet.length, lang) }),
+        ...quiet.slice(0, 3).map((a) => ((lang === 'ar' && a.title_ar) || a.title) as string),
+      ],
     });
 
   const hello = say(lang, 'hello', { name: firstName(me, lang) });
   const allowed = (c: string) => rule.channels.includes(c) && prefs?.channels?.[c] !== false;
-  const channels = test ? [...new Set([...rule.channels, 'push', 'email'])].filter((c) => prefs?.channels?.[c] !== false) : rule.channels.filter(allowed);
+  const channels = test
+    ? [...new Set([...rule.channels, 'push', 'email'])].filter((c) => prefs?.channels?.[c] !== false)
+    : rule.channels.filter(allowed);
   const sent: string[] = [];
 
-  if (channels.includes('push') && (await sendPush([me.id], { title: s.subject, body: `${hello} · ${s.short}`, data: { screen: '/' } }, admin)) > 0) sent.push('push');
-  if (channels.includes('email') && me.email && (await sendEmail(me.email, s.subject, emailHtml(s, hello, lang), plainText(s, hello, lang)))) sent.push('email');
+  if (channels.includes('push') && (await sendPush([me.id], { title: s.subject, body: `${hello} · ${s.short}`, data: { screen: '/' } }, admin)) > 0)
+    sent.push('push');
+  if (channels.includes('email') && me.email && (await sendEmail(me.email, s.subject, emailHtml(s, hello, lang), plainText(s, hello, lang))))
+    sent.push('email');
   if (channels.includes('whatsapp') && me.phone && me.whatsapp_connected && (await sendWhatsAppSummary(me.phone, lang, s))) sent.push('whatsapp');
 
   if (!test) {
@@ -456,10 +476,14 @@ serve(async (req) => {
 
   const weekday = riyadh(now).getUTCDay(); // 5 Friday, 6 Saturday
   if (weekday === 5 || weekday === 6) return json({ skipped: 'weekend' });
+  const nudged = await setupNudges(admin, now);
 
   const w = await loadWorld(admin);
   const active = [...w.people.values()].filter((p) => p.status === 'active');
-  const prefs = await loadPrefs(admin, active.map((p) => p.id));
+  const prefs = await loadPrefs(
+    admin,
+    active.map((p) => p.id),
+  );
   const { data: done, error } = await admin.from('daily_summaries').select('profile_id').eq('day', riyadhDay(now)).eq('kind', 'daily');
   if (error) throw error;
   const already = new Set((done ?? []).map((r) => r.profile_id as string));
@@ -471,5 +495,46 @@ serve(async (req) => {
   });
   const results = [];
   for (const p of due) results.push(await sendOne(admin, p, w, prefs.get(p.id), now, false));
-  return json({ due: due.length, results });
+  return json({ due: due.length, results, nudged });
 });
+
+// Setup left halfway (owner's request: "if the user missed anything, Saree3 helps them continue"): once a day at 10:00
+// Riyadh, for at most 3 days, a friendly push that opens Saree3's setup guide at the next missing item. Only for people
+// whose setup isn't finished, started 20+ hours ago, not on a coffee break; each day's nudge is remembered in
+// coach_moments (setup_nudge_<day>) so it never repeats.
+async function setupNudges(admin: SupabaseClient, now: Date): Promise<number> {
+  const r = riyadh(now);
+  if (r.getUTCHours() !== 10 || r.getUTCMinutes() >= 15) return 0;
+  const day = riyadhDay(now);
+  const { data: rows } = await admin
+    .from('onboarding')
+    .select('profile_id, started_at, profile:profiles!inner(locale, status, full_name, full_name_ar)')
+    .is('finished_at', null)
+    .lt('started_at', new Date(now.getTime() - 20 * 3_600_000).toISOString());
+  let sent = 0;
+  for (const row of rows ?? []) {
+    const p = row.profile as unknown as { locale: string; status: string; full_name: string; full_name_ar: string | null };
+    if (p.status !== 'active') continue;
+    const { data: seen } = await admin.from('coach_moments').select('key').eq('profile_id', row.profile_id).like('key', 'setup_nudge_%');
+    const keys = new Set((seen ?? []).map((x) => x.key as string));
+    if (keys.size >= 3 || keys.has(`setup_nudge_${day}`)) continue;
+    const { data: paused } = await admin.from('coach_moments').select('key').eq('profile_id', row.profile_id).eq('key', '_paused').maybeSingle();
+    if (paused) continue;
+    const ar = p.locale === 'ar';
+    const name = ((ar && p.full_name_ar) || p.full_name).split(' ')[0];
+    await sendPush(
+      [row.profile_id as string],
+      {
+        title: ar ? '⚡ باقي شوي على تجهيز حسابك' : '⚡ Your account is almost set up',
+        body: ar
+          ? `هلا ${name}! باقي كم خطوة وتصير جاهز. ضغطة وأكمّلها عنك 😉`
+          : `Hi ${name}! A few steps left and you're all set. One tap and I'll finish them for you 😉`,
+        data: { screen: '/47-welcome' },
+      },
+      admin,
+    ).catch(() => 0);
+    await admin.from('coach_moments').insert({ profile_id: row.profile_id, key: `setup_nudge_${day}` });
+    sent++;
+  }
+  return sent;
+}

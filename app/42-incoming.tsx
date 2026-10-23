@@ -4,6 +4,7 @@
 // notes) is folded at the bottom; ?text= (muntej://42-incoming?text=…) opens it pre-filled. Other tools: Sources.
 // Data: src/features/incoming/api.ts.
 import { ScreenTip } from '@/features/coach/ScreenTip';
+import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -85,6 +86,7 @@ export default function IncomingScreen() {
         </View>
         <AppText color="textMuted">{t('subtitle')}</AppText>
         {/* your email, connected right here; opening the screen reads it, the found tasks wait below for an OK */}
+        <SetupBar />
         <ScreenTip id="email" />
         <EmailAccounts />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>

@@ -2,6 +2,7 @@
 // Live data: decisions (pending). Approve / Decline / Move write decisions + tasks + activity_log.
 // When there are no live decisions the empty state offers the design's two sample cards (local state only).
 import { ScreenTip } from '@/features/coach/ScreenTip';
+import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { CircleCheck, Clock, Hand } from 'lucide-react-native';
@@ -127,6 +128,7 @@ export default function DecisionsScreen() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -36, gap: spacing.lg }}>
+          <SetupBar />
           <ScreenTip id="decisions" />
           {loading && (
             <Card elevation="raised" style={{ alignItems: 'center', paddingVertical: 28 }}>

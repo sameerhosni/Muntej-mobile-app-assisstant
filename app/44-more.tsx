@@ -3,6 +3,7 @@
 // Plan · Follow-up · Capture · Team. Managers see all; employees see what's theirs (waiting on others, too busy?,
 // capture, achievements, their week). Live counts only where they're free (Incoming).
 import { ScreenTip } from '@/features/coach/ScreenTip';
+import { SetupBar } from '@/features/onboarding/SetupBar';
 import type { ComponentType } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router, type Href } from 'expo-router';
@@ -107,6 +108,7 @@ export default function MoreScreen() {
           </AppText>
         </View>
         <AppText color="textSoft">{t('sub')}</AppText>
+        <SetupBar />
         <ScreenTip id="more" />
         {/* Saree3 the teacher: on, or on a coffee break (call him back here) */}
         <CoachSwitch />

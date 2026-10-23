@@ -5,6 +5,7 @@
 // Late, Unassigned, No objective, Cancelled) live behind "⋯". Rows are one line; tapping opens the task.
 // ?ids=a,b,c (Saree3's "Show me") shows exactly those tasks, with a banner to go back to the full list.
 import { ScreenTip } from '@/features/coach/ScreenTip';
+import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -91,6 +92,8 @@ export default function TasksScreen() {
           </View>
         )}
       </View>
+
+      <SetupBar />
 
       <ScreenTip id="tasks" />
       {/* search + "⋯" (sort and the rarer filters) */}

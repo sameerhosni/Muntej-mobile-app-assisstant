@@ -2,6 +2,7 @@
 // Live: everyone in profiles as a collapsible tree (top level = no manager). Search flattens to "name + path".
 // Tap a person → sheet with details, skills and task numbers; Edit / Add under / Mark deleted per permission (RPC re-checks).
 import { ScreenTip } from '@/features/coach/ScreenTip';
+import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -210,6 +211,8 @@ export default function TeamScreen() {
             </IconButton>
           )}
         </View>
+
+        <SetupBar />
 
         <ScreenTip id="team" action={lead ? () => router.push('/48-invite') : undefined} />
         <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
