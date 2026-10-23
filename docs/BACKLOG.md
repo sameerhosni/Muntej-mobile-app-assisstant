@@ -44,6 +44,8 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 3.5 | Weekly summary read aloud (`speak` function) |
 | 3.6 | Shorter chat replies with one next step |
 | 3.7 | Reset onboarding / screen tips on the test accounts (salsabilsamir@gmail.com, sales@nizamy.app) to try the new guide |
+| 3.8 | Saree3's guided walkthrough on Home, Tasks, Tasks from email, task page, Team, Decisions (highlight lines up with the element; "Show me how" demos; "Teach me this page") |
+| 3.9 | Notification background is drawn by Android (dark in dark mode): only the icon and name color are ours (Muntej purple, in the new build) |
 
 ## 4. Later ideas (not started)
 
