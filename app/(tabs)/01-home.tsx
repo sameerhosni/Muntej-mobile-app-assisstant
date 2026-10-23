@@ -9,6 +9,7 @@
 //   6. shortcuts: Your week, Team, Tasks from email, Record a meeting, More (everything else: 44-more)
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
 import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { FromSaree3, TeamRisks, TeamWins } from '@/features/home/TeamRadar';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
@@ -92,6 +93,8 @@ export default function ManagerHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
           {/* a new account: Saree3's getting-started steps until they're done */}
           <GettingStarted />
+          {/* what happened since your last visit and what Saree3 did about it */}
+          <FromSaree3 />
 
           {/* 2. the team at a glance + what Muntej is handling by itself */}
           <View style={{ gap: spacing.md }}>
@@ -102,6 +105,9 @@ export default function ManagerHome() {
               <MuntejHandling />
             </Spotlight>
           </View>
+
+          {/* risks across the team, each with what Saree3 is doing about it */}
+          <TeamRisks />
 
           {/* 3. what needs you, max 3, with one-tap actions */}
           <TourTarget id="home.needs">
@@ -115,6 +121,9 @@ export default function ManagerHome() {
           <NeedsSupport />
           <MyTasks />
           <MySteps />
+
+          {/* this week's achievements */}
+          <TeamWins />
 
           {/* 6. everything else, one tap away */}
           <TourTarget id="home.more">

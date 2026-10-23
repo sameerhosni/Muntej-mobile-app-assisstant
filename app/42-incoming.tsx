@@ -21,6 +21,7 @@ import { NS } from '@/features/incoming/strings';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { EmailAccounts } from '@/features/incoming/EmailAccounts';
+import { ToolsGrid } from '@/features/incoming/ToolsGrid';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 
@@ -203,24 +204,8 @@ export default function IncomingScreen() {
           </Spotlight>
         )}
 
-        {/* other tools (Teams, Jira, ClickUp…) bring their tasks here too */}
-        <Pressable
-          onPress={() => router.push('/12-sources')}
-          accessibilityRole="link"
-          style={({ pressed }) => ({
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-            minHeight: sizes.touch,
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <Plug color={colors.textMuted} size={16} strokeWidth={2} />
-          <AppText variant="small" weight="semibold" color="textMuted" style={{ flex: 1 }}>
-            {t('connectTools')}
-          </AppText>
-          <ChevronLeft color={colors.textMuted} size={14} strokeWidth={2.2} style={{ transform: [{ scaleX: isRTL ? 1 : -1 }] }} />
-        </Pressable>
+        {/* other tools (Outlook, WhatsApp, Jira, ClickUp…) bring their tasks here too: a grid with each one's state */}
+        <ToolsGrid />
       </ScrollView>
     </SafeAreaView>
   );
@@ -249,20 +234,20 @@ function ItemCard({ item }: { item: IncomingItem }) {
 
   return (
     <Card style={{ gap: spacing.md }}>
-      {/* source + when it arrived (date and time, never cut), then who sent it */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <Chip label={t(`src_${item.source}`)} tone="primary" />
-        <AppText variant="small" weight="bold" color="textSoft" style={{ flex: 1 }}>
+      {/* one line: where it came from · who sent it · when (the date and time on their own line under it) */}
+      <View style={{ gap: 2 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <Chip label={t(`src_${item.source}`)} tone="primary" />
+          <AppText weight="bold" numberOfLines={1} style={{ flex: 1 }}>
+            {item.sender ?? ''}
+          </AppText>
+        </View>
+        <AppText variant="caption" color="textMuted">
           {time}
         </AppText>
       </View>
-      {!!item.sender && (
-        <AppText variant="caption" color="textFaint" numberOfLines={1}>
-          {item.sender}
-        </AppText>
-      )}
       {!!item.summary && (
-        <AppText weight="bold" style={{ writingDirection: contentDirection(item.summary) }}>
+        <AppText variant="small" color="textSoft" numberOfLines={2} style={{ writingDirection: contentDirection(item.summary) }}>
           {item.summary}
         </AppText>
       )}
@@ -284,8 +269,9 @@ function ItemCard({ item }: { item: IncomingItem }) {
           {error}
         </AppText>
       )}
+      {/* several tasks: add them all at once; ignoring the whole message is a quiet link, not a big button */}
       {open.length > 0 && (
-        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           {addable.length >= 2 && (
             <Button
               label={t('acceptAll', { n: addable.length })}
@@ -295,14 +281,16 @@ function ItemCard({ item }: { item: IncomingItem }) {
               style={{ flex: 1 }}
             />
           )}
-          <Button
-            label={t('ignoreAll')}
-            variant="outline"
-            size="md"
-            loading={busy === 'ignoreAll'}
+          <Pressable
             onPress={() => run('ignoreAll', () => actions.ignore(item.id))}
-            style={{ flex: 1 }}
-          />
+            disabled={busy === 'ignoreAll'}
+            accessibilityRole="button"
+            style={{ minHeight: sizes.touch, justifyContent: 'center', paddingHorizontal: spacing.sm }}
+          >
+            <AppText variant="small" weight="semibold" color="textMuted">
+              {busy === 'ignoreAll' ? '…' : t('ignoreAll')}
+            </AppText>
+          </Pressable>
         </View>
       )}
     </Card>
@@ -324,12 +312,12 @@ function SuggestionRow({
   const { lang } = useDirection();
   const team = useTeam();
   const [editing, setEditing] = useState(false);
+  const [more, setMore] = useState(false);
   const [title, setTitle] = useState(s.title);
   const [owner, setOwner] = useState<string | null>(s.owner_id);
   const people = (team.data ?? []).filter((p) => p.status !== 'deleted');
   const nameOf = (p: Profile | undefined) => (p ? ((lang === 'ar' && p.full_name_ar) || p.full_name).split(' ')[0] : null);
   const ownerName = nameOf(people.find((p) => p.id === s.owner_id));
-  const meta = [ownerName ?? t('noOwner'), s.due_at ? formatDue(s.due_at, lang) : t('noDue'), t(`pr_${s.priority}`)].join(' · ');
   const done = s.state !== 'new';
 
   return (
@@ -349,26 +337,35 @@ function SuggestionRow({
       >
         {s.title}
       </AppText>
-      <AppText variant="caption" color="textMuted">
-        {meta}
-        {s.confidence < 0.5 ? ` · ${t('maybe')}` : ''}
-      </AppText>
-      {/* what the email said about it: the details, what "done" means, what to send back, the budget */}
+      {/* who · when · how urgent · what to send back · budget, as small chips you read at a glance */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        <Chip label={`👤 ${ownerName ?? t('noOwner')}`} />
+        <Chip label={`📅 ${s.due_at ? formatDue(s.due_at, lang) : t('noDue')}`} />
+        {(s.priority === 'urgent' || s.priority === 'high') && <Chip label={`${s.priority === 'urgent' ? '🔴' : '🟠'} ${t(`pr_${s.priority}`)}`} />}
+        {!!s.proof_required && s.proof_required !== 'none' && <Chip label={`📎 ${t(`proof_${s.proof_required}`)}`} />}
+        {!!s.budget && <Chip label={`💰 ${s.budget}`} />}
+        {s.confidence < 0.5 && <Chip label={t('maybe')} />}
+      </View>
+      {/* the details from the email: two lines, "more" opens the rest and what "done" means */}
       {!!s.description && (
-        <AppText variant="small" color="textSoft" numberOfLines={5} style={{ writingDirection: contentDirection(s.description) }}>
-          {s.description}
-        </AppText>
-      )}
-      {!!s.definition_of_done && (
-        <AppText variant="caption" weight="semibold" color="greenText" style={{ writingDirection: contentDirection(s.definition_of_done) }}>
-          {`✓ ${s.definition_of_done}`}
-        </AppText>
-      )}
-      {((!!s.proof_required && s.proof_required !== 'none') || !!s.budget) && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {!!s.proof_required && s.proof_required !== 'none' && <Chip label={`📎 ${t(`proof_${s.proof_required}`)}`} />}
-          {!!s.budget && <Chip label={`💰 ${s.budget}`} />}
-        </View>
+        <Pressable onPress={() => setMore((m) => !m)} accessibilityRole="button" style={{ gap: 4 }}>
+          <AppText
+            variant="small"
+            color="textSoft"
+            numberOfLines={more ? undefined : 2}
+            style={{ writingDirection: contentDirection(s.description) }}
+          >
+            {s.description}
+          </AppText>
+          {more && !!s.definition_of_done && (
+            <AppText variant="caption" weight="semibold" color="greenText" style={{ writingDirection: contentDirection(s.definition_of_done) }}>
+              {`✓ ${s.definition_of_done}`}
+            </AppText>
+          )}
+          <AppText variant="caption" weight="bold" color="primary">
+            {more ? t('less') : t('more')}
+          </AppText>
+        </Pressable>
       )}
       {!!s.quote && !s.description && (
         <AppText variant="caption" color="textFaint" numberOfLines={2} style={{ writingDirection: contentDirection(s.quote) }}>

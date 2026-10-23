@@ -7,6 +7,7 @@
 // Rewards entry points (progress pill, Rewards shortcut) are hidden for now — see SHOW_REWARDS.
 // Demo: level, streak and points come from the shared demo wallet — no gamification backend yet.
 import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { FromSaree3 } from '@/features/home/TeamRadar';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
@@ -121,6 +122,7 @@ export default function EmployeeHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.lg }}>
           {/* invited: Saree3's short tour until it's done */}
           <GettingStarted />
+          <FromSaree3 />
           {/* 2. today's real tasks (max 3) */}
           <TourTarget id="home.needs">
             <TodayTasks />

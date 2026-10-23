@@ -51,7 +51,16 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
 // updates may push (up to DAILY_PUSHES a day); the rest never push: they stay in the Alerts list and are counted in
 // the next morning brief (whatsapp_status 'batched').
-export const EXCEPTION_KINDS = new Set<AlertKind>(['task_assigned', 'new_submission', 'decision_waiting', 'escalated', 'no_reply', 'objective_missed']);
+export const EXCEPTION_KINDS = new Set<AlertKind>([
+  'task_assigned',
+  'new_submission',
+  'decision_waiting',
+  'escalated',
+  'no_reply',
+  'objective_missed',
+]);
+/** these go out at once too when the task is high or urgent priority */
+export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk', 'no_reply']);
 export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
   'task_done_on_time',
   'task_done_early',
@@ -234,6 +243,12 @@ export async function deliverPending(
     admin.from('profiles').select('id, full_name, full_name_ar, locale, phone, whatsapp_connected').in('id', ids),
   ]);
   const people = new Map((ppl ?? []).map((p) => [p.id as string, p]));
+  // high-priority work going late or at risk is urgent: it goes out at once like a decision (owner's request), never
+  // held back by the daily budget or batched into the morning summary
+  const taskIds = [...new Set(rows.filter((r) => r.task_id && URGENT_WHEN_HIGH.has(r.kind)).map((r) => r.task_id as string))];
+  const { data: pri } = taskIds.length ? await admin.from('tasks').select('id, priority').in('id', taskIds) : { data: [] };
+  const highTask = new Set((pri ?? []).filter((x) => x.priority === 'high' || x.priority === 'urgent').map((x) => x.id as string));
+  const urgent = (a: PendingAlert) => EXCEPTION_KINDS.has(a.kind) || (!!a.task_id && highTask.has(a.task_id) && URGENT_WHEN_HIGH.has(a.kind));
   const waConfigured = !!Deno.env.get('WHATSAPP_TOKEN') && !!Deno.env.get('WHATSAPP_PHONE_ID');
 
   // everyday pushes each person already got today (Riyadh): the budget
@@ -273,7 +288,7 @@ export async function deliverPending(
       }
     }
     // the budget: exceptions always go; brief-only kinds never push; the rest until today's budget is used
-    if (!opts.ignoreQuiet && !EXCEPTION_KINDS.has(a.kind)) {
+    if (!opts.ignoreQuiet && !urgent(a)) {
       const used = budgetUsed.get(a.profile_id) ?? 0;
       if (BRIEF_ONLY_KINDS.has(a.kind) || used >= DAILY_PUSHES) {
         await batch(a);
@@ -333,7 +348,10 @@ export async function deliverPending(
       await admin
         .from('alerts')
         .update({ delivered_at: now.toISOString(), sent_push: sentPush, sent_whatsapp: sentWa, whatsapp_status: waStatus })
-        .in('id', m.alerts.map((a) => a.id));
+        .in(
+          'id',
+          m.alerts.map((a) => a.id),
+        );
       await admin.from('activity_log').insert(
         m.alerts.map((a) => ({
           actor_type: 'muntej',
