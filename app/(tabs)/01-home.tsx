@@ -24,11 +24,10 @@ import { useMyProfile } from '@/lib/api';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
-import { MuntejHandling, MyTasks, NeedsSupport, TeamPulse } from '@/features/home/TodayHome';
+import { MuntejHandling, TeamPulse } from '@/features/home/TodayHome';
+import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { Spotlight } from '@/features/launch/Spotlight';
-import { MySteps } from '@/features/steps/MySteps';
 import { NS } from '@/features/home/strings';
-import { NextDays } from '@/features/home/NextDays';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
 import { MORE_NS } from '@/features/more/strings';
@@ -93,6 +92,10 @@ export default function ManagerHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
           {/* a new account: Saree3's getting-started steps until they're done */}
           <GettingStarted />
+          {/* tasks someone gave you, waiting for your "got it" (Saree3 asks; nothing else to do) */}
+          <TourTarget id="home.confirm">
+            <ConfirmNew />
+          </TourTarget>
           {/* what happened since your last visit and what Saree3 did about it */}
           <TourTarget id="home.from">
             <FromSaree3 />
@@ -118,13 +121,8 @@ export default function ManagerHome() {
             <NeedsYou />
           </TourTarget>
 
-          {/* what is coming up in the next 3 working days, most important first */}
-          <NextDays />
-
-          {/* 4. people who need a hand, 5. your own tasks (both hidden when empty) */}
-          <NeedsSupport />
-          <MyTasks />
-          <MySteps />
+          {/* no task lists here: Saree3 follows every task himself and only brings what needs you (owner's position).
+              Your own tasks are on the Tasks tab. */}
 
           {/* this week's achievements */}
           <TeamWins />

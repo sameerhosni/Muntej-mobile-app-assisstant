@@ -74,7 +74,7 @@ async function register() {
 // ── one-tap check-in (BRD v1.2 FR-FUP-02): Done / On track / Blocked right on the notification ──
 // The server sends check-ins with categoryId 'checkin' (send-followups). The buttons open the app for a moment so the
 // answer is saved even if Muntej wasn't running; the task opens with the answer applied.
-const CHECKIN_ACTIONS = ['done', 'on_track', 'blocked'] as const;
+const CHECKIN_ACTIONS = ['done', 'on_track', 'blocked', 'got_it', 'need_time', 'need_help'] as const;
 type CheckinAction = (typeof CHECKIN_ACTIONS)[number];
 
 async function registerCheckinButtons() {
@@ -90,12 +90,30 @@ async function registerCheckinButtons() {
       options: { opensAppToForeground: true },
     },
   ]).catch((e) => console.warn('[push] check-in buttons', e));
+  // the hand-off of a task someone gave you (category 'handoff', also Saree3's "you haven't confirmed" reminder)
+  await Notifications.setNotificationCategoryAsync('handoff', [
+    { identifier: 'got_it', buttonTitle: ar ? 'استلمت 👍' : 'Got it 👍', options: { opensAppToForeground: true } },
+    {
+      identifier: 'need_time',
+      buttonTitle: ar ? 'أحتاج وقت' : 'Need time',
+      textInput: { submitButtonTitle: ar ? 'أرسل' : 'Send', placeholder: ar ? 'كم تحتاج زيادة وليش؟' : 'How much more, and why?' },
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: 'need_help',
+      buttonTitle: ar ? 'أحتاج مساعدة' : 'Need help',
+      textInput: { submitButtonTitle: ar ? 'أرسل' : 'Send', placeholder: ar ? 'وش اللي موقفك؟' : "What's in the way?" },
+      options: { opensAppToForeground: true },
+    },
+  ]).catch((e) => console.warn('[push] hand-off buttons', e));
 }
 
 /** a check-in button was tapped: save the answer (checkin_reply), then open the task */
 async function answerCheckin(taskId: string, action: CheckinAction, note: string | undefined) {
   const rpc = supabase.rpc.bind(supabase) as unknown as (fn: string, args: object) => Promise<{ error: { message: string } | null }>;
-  const { error } = await rpc('checkin_reply', { p_task: taskId, p_reply: action, p_note: note ?? null });
+  // "need help" is the server's 'blocked' answer (with what's in the way)
+  const reply = action === 'need_help' ? 'blocked' : action;
+  const { error } = await rpc('checkin_reply', { p_task: taskId, p_reply: reply, p_note: note ?? null });
   if (error) console.warn('[push] check-in answer failed', error.message);
 }
 

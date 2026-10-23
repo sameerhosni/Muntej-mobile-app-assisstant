@@ -86,8 +86,14 @@ export function buildPlan(opts: {
       : ar ? `👀 هلا ${name}، «${title}» وين وصلت؟ ضغطة وحدة تكفي 😉` : `👀 Hi ${name}, where's "${title}" at? One tap is enough 😉`,
   });
 
+  // ~2 working hours after the hand-off: still not confirmed → Saree3 asks again (send-followups words it as a receipt
+  // chase; once they've confirmed it is skipped). Not for your own tasks.
+  const receipt = self ? [] : [check(now + 2 * H)];
+  // two checks that working hours rounded onto the same moment are one
+  const once = (steps: PlanStep[]) => steps.filter((s, i) => s.kind !== 'check' || steps.findIndex((o) => o.kind === 'check' && o.at === s.at) === i);
+
   // no due date: brief + one check in ~2 working days
-  if (Number.isNaN(due) || due <= now) return [brief, check(now + 48 * H)];
+  if (Number.isNaN(due) || due <= now) return once([brief, ...receipt, check(now + 48 * H)]);
 
   const span = due - now;
   const collect: PlanStep = {
@@ -99,7 +105,7 @@ export function buildPlan(opts: {
       ? ar ? `🎯 اليوم يوم «${title}»! خلّصها وارتاح 💪` : `🎯 Today is "${title}" day! Finish it and relax 💪`
       : ar ? `🎯 ${name}، اليوم موعد «${title}». ارفع التسليم هنا وأنا أوصله 📎` : `🎯 ${name}, "${title}" is due today. Drop it here and I'll deliver it 📎`,
   };
-  if (span < 24 * H) return [brief, check(now + span / 2), collect].filter((s) => s.kind !== 'check' || Date.parse(s.at) < due);
+  if (span < 24 * H) return once([brief, ...receipt, check(now + span / 2), collect].filter((s) => s.kind !== 'check' || Date.parse(s.at) < due));
 
   const risk: PlanStep = {
     at: iso(intoWorkHours(now + span * 0.65)),
@@ -110,7 +116,7 @@ export function buildPlan(opts: {
       ? ar ? `⏳ الوقت يركض على «${title}»! وين وصلت؟ لو تحتاج شي قول` : `⏳ The clock is running on "${title}"! Where are you at? Need anything?`
       : ar ? `⏳ ${name}، «${title}» قرّب موعدها. تحتاج مساعدة؟ قول وأنا أدبّرها` : `⏳ ${name}, "${title}" is coming up. Need help? Say it and I'll sort it`,
   };
-  const steps = [brief, check(now + span * 0.35), risk, collect];
+  const steps = [brief, ...receipt, check(now + span * 0.35), risk, collect];
   // drop any middle step that working-hours rounding pushed past the due date
-  return steps.filter((s) => s.kind === 'collect' || s.kind === 'brief' || Date.parse(s.at) < due);
+  return once(steps.filter((s) => s.kind === 'collect' || s.kind === 'brief' || Date.parse(s.at) < due));
 }

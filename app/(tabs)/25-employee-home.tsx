@@ -31,6 +31,7 @@ import { NS } from '@/features/employee-home/strings';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
 import { MORE_NS } from '@/features/more/strings';
 import { MySteps } from '@/features/steps/MySteps';
+import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
 
 const HOME_STEPS = [
@@ -122,6 +123,9 @@ export default function EmployeeHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.lg }}>
           {/* invited: Saree3's short tour until it's done */}
           <GettingStarted />
+          <TourTarget id="home.confirm">
+            <ConfirmNew />
+          </TourTarget>
           <TourTarget id="home.from">
             <FromSaree3 />
           </TourTarget>

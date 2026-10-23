@@ -39,7 +39,7 @@ serve(async (req) => {
   const { data: due, error } = await admin
     .from('followups')
     .select(
-      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, status, owner_id, created_at), recipient:profiles!followups_recipient_id_fkey(locale)',
+      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, status, owner_id, assigner_id, created_at), recipient:profiles!followups_recipient_id_fkey(locale, full_name, full_name_ar, manager_id)',
     )
     .eq('status', 'scheduled')
     .gte('scheduled_at', from.toISOString())
@@ -77,8 +77,9 @@ serve(async (req) => {
   }
   const ownerAnswered = new Set(((answered ?? []) as { task_id: string; actor_id: string | null }[]).map((a) => `${a.task_id}:${a.actor_id}`));
   for (const f of due ?? []) {
-    const task = f.task as unknown as { title: string; status: string; owner_id: string | null; created_at: string } | null;
-    const locale = (f.recipient as unknown as { locale?: string } | null)?.locale;
+    const task = f.task as unknown as { title: string; status: string; owner_id: string | null; assigner_id: string | null; created_at: string } | null;
+    const who = f.recipient as unknown as { locale?: string; full_name?: string; full_name_ar?: string | null; manager_id?: string | null } | null;
+    const locale = who?.locale;
     // a task that was finished or cancelled since the plan was made needs no more chasing
     if (!task || ['done', 'cancelled'].includes(task.status) || !f.recipient_id) {
       await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
@@ -99,6 +100,61 @@ serve(async (req) => {
     }
     // a check-in (not the hand-off message right after creating) to the owner: one-tap buttons + the daily limits
     const checkin = task.owner_id === f.recipient_id && Date.parse(f.scheduled_at) > Date.parse(task.created_at) + 30 * 60_000;
+    // a task someone gave them that they haven't confirmed yet: Saree3 chases the receipt instead of asking for progress
+    const given = task.owner_id === f.recipient_id && !!task.assigner_id && task.assigner_id !== f.recipient_id;
+    const unconfirmed = given && task.status === 'assigned';
+    const ar = locale === 'ar';
+    const first = ((ar && who?.full_name_ar) || who?.full_name || '').split(' ')[0];
+    if (checkin && !unconfirmed && Date.parse(f.scheduled_at) < Date.parse(task.created_at) + 4 * 3_600_000) {
+      // the early receipt check, but they already confirmed: nothing to ask
+      await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
+      skipped++;
+      continue;
+    }
+    if (checkin && unconfirmed) {
+      const chase = ar
+        ? `📬 ${first}، لسا ما أكدت استلام «${task.title}». كل شي واضح؟ اضغط استلمت، أو قل لي لو تحتاج وقت أو مساعدة`
+        : `📬 ${first}, you haven't confirmed "${task.title}" yet. All clear? Tap Got it, or tell me if you need time or help`;
+      const { count: chased } = await admin
+        .from('activity_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('task_id', f.task_id)
+        .eq('action', 'receipt_chased');
+      const delivered = await sendPush([f.recipient_id], { title: task.title, body: chase, data: { taskId: f.task_id }, categoryId: 'handoff' }, admin);
+      await admin.from('followups').update(delivered ? { status: 'sent', sent_at: now.toISOString() } : { status: 'skipped' }).eq('id', f.id);
+      if (!delivered) {
+        skipped++;
+        continue;
+      }
+      sentCount++;
+      perTask.add(f.task_id);
+      perPerson.set(f.recipient_id, (perPerson.get(f.recipient_id) ?? 0) + 1);
+      await admin.from('activity_log').insert({
+        actor_type: 'muntej',
+        subject_id: f.recipient_id,
+        task_id: f.task_id,
+        action: 'receipt_chased',
+        summary: `Asked ${who?.full_name ?? 'the owner'} again to confirm "${task.title}"`,
+        summary_ar: `طلبت من ${who?.full_name_ar ?? who?.full_name ?? 'المسؤول'} يأكد استلام «${task.title}» مرة ثانية`,
+        reason: 'The task was not confirmed after the hand-off',
+      });
+      // asked twice and still silent: now (and only now) the person above hears about it, with what Saree3 already did
+      const boss = who?.manager_id ?? task.assigner_id;
+      if ((chased ?? 0) >= 1 && boss) {
+        await admin.from('alerts').insert({
+          profile_id: boss,
+          kind: 'escalated',
+          subject_id: f.recipient_id,
+          task_id: f.task_id,
+          title: `${(who?.full_name ?? '').split(' ')[0]} hasn't confirmed "${task.title}"`,
+          body: 'I reminded them twice. I keep following up; call them if it is urgent.',
+          title_ar: `${(who?.full_name_ar || who?.full_name || '').split(' ')[0]} ما أكد استلام «${task.title}»`,
+          body_ar: 'ذكّرته مرتين وأنا مكمّل أتابعه. لو مستعجلة كلّمه.',
+          dedupe_key: `unconfirmed:${f.task_id}`,
+        });
+      }
+      continue;
+    }
     if (checkin) {
       // they told Muntej something in the last 24 h: silence after that means on track, no need to ask
       if (ownerAnswered.has(`${f.task_id}:${f.recipient_id}`)) {
@@ -119,7 +175,8 @@ serve(async (req) => {
     const text = locale === 'ar' && f.message_ar ? f.message_ar : f.message;
     const delivered = await sendPush(
       [f.recipient_id],
-      { title: task.title, body: text, data: { taskId: f.task_id, checkin }, ...(checkin ? { categoryId: 'checkin' } : {}) },
+      // the hand-off to someone who was given the task carries the answers: Got it · Need time · Need help
+      { title: task.title, body: text, data: { taskId: f.task_id, checkin }, ...(checkin ? { categoryId: 'checkin' } : given ? { categoryId: 'handoff' } : {}) },
       admin,
     );
     if (delivered) {
