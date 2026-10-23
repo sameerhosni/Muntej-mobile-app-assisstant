@@ -4,11 +4,25 @@ import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ShieldCheck, Sparkles, Users } from 'lucide-react-native';
+import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ListTodo, ShieldCheck, Sparkles, Users } from 'lucide-react-native';
 import Constants from 'expo-constants';
-import { AppText, Avatar, BrandSymbol, BrandWordmark, Button, Card, Chip, IconBadge, IconButton, Screen, SectionTitle, Toggle } from '@/components/ui';
+import {
+  AppText,
+  Avatar,
+  BrandSymbol,
+  BrandWordmark,
+  Button,
+  Card,
+  Chip,
+  IconBadge,
+  IconButton,
+  Screen,
+  SectionTitle,
+  Toggle,
+} from '@/components/ui';
 import { useScreenT } from '@/lib/i18n/register';
 import { MORE_NS } from '@/features/more/strings';
+import { BACKLOG_NS } from '@/features/backlog/strings';
 import { AccountSwitcher } from '@/features/accounts/AccountSwitcher';
 import { DeleteAccount } from '@/features/accounts/DeleteAccount';
 import { PROTO_NS } from '@/features/prototype/strings';
@@ -37,6 +51,7 @@ export default function SettingsScreen() {
   const { t: tp } = useScreenT(PROTO_NS);
   const { t: tt } = useScreenT(TEAM_NS);
   const { t: tmore } = useScreenT(MORE_NS);
+  const { t: tb } = useScreenT(BACKLOG_NS);
   const { t: tm } = useScreenT(MUNTI_NS);
   const { t: ta } = useScreenT(ALERTS_NS);
   const { t: tl } = useScreenT(LAUNCH_NS);
@@ -77,22 +92,18 @@ export default function SettingsScreen() {
       </View>
 
       {isAdmin && (
-      <Card
-        onPress={() => router.push('/prototype')}
-        accessibilityLabel={tp('open')}
-        style={{ flexDirection: 'row', alignItems: 'center' }}
-      >
-        <IconBadge size={44} gradient="heroManager">
-          <LayoutGrid color={colors.onDark} size={20} strokeWidth={2} />
-        </IconBadge>
-        <View style={{ flex: 1, gap: 2 }}>
-          <AppText variant="cardTitle">{tp('open')}</AppText>
-          <AppText variant="caption" color="textMuted">
-            {tp('openHint')}
-          </AppText>
-        </View>
-        <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
-      </Card>
+        <Card onPress={() => router.push('/prototype')} accessibilityLabel={tp('open')} style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <IconBadge size={44} gradient="heroManager">
+            <LayoutGrid color={colors.onDark} size={20} strokeWidth={2} />
+          </IconBadge>
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText variant="cardTitle">{tp('open')}</AppText>
+            <AppText variant="caption" color="textMuted">
+              {tp('openHint')}
+            </AppText>
+          </View>
+          <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
+        </Card>
       )}
 
       {me && (
@@ -111,62 +122,60 @@ export default function SettingsScreen() {
               </AppText>
             </View>
           </View>
-          <Button
-            label={t('settings.signOut')}
-            variant="outline"
-            size="md"
-            loading={signOut.isPending}
-            onPress={() => signOut.mutate()}
-          />
+          <Button label={t('settings.signOut')} variant="outline" size="md" loading={signOut.isPending} onPress={() => signOut.mutate()} />
         </Card>
       )}
 
       {/* admins: use the app as a manager or as an employee */}
       {isAdmin && (
         <Spotlight id="settings.viewAs">
-        <Card>
-          <View style={{ gap: 4 }}>
-            <AppText variant="cardTitle">{t('settings.viewAs')}</AppText>
-            <AppText variant="caption" color="textMuted">
-              {t('settings.viewAsHint')}
-            </AppText>
-          </View>
-          <View
-            accessibilityRole="radiogroup"
-            style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}
-          >
-            {(['manager', 'employee'] as ViewAs[]).map((v) => {
-              const active = view === v;
-              return (
-                <Pressable
-                  key={v}
-                  onPress={() => switchView(v)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: active }}
-                  style={{
-                    flex: 1,
-                    minHeight: sizes.touch,
-                    borderRadius: radius.pill,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: active ? colors.surface : colors.transparent,
-                    boxShadow: active ? shadows.tile : undefined,
-                  }}
-                >
-                  <AppText weight="bold" style={{ color: active ? (v === 'employee' ? colors.purple : colors.primary) : colors.textMuted }}>
-                    {t(v === 'employee' ? 'settings.viewEmployee' : 'settings.viewManager')}
-                  </AppText>
-                </Pressable>
-              );
-            })}
-          </View>
-        </Card>
+          <Card>
+            <View style={{ gap: 4 }}>
+              <AppText variant="cardTitle">{t('settings.viewAs')}</AppText>
+              <AppText variant="caption" color="textMuted">
+                {t('settings.viewAsHint')}
+              </AppText>
+            </View>
+            <View
+              accessibilityRole="radiogroup"
+              style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}
+            >
+              {(['manager', 'employee'] as ViewAs[]).map((v) => {
+                const active = view === v;
+                return (
+                  <Pressable
+                    key={v}
+                    onPress={() => switchView(v)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                    style={{
+                      flex: 1,
+                      minHeight: sizes.touch,
+                      borderRadius: radius.pill,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: active ? colors.surface : colors.transparent,
+                      boxShadow: active ? shadows.tile : undefined,
+                    }}
+                  >
+                    <AppText weight="bold" style={{ color: active ? (v === 'employee' ? colors.purple : colors.primary) : colors.textMuted }}>
+                      {t(v === 'employee' ? 'settings.viewEmployee' : 'settings.viewManager')}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Card>
         </Spotlight>
       )}
 
       {/* admins: who uses what's new (screen 43) */}
       {isAdmin && (
-        <Card onPress={() => router.push('/43-adoption')} accessibilityLabel={tl('settingsRow')} style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Card
+          onPress={() => router.push('/43-adoption')}
+          accessibilityLabel={tl('settingsRow')}
+          style={{ flexDirection: 'row', alignItems: 'center' }}
+        >
           <IconBadge size={44} bg="greenTint">
             <Sparkles color={colors.green} size={20} strokeWidth={2} />
           </IconBadge>
@@ -182,6 +191,25 @@ export default function SettingsScreen() {
 
       {/* which account you're in; switch when you have more than one (super admin: all) */}
       <AccountSwitcher />
+
+      {/* super admin: everything not finished yet (docs/BACKLOG.md) */}
+      {realRole === 'super_admin' && (
+        <Card
+          onPress={() => router.push('/49-backlog' as Href)}
+          accessibilityLabel={tb('settingsRow')}
+          style={{ flexDirection: 'row', alignItems: 'center' }}
+        >
+          <IconBadge size={44} bg="amberTint">
+            <ListTodo color={colors.amberText} size={20} strokeWidth={2} />
+          </IconBadge>
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText variant="cardTitle">{tb('settingsRow')}</AppText>
+            <AppText variant="caption" color="textMuted" numberOfLines={2}>
+              {tb('settingsSub')}
+            </AppText>
+          </View>
+        </Card>
+      )}
 
       {/* every deeper screen in one place (screen 44) */}
       <Card
@@ -218,11 +246,7 @@ export default function SettingsScreen() {
         <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
       </Card>
 
-      <Card
-        onPress={() => router.push('/security')}
-        accessibilityLabel={t('security.row')}
-        style={{ flexDirection: 'row', alignItems: 'center' }}
-      >
+      <Card onPress={() => router.push('/security')} accessibilityLabel={t('security.row')} style={{ flexDirection: 'row', alignItems: 'center' }}>
         <IconBadge size={44} bg={twoStep.data ? 'greenTint' : 'primaryTint'}>
           <ShieldCheck color={twoStep.data ? colors.green : colors.primary} size={20} strokeWidth={2} />
         </IconBadge>
@@ -292,10 +316,7 @@ export default function SettingsScreen() {
             {t('settings.languageHint')}
           </AppText>
         </View>
-        <View
-          accessibilityRole="radiogroup"
-          style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}
-        >
+        <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}>
           {(['en', 'ar'] as Language[]).map((l) => {
             const active = lang === l;
             return (
@@ -325,34 +346,34 @@ export default function SettingsScreen() {
 
       {isAdmin && (
         <>
-      <SectionTitle title={t('settings.allScreens')} />
-      <AppText variant="caption" color="textMuted">
-        {t('settings.allScreensHint')}
-      </AppText>
-      <Card style={{ gap: 0, paddingVertical: spacing.sm }}>
-        {SCREENS.map((s, i) => (
-          <Pressable
-            key={s.num}
-            onPress={() => router.push(s.route as Href)}
-            accessibilityRole="link"
-            style={{
-              minHeight: sizes.touch + 4,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.lg,
-              borderTopWidth: i === 0 ? 0 : 1,
-              borderTopColor: colors.border,
-            }}
-          >
-            <AppText weight="extrabold" color="primary" style={{ width: 28 }}>
-              {s.num}
-            </AppText>
-            <AppText style={{ flex: 1 }}>{t(`screens.${s.num}`)}</AppText>
-            <Chip label={`S${s.sprint}`} tone={s.tab === 'employee' ? 'purple' : 'neutral'} style={{ alignSelf: 'center' }} />
-            <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
-          </Pressable>
-        ))}
-      </Card>
+          <SectionTitle title={t('settings.allScreens')} />
+          <AppText variant="caption" color="textMuted">
+            {t('settings.allScreensHint')}
+          </AppText>
+          <Card style={{ gap: 0, paddingVertical: spacing.sm }}>
+            {SCREENS.map((s, i) => (
+              <Pressable
+                key={s.num}
+                onPress={() => router.push(s.route as Href)}
+                accessibilityRole="link"
+                style={{
+                  minHeight: sizes.touch + 4,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.lg,
+                  borderTopWidth: i === 0 ? 0 : 1,
+                  borderTopColor: colors.border,
+                }}
+              >
+                <AppText weight="extrabold" color="primary" style={{ width: 28 }}>
+                  {s.num}
+                </AppText>
+                <AppText style={{ flex: 1 }}>{t(`screens.${s.num}`)}</AppText>
+                <Chip label={`S${s.sprint}`} tone={s.tab === 'employee' ? 'purple' : 'neutral'} style={{ alignSelf: 'center' }} />
+                <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
+              </Pressable>
+            ))}
+          </Card>
         </>
       )}
 
