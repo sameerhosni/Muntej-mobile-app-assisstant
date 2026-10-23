@@ -67,15 +67,17 @@ export function ScreenTip({ id, action }: { id: string; action?: () => void }) {
           {t(`${id}Body`)}
         </AppText>
         {!!action && (
-          <Button
-            label={t(`${id}Action`)}
-            size="md"
-            onPress={() => {
-              done(true);
-              action();
-            }}
-            style={{ alignSelf: 'flex-start' }}
-          />
+          // the shared Button fills its parent (flex 1): a row keeps it one button high
+          <View style={{ flexDirection: 'row' }}>
+            <Button
+              label={t(`${id}Action`)}
+              size="md"
+              onPress={() => {
+                done(true);
+                action();
+              }}
+            />
+          </View>
         )}
       </View>
       <Pressable
