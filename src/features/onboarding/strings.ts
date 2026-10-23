@@ -29,8 +29,8 @@ const en = {
     'You’re all set 🎉 From now on: say it once, Muntej handles the rest. I’ll show you new things right when they happen, like when work comes back for your review.',
   skip: 'Skip for now',
   // Home strip
-  stripTitle: 'Getting started',
-  stripSub: '{{done}} of {{total}} done · Saree3 shows you the rest',
+  stripTitle: 'Setting up your account',
+  stripSub: '{{done}} of {{total}} ready · Saree3 can do the rest for you',
   stripGo: 'Continue',
 };
 
@@ -60,8 +60,8 @@ const ar: typeof en = {
   handoffUse: 'استخدم هذي',
   finished: 'جاهز 🎉 من الحين: قولها مرة، ومنتج يكمّل الباقي. بوريك الأشياء الجديدة وقت ما تصير، مثل لما يرجع لك شغل تراجعه.',
   skip: 'بعدين',
-  stripTitle: 'البداية',
-  stripSub: 'خلصت {{done}} من {{total}} · سريع يوريك الباقي',
+  stripTitle: 'تجهيز حسابك',
+  stripSub: '{{done}} من {{total}} جاهز · سريع يقدر يكمّل عنك',
   stripGo: 'كمّل',
 };
 

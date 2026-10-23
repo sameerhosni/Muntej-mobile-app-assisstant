@@ -1,5 +1,6 @@
-// Home's "Getting started 2/4" strip while onboarding isn't finished (tap → Saree3 picks up where it stopped; a
-// skipped onboarding comes back). The very first time a brand-new account opens Home, the chat opens by itself.
+// Home's "Setting up your account 3/6" strip while something in the setup is missing (tap → Saree3's setup guide at
+// the next missing item; a paused guide comes back). The very first time a brand-new account opens Home, the guide
+// opens by itself.
 import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import { router } from 'expo-router';
@@ -9,8 +10,8 @@ import { AppText, ProgressBar } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useMyProfile, useTasks, useTeam } from '@/lib/api';
-import { markOnboarding, progressOf, useOnboarding } from './api';
+import { markOnboarding } from './api';
+import { useSetup } from './setup';
 import { ONBOARDING_NS } from './strings';
 
 let autoOpened = false;
@@ -19,25 +20,19 @@ export function GettingStarted() {
   const { t } = useScreenT(ONBOARDING_NS);
   const { isRTL } = useDirection();
   const qc = useQueryClient();
-  const me = useMyProfile();
-  const row = useOnboarding(me.data?.id);
-  const tasks = useTasks();
-  const team = useTeam();
-  const r = row.data;
-  const ready = !!r && !!me.data && !!tasks.data && !!team.data;
-  // invited members have a one-step tour; owners count their 4 real steps
-  const member = (r as { kind?: string } | null | undefined)?.kind === 'member';
-  const p = ready ? (member ? { done: 0, total: 1 } : progressOf(r!, me.data!, tasks.data ?? [], team.data ?? [])) : null;
+  const setup = useSetup();
+  const r = setup.row;
+  const missing = setup.ready && !!r && setup.done < setup.total;
 
-  // not finished and not paused: straight into Saree3's tour, once per app open
+  // not finished and not paused: straight into Saree3's setup guide, once per app open
   useEffect(() => {
-    if (ready && !r!.finished_at && !r!.dismissed && !autoOpened) {
+    if (missing && !r!.finished_at && !r!.dismissed && !autoOpened) {
       autoOpened = true;
       router.push('/47-welcome');
     }
-  }, [ready, r, p]);
+  }, [missing, r]);
 
-  if (!ready || r!.finished_at || !p) return null;
+  if (!missing) return null;
 
   const go = async () => {
     if (r!.dismissed) await markOnboarding(qc, { dismissed: false }).catch(() => {});
@@ -48,7 +43,7 @@ export function GettingStarted() {
     <Pressable
       onPress={go}
       accessibilityRole="button"
-      accessibilityLabel={`${t('stripTitle')}. ${t('stripSub', { done: p.done, total: p.total })}`}
+      accessibilityLabel={`${t('stripTitle')}. ${t('stripSub', { done: setup.done, total: setup.total })}`}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
@@ -65,9 +60,9 @@ export function GettingStarted() {
       <Sparkles color={colors.primary} size={20} strokeWidth={2.2} />
       <View style={{ flex: 1, gap: 6 }}>
         <AppText weight="bold">{t('stripTitle')}</AppText>
-        <ProgressBar value={p.done / p.total} />
+        <ProgressBar value={setup.done / setup.total} />
         <AppText variant="caption" color="textMuted">
-          {t('stripSub', { done: p.done, total: p.total })}
+          {t('stripSub', { done: setup.done, total: setup.total })}
         </AppText>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>

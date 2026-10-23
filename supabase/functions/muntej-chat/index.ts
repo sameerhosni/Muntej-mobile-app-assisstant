@@ -219,7 +219,7 @@ const ChatOutput = z.object({
   status_change: StatusChange.nullable().describe('Only when action = status'),
   bulk: BulkChange.nullable().describe('Only when action = bulk'),
   recurring: RecurringChange.nullable().describe('Only when action = recurring'),
-  suggestions: z.array(z.string()).describe('0-3 optional next steps, each a short ready-to-send message in the user language'),
+  suggestions: z.array(z.string()).describe('0-1: the ONE most useful next step, a short ready-to-send message in the user language (none when nothing is missing)'),
   candidates: z.array(z.string()).describe('Only with action none: 2-3 task ids when the user wants to change a task but several tasks fit'),
   brief: Brief.nullable().describe('Only with action none, for questions about several people or tasks'),
 });
@@ -255,7 +255,7 @@ Each turn, choose ONE action:
 
 Writing rules:
 - language = the language of the user's latest message. Write reply, title, owner_reason, goal, definition_of_done and helper_reason in it. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
-- reply: 1–3 short sentences, human and warm, no lists, no ids. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so (with action "none" you created and changed nothing).
+- reply: 1–2 short sentences (about 25 words max), human and warm, no lists, no ids. Say what you did, then at most ONE thing that's missing; never several questions at once. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so (with action "none" you created and changed nothing).
 - suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. When the task has no objective and an active objective could fit, one suggestion may link it ("Link it to «X»" / "اربطها بهدف «X»"). After a question answered with a brief: 2 short follow-up questions the user may ask next (e.g. "Who's free this week?" / "مين فاضي هالأسبوع؟"). Empty for small talk, other questions, cancel, delete, org and objective.
 - PENDING CARDS: if the user just says "yes"/"confirm"/"تمام" to a change waiting on a card, use "none" and tell them to tap Confirm on the card.
 - ids (owner_id, helper_id, workspace_id, task_id, person_id, manager_id, objective_id) must come from the provided lists, else null.
@@ -1440,11 +1440,11 @@ ${message}`
     if (row) {
       const t = row as TaskRow;
       const ar = parsed.language === 'ar';
-      let suggestions = action === 'created' || action === 'updated' ? parsed.suggestions.slice(0, 3) : [];
+      let suggestions = action === 'created' || action === 'updated' ? parsed.suggestions.slice(0, 1) : [];
       // the date was just set from the estimate: don't offer to set one
       if (estimateNote && t.due_at) suggestions = suggestions.filter((x) => !/deadline|due|موعد|تسليم/i.test(x));
       // no objective yet: offer one link when there is an obvious candidate and the model didn't already
-      if (suggestions.length < 3 && (action === 'created' || action === 'updated') && !t.objective_id) {
+      if (suggestions.length === 0 && (action === 'created' || action === 'updated') && !t.objective_id) {
         const active = liveObjectives.filter((o) => o.status === 'active');
         const already = suggestions.some(
           (s) => /objective|هدف/i.test(s) || active.some((o) => s.includes(o.title) || (o.title_ar && s.includes(o.title_ar))),
@@ -1512,7 +1512,7 @@ ${message}`
   } else if (parsed.action === 'none' && parsed.brief?.rows.length) {
     const brief = await buildBrief(parsed.brief, parsed.language === 'ar');
     if (brief.rows.length) {
-      payload = { brief, suggestions: parsed.suggestions.slice(0, 2) };
+      payload = { brief, suggestions: parsed.suggestions.slice(0, 1) };
       // the table says it all: keep the reply to one short lead-in line
       const lead = parsed.reply.split(/(?<=[.!؟?:])\s+/)[0].trim();
       parsed.reply = lead.length && lead.length <= 90 ? lead : parsed.language === 'ar' ? 'هذا وضع فريقك اليوم:' : "Here's your team today:";

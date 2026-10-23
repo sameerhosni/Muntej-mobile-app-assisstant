@@ -71,7 +71,7 @@ export function useConnectionActions() {
   const refresh = () => qc.invalidateQueries({ queryKey: ['connections'] });
   return {
     /** opens the tool's sign-in page; it comes back to `back` (the Sources screen by default) when done */
-    connect: async (provider: ProviderId, back: '/12-sources' | '/42-incoming' = '/12-sources') => {
+    connect: async (provider: ProviderId, back: '/12-sources' | '/42-incoming' | '/47-welcome' = '/12-sources') => {
       const redirect = ExpoLinking.createURL(back);
       const { url } = await call<{ url: string }>({ action: 'start', provider, redirect });
       if (Platform.OS === 'web') window.location.href = url;

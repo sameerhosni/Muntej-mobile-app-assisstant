@@ -1,238 +1,454 @@
-// Screen 47 · Saree3's onboarding — no mockup; v2 light style per design/TOKENS.md
-// Short and clear, not a chat: 3 value screens (one headline, one line, one example each), then you try it.
-//   owner  (signed up, owns a new account): Say it once → Muntej follows up for you → You only see the decisions →
-//          Try it now (type / talk / tap an example; your real first task appears as a card) → Invite your team (email)
-//   member (invited): Work comes to you clear → Reply in one tap (a practice check-in) → Your manager sees your progress
-// "Skip" (top) pauses it: the Home strip brings it back. Finishing goes Home, where each screen teaches itself once
-// (src/features/coach/ScreenTip.tsx).
+// Screen 47 · Saree3's setup guide — no mockup; v2 light style per design/TOKENS.md
+// Saree3 checks what's missing in the account (src/features/onboarding/setup.ts) and walks through it one item at a
+// time. Each item says WHY it matters, then "Do it for me" (he does it with a smart default and shows the result) or
+// "Teach me" (he takes you to the screen where it lives; its one-time tip explains it). "Later" skips an item.
+//   owner  name + company → team (paste emails) → who reports to whom → email (Google / Microsoft) → notifications
+//          (allow + a test) → first task (and what Saree3 does next with it)
+//   member name → notifications → a practice check-in → email (optional)
+// The Home strip shows "Setting up your account 3/6" and reopens here at the next missing item.
 import { useState, type ComponentType, type ReactNode } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { BellRing, Calendar, ClipboardCheck, Gavel, Hand, Mic, Send, Square, TrendingUp, User, Users, type LucideProps } from 'lucide-react-native';
+import {
+  BellRing,
+  Building2,
+  Check,
+  GraduationCap,
+  ListChecks,
+  Mail,
+  Mic,
+  Network,
+  Send,
+  Square,
+  Users,
+  X,
+  type LucideProps,
+} from 'lucide-react-native';
 import { AppText, Button } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useMyProfile } from '@/lib/api';
-import { Munti, type MuntiMood } from '@/features/munti/Munti';
+import { supabase } from '@/lib/supabase';
+import { Munti } from '@/features/munti/Munti';
 import { contentDirection } from '@/features/chat/Bubbles';
 import { invalidateTaskData, sendChat, taskSnapshot, type TaskSnapshot } from '@/features/chat/api';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
 import { transcribeAudio } from '@/features/capture/api';
 import { useUpsertPerson } from '@/features/org/model';
 import { nameFromEmail } from '@/features/invite/api';
-import { markOnboarding, useOnboarding } from '@/features/onboarding/api';
+import { useConnectionActions, useProviders, type ProviderId } from '@/features/sources/connections';
+import { enablePush, sendTestPush, usePushStatus } from '@/features/notifications/push';
+import { markOnboarding, setAccountName, setMyName } from '@/features/onboarding/api';
+import { useSetup, type SetupKey } from '@/features/onboarding/setup';
 import { TOUR_NS } from '@/features/onboarding/tourStrings';
 
-type Slide = { key: string; Icon: ComponentType<LucideProps>; mood: MuntiMood; example?: boolean };
-const OWNER: Slide[] = [
-  { key: 'v1', Icon: Mic, mood: 'wave', example: true },
-  { key: 'v2', Icon: BellRing, mood: 'talk', example: true },
-  { key: 'v3', Icon: Gavel, mood: 'star', example: true },
-];
-const MEMBER: Slide[] = [
-  { key: 'm1', Icon: ClipboardCheck, mood: 'wave' },
-  { key: 'm2', Icon: Hand, mood: 'talk' },
-  { key: 'm3', Icon: TrendingUp, mood: 'celebrate' },
-];
-const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+type T = (k: string, o?: Record<string, unknown>) => string;
+const ICON: Record<SetupKey, ComponentType<LucideProps>> = {
+  profile: Building2,
+  team: Users,
+  structure: Network,
+  email: Mail,
+  notify: BellRing,
+  task: ListChecks,
+  checkin: GraduationCap,
+};
+/** "Teach me": the screen where it lives (its one-time tip explains it there) */
+const TEACH: Partial<Record<SetupKey, Href>> = {
+  team: '/48-invite',
+  structure: '/39-team',
+  email: '/42-incoming',
+  notify: '/settings',
+  task: { pathname: '/02-capture', params: { mode: 'text' } },
+};
+const rpc = supabase.rpc.bind(supabase) as unknown as (fn: string, args?: object) => Promise<{ error: { message: string } | null }>;
 
-export default function Welcome() {
+export default function SetupGuide() {
   const { t } = useScreenT(TOUR_NS);
+  const { lang } = useDirection();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const me = useMyProfile();
-  const row = useOnboarding(me.data?.id);
-  const member = (row.data as { kind?: string } | null | undefined)?.kind === 'member';
-  // owner: 3 slides + try + team; member: 3 slides (the 2nd has the practice check-in)
-  const pages = member ? MEMBER.length : OWNER.length + 2;
-  const [page, setPage] = useState(0);
+  const setup = useSetup();
+  const [skipped, setSkipped] = useState<SetupKey[]>([]);
+  const [open, setOpen] = useState<SetupKey | null>(null);
 
-  const skip = () => {
-    markOnboarding(qc, { dismissed: true }).catch(() => {});
-    router.canGoBack() ? router.back() : router.replace('/');
-  };
-  const finish = async () => {
-    await markOnboarding(qc, { demo_seen: true, finished: true }).catch(() => {});
-    await invalidateTaskData(qc);
+  const pending = setup.items.filter((i) => !i.done && !skipped.includes(i.key));
+  const current = open && setup.items.some((i) => i.key === open && !i.done) ? open : (pending[0]?.key ?? null);
+  const allDone = setup.done === setup.total;
+  const firstName = setup.me ? ((lang === 'ar' && setup.me.full_name_ar) || setup.me.full_name).split(' ')[0] : '';
+
+  const refresh = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['onboarding'] }),
+      qc.invalidateQueries({ queryKey: ['team'] }),
+      qc.invalidateQueries({ queryKey: ['connections'] }),
+      qc.invalidateQueries({ queryKey: ['myAccounts'] }),
+      qc.invalidateQueries({ queryKey: ['me'] }),
+      invalidateTaskData(qc),
+    ]);
+  const leave = async () => {
+    // all done → finished; otherwise paused (the Home strip keeps the count and brings it back)
+    await markOnboarding(qc, allDone ? { finished: true } : { dismissed: true }).catch(() => {});
     router.replace('/');
   };
-  const next = () => (page + 1 >= pages ? finish() : setPage(page + 1));
-
-  const slides = member ? MEMBER : OWNER;
-  const slide = page < slides.length ? slides[page] : null;
-  const last = page + 1 >= pages;
+  const skip = (k: SetupKey) => {
+    setSkipped((s) => [...s, k]);
+    setOpen(null);
+  };
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.bg }}>
-      {/* progress + Skip */}
+      {/* Saree3 + "Setting up your account" + progress + close */}
       <View
         style={{
           paddingTop: insets.top + spacing.sm,
+          paddingBottom: spacing.md,
           paddingHorizontal: spacing.screen,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          minHeight: sizes.touch + insets.top,
+          gap: spacing.sm,
+          backgroundColor: colors.surface,
+          borderBottomWidth: 1,
+          borderBottomColor: colors.border,
         }}
       >
-        <Dots total={pages} at={page} />
-        {!last && (
-          <Pressable
-            onPress={skip}
-            accessibilityRole="button"
-            hitSlop={10}
-            style={{ minHeight: sizes.touch, justifyContent: 'center', paddingHorizontal: 8 }}
-          >
-            <AppText variant="small" weight="semibold" color="textMuted">
-              {t('skip')}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <Munti size="md" mood={allDone ? 'celebrate' : 'talk'} />
+          <View style={{ flex: 1 }}>
+            <AppText weight="extrabold" style={{ fontSize: 18 }}>
+              {t('header')}
             </AppText>
+            <AppText variant="caption" color="textMuted">
+              {t('progress', { done: setup.done, total: setup.total })}
+            </AppText>
+          </View>
+          <Pressable onPress={leave} accessibilityRole="button" accessibilityLabel={t('later')} hitSlop={8} style={{ padding: 6 }}>
+            <X color={colors.textMuted} size={22} />
           </Pressable>
-        )}
+        </View>
+        <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.track, overflow: 'hidden' }}>
+          <View style={{ width: `${setup.total ? (100 * setup.done) / setup.total : 0}%`, height: 6, backgroundColor: colors.green }} />
+        </View>
       </View>
 
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ flexGrow: 1, padding: spacing.screen, gap: spacing.xl, justifyContent: 'center' }}
-      >
-        {slide ? (
-          <SlideView slide={slide} t={t} />
-        ) : page === OWNER.length ? (
-          <TryIt t={t} onDone={next} />
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: spacing.screen, gap: spacing.md, paddingBottom: 40 }}>
+        {!setup.ready ? (
+          <ActivityIndicator color={colors.primary} />
         ) : (
-          <InviteTeam t={t} meId={me.data?.id ?? null} />
+          <>
+            <Said text={allDone ? t('allDone') : t('hi', { name: firstName })} />
+            {setup.items.map((i) => {
+              const Icon = ICON[i.key];
+              const expanded = i.key === current;
+              return (
+                <View
+                  key={i.key}
+                  style={{
+                    borderRadius: radius.tile,
+                    backgroundColor: colors.surface,
+                    borderWidth: expanded ? 1.5 : 1,
+                    borderColor: expanded ? colors.primary : colors.border,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Pressable
+                    onPress={() => !i.done && setOpen(i.key)}
+                    accessibilityRole="button"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, minHeight: sizes.touch + 8 }}
+                  >
+                    <View
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: i.done ? colors.greenTint : colors.primaryTint,
+                      }}
+                    >
+                      {i.done ? <Check color={colors.green} size={18} strokeWidth={2.6} /> : <Icon color={colors.primary} size={18} />}
+                    </View>
+                    <AppText weight="bold" style={{ flex: 1 }} color={i.done ? 'textMuted' : 'text'}>
+                      {t(`t_${i.key}`)}
+                    </AppText>
+                    {skipped.includes(i.key) && !i.done && (
+                      <AppText variant="caption" color="textFaint">
+                        {t('later')}
+                      </AppText>
+                    )}
+                  </Pressable>
+                  {expanded && (
+                    <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.md }}>
+                      <AppText color="textSoft">{t(`w_${i.key}`)}</AppText>
+                      <Step k={i.key} t={t} setup={setup} onDone={refresh} />
+                      <View style={{ flexDirection: 'row', gap: spacing.lg, alignItems: 'center' }}>
+                        {!!TEACH[i.key] && (
+                          <Pressable
+                            onPress={() => router.push(TEACH[i.key]!)}
+                            accessibilityRole="button"
+                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: sizes.touch }}
+                          >
+                            <GraduationCap color={colors.primary} size={18} />
+                            <AppText weight="bold" color="primary">
+                              {t('teachMe')}
+                            </AppText>
+                          </Pressable>
+                        )}
+                        <Pressable
+                          onPress={() => skip(i.key)}
+                          accessibilityRole="button"
+                          style={{ minHeight: sizes.touch, justifyContent: 'center' }}
+                        >
+                          <AppText weight="semibold" color="textMuted">
+                            {t('skip')}
+                          </AppText>
+                        </Pressable>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+            {(allDone || !current) && <Button label={t('goHome')} onPress={leave} />}
+          </>
         )}
       </ScrollView>
-
-      {/* the try step has its own buttons (it moves on by itself after the first task) */}
-      {!(page === OWNER.length && !member) && (
-        <View style={{ paddingHorizontal: spacing.screen, paddingBottom: Math.max(insets.bottom, spacing.lg), paddingTop: spacing.sm }}>
-          <Button label={last ? t('start') : t('next')} onPress={next} />
-        </View>
-      )}
     </KeyboardAvoidingView>
   );
 }
 
-type T = (k: string, o?: Record<string, unknown>) => string;
-
-/** one value: a big picture, one headline, one line, one example (or the practice check-in for members) */
-function SlideView({ slide, t }: { slide: Slide; t: T }) {
+/** Saree3 says it */
+function Said({ text }: { text: string }) {
   return (
-    <View style={{ alignItems: 'center', gap: spacing.lg }}>
-      <View
-        style={{
-          width: 132,
-          height: 132,
-          borderRadius: 66,
-          backgroundColor: colors.primaryTint,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <slide.Icon color={colors.primary} size={56} strokeWidth={1.8} />
-        <View style={{ position: 'absolute', bottom: -6, end: -10 }}>
-          <Munti size="md" mood={slide.mood} />
-        </View>
-      </View>
-      <AppText variant="titleLg" align="center">
-        {t(`${slide.key}Title`)}
-      </AppText>
-      <AppText align="center" color="textSoft" style={{ fontSize: 17, lineHeight: 26 }}>
-        {t(`${slide.key}Body`)}
-      </AppText>
-      {slide.example && (
-        <View
-          style={{ alignSelf: 'stretch', padding: spacing.lg, borderRadius: radius.cardLg, backgroundColor: colors.surface, boxShadow: shadows.card }}
-        >
-          <AppText weight="bold" align="center" color="primary" style={{ writingDirection: contentDirection(t(`${slide.key}Example`)) }}>
-            {t(`${slide.key}Example`)}
-          </AppText>
-        </View>
-      )}
-      {slide.key === 'm2' && <PracticeCheckIn t={t} />}
+    <View style={{ backgroundColor: colors.surface, borderRadius: 18, borderTopStartRadius: 4, padding: spacing.lg, boxShadow: shadows.card }}>
+      <AppText style={{ fontSize: 16, lineHeight: 24, writingDirection: contentDirection(text) }}>{text}</AppText>
     </View>
   );
 }
 
-/** members: a pretend check-in notification, answered in one tap */
-function PracticeCheckIn({ t }: { t: T }) {
-  const [picked, setPicked] = useState<string | null>(null);
-  const options: [string, string][] = [
-    ['mDone', 'mDoneReact'],
-    ['mOnTrack', 'mOnTrackReact'],
-    ['mBlocked', 'mBlockedReact'],
-  ];
+type Setup = ReturnType<typeof useSetup>;
+
+/** the "do it for me" part of each item */
+function Step({ k, t, setup, onDone }: { k: SetupKey; t: T; setup: Setup; onDone: () => Promise<unknown> }) {
+  switch (k) {
+    case 'profile':
+      return <ProfileStep t={t} setup={setup} onDone={onDone} />;
+    case 'team':
+      return <TeamStep t={t} setup={setup} onDone={onDone} />;
+    case 'structure':
+      return <StructureStep t={t} setup={setup} onDone={onDone} />;
+    case 'email':
+      return <EmailStep t={t} />;
+    case 'notify':
+      return <NotifyStep t={t} />;
+    case 'task':
+      return <TaskStep t={t} onDone={onDone} />;
+    case 'checkin':
+      return <CheckinStep t={t} onDone={onDone} />;
+  }
+}
+
+function ProfileStep({ t, setup, onDone }: { t: T; setup: Setup; onDone: () => Promise<unknown> }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(setup.me?.full_name ?? '');
+  const [company, setCompany] = useState(setup.company);
+  const [busy, setBusy] = useState(false);
+  const save = async (changed: boolean) => {
+    setBusy(true);
+    try {
+      if (changed && setup.me && name.trim() && name.trim() !== setup.me.full_name) await setMyName(qc, setup.me.id, name);
+      if (changed && !setup.member && company.trim() && company.trim() !== setup.company) await setAccountName(qc, company);
+      await markOnboarding(qc, { account_named: true });
+      await onDone();
+    } catch {
+      // stays open; they can try again
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (editing)
+    return (
+      <View style={{ gap: spacing.sm }}>
+        <Field value={name} onChange={setName} placeholder={t('namePh')} />
+        {!setup.member && <Field value={company} onChange={setCompany} placeholder={t('companyPh')} />}
+        <Button label={t('save')} loading={busy} disabled={!name.trim()} onPress={() => save(true)} />
+      </View>
+    );
   return (
-    <View style={{ alignSelf: 'stretch', gap: spacing.md }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          gap: spacing.md,
-          alignItems: 'center',
-          padding: spacing.lg,
-          borderRadius: radius.cardLg,
-          backgroundColor: colors.surface,
-          borderWidth: 1,
-          borderColor: colors.border,
-          boxShadow: shadows.raised,
-        }}
-      >
-        <View
-          style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <BellRing color={colors.primary} size={20} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <AppText weight="bold">{t('mNotifTitle')}</AppText>
-          <AppText variant="small" color="textSoft">
-            {t('mNotifBody')}
-          </AppText>
-        </View>
-      </View>
+    <View style={{ gap: spacing.sm }}>
+      <Said
+        text={
+          setup.member
+            ? t('p_profileMember', { name: setup.me?.full_name ?? '' })
+            : t('p_profile', { name: setup.me?.full_name ?? '', company: setup.company })
+        }
+      />
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-        {options.map(([k]) => (
-          <Pressable
-            key={k}
-            onPress={() => setPicked(k)}
-            accessibilityRole="button"
-            style={({ pressed }) => ({
-              flex: 1,
-              minHeight: sizes.touch,
-              borderRadius: radius.pill,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: picked === k ? colors.primary : colors.surface,
-              borderWidth: 1.5,
-              borderColor: picked === k ? colors.primary : colors.borderBlue,
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <AppText weight="bold" color={picked === k ? 'onDark' : 'primary'}>
-              {t(k)}
-            </AppText>
-          </Pressable>
-        ))}
+        <Button label={t('yes')} size="md" loading={busy} onPress={() => save(false)} style={{ flex: 1 }} />
+        <Button label={t('change')} size="md" variant="outline" onPress={() => setEditing(true)} style={{ flex: 1 }} />
       </View>
-      {!!picked && (
-        <AppText align="center" weight="semibold" color="green">
-          {t(options.find(([k]) => k === picked)![1])}
+    </View>
+  );
+}
+
+function TeamStep({ t, setup, onDone }: { t: T; setup: Setup; onDone: () => Promise<unknown> }) {
+  const upsert = useUpsertPerson();
+  const [text, setText] = useState('');
+  const [count, setCount] = useState(0);
+  const emails = [...new Set(text.split(/[\s,;،]+/).map((x) => x.trim().toLowerCase()))].filter((x) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+  const invite = async () => {
+    let n = 0;
+    for (const e of emails) {
+      try {
+        await upsert.mutateAsync({ full_name: nameFromEmail(e), email: e, role: 'employee', manager_id: setup.me?.id ?? null });
+        n++;
+      } catch {
+        // already in the team: fine
+      }
+    }
+    setCount(n);
+    setText('');
+    await onDone();
+  };
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Said text={t('p_team')} />
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        placeholder={t('teamPh')}
+        placeholderTextColor={colors.textFaint}
+        multiline
+        autoCapitalize="none"
+        keyboardType="email-address"
+        style={{
+          minHeight: 80,
+          borderRadius: radius.md,
+          borderWidth: 1.5,
+          borderColor: colors.borderBlue,
+          padding: spacing.md,
+          color: colors.text,
+          fontSize: 16,
+          textAlign: 'left',
+          writingDirection: 'ltr',
+          textAlignVertical: 'top',
+        }}
+      />
+      <Button
+        label={`${t('doIt')} · ${t('invite')}${emails.length ? ` (${emails.length})` : ''}`}
+        loading={upsert.isPending}
+        disabled={!emails.length}
+        onPress={invite}
+      />
+      {count > 0 && (
+        <AppText weight="semibold" color="green">
+          {t('invited', { count, n: count })}
         </AppText>
       )}
     </View>
   );
 }
 
-/** owners: their real first task, typed, spoken or an example; then the card shows what Muntej understood */
-function TryIt({ t, onDone }: { t: T; onDone: () => void }) {
+function StructureStep({ t, setup, onDone }: { t: T; setup: Setup; onDone: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false);
+  const loose = setup.others.filter((p) => !p.manager_id && p.role !== 'admin');
+  const names = loose.map((p) => p.full_name.split(' ')[0]).join('، ');
+  const doIt = async () => {
+    setBusy(true);
+    for (const p of loose) await rpc('upsert_person', { p: { id: p.id, manager_id: setup.me?.id } }).catch(() => {});
+    setBusy(false);
+    await onDone();
+  };
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Said text={t('p_structure', { names })} />
+      <Button label={t('doIt')} loading={busy} onPress={doIt} />
+    </View>
+  );
+}
+
+function EmailStep({ t }: { t: T }) {
+  const providers = useProviders();
+  const actions = useConnectionActions();
+  const offered = (['google', 'microsoft'] as ProviderId[]).filter((id) => (providers.data ?? []).some((p) => p.id === id && p.configured));
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Said text={offered.length ? t('p_email') : t('emailUnavailable')} />
+      {offered.map((id) => (
+        <Pressable
+          key={id}
+          onPress={() => actions.connect(id, '/47-welcome').catch(() => {})}
+          accessibilityRole="button"
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: spacing.sm,
+            minHeight: sizes.touch + 4,
+            borderRadius: radius.pill,
+            borderWidth: 1.5,
+            borderColor: colors.border,
+            backgroundColor: colors.surface,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <AppText weight="extrabold" style={{ fontSize: 18, color: id === 'google' ? '#EA4335' : '#0078D4' }}>
+            {id === 'google' ? 'G' : 'M'}
+          </AppText>
+          <AppText weight="bold">{id === 'google' ? t('withGoogle') : t('withMicrosoft')}</AppText>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function NotifyStep({ t }: { t: T }) {
+  const status = usePushStatus();
+  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const doIt = async () => {
+    setBusy(true);
+    await enablePush().catch(() => {});
+    setBusy(false);
+  };
+  // once on, a test right away ("did you get it?")
+  const test = async () => {
+    setBusy(true);
+    await sendTestPush().catch(() => 0);
+    setBusy(false);
+    setNote(t('notifyTest'));
+  };
+  if (status === 'denied')
+    return (
+      <View style={{ gap: spacing.sm }}>
+        <Said text={t('notifyDenied')} />
+        <Button label={t('openSettings')} onPress={() => Linking.openSettings()} />
+      </View>
+    );
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <Said text={note ?? t('p_notify')} />
+      {!note && <Button label={t('doIt')} loading={busy} onPress={status === 'on' ? test : doIt} />}
+    </View>
+  );
+}
+
+function TaskStep({ t, onDone }: { t: T; onDone: () => Promise<unknown> }) {
   const { lang, isRTL } = useDirection();
   const rec = useVoiceRecorder();
   const [text, setText] = useState('');
   const [state, setState] = useState<'idle' | 'rec' | 'writing' | 'thinking'>('idle');
   const [err, setErr] = useState<string | null>(null);
   const [made, setMade] = useState<TaskSnapshot | null>(null);
+  const when = (iso: string | null | undefined) =>
+    iso
+      ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', {
+          timeZone: 'Asia/Riyadh',
+          weekday: 'long',
+          hour: 'numeric',
+          minute: '2-digit',
+        }).format(new Date(iso))
+      : null;
 
   const send = async (said: string, source: 'text' | 'voice') => {
     if (!said.trim()) return;
@@ -243,9 +459,9 @@ function TryIt({ t, onDone }: { t: T; onDone: () => void }) {
       const row = rows.find((r) => r.role === 'assistant' && r.action === 'created');
       const snap = row ? taskSnapshot(row.payload) : null;
       if (snap) setMade(snap);
-      else setErr(t('tryNoTask'));
+      else setErr(t('noTask'));
     } catch {
-      setErr(t('tryNoTask'));
+      setErr(t('noTask'));
     } finally {
       setState('idle');
     }
@@ -275,63 +491,39 @@ function TryIt({ t, onDone }: { t: T; onDone: () => void }) {
       }
     }
   };
-  const when = (iso: string | null | undefined) =>
-    iso
-      ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', {
-          timeZone: 'Asia/Riyadh',
-          weekday: 'long',
-          hour: 'numeric',
-          minute: '2-digit',
-        }).format(new Date(iso))
-      : null;
 
+  // after: what Saree3 does next with it (the follow-up, in plain words)
   if (made)
     return (
-      <View style={{ gap: spacing.lg }}>
-        <View style={{ alignItems: 'center' }}>
-          <Munti size="lg" mood="celebrate" />
-        </View>
-        <AppText variant="titleLg" align="center">
-          {t('doneTitle')}
-        </AppText>
-        <View
-          style={{
-            padding: spacing.lg,
-            gap: spacing.sm,
-            borderRadius: radius.tile,
-            backgroundColor: colors.surface,
-            borderStartWidth: 4,
-            borderStartColor: colors.primary,
-            boxShadow: shadows.card,
-          }}
-        >
-          <AppText weight="bold" style={{ fontSize: 17, writingDirection: contentDirection(made.title) }}>
+      <View style={{ gap: spacing.sm }}>
+        <View style={{ padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.primaryTint }}>
+          <AppText weight="bold" style={{ writingDirection: contentDirection(made.title) }}>
             {made.title}
           </AppText>
-          <Fact icon={<User color={colors.primary} size={16} />} label={t('who')} value={made.owner_name ?? '—'} />
-          <Fact icon={<Calendar color={colors.primary} size={16} />} label={t('due')} value={when(made.due_at) ?? t('noDue')} />
-          {!!made.next_check_at && <Fact icon={<BellRing color={colors.primary} size={16} />} label={t('check')} value={when(made.next_check_at)!} />}
         </View>
-        <AppText align="center" color="textSoft">
-          {t('doneBody')}
-        </AppText>
-        <Button label={t('next')} onPress={onDone} />
+        <AppText weight="bold">{t('nextTitle')}</AppText>
+        {[
+          made.owner_name ? t('nextWho', { name: made.owner_name }) : null,
+          made.next_check_at ? t('nextCheck', { when: when(made.next_check_at) }) : null,
+          made.due_at ? t('nextDue', { when: when(made.due_at) }) : null,
+          t('nextYou'),
+        ]
+          .filter((x): x is string => !!x)
+          .map((line) => (
+            <View key={line} style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
+              <Check color={colors.green} size={16} style={{ marginTop: 3 }} />
+              <AppText style={{ flex: 1 }}>{line}</AppText>
+            </View>
+          ))}
+        <Button label={t('yes')} onPress={() => onDone()} />
       </View>
     );
 
   const busy = state === 'thinking' || state === 'writing';
   return (
-    <View style={{ gap: spacing.lg }}>
-      <View style={{ alignItems: 'center' }}>
-        <Munti size="lg" mood={busy ? 'think' : 'talk'} />
-      </View>
-      <AppText variant="titleLg" align="center">
-        {t('tryTitle')}
-      </AppText>
-      <AppText align="center" color="textSoft">
-        {t('tryBody')}
-      </AppText>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, justifyContent: 'center' }}>
+    <View style={{ gap: spacing.sm }}>
+      <Said text={t('p_task')} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         {[t('idea1'), t('idea2'), t('idea3')].map((x) => (
           <Pressable
             key={x}
@@ -357,20 +549,20 @@ function TryIt({ t, onDone }: { t: T; onDone: () => void }) {
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <TextInput
-          value={state === 'writing' ? t('tryWriting') : state === 'rec' ? '' : text}
+          value={state === 'writing' ? t('writing') : state === 'rec' ? '' : text}
           onChangeText={setText}
-          placeholder={state === 'rec' ? `🔴 ${t('tryStop')}` : t('tryPh')}
+          placeholder={state === 'rec' ? `🔴 ${t('stopTalk')}` : t('taskPh')}
           placeholderTextColor={colors.textFaint}
           editable={state === 'idle'}
           multiline
           style={{
             flex: 1,
-            minHeight: 52,
+            minHeight: 48,
             maxHeight: 120,
-            borderRadius: 26,
+            borderRadius: 24,
             borderWidth: 1.5,
             borderColor: colors.borderBlue,
-            backgroundColor: colors.surface,
+            backgroundColor: colors.bg,
             paddingHorizontal: spacing.lg,
             paddingVertical: spacing.md,
             color: colors.text,
@@ -380,14 +572,14 @@ function TryIt({ t, onDone }: { t: T; onDone: () => void }) {
           }}
         />
         <Round
-          label={state === 'rec' ? t('tryStop') : t('tryTalk')}
+          label={state === 'rec' ? t('stopTalk') : t('talk')}
           bg={state === 'rec' ? colors.red : colors.primaryTint}
           onPress={talk}
           disabled={busy}
         >
           {state === 'rec' ? <Square color={colors.onDark} size={18} fill={colors.onDark} /> : <Mic color={colors.primary} size={22} />}
         </Round>
-        <Round label={t('trySend')} bg={colors.primary} onPress={() => send(text, 'text')} disabled={!text.trim() || state !== 'idle'}>
+        <Round label={t('send')} bg={colors.primary} onPress={() => send(text, 'text')} disabled={!text.trim() || state !== 'idle'}>
           {busy ? (
             <ActivityIndicator color={colors.onDark} />
           ) : (
@@ -395,102 +587,96 @@ function TryIt({ t, onDone }: { t: T; onDone: () => void }) {
           )}
         </Round>
       </View>
-      {state === 'thinking' && (
-        <AppText align="center" color="textMuted">
-          {t('tryThinking')}
-        </AppText>
-      )}
-      {!!err && (
-        <AppText align="center" color="red">
-          {err}
-        </AppText>
-      )}
-      <Pressable onPress={onDone} accessibilityRole="button" style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center' }}>
-        <AppText weight="semibold" color="textMuted">
-          {t('tryLater')}
-        </AppText>
-      </Pressable>
+      {state === 'thinking' && <AppText color="textMuted">{t('thinking')}</AppText>}
+      {!!err && <AppText color="red">{err}</AppText>}
     </View>
   );
 }
 
-/** owners: invite people by email (they sign in with it and land in this team) */
-function InviteTeam({ t, meId }: { t: T; meId: string | null }) {
-  const upsert = useUpsertPerson();
-  const [email, setEmail] = useState('');
-  const [sent, setSent] = useState<string[]>([]);
-  const ok = EMAIL.test(email.trim());
-  const invite = async () => {
-    const e = email.trim().toLowerCase();
-    try {
-      await upsert.mutateAsync({ full_name: nameFromEmail(e), email: e, role: 'employee', manager_id: meId });
-      setSent((s) => [e, ...s]);
-      setEmail('');
-    } catch {
-      // already in the team or not allowed: nothing to add here; the Team screen explains
-    }
+function CheckinStep({ t, onDone }: { t: T; onDone: () => Promise<unknown> }) {
+  const qc = useQueryClient();
+  const [picked, setPicked] = useState<string | null>(null);
+  const options: [string, string][] = [
+    ['mDone', 'mDoneReact'],
+    ['mOnTrack', 'mOnTrackReact'],
+    ['mBlocked', 'mBlockedReact'],
+  ];
+  const pick = async (k: string) => {
+    setPicked(k);
+    await markOnboarding(qc, { demo_seen: true }).catch(() => {});
+    setTimeout(() => onDone(), 1800);
   };
   return (
-    <View style={{ gap: spacing.lg }}>
-      <View style={{ alignItems: 'center' }}>
-        <View
-          style={{ width: 132, height: 132, borderRadius: 66, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Users color={colors.primary} size={56} strokeWidth={1.8} />
+    <View style={{ gap: spacing.sm }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: spacing.md,
+          alignItems: 'center',
+          padding: spacing.lg,
+          borderRadius: radius.cardLg,
+          backgroundColor: colors.bg,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
+      >
+        <BellRing color={colors.primary} size={20} />
+        <View style={{ flex: 1 }}>
+          <AppText weight="bold">{t('notifTitle')}</AppText>
+          <AppText variant="small" color="textSoft">
+            {t('notifBody')}
+          </AppText>
         </View>
       </View>
-      <AppText variant="titleLg" align="center">
-        {t('teamTitle')}
-      </AppText>
-      <AppText align="center" color="textSoft">
-        {t('teamBody')}
-      </AppText>
-      <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="name@company.sa"
-          placeholderTextColor={colors.textFaint}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          onSubmitEditing={() => ok && invite()}
-          style={{
-            flex: 1,
-            minHeight: sizes.touch,
-            borderRadius: radius.md,
-            borderWidth: 1.5,
-            borderColor: colors.borderBlue,
-            backgroundColor: colors.surface,
-            paddingHorizontal: spacing.md,
-            color: colors.text,
-            fontSize: 16,
-            textAlign: 'left',
-            writingDirection: 'ltr',
-          }}
-        />
-        <Button label={t('teamInvite')} size="md" loading={upsert.isPending} disabled={!ok} onPress={invite} />
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        {options.map(([k]) => (
+          <Pressable
+            key={k}
+            onPress={() => pick(k)}
+            disabled={!!picked}
+            accessibilityRole="button"
+            style={({ pressed }) => ({
+              flex: 1,
+              minHeight: sizes.touch,
+              borderRadius: radius.pill,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: picked === k ? colors.primary : colors.surface,
+              borderWidth: 1.5,
+              borderColor: picked === k ? colors.primary : colors.borderBlue,
+              opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <AppText weight="bold" color={picked === k ? 'onDark' : 'primary'}>
+              {t(k)}
+            </AppText>
+          </Pressable>
+        ))}
       </View>
-      {sent.map((e) => (
-        <AppText key={e} weight="semibold" color="green" align="center">
-          {t('teamSent', { email: e })}
-        </AppText>
-      ))}
+      {!!picked && <Said text={t(options.find(([k]) => k === picked)![1])} />}
     </View>
   );
 }
 
-function Fact({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function Field({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  const { isRTL } = useDirection();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-      {icon}
-      <AppText variant="small" color="textMuted">
-        {label}
-      </AppText>
-      <AppText variant="small" weight="bold" style={{ flex: 1, writingDirection: contentDirection(value) }}>
-        {value}
-      </AppText>
-    </View>
+    <TextInput
+      value={value}
+      onChangeText={onChange}
+      placeholder={placeholder}
+      placeholderTextColor={colors.textFaint}
+      style={{
+        minHeight: sizes.touch + 4,
+        borderRadius: radius.md,
+        borderWidth: 1.5,
+        borderColor: colors.borderBlue,
+        paddingHorizontal: spacing.md,
+        color: colors.text,
+        fontSize: 16,
+        textAlign: isRTL ? 'right' : 'left',
+      }}
+    />
   );
 }
 
@@ -514,9 +700,9 @@ function Round({
       accessibilityRole="button"
       accessibilityLabel={label}
       style={({ pressed }) => ({
-        width: 52,
-        height: 52,
-        borderRadius: 26,
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: bg,
@@ -525,15 +711,5 @@ function Round({
     >
       {children}
     </Pressable>
-  );
-}
-
-function Dots({ total, at }: { total: number; at: number }) {
-  return (
-    <View style={{ flexDirection: 'row', gap: 6 }}>
-      {Array.from({ length: total }, (_, i) => (
-        <View key={i} style={{ width: i === at ? 22 : 8, height: 8, borderRadius: 4, backgroundColor: i <= at ? colors.primary : colors.track }} />
-      ))}
-    </View>
   );
 }

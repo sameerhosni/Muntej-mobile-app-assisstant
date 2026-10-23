@@ -144,6 +144,9 @@ export function usePushNotifications(signedIn: boolean) {
   }, [signedIn]);
 }
 
+/** Turn notifications on now (asks for permission; Saree3's setup guide). Same as what happens at sign-in. */
+export const enablePush = () => register();
+
 /** Settings → "Send me a test": the server pushes to this person's own devices. */
 export async function sendTestPush(): Promise<number> {
   const { data, error } = await supabase.functions.invoke<{ sent: number }>('send-followups', { body: { test: true } });
