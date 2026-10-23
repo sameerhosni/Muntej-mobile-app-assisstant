@@ -18,13 +18,18 @@ serve(async (req) => {
   if (!email || String(body.code ?? '').trim() !== code) throw new HttpError(401, 'Wrong code');
 
   const admin = adminClient();
-  // once real email codes work, the shared code can be kept for a few emails only (QUICK_LOGIN_EMAILS, comma-separated)
+  // QUICK_LOGIN_EMAILS (comma-separated) are always let in. QUICK_LOGIN_ALL=true also lets in every other existing
+  // person (owner's choice while code emails land in spam), except a super admin: that one sees every company, so
+  // only the listed emails may use the shared code for it.
   const only = (Deno.env.get('QUICK_LOGIN_EMAILS') ?? '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
-  if (only.length && !only.includes(email.toLowerCase())) throw new HttpError(401, 'Wrong code');
+  const listed = only.includes(email);
+  const all = Deno.env.get('QUICK_LOGIN_ALL') === 'true';
+  if (only.length && !listed && !all) throw new HttpError(401, 'Wrong code');
   // one email can be in several accounts (one profile each): any membership that isn't removed is enough
-  const { data: people } = await admin.from('profiles').select('id, status').ilike('email', email).eq('hidden', false);
+  const { data: people } = await admin.from('profiles').select('id, status, role').ilike('email', email).eq('hidden', false);
   const person = (people ?? []).find((p) => p.status !== 'deleted');
   if (!person) throw new HttpError(404, 'No Muntej account for this email. Ask your manager to add you.');
+  if (!listed && (people ?? []).some((p) => p.role === 'super_admin')) throw new HttpError(401, 'Wrong code');
 
   // a magic-link token for this email (the person exists in Muntej; create their sign-in user on first use)
   let link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
