@@ -32,6 +32,7 @@ const en = {
   saidTime: 'I asked {{name}} for more time for you. I’ll tell you the answer.',
   saidHelp: 'I told {{name}}. I’ll come back to you with help.',
   yourManager: 'your manager',
+  tooMuch: 'Too much on your plate? Tell me',
   failed: 'Didn’t go through: {{reason}}',
 };
 const ar: typeof en & Record<string, string> = {
@@ -53,6 +54,7 @@ const ar: typeof en & Record<string, string> = {
   saidTime: 'طلبت لك وقت زيادة من {{name}}، وأرد لك بالجواب.',
   saidHelp: 'بلّغت {{name}}، وأرجع لك بالمساعدة.',
   yourManager: 'مديرك',
+  tooMuch: 'عندك شغل كثير؟ قل لي',
   failed: 'ما مشت: {{reason}}',
 };
 export const CONFIRM_NS = registerStrings('confirmNew', { en, ar });
@@ -165,6 +167,11 @@ export function ConfirmNew() {
           </View>
         );
       })}
+      {!!fresh.length && (
+        <AppText variant="small" weight="bold" color="primary" onPress={() => router.push('/08-pushback')} style={{ paddingVertical: spacing.sm }}>
+          {t('tooMuch')}
+        </AppText>
+      )}
       {!!error && (
         <AppText variant="small" color="red">
           {error}

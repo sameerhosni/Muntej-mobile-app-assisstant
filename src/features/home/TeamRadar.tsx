@@ -17,6 +17,7 @@ import { useActivity, useMyProfile, usePendingDecisionCount, useTasks, useTeam, 
 import { useIncomingCount } from '@/features/incoming/api';
 import { formatDue } from '@/features/capture/format';
 import { Munti } from '@/features/munti/Munti';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { RADAR_NS } from './radarStrings';
 
 const LAST_VISIT = 'home.lastVisit';
@@ -144,7 +145,7 @@ export function TeamRisks() {
     for (const [id, n] of byOwner)
       if (n >= 8) {
         const p = (team.data ?? []).find((q) => q.id === id);
-        out.push({ key: `o${id}`, text: t('overloaded', { name: first(p, ar), n }), act: t('actAskedHelp'), tone: 'amber', href: '/39-team' });
+        out.push({ key: `o${id}`, text: t('overloaded', { name: first(p, ar), n }), act: t('actAskedHelp'), tone: 'amber', href: '/11-load-radar' });
       }
     return out.slice(0, 5);
   }, [tasks.data, me.data, team.data, activity.data, t, lang, ar]);
@@ -187,6 +188,8 @@ export function TeamRisks() {
           </Pressable>
         ))
       )}
+      {/* progress people report vs the proof behind it (Saree3 checks; you look only if you want) */}
+      <Line icon={<ShieldCheck color={colors.primary} size={16} />} text={t('proofGaps')} href="/10-evidence" />
     </View>
   );
 }
@@ -236,6 +239,40 @@ export function TeamWins() {
           </>
         )}
       </Card>
+      {/* the week in more depth: the receipt (what Saree3 saved you), performance, the wins timeline */}
+      <TourTarget id="home.week">
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          {(
+            [
+              ['weekReceipt', '/32-receipt'],
+              ['weekPerformance', '/16-dashboard'],
+              ['weekWins', '/21-achievements'],
+            ] as const
+          ).map(([k, href]) => (
+            <Pressable
+              key={k}
+              onPress={() => router.push(href)}
+              accessibilityRole="button"
+              style={({ pressed }) => ({
+                flex: 1,
+                minHeight: sizes.touch,
+                borderRadius: radius.pill,
+                backgroundColor: colors.surface,
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: spacing.sm,
+                opacity: pressed ? 0.85 : 1,
+              })}
+            >
+              <AppText variant="small" weight="bold" color="primary" numberOfLines={1}>
+                {t(k)}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      </TourTarget>
     </View>
   );
 }

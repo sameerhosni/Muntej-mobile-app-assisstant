@@ -49,9 +49,14 @@ export function useProto(): State {
 
 export function filteredScreens(s: Pick<State, 'role' | 'sprint'>): ProtoScreen[] {
   return PROTO_SCREENS.filter(
-    (x) => (s.sprint === 'all' || x.sprint === s.sprint) && (s.role === 'all' || x.audience === s.role || x.audience === 'both'),
+    (x) =>
+      !RETIRED.includes(x.num) &&
+      (s.sprint === 'all' || x.sprint === s.sprint) && (s.role === 'all' || x.audience === s.role || x.audience === 'both'),
   );
 }
+
+/** Replaced in the app journey (Saree3's setup guide, Tasks from email/meetings): kept in code, out of the list */
+const RETIRED: ScreenNum[] = ['07', '13', '33', '35', '37'];
 
 /** Screens with real backend data today (the rest render demo data). */
 export const LIVE_SCREENS: ScreenNum[] = ['01', '02', '03', '04', '05', '06', '08', '09', '10', '11', '12', '16', '17', '18', '19', '20', '21', '22', '23', '24', '25', '32', '38', '39', '40', '41'];

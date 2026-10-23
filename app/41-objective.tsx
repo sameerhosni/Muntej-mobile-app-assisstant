@@ -4,6 +4,7 @@
 // Without ?id= (prototype hub) it opens the most urgent visible objective.
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, CalendarX, ChevronLeft, ChevronRight, Clock, FileQuestion, Link2, Pencil, UserX, X } from 'lucide-react-native';
@@ -302,6 +303,10 @@ function ObjectiveDetail({ id, waiting }: { id: string | undefined; waiting: boo
         <Card padding={spacing.xxl} style={{ gap: spacing.md }}>
           <AppText variant="cardTitle">{t('timelineHeader')}</AppText>
           <ObjectiveTimeline objective={o} tasks={health.tasks} />
+          {/* the full plan of every project, with Saree3's forecast and one-tap fixes */}
+          <TourTarget id="objective.plan">
+            <Button label={t('openPlan')} size="md" variant="outline" onPress={() => router.push('/24-roadmap')} />
+          </TourTarget>
         </Card>
 
         {/* tasks */}

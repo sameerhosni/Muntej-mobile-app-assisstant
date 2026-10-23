@@ -430,7 +430,14 @@ async function sendOne(admin: SupabaseClient, me: Person, w: World, prefs: Prefs
     : rule.channels.filter(allowed);
   const sent: string[] = [];
 
-  if (channels.includes('push') && (await sendPush([me.id], { title: s.subject, body: `${hello} · ${s.short}`, data: { screen: '/' } }, admin)) > 0)
+  if (channels.includes('push') && (await sendPush(
+      [me.id],
+      // Thursday (end of the Saudi week): the summary opens the week's receipt
+      riyadh(now).getUTCDay() === 4
+        ? { title: s.subject, body: `${hello} · ${s.short} · ${lang === 'ar' ? '🧾 إيصال أسبوعك جاهز' : '🧾 Your week’s receipt is ready'}`, data: { screen: '/32-receipt' } }
+        : { title: s.subject, body: `${hello} · ${s.short}`, data: { screen: '/' } },
+      admin,
+    )) > 0)
     sent.push('push');
   if (channels.includes('email') && me.email && (await sendEmail(me.email, s.subject, emailHtml(s, hello, lang), plainText(s, hello, lang))))
     sent.push('email');

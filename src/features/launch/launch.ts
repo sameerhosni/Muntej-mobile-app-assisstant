@@ -23,6 +23,8 @@ export type FeatureEvent = { feature_key: string; state: FeatureState; later_cou
 export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   today_home: { href: '/01-home', spot: 'home.pulse' },
   confirm_new: { href: '/01-home', spot: 'home.confirm' },
+  week_links: { href: '/01-home', spot: 'home.week' },
+  objective_plan: { href: '/40-objectives' },
   autopilot: { href: '/01-home', spot: 'home.handling' },
   incoming: { href: '/42-incoming', spot: 'email.connect' },
   tools: { href: '/12-sources', spot: 'sources.list' },
