@@ -205,7 +205,9 @@ export default function IncomingScreen() {
         )}
 
         {/* other tools (Outlook, WhatsApp, Jira, ClickUp…) bring their tasks here too: a grid with each one's state */}
-        <ToolsGrid />
+        <TourTarget id="email.tools">
+          <ToolsGrid />
+        </TourTarget>
       </ScrollView>
     </SafeAreaView>
   );

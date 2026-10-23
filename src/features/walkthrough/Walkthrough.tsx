@@ -109,9 +109,9 @@ export function Walkthrough() {
               <Munti size="md" mood={demo ? 'celebrate' : 'talk'} />
               <View style={{ flex: 1, gap: 4 }}>
                 <AppText weight="extrabold" style={{ fontSize: 17 }}>
-                  {t(`${step.key}Title`)}
+                  {step.title ?? t(`${step.key}Title`)}
                 </AppText>
-                <AppText color="textSoft">{t(`${step.key}Body`)}</AppText>
+                <AppText color="textSoft">{step.body ?? t(`${step.key}Body`)}</AppText>
               </View>
             </View>
             {demo && step.demo && <DemoView kind={step.demo} />}

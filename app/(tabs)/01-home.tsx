@@ -94,7 +94,9 @@ export default function ManagerHome() {
           {/* a new account: Saree3's getting-started steps until they're done */}
           <GettingStarted />
           {/* what happened since your last visit and what Saree3 did about it */}
-          <FromSaree3 />
+          <TourTarget id="home.from">
+            <FromSaree3 />
+          </TourTarget>
 
           {/* 2. the team at a glance + what Muntej is handling by itself */}
           <View style={{ gap: spacing.md }}>
@@ -107,7 +109,9 @@ export default function ManagerHome() {
           </View>
 
           {/* risks across the team, each with what Saree3 is doing about it */}
-          <TeamRisks />
+          <TourTarget id="home.risks">
+            <TeamRisks />
+          </TourTarget>
 
           {/* 3. what needs you, max 3, with one-tap actions */}
           <TourTarget id="home.needs">

@@ -6,7 +6,13 @@ import type { View } from 'react-native';
 
 export type Demo = 'say' | 'tick' | 'add' | 'approve';
 /** one step: the element to light up, its text key (walk strings: <key>Title / <key>Body), an optional demo */
-export type WalkStep = { target: string; key: string; demo?: Demo };
+export type WalkStep = {
+  target: string;
+  key: string;
+  demo?: Demo;
+  /** text given directly (a new feature's title + value) instead of a string key */ title?: string;
+  body?: string;
+};
 type Run = { screen: string; steps: WalkStep[]; at: number; onEnd: (finished: boolean) => void };
 
 const targets = new Map<string, View>();
@@ -24,6 +30,17 @@ export const walkthrough = {
   target: (id: string) => targets.get(id),
   offer(screen: string, steps: WalkStep[]) {
     offered = { screen, steps };
+  },
+  /** like start, but waits (up to `ms`) for the element to appear: "Show me" opens a screen first */
+  startWhenReady(screen: string, steps: WalkStep[], onEnd: (finished: boolean) => void = () => {}, ms = 4000) {
+    const t0 = Date.now();
+    const tryNow = () => {
+      if (run) return; // another walkthrough is on screen
+      if (steps.some((s) => targets.has(s.target))) return void setTimeout(() => walkthrough.start(screen, steps, onEnd), 500);
+      if (Date.now() - t0 < ms) setTimeout(tryNow, 300);
+      else onEnd(false);
+    };
+    tryNow();
   },
   start(screen: string, steps: WalkStep[], onEnd: (finished: boolean) => void = () => {}) {
     // only the steps whose element is on screen right now

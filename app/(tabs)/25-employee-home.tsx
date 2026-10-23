@@ -122,7 +122,9 @@ export default function EmployeeHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.lg }}>
           {/* invited: Saree3's short tour until it's done */}
           <GettingStarted />
-          <FromSaree3 />
+          <TourTarget id="home.from">
+            <FromSaree3 />
+          </TourTarget>
           {/* 2. today's real tasks (max 3) */}
           <TourTarget id="home.needs">
             <TodayTasks />

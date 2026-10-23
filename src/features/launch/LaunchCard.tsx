@@ -15,13 +15,13 @@ import { useMyProfile, useTasks } from '@/lib/api';
 import { canSwitchView } from '@/features/view-as/store';
 import { Munti } from '@/features/munti/Munti';
 import { munti } from '@/features/munti/store';
+import { walkthrough } from '@/features/walkthrough/store';
 import {
   FEATURE_PLACES,
   LATER_MS,
   MAX_LATER,
   markFeature,
   setLaunchCardOn,
-  spotlight,
   useFeatures,
   useLaunchClient,
   useMyFeatureStates,
@@ -103,21 +103,32 @@ export function LaunchCard() {
   };
   const showMe = () => {
     const place = FEATURE_PLACES[current.key] ?? {};
-    markFeature(current.key, 'tried');
+    const feature = current;
     close();
+    // Saree3's walkthrough on the new thing itself: the screen dims, the feature lights up with its value. It only
+    // counts as seen once they went through it ("tried"); skipped → "later", so it comes back
+    const highlight = (spot: string) =>
+      walkthrough.startWhenReady(
+        `new_${feature.key}`,
+        [{ target: spot, key: '', title: `✨ ${ar ? feature.title_ar : feature.title}`, body: ar ? feature.benefit_ar : feature.benefit }],
+        (finished) => markFeature(feature.key, finished ? 'tried' : 'later'),
+      );
     // steps live on a task: open your first open task (else the Tasks list)
     const ownTask =
       current.key === 'steps'
-        ? (tasks.data ?? []).find((x) => x.owner_id === me.data?.id && !['done', 'cancelled', 'submitted'].includes(x.status)) ??
-          (tasks.data ?? []).find((x) => !['done', 'cancelled'].includes(x.status))
+        ? ((tasks.data ?? []).find((x) => x.owner_id === me.data?.id && !['done', 'cancelled', 'submitted'].includes(x.status)) ??
+          (tasks.data ?? []).find((x) => !['done', 'cancelled'].includes(x.status)))
         : undefined;
     if (ownTask) {
       router.push({ pathname: '/14-task-detail', params: { id: ownTask.id } });
-      if (place.spot) setTimeout(() => spotlight.show(place.spot!), 700);
+      if (place.spot) highlight(place.spot);
+      else markFeature(feature.key, 'tried');
     } else if (place.href) {
       router.push(place.href);
-      if (place.spot) setTimeout(() => spotlight.show(place.spot!), 700);
+      if (place.spot) highlight(place.spot);
+      else markFeature(feature.key, 'tried');
     } else {
+      markFeature(feature.key, 'tried');
       // Saree3 shows himself
       munti.flash('brand', 9000);
       munti.say(t('saree3Demo'), 'wave', { ms: 9000 });

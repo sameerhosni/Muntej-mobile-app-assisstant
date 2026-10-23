@@ -23,13 +23,20 @@ export type FeatureEvent = { feature_key: string; state: FeatureState; later_cou
 export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   today_home: { href: '/01-home', spot: 'home.pulse' },
   autopilot: { href: '/01-home', spot: 'home.handling' },
-  incoming: { href: '/42-incoming', spot: 'incoming.paste' },
+  incoming: { href: '/42-incoming', spot: 'email.connect' },
   tools: { href: '/12-sources', spot: 'sources.list' },
   saree3: {},
   daily_summary: { href: '/18-alerts', spot: 'alerts.summary' },
   view_as: { href: '/settings', spot: 'settings.viewAs' },
   // opens one of your own open tasks (LaunchCard picks it) with its steps lit up
   steps: { href: '/38-tasks', spot: 'task.steps' },
+  // 23 Oct: each one's place is a TourTarget, so "Show me" runs Saree3's walkthrough right on it
+  from_saree3: { href: '/', spot: 'home.from' },
+  team_risks: { href: '/01-home', spot: 'home.risks' },
+  email_tasks: { href: '/42-incoming', spot: 'email.connect' },
+  whatsapp: { href: '/12-sources', spot: 'sources.whatsapp' },
+  meet: { href: '/12-sources', spot: 'sources.google' },
+  more_tools: { href: '/42-incoming', spot: 'email.tools' },
 };
 
 /** "later" asks again after this long, at most twice */

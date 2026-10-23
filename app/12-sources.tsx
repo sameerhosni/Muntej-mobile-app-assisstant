@@ -14,6 +14,7 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { WhatsAppCard } from '@/features/sources/WhatsAppCard';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
 import {
   PROVIDER_IDS,
   useConnectionActions,
@@ -108,7 +109,9 @@ export default function SourcesScreen() {
         {(conns.isLoading || providers.isLoading) && <ActivityIndicator color={colors.primary} />}
 
         {/* Muntej's own WhatsApp number: voice notes → tasks */}
-        <WhatsAppCard />
+        <TourTarget id="sources.whatsapp">
+          <WhatsAppCard />
+        </TourTarget>
 
         {order.map((id) => {
           const row = (
@@ -276,7 +279,11 @@ function ToolRow({
 
       {conn && <Directions id={id} conn={conn} twoWay={twoWay} onNote={onNote} />}
       {/* Google: switch Gmail / Calendar / Meet on or off for each linked account */}
-      {conn && id === 'google' && <GoogleParts onNote={onNote} />}
+      {conn && id === 'google' && (
+        <TourTarget id="sources.google">
+          <GoogleParts onNote={onNote} />
+        </TourTarget>
+      )}
 
       {conn ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>

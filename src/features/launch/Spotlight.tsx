@@ -5,6 +5,7 @@ import { AppText } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
 import { spotlight, useSpotlight } from './launch';
+import { walkthrough } from '@/features/walkthrough/store';
 import { LAUNCH_NS } from './strings';
 
 const native = Platform.OS !== 'web';
@@ -32,7 +33,8 @@ export function Spotlight({ id, children, style }: { id: string; children: React
   }, [on, pulse]);
 
   return (
-    <View style={style} onTouchStart={on ? () => spotlight.clear() : undefined}>
+    // also a walkthrough target: "Show me" on a "New for you" card lights this up with Saree3's walkthrough
+    <View ref={(v) => walkthrough.setTarget(id, v)} collapsable={false} style={style} onTouchStart={on ? () => spotlight.clear() : undefined}>
       {children}
       {on && (
         <>
@@ -53,7 +55,15 @@ export function Spotlight({ id, children, style }: { id: string; children: React
           />
           <View
             pointerEvents="none"
-            style={{ position: 'absolute', top: -14, alignSelf: 'center', paddingHorizontal: spacing.md, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.primary }}
+            style={{
+              position: 'absolute',
+              top: -14,
+              alignSelf: 'center',
+              paddingHorizontal: spacing.md,
+              paddingVertical: 3,
+              borderRadius: radius.pill,
+              backgroundColor: colors.primary,
+            }}
           >
             <AppText variant="caption" weight="bold" color="onDark">
               {t('tapHere')}
