@@ -54,10 +54,10 @@ export function buildPlan(opts: {
     channel: self ? 'push' : 'whatsapp',
     summary: ar ? 'أبلّغه بالمهمة وأتأكد إنه استلم' : 'Brief the owner and get a confirm',
     message: self
-      ? ar ? `تذكير: ${title}` : `Reminder: ${title}`
+      ? ar ? `⏰ لا تنسى «${title}»! أنا سريع، والتذكير شغلتي 😄` : `⏰ Don't forget "${title}"! I'm Saree3, reminding is literally my job 😄`
       : ar
-        ? `هلا ${name}، عندك مهمة جديدة: ${title}.${helper ? ` ${helper} بيساعدك.` : ''} أكّد لي إنك استلمتها 🙏`
-        : `Hi ${name}, you have a new task: ${title}.${helper ? ` ${helper} will help.` : ''} Please confirm you've got it 🙏`,
+        ? `هلا ${name} 👋 جاتك مهمة جديدة: «${title}».${helper ? ` ${helper} بيساعدك.` : ''} اضغط وأكّد إنك استلمتها، وأنا معك خطوة خطوة 🤝`
+        : `Hi ${name} 👋 New task for you: "${title}".${helper ? ` ${helper} will help.` : ''} Tap to confirm you've got it, I've got your back 🤝`,
   };
 
   const check = (at: number): PlanStep => ({
@@ -66,8 +66,8 @@ export function buildPlan(opts: {
     channel: 'push',
     summary: ar ? 'أسأل وين وصل' : 'Check where it is at',
     message: self
-      ? ar ? `وين وصلت في: ${title}؟` : `How is "${title}" going?`
-      : ar ? `هلا ${name}، وين وصلت في "${title}"؟ رد بنسبة سريعة` : `Hi ${name}, how far along is "${title}"? A quick % is enough`,
+      ? ar ? `👀 وين وصلت في «${title}»؟ ردّ بضغطة: خلصت، ماشية، أو واقفة` : `👀 How's "${title}" going? One tap: done, on track or blocked`
+      : ar ? `👀 هلا ${name}، «${title}» وين وصلت؟ ضغطة وحدة تكفي 😉` : `👀 Hi ${name}, where's "${title}" at? One tap is enough 😉`,
   });
 
   // no due date: brief + one check in ~2 working days
@@ -80,8 +80,8 @@ export function buildPlan(opts: {
     channel: 'push',
     summary: ar ? 'أجمع التسليم وأرسله لك' : 'Collect the deliverable and send it to you',
     message: self
-      ? ar ? `اليوم موعد: ${title}` : `"${title}" is due today`
-      : ar ? `اليوم موعد تسليم "${title}"، ارفعه هنا لو سمحت` : `"${title}" is due today. Please upload it here`,
+      ? ar ? `🎯 اليوم يوم «${title}»! خلّصها وارتاح 💪` : `🎯 Today is "${title}" day! Finish it and relax 💪`
+      : ar ? `🎯 ${name}، اليوم موعد «${title}». ارفع التسليم هنا وأنا أوصله 📎` : `🎯 ${name}, "${title}" is due today. Drop it here and I'll deliver it 📎`,
   };
   if (span < 24 * H) return [brief, check(now + span / 2), collect].filter((s) => s.kind !== 'check' || Date.parse(s.at) < due);
 
@@ -91,8 +91,8 @@ export function buildPlan(opts: {
     channel: 'push',
     summary: ar ? 'لو التقدم أقل من ٥٠٪ أنبهك ومعي حل' : 'If progress is under 50%, flag it with a fix',
     message: self
-      ? ar ? `باقي وقت قليل على "${title}"، وين وصلت؟` : `Not long left for "${title}". Where are you at?`
-      : ar ? `${name}، باقي وقت قليل على "${title}". تحتاج مساعدة؟` : `${name}, "${title}" is coming up. Need any help?`,
+      ? ar ? `⏳ الوقت يركض على «${title}»! وين وصلت؟ لو تحتاج شي قول` : `⏳ The clock is running on "${title}"! Where are you at? Need anything?`
+      : ar ? `⏳ ${name}، «${title}» قرّب موعدها. تحتاج مساعدة؟ قول وأنا أدبّرها` : `⏳ ${name}, "${title}" is coming up. Need help? Say it and I'll sort it`,
   };
   const steps = [brief, check(now + span * 0.35), risk, collect];
   // drop any middle step that working-hours rounding pushed past the due date
