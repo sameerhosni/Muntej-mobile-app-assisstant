@@ -254,6 +254,13 @@ serve(async (req) => {
       return json({ url: provider.authorizeUrl({ state, redirectUri: CALLBACK_URL, challenge: await challengeOf(verifier) }) });
     }
 
+    // WhatsApp (Muntej's own number): is it set up on this server, which number, and the caller's own number
+    case 'whatsapp': {
+      const ready = !!Deno.env.get('WHATSAPP_TOKEN') && !!Deno.env.get('WHATSAPP_PHONE_ID') && !!Deno.env.get('WHATSAPP_APP_SECRET');
+      const { data: me } = await admin.from('profiles').select('phone').eq('id', profileId).maybeSingle();
+      return json({ ready, number: Deno.env.get('WHATSAPP_NUMBER') ?? '966115209855', mine: (me?.phone as string | null) ?? null });
+    }
+
     case 'disconnect': {
       // one account (id) or every account of that tool
       let del = admin

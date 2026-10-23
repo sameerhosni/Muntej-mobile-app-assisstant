@@ -13,6 +13,7 @@ import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens'
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
+import { WhatsAppCard } from '@/features/sources/WhatsAppCard';
 import {
   PROVIDER_IDS,
   useConnectionActions,
@@ -105,6 +106,9 @@ export default function SourcesScreen() {
         )}
 
         {(conns.isLoading || providers.isLoading) && <ActivityIndicator color={colors.primary} />}
+
+        {/* Muntej's own WhatsApp number: voice notes → tasks */}
+        <WhatsAppCard />
 
         {order.map((id) => {
           const row = (
