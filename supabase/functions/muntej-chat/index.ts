@@ -219,7 +219,9 @@ const ChatOutput = z.object({
   status_change: StatusChange.nullable().describe('Only when action = status'),
   bulk: BulkChange.nullable().describe('Only when action = bulk'),
   recurring: RecurringChange.nullable().describe('Only when action = recurring'),
-  suggestions: z.array(z.string()).describe('0-1: the ONE most useful next step, a short ready-to-send message in the user language (none when nothing is missing)'),
+  suggestions: z
+    .array(z.string())
+    .describe('0-1: the ONE most useful next step, a short ready-to-send message in the user language (none when nothing is missing)'),
   candidates: z.array(z.string()).describe('Only with action none: 2-3 task ids when the user wants to change a task but several tasks fit'),
   brief: Brief.nullable().describe('Only with action none, for questions about several people or tasks'),
 });
@@ -1417,6 +1419,21 @@ ${message}`
     parsed.reply = r.reply;
     accountPayload = r.payload;
     parsed.suggestions = [];
+  }
+
+  // ── a task for someone, made in an account where the user is alone, while their team is in another account (e.g.
+  //    the super admin still in "Super account"): nobody here can take it, so say where the team is and offer to switch
+  if (action === 'created' && parsed.action === 'create' && !ownerChanged) {
+    const here = myAccounts.find((a) => a.active);
+    const teamThere = myAccounts.find((a) => !a.active && a.member && a.people > 1);
+    if (here && here.people <= 1 && teamThere) {
+      const ar = parsed.language === 'ar';
+      const there = accountLabel(teamThere, ar);
+      parsed.reply = ar
+        ? `سجلتها، بس انتبه: أنت الحين في حساب «${accountLabel(here, true)}» وما فيه أحد غيرك. فريقك في «${there}». أنقلك له وتعطيها لهم من هناك؟`
+        : `Saved, but heads up: you're in “${accountLabel(here, false)}” where you're the only one. Your team is in “${there}”. Switch there and give it to them?`;
+      parsed.suggestions = [ar ? `انقلني لحساب ${there}` : `Switch to ${there}`];
+    }
   }
 
   // ── task card snapshot ──
