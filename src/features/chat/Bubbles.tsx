@@ -5,11 +5,16 @@ import { AppText, Button, Gradient } from '@/components/ui';
 import { Munti, type MuntiMood, type MuntiSize } from '@/features/munti/Munti';
 import { colors, fontSize, radius, shadows, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
+import i18n from '@/lib/i18n';
 import { NS } from './strings';
 
-/** Text the user or the AI wrote follows its own script, not the UI language. */
-export function contentDirection(text: string) {
-  return /[؀-ۿ]/.test(text) ? ('rtl' as const) : ('ltr' as const);
+/**
+ * The direction for any text: the app language decides (owner: "all text in the Arabic version RTL, in English LTR"),
+ * so an English task title in the Arabic app still reads right-to-left with the rest. `_text` is kept so every
+ * caller stays the same; short numbers / codes / emails set 'ltr' themselves where digits must not reorder.
+ */
+export function contentDirection(_text?: string) {
+  return i18n.language?.startsWith('ar') ? ('rtl' as const) : ('ltr' as const);
 }
 
 /** Muntej's face in the chat: Munti the robot. talk/celebrate settle back to idle after a moment. */

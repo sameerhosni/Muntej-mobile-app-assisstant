@@ -43,20 +43,19 @@ export default function BacklogScreen() {
         <View key={s.title} style={{ gap: spacing.sm }}>
           <AppText variant="section">{s.title}</AppText>
           {s.items.map((i) => (
-            // the backlog is written in English: shown left-to-right whatever the app language
-            <Card key={i.id} padding={spacing.lg} style={{ gap: 6, direction: 'ltr' }}>
+            <Card key={i.id} padding={spacing.lg} style={{ gap: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
                 <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: colors.primaryTint }}>
                   <AppText variant="caption" weight="extrabold" color="primary">
                     {i.id}
                   </AppText>
                 </View>
-                <AppText weight="bold" style={{ flex: 1, textAlign: 'left', writingDirection: 'ltr' }}>
+                <AppText weight="bold" style={{ flex: 1 }}>
                   {i.title}
                 </AppText>
               </View>
               {!!i.detail && (
-                <AppText variant="small" color="textSoft" style={{ textAlign: 'left', writingDirection: 'ltr' }}>
+                <AppText variant="small" color="textSoft">
                   {i.detail}
                 </AppText>
               )}

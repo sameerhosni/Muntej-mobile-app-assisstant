@@ -15,6 +15,7 @@ import { appFonts } from '@/theme/fonts';
 import { colors } from '@/theme/tokens';
 import { loadSavedLanguage, useDirection } from '@/lib/i18n';
 import { AuthProvider, useAuth } from '@/features/auth/AuthProvider';
+import { supabase } from '@/lib/supabase';
 import { SCREENS } from '@/features/screens/registry';
 import { ProtoBar } from '@/features/prototype/ProtoBar';
 import { HelperButton } from '@/features/munti/HelperButton';
@@ -54,11 +55,15 @@ function RootNavigator() {
   const [fontsLoaded, fontError] = useFonts(appFonts);
   const [langReady, setLangReady] = useState(false);
   const { session, ready: authReady, needsMfa } = useAuth();
-  const { direction } = useDirection();
+  const { direction, lang } = useDirection();
   // register this phone for push + open tasks from tapped notifications (no-op in Expo Go / web)
   usePushNotifications(!!session && !needsMfa);
   // live updates: any change to data this person can see refreshes the screen by itself
   useLiveSync(!!session && !needsMfa, session?.user.id);
+  // the app's language is the language of everything Muntej sends (notifications, WhatsApp, emails): tell the server
+  useEffect(() => {
+    if (session && !needsMfa) Promise.resolve(supabase.rpc('set_my_locale' as never, { p_locale: lang } as never)).catch(() => {});
+  }, [session, needsMfa, lang]);
 
   useEffect(() => {
     loadSavedLanguage().finally(() => setLangReady(true));

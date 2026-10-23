@@ -20,8 +20,10 @@ serve(async (req) => {
     const { data: me } = await db.from('profiles').select('locale').eq('id', profileId).single();
     const ar = me?.locale === 'ar';
     const sent = await sendPush([profileId], {
-      title: ar ? 'منتج' : 'Muntej',
-      body: ar ? 'تمام! الإشعارات شغالة على جوالك 🎉' : 'All set! Notifications work on this phone 🎉',
+      title: ar ? '⚡ سريع هنا!' : '⚡ Saree3 here!',
+      body: ar
+        ? 'وصلتك؟ 😎 هذي أول رسالة مني. من الحين أنا اللي أذكّر وأتابع وأبلّغك بالمهم، وأنت ارتاح.'
+        : 'Got it? 😎 My first message to you. From now on I remind, follow up and tell you what matters. You relax.',
       data: { test: true, screen: 'alerts' },
     });
     return json({ sent });
@@ -106,7 +108,10 @@ serve(async (req) => {
       }
       // at most one check-in per task and three per person a day: the rest waits for the next working morning
       if (perTask.has(f.task_id) || (perPerson.get(f.recipient_id) ?? 0) >= 3) {
-        await admin.from('followups').update({ scheduled_at: nextWorkingMorning(now).toISOString() }).eq('id', f.id);
+        await admin
+          .from('followups')
+          .update({ scheduled_at: nextWorkingMorning(now).toISOString() })
+          .eq('id', f.id);
         held++;
         continue;
       }
