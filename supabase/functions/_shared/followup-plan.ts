@@ -40,6 +40,8 @@ export function buildPlan(opts: {
   /** the owner is the user themself → reminders instead of briefs */
   self: boolean;
   helperFirstName?: string | null;
+  /** who gave the task, named in the hand-off message */
+  assignerFirstName?: string | null;
   now?: Date;
 }): PlanStep[] {
   const { title, ownerArabic: ar, self } = opts;
@@ -47,7 +49,21 @@ export function buildPlan(opts: {
   const now = (opts.now ?? new Date()).getTime();
   const due = opts.dueAt ? Date.parse(opts.dueAt) : NaN;
   const helper = opts.helperFirstName;
+  const from = opts.assignerFirstName;
+  // the due date in a few words, Riyadh time: "Thursday 23 Oct, 5:00 PM"
+  const when = Number.isNaN(due)
+    ? ''
+    : new Intl.DateTimeFormat(ar ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'Asia/Riyadh',
+      }).format(due);
 
+  // the one notification the owner gets for a new task: from whom, what, by when (the "assigned you" alert isn't pushed)
   const brief: PlanStep = {
     at: iso(now),
     kind: 'brief',
@@ -56,8 +72,8 @@ export function buildPlan(opts: {
     message: self
       ? ar ? `⏰ لا تنسى «${title}»! أنا سريع، والتذكير شغلتي 😄` : `⏰ Don't forget "${title}"! I'm Saree3, reminding is literally my job 😄`
       : ar
-        ? `هلا ${name} 👋 جاتك مهمة جديدة: «${title}».${helper ? ` ${helper} بيساعدك.` : ''} اضغط وأكّد إنك استلمتها، وأنا معك خطوة خطوة 🤝`
-        : `Hi ${name} 👋 New task for you: "${title}".${helper ? ` ${helper} will help.` : ''} Tap to confirm you've got it, I've got your back 🤝`,
+        ? `هلا ${name} 👋 ${from ? `${from} عطاك مهمة` : 'جاتك مهمة جديدة'}: «${title}»${when ? `\n⏰ موعدها ${when}` : ''}${helper ? `\n🤝 ${helper} بيساعدك` : ''}\nاضغط وأكّد إنك استلمتها`
+        : `Hi ${name} 👋 ${from ? `${from} gave you a task` : 'New task for you'}: "${title}"${when ? `\n⏰ Due ${when}` : ''}${helper ? `\n🤝 ${helper} will help` : ''}\nTap to confirm you've got it`,
   };
 
   const check = (at: number): PlanStep => ({

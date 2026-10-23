@@ -179,6 +179,7 @@ export async function createFromSuggestion(admin: SupabaseClient, profileId: str
   const ids = [s.owner_id, profileId].filter(Boolean) as string[];
   const { data: people } = await admin.from('profiles').select('id, full_name, full_name_ar, locale').in('id', ids);
   const owner = (people ?? []).find((p) => p.id === s.owner_id) as Person | undefined;
+  const me = (people ?? []).find((p) => p.id === profileId) as Person | undefined;
   const ar = owner ? owner.locale === 'ar' : /[؀-ۿ]/.test(s.title);
   const followup_plan = s.owner_id
     ? buildPlan({
@@ -187,6 +188,7 @@ export async function createFromSuggestion(admin: SupabaseClient, profileId: str
         ownerFirstName: owner ? ((ar && owner.full_name_ar) || owner.full_name).split(' ')[0] : null,
         ownerArabic: ar,
         self: s.owner_id === profileId,
+        assignerFirstName: me ? ((ar && me.full_name_ar) || me.full_name).split(' ')[0] : null,
       })
     : [];
   const taskId = await create({

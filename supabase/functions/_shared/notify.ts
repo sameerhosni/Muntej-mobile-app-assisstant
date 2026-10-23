@@ -250,6 +250,17 @@ export async function deliverPending(
   const highTask = new Set((pri ?? []).filter((x) => x.priority === 'high' || x.priority === 'urgent').map((x) => x.id as string));
   const urgent = (a: PendingAlert) => EXCEPTION_KINDS.has(a.kind) || (!!a.task_id && highTask.has(a.task_id) && URGENT_WHEN_HIGH.has(a.kind));
   const waConfigured = !!Deno.env.get('WHATSAPP_TOKEN') && !!Deno.env.get('WHATSAPP_PHONE_ID');
+  // "X assigned you" when Saree3's hand-off message (who, what, when) goes to the same person: one notification, not
+  // two (owner's request). The alert stays on the Alerts screen; only Saree3's message is pushed
+  const assigned = rows.filter((r) => r.kind === 'task_assigned' && r.task_id);
+  const { data: briefs } = assigned.length
+    ? await admin
+        .from('followups')
+        .select('task_id, recipient_id')
+        .in('task_id', [...new Set(assigned.map((r) => r.task_id as string))])
+        .in('status', ['scheduled', 'sent'])
+    : { data: [] };
+  const briefed = new Set((briefs ?? []).map((f) => `${f.task_id}:${f.recipient_id}`));
 
   // everyday pushes each person already got today (Riyadh): the budget
   const riyadh = new Date(now.getTime() + 3 * 3_600_000);
@@ -271,6 +282,10 @@ export async function deliverPending(
   // decide per alert: switched off / held for quiet hours / to send (grouped per person)
   const toSend = new Map<string, PendingAlert[]>();
   for (const a of rows) {
+    if (a.kind === 'task_assigned' && briefed.has(`${a.task_id}:${a.profile_id}`)) {
+      await admin.from('alerts').update({ delivered_at: now.toISOString(), sent_push: false, whatsapp_status: 'merged' }).eq('id', a.id);
+      continue;
+    }
     const p = prefs.get(a.profile_id);
     const ruleKey = RULE_FOR[a.kind] ?? null;
     const rule = ruleKey ? p?.rules?.[ruleKey] : undefined;
