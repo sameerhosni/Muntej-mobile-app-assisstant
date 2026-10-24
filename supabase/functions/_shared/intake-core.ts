@@ -305,8 +305,8 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const teamIds = new Set(input.team.map((p) => p.id));
   // email: only real tasks reach the person (a "maybe" from a mailbox is noise)
   const fromMail = ['gmail', 'outlook', 'email'].includes(input.source);
-  const sure = fromMail ? found.tasks.filter((t) => t.confidence >= 0.5) : found.tasks;
-  const kept = onlyMine ? sure.filter((t) => t.owner_id === input.profileId) : sure;
+  const confident = fromMail ? found.tasks.filter((t) => t.confidence >= 0.5) : found.tasks;
+  const kept = onlyMine ? confident.filter((t) => t.owner_id === input.profileId) : confident;
   const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;
     const due = t.due_at && !Number.isNaN(Date.parse(t.due_at)) ? t.due_at : null;

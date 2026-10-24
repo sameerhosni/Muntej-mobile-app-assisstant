@@ -36,7 +36,8 @@ export const walkthrough = {
     const t0 = Date.now();
     const tryNow = () => {
       if (run) return; // another walkthrough is on screen
-      if (steps.some((s) => targets.has(s.target))) return void setTimeout(() => walkthrough.start(screen, steps, onEnd), 500);
+      // a beat after it appears: the new screen is still sliding in
+      if (steps.some((s) => targets.has(s.target))) return void setTimeout(() => walkthrough.start(screen, steps, onEnd), 900);
       if (Date.now() - t0 < ms) setTimeout(tryNow, 300);
       else onEnd(false);
     };

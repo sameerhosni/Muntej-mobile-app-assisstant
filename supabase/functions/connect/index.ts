@@ -296,7 +296,7 @@ serve(async (req) => {
       const total = { read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0 } as Record<string, number> & { error?: string };
       for (const c of conns) {
         const r = await syncConnection(admin, c);
-        for (const k of ['read', 'tasks', 'sent', 'closedHere', 'closedThere', 'updated']) total[k] += (r as Record<string, number>)[k] ?? 0;
+        for (const k of ['read', 'tasks', 'sent', 'closedHere', 'closedThere', 'updated']) total[k] += (r as unknown as Record<string, number>)[k] ?? 0;
         if (r.error) total.error = r.error;
       }
       return json(total);

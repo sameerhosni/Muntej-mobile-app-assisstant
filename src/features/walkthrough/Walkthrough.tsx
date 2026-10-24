@@ -26,23 +26,41 @@ export function Walkthrough() {
   const glow = useState(() => new Animated.Value(0))[0];
   const step = run ? run.steps[run.at] : null;
 
-  // find the element on screen (skip the step if it scrolled away or unmounted)
+  // find the element on screen. A screen that's still opening, or an element lower down the page, used to be skipped
+  // (so "Show me how" only changed the page): now Saree3 keeps looking, and while it's off screen he says "scroll down"
+  // in a small bubble that lets you scroll; the moment it's in view it lights up. Gone for good → next step.
+  const [away, setAway] = useState(false);
   useEffect(() => {
     setRect(null);
+    setAway(false);
     setDemo(false);
     if (!step) return;
-    const node = walkthrough.target(step.target);
-    if (!node) return walkthrough.next();
-    const id = setTimeout(
-      () =>
-        node.measureInWindow((x, y, w, h) => {
-          if (!w || !h || y > height || y + h < 0) return walkthrough.next();
-          setRect({ x: x - PAD, y: y - PAD, w: w + PAD * 2, h: h + PAD * 2 });
-        }),
-      120,
-    );
-    return () => clearTimeout(id);
-  }, [step, height]);
+    let stopped = false;
+    let tries = 0;
+    const look = () => {
+      if (stopped) return;
+      const node = walkthrough.target(step.target);
+      if (!node) return tries++ > 10 ? walkthrough.next() : void setTimeout(look, 400);
+      node.measureInWindow((x, y, w, h) => {
+        if (stopped) return;
+        // not laid out yet (screen sliding in): look again shortly
+        if (!w || !h) return tries++ > 10 ? walkthrough.next() : void setTimeout(look, 400);
+        const visible = y < height - 120 && y + h > 60 && x < width && x + w > 0;
+        if (!visible) {
+          setAway(true);
+          setRect(null);
+          return void setTimeout(look, 500);
+        }
+        setAway(false);
+        setRect({ x: x - PAD, y: y - PAD, w: w + PAD * 2, h: h + PAD * 2 });
+      });
+    };
+    const id = setTimeout(look, 350);
+    return () => {
+      stopped = true;
+      clearTimeout(id);
+    };
+  }, [step, height, width]);
 
   useEffect(() => {
     if (!rect) return;
@@ -58,6 +76,49 @@ export function Walkthrough() {
 
   if (!run || !step) return null;
   const last = run.at + 1 >= run.steps.length;
+
+  // the element is further down: no dimming (so the page still scrolls), just Saree3's bubble at the bottom
+  if (away)
+    return (
+      <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}>
+        <View
+          style={{
+            position: 'absolute',
+            left: spacing.screen,
+            right: spacing.screen,
+            bottom: 110,
+            backgroundColor: colors.surface,
+            borderRadius: radius.cardLg,
+            padding: spacing.lg,
+            gap: spacing.sm,
+            boxShadow: shadows.raised,
+            borderWidth: 2,
+            borderColor: '#FFD60A',
+            direction: isRTL ? 'rtl' : 'ltr',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
+            <Munti size="md" mood="talk" />
+            <View style={{ flex: 1, gap: 4 }}>
+              <AppText weight="extrabold" style={{ fontSize: 17 }}>
+                {step.title ?? t(`${step.key}Title`)}
+              </AppText>
+              <AppText color="textSoft">{step.body ?? t(`${step.key}Body`)}</AppText>
+              <AppText weight="bold" color="primary">
+                {t('scrollDown')}
+              </AppText>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+            <Pressable onPress={() => walkthrough.end(false)} accessibilityRole="button" hitSlop={8} style={{ padding: 8 }}>
+              <AppText weight="semibold" color="textMuted">
+                {t('skip')}
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
   // the bubble goes where there's more room
   const below = rect ? rect.y + rect.h / 2 < height / 2 : true;
 
