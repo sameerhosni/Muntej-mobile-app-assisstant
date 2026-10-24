@@ -2,7 +2,7 @@ import { registerStrings } from '@/lib/i18n/register';
 
 // Screen 42 Incoming + the Home row / shortcut.
 const en = {
-  title: 'Tasks from email',
+  title: 'Tasks from your tools',
   back: 'Back',
   subtitle: 'Muntej reads your new email and pulls the tasks out. You OK each one.',
   connectTools: 'Other tools: Teams, Jira, ClickUp, Trello…',
@@ -101,14 +101,14 @@ const en = {
   cancel: 'Cancel',
   actionError: "Couldn't do that. Try again.",
   // Home
-  homeRow_one: '{{n}} task found in your email',
-  homeRow_other: '{{n}} tasks found in your email',
+  homeRow_one: '{{n}} task found in your tools',
+  homeRow_other: '{{n}} tasks found in your tools',
   homeSub: 'Add or ignore with one tap',
-  shortcut: 'Tasks from email',
+  shortcut: 'Tasks from your tools',
 };
 
 const ar: typeof en & Record<string, string> = {
-  title: 'مهام من الإيميل',
+  title: 'مهام من أدواتك',
   back: 'رجوع',
   subtitle: 'منتج يقرا إيميلاتك الجديدة ويطلّع منها المهام. وأنت توافق على كل وحدة.',
   connectTools: 'أدوات ثانية: تيمز، جيرا، كليك أب، تريلو…',
@@ -216,10 +216,10 @@ const ar: typeof en & Record<string, string> = {
   save: 'أضف المهمة',
   cancel: 'إلغاء',
   actionError: 'ما زبطت. جرّب مرة ثانية.',
-  homeRow_one: 'لقيت {{n}} مهمة في إيميلك',
-  homeRow_other: 'لقيت {{n}} مهام في إيميلك',
+  homeRow_one: 'لقيت {{n}} مهمة في أدواتك',
+  homeRow_other: 'لقيت {{n}} مهام في أدواتك',
   homeSub: 'أضفها أو تجاهلها بضغطة',
-  shortcut: 'مهام من الإيميل',
+  shortcut: 'مهام من أدواتك',
 };
 
 export const NS = registerStrings('s42', { en, ar });

@@ -52,7 +52,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | # | Item |
 |---|------|
 | 4.1 | Meeting bot for any platform (Zoom, Teams, Meet) via a paid meeting-bot service |
-| 4.2 | Rename "Tasks from email" now that WhatsApp and Meet tasks land there too (e.g. "Incoming tasks") |
+| 4.2 | ~~Rename "Tasks from email"~~ done: "Tasks from your tools" (24 Oct) |
 | 4.3 | Connect your tools: show every linked account of the same tool (today the card status shows the first one) |
 | 4.4 | Follow-ups scheduled before 23 Oct keep the old text; only new tasks get Saree3's new voice |
 | 4.5 | Clear "you deleted your account" message on sign-in (today a generic error) and let a manager re-add someone who left |
