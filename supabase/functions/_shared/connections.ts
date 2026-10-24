@@ -2,6 +2,7 @@
 // Tokens never leave the server: AES-GCM with CONNECTIONS_KEY (base64, 32 bytes), stored in connection_secrets.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { requireEnv } from './http.ts';
+import { sendPush } from './push.ts';
 import { ingestMessage, OPEN, type Creator } from './intake-core.ts';
 import { microsoft } from './providers/microsoft.ts';
 import { google } from './providers/google.ts';
@@ -270,6 +271,24 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         });
         if (item.duplicate_message) continue;
         out.read++;
+        // a meeting that brought tasks: one push, so the organiser knows right after it ends (owner: "go with transcript")
+        if ((it.source === 'meet' || it.source === 'meeting') && item.suggestions.length) {
+          const { data: who } = await admin.from('profiles').select('locale').eq('id', conn.profile_id).maybeSingle();
+          const ar = who?.locale === 'ar';
+          const n = item.suggestions.length;
+          const name = it.subject ?? (ar ? 'اجتماعك' : 'your meeting');
+          await sendPush(
+            [conn.profile_id],
+            {
+              title: `🎙 ${name}`,
+              body: ar
+                ? `قريت المحضر ولقيت ${n === 1 ? 'مهمة' : n === 2 ? 'مهمتين' : `${n} مهام`}، بمسؤولها وموعدها. تنتظر موافقتك 👍`
+                : `I read the transcript and found ${n} task${n > 1 ? 's' : ''} with owners and dates. They wait for your OK 👍`,
+              data: { screen: '/42-incoming' },
+            },
+            admin,
+          ).catch(() => 0);
+        }
         // tool tasks count when they became Muntej tasks; mail / chat counts every task found (some wait in Incoming)
         out.tasks += it.task ? item.suggestions.filter((s) => s.state === 'accepted').length : item.suggestions.length;
         // a tool task that became a Muntej task is linked, so status and changes stay in step from now on

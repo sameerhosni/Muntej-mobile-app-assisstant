@@ -246,12 +246,21 @@ export const google: Provider = {
           if (!rec.endTime) continue;
           const text = await meetTranscript(t, rec.name);
           if (text.length < 80) continue; // no transcript (yet), or nothing said
+          // the meeting's name, organiser and invitees from its Calendar event (matched by the Meet code), so Saree3
+          // knows who assigned what and to whom
+          const ev = await meetEvent(t, rec).catch(() => null);
+          const head = [
+            `Google Meet meeting${ev?.summary ? `: ${ev.summary}` : ''} (${rec.startTime ?? ''} → ${rec.endTime})`,
+            ...(ev?.organizer ? [`Organiser: ${ev.organizer}`] : []),
+            ...(ev?.attendees.length ? [`Invited: ${ev.attendees.join(', ')}`] : []),
+            'Lines are "speaker: words". Whoever asks someone to do something is who assigned it.',
+          ].join('\n');
           items.push({
             externalId: `meet:${rec.name}`,
             source: 'meet',
-            text: `Google Meet meeting (${rec.startTime ?? ''} → ${rec.endTime})\n\n${text}`.slice(0, 38_000),
-            sender: 'Google Meet',
-            subject: null,
+            text: `${head}\n\n${text}`.slice(0, 38_000),
+            sender: ev?.organizer ?? 'Google Meet',
+            subject: ev?.summary ?? null,
             receivedAt: rec.endTime,
           });
         }
@@ -324,7 +333,7 @@ export const google: Provider = {
   },
 };
 
-type MeetRecord = { name: string; startTime?: string; endTime?: string };
+type MeetRecord = { name: string; space?: string; startTime?: string; endTime?: string };
 type ChatSpace = { name: string; displayName?: string; spaceType?: string; lastActiveTime?: string };
 type ChatMessage = { name: string; text?: string; createTime?: string; sender?: { name?: string; displayName?: string; type?: string } };
 type MeetTranscript = { name: string; state?: string };
@@ -337,6 +346,30 @@ type MeetParticipant = {
 };
 
 /** one Meet call's transcript as "Name: what they said" lines (empty when the meeting had none) */
+/** the Calendar event a Meet conference belongs to: same Meet code, around the same time */
+async function meetEvent(t: Tokens, rec: MeetRecord): Promise<{ summary: string | null; organizer: string | null; attendees: string[] } | null> {
+  if (!rec.space || !rec.startTime) return null;
+  const space = await api<{ meetingCode?: string }>(t, `${MEET}/${rec.space}`);
+  if (!space.meetingCode) return null;
+  const start = Date.parse(rec.startTime);
+  const events = await api<{ items?: (GEvent & { conferenceData?: { conferenceId?: string }; attendees?: { displayName?: string; email?: string }[] })[] }>(
+    t,
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events?${new URLSearchParams({
+      timeMin: new Date(start - 3 * 3_600_000).toISOString(),
+      timeMax: new Date(start + 3 * 3_600_000).toISOString(),
+      singleEvents: 'true',
+      maxResults: '50',
+    })}`,
+  );
+  const ev = (events.items ?? []).find((e) => e.conferenceData?.conferenceId === space.meetingCode);
+  if (!ev) return null;
+  return {
+    summary: ev.summary ?? null,
+    organizer: ev.organizer?.displayName ?? ev.organizer?.email ?? null,
+    attendees: (ev.attendees ?? []).map((a) => a.displayName ?? a.email ?? '').filter(Boolean).slice(0, 30),
+  };
+}
+
 async function meetTranscript(t: Tokens, record: string): Promise<string> {
   const { transcripts } = await api<{ transcripts?: MeetTranscript[] }>(t, `${MEET}/${record}/transcripts`);
   const ready = (transcripts ?? []).filter((x) => x.state === 'FILE_GENERATED' || x.state === 'ENDED');

@@ -27,6 +27,11 @@ export const BACKLOG: BacklogSection[] = [
         "detail": "Built, not applied/deployed (waits for the owner): apply supabase/migrations/20261024200000_public_api.sql; deploy public-api (--no-verify-jwt via config) and webhook-dispatch; create a key (create_api_key). Then: an admin screen in Settings to make / revoke keys (today: RPC only), invitation email for people added through the API, optional custom domain api.muntej.app. Docs: docs/api/README.md, docs/api/openapi.yaml, docs/design/HLD.md + LLD.md. · Built, not deployed"
       },
       {
+        "id": "1.2d",
+        "title": "Muntej add-on inside Google Meet",
+        "detail": "Waits for the owner's Workspace setup: Google Cloud → enable Google Workspace Marketplace SDK → App configuration → Meet add-on (side panel URL from us) → publish privately to muntej.app. Then build the panel: \"Start task listener\" (Saree3 reads that meeting's transcript right when it ends + one push), live quick-add by voice / text in the panel with owner + date, sign-in with the connected Google account. Truly live listening needs Google's Meet Media API Developer Preview (apply; weeks). Public listing for other companies needs Google review. · Planned"
+      },
+      {
         "id": "1.3",
         "title": "Google sign-in for everyone",
         "detail": "Google Cloud → Branding: add authorized domain muntej.app, Save → Audience: Publish app. Later: Google verification (Gmail is a restricted scope → security assessment) to remove the \"unverified app\" warning and the 100-user cap. In test mode refresh tokens expire every 7 days. · Done in code"
