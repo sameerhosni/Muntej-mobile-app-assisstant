@@ -169,7 +169,7 @@ serve(async (req) => {
       if (f && body.id) {
         const { data: cur } = await admin.from('connections').select('features').eq('id', body.id).eq('profile_id', profileId).maybeSingle();
         const next = { ...((cur?.features as Record<string, boolean>) ?? {}) };
-        for (const [k, v] of Object.entries(f)) if (['gmail', 'calendar', 'meet'].includes(k) && typeof v === 'boolean') next[k] = v;
+        for (const [k, v] of Object.entries(f)) if (['gmail', 'calendar', 'meet', 'chat'].includes(k) && typeof v === 'boolean') next[k] = v;
         patch.features = next;
       }
       let q = admin

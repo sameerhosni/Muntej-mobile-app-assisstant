@@ -15,7 +15,10 @@ import { tokenRequest, type Fetched, type Provider, type Tokens } from '../conne
 
 // meetings.space.readonly: Google Meet transcripts (Meet REST API; enable "Google Meet REST API" in Google Cloud)
 const SCOPES =
-  'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/meetings.space.readonly';
+  'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/meetings.space.readonly' +
+  // Google Chat (Workspace accounts only; enable "Google Chat API" + its Configuration page in Google Cloud)
+  ' https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/chat.memberships.readonly';
+const CHAT = 'https://chat.googleapis.com/v1';
 const MEET = 'https://meet.googleapis.com/v2';
 const FIRST_LOOK_BACK_MS = 7 * 24 * 3_600_000; // the first check reads the last week, not years of history
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -144,7 +147,10 @@ export const google: Provider = {
   account: async (t) => {
     const me = await api<{ email?: string; name?: string }>(t, 'https://openidconnect.googleapis.com/v1/userinfo');
     // whether this sign-in allowed Meet (older ones didn't: the app asks to sign in again for it)
-    return { label: me.email ?? me.name ?? 'Google', cursor: { meet_ok: (t.scope ?? '').includes('meetings') } };
+    return {
+      label: me.email ?? me.name ?? 'Google',
+      cursor: { meet_ok: (t.scope ?? '').includes('meetings'), chat_ok: (t.scope ?? '').includes('chat.messages') },
+    };
   },
 
   fetchNew: async (t, cursor, features = {}) => {
@@ -152,7 +158,7 @@ export const google: Provider = {
     const since = typeof cursor.since === 'string' ? cursor.since : new Date(now.getTime() - FIRST_LOOK_BACK_MS).toISOString();
     const items: Fetched[] = [];
     // the account's switches (Sources screen): each part is on unless turned off
-    const on = (k: 'gmail' | 'calendar' | 'meet') => features[k] !== false;
+    const on = (k: 'gmail' | 'calendar' | 'meet' | 'chat') => features[k] !== false;
 
     // Gmail: every new inbox mail since the last check (Gmail's "after:" is in whole seconds)
     if (on('gmail'))
@@ -254,12 +260,73 @@ export const google: Provider = {
         console.warn('google meet', (e as Error).message);
       }
 
+    // Google Chat: new messages people wrote in the spaces and direct messages this person is in. Each conversation's
+    // new messages are read together (with who said them), so "Faisal, the deck by tomorrow" makes sense in context.
+    // Apps / bots are skipped. Workspace accounts only (Google says no for personal Gmail: chat_error tells the app).
+    const chatOk = (t.scope ?? '').includes('chat.messages');
+    let chatError: string | null = null;
+    if (on('chat') && chatOk)
+      try {
+        const after = new Date(Date.parse(since) - 60_000).toISOString();
+        const spaces = await api<{ spaces?: ChatSpace[] }>(t, `${CHAT}/spaces?${new URLSearchParams({ pageSize: '50' })}`);
+        // the most recently active first; a few per run is plenty
+        const active = (spaces.spaces ?? [])
+          .filter((sp) => !sp.lastActiveTime || sp.lastActiveTime > after)
+          .sort((a, b) => (b.lastActiveTime ?? '').localeCompare(a.lastActiveTime ?? ''))
+          .slice(0, 15);
+        for (const sp of active) {
+          const list = await api<{ messages?: ChatMessage[] }>(
+            t,
+            `${CHAT}/${sp.name}/messages?${new URLSearchParams({ filter: `createTime > "${after}"`, pageSize: '50', orderBy: 'createTime ASC' })}`,
+          );
+          const said = (list.messages ?? []).filter((m) => m.sender?.type !== 'BOT' && (m.text ?? '').trim());
+          if (!said.length) continue;
+          // names: from the message, else from the space's members (user auth often leaves displayName empty)
+          const names = new Map<string, string>();
+          if (said.some((m) => !m.sender?.displayName))
+            try {
+              const mem = await api<{ memberships?: { member?: { name?: string; displayName?: string } }[] }>(
+                t,
+                `${CHAT}/${sp.name}/members?${new URLSearchParams({ pageSize: '100' })}`,
+              );
+              for (const x of mem.memberships ?? []) if (x.member?.name && x.member.displayName) names.set(x.member.name, x.member.displayName);
+            } catch {
+              // names are nice to have
+            }
+          const who = (m: ChatMessage) => m.sender?.displayName || names.get(m.sender?.name ?? '') || 'Someone';
+          const where = sp.spaceType === 'DIRECT_MESSAGE' ? 'Direct message' : (sp.displayName ?? 'Space');
+          const last = said[said.length - 1];
+          items.push({
+            externalId: `gchat:${last.name}`,
+            source: 'google_chat',
+            text: [
+              `Google Chat · ${where}`,
+              ...said.map((m) => `[${m.createTime ?? ''}] ${who(m)}: ${(m.text ?? '').trim()}`),
+            ]
+              .join('\n')
+              .slice(0, 12_000),
+            sender: said.length === 1 ? who(last) : where,
+            subject: where,
+            receivedAt: last.createTime ?? null,
+          });
+        }
+      } catch (e) {
+        if ((e as Error).message === 'Sign in again') throw e;
+        chatError = (e as Error).message.slice(0, 200);
+        console.warn('google chat', chatError);
+      }
+
     // a little overlap: the same message is never read twice (external id), so nothing slips between runs
-    return { items, cursor: { ...cursor, meet_ok: meetOk, since: new Date(now.getTime() - 2 * 60_000).toISOString() } };
+    return {
+      items,
+      cursor: { ...cursor, meet_ok: meetOk, chat_ok: chatOk, chat_error: chatError, since: new Date(now.getTime() - 2 * 60_000).toISOString() },
+    };
   },
 };
 
 type MeetRecord = { name: string; startTime?: string; endTime?: string };
+type ChatSpace = { name: string; displayName?: string; spaceType?: string; lastActiveTime?: string };
+type ChatMessage = { name: string; text?: string; createTime?: string; sender?: { name?: string; displayName?: string; type?: string } };
 type MeetTranscript = { name: string; state?: string };
 type MeetEntry = { participant?: string; text?: string };
 type MeetParticipant = {

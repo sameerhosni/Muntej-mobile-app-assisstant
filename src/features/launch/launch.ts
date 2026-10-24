@@ -25,6 +25,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   confirm_new: { href: '/01-home', spot: 'home.confirm' },
   week_links: { href: '/01-home', spot: 'home.week' },
   sectors: { href: '/12-sources', spot: 'sources.sector' },
+  google_chat: { href: '/12-sources', spot: 'sources.google' },
   my_requests: { href: '/25-employee-home' },
   objective_plan: { href: '/40-objectives' },
   autopilot: { href: '/03-autopilot' },
