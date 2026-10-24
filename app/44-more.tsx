@@ -27,6 +27,7 @@ import {
   TrendingUp,
   UserPlus,
   Users,
+  Sparkles,
   Waypoints,
   type LucideProps,
 } from 'lucide-react-native';
@@ -34,6 +35,7 @@ import { AppText, IconButton } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
+import { useWhatsNew } from '@/features/launch/WhatsNew';
 import { useMyProfile } from '@/lib/api';
 import { useIncomingCount } from '@/features/incoming/api';
 import { MORE_NS } from '@/features/more/strings';
@@ -48,6 +50,7 @@ export default function MoreScreen() {
   const me = useMyProfile();
   const incoming = useIncomingCount();
   const manager = me.data?.role !== 'employee';
+  const whatsNew = useWhatsNew();
 
   const groups: { key: string; tiles: Tile[] }[] = [
     {
@@ -73,6 +76,8 @@ export default function MoreScreen() {
       key: 'capture',
       tiles: [
         { key: 'incoming', href: '/42-incoming', Icon: Inbox, bg: 'primaryTint', fg: colors.primary, who: 'all', count: incoming.count },
+        // every new feature with Saree3's "Show me how"
+        { key: 'whatsNew', href: '/50-whats-new' as Href, Icon: Sparkles, bg: 'purpleTint', fg: colors.purple, who: 'all', count: whatsNew.count },
         { key: 'sources', href: '/12-sources', Icon: Plug, bg: 'greenTint', fg: colors.green, who: 'all' },
       ],
     },

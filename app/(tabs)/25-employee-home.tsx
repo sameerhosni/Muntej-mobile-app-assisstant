@@ -32,6 +32,7 @@ import { NS as INCOMING_NS } from '@/features/incoming/strings';
 import { MORE_NS } from '@/features/more/strings';
 import { MySteps } from '@/features/steps/MySteps';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
+import { WhatsNewStrip } from '@/features/launch/WhatsNew';
 import { MyRequests } from '@/features/home/MyRequests';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
 
@@ -124,6 +125,8 @@ export default function EmployeeHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.lg }}>
           {/* invited: Saree3's short tour until it's done */}
           <GettingStarted />
+          {/* everything new in Muntej, while some of it is still new to you */}
+          <WhatsNewStrip />
           <TourTarget id="home.confirm">
             <ConfirmNew />
           </TourTarget>
