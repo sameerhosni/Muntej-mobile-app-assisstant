@@ -23,6 +23,29 @@ export type AppTextProps = TextProps & {
   align?: 'start' | 'center' | 'end';
 };
 
+const ARABIC = /[؀-ۿ]/;
+const RLM = '‏';
+/**
+ * Android ignores writingDirection: it takes a paragraph's direction from its first letter, so Arabic that starts with
+ * a name in English, a quote mark or an emoji ("✅ Sameer وافق: «…»") came out left to right and jumbled. Arabic
+ * text gets a right-to-left mark in front of each line (strings only; nested elements are left as they are).
+ */
+function rtlChildren(children: TextProps['children']): TextProps['children'] {
+  const fix = (x: unknown) =>
+    typeof x === 'string' && ARABIC.test(x)
+      ? x
+          .split('\n')
+          .map((l) => (l.startsWith(RLM) ? l : RLM + l))
+          .join('\n')
+      : x;
+  if (Array.isArray(children)) {
+    // only the first string decides the paragraph's direction
+    const i = children.findIndex((c) => typeof c === 'string' && c.trim());
+    return i < 0 ? children : children.map((c, k) => (k === i ? fix(c) : c)) as TextProps['children'];
+  }
+  return fix(children) as TextProps['children'];
+}
+
 /** Visual 'left'/'right' for start/end, compensating for RN's own swap when native RTL is on. */
 function resolveAlign(align: 'start' | 'center' | 'end', isRTL: boolean): TextStyle['textAlign'] {
   if (align === 'center') return 'center';
@@ -38,6 +61,7 @@ export function AppText({
   display,
   align = 'start',
   style,
+  children,
   ...rest
 }: AppTextProps) {
   const { lang, isRTL } = useDirection();
@@ -50,6 +74,7 @@ export function AppText({
       // wrapped onto a line the bubble didn't make room for, so it vanished. "simple" measures what it draws.
       textBreakStrategy="simple"
       {...rest}
+      children={isRTL ? rtlChildren(children) : children}
       style={[
         {
           fontFamily: family,
