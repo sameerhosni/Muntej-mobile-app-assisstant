@@ -109,7 +109,12 @@ export default function SettingsScreen() {
 
       {me && (
         <Card>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
+          <Pressable
+            onPress={() => router.push('/53-profile' as Href)}
+            accessibilityRole="button"
+            accessibilityLabel={tb('profileRow')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}
+          >
             <Avatar name={me.full_name} size={48} gradient={me.role === 'employee' ? 'avatarBlue' : 'avatarOrange'} />
             <View style={{ flex: 1, gap: 2 }}>
               <AppText variant="caption" color="textMuted">
@@ -121,8 +126,12 @@ export default function SettingsScreen() {
                 {isAdmin ? ` · ${t('settings.viewingAs', { view: t(view === 'employee' ? 'settings.viewEmployee' : 'settings.viewManager') })}` : ''}
                 {(lang === 'ar' ? me.title_ar : me.title) ? ` · ${lang === 'ar' ? me.title_ar : me.title}` : ''}
               </AppText>
+              <AppText variant="caption" weight="bold" color="primary">
+                {tb('profileRow')}
+              </AppText>
             </View>
-          </View>
+            <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
+          </Pressable>
           <Button label={t('settings.signOut')} variant="outline" size="md" loading={signOut.isPending} onPress={() => signOut.mutate()} />
         </Card>
       )}

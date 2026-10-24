@@ -112,15 +112,20 @@ export default function TeamScreen() {
     setForm({ kind: 'add', managerId: isAdminRole(me?.role) ? null : (me?.id ?? null) });
   };
   // ?add=1 ("Add team" from Everything Muntej does): open the add form once the profile is known
-  const { add } = useLocalSearchParams<{ add?: string }>();
+  const { add, me: meParam } = useLocalSearchParams<{ add?: string; me?: string }>();
   const opened = useRef(false);
   useEffect(() => {
     if (add === '1' && me && !opened.current) {
       opened.current = true;
       addTop();
     }
+    // ?me=1 (My profile → Edit): your own entry, ready to edit
+    if (meParam === '1' && me && !opened.current) {
+      opened.current = true;
+      setSelectedId(me.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [add, me]);
+  }, [add, meParam, me]);
 
   const renderNode = (p: Person, depth: number): React.ReactNode => {
     const kids = (index.children.get(p.id) ?? []).filter((c) => visibleIds.has(c.id));

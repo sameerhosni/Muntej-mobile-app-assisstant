@@ -9,6 +9,7 @@ const en = {
   settingsRow: 'Backlog',
   settingsSub: 'Everything not finished yet: setup, builds, testing, ideas',
   designRow: 'System design',
+  profileRow: 'See my full profile',
   designSub: 'HLD + LLD, the full design image and the integration API (PDF)',
 };
 
@@ -20,6 +21,7 @@ const ar: typeof en & Record<string, string> = {
   settingsRow: 'المتبقي (Backlog)',
   settingsSub: 'كل شي ما خلص للحين: إعدادات، بناء، اختبار، أفكار',
   designRow: 'تصميم النظام',
+  profileRow: 'شوف ملفي كامل',
   designSub: 'HLD + LLD، صورة التصميم كامل، وواجهة الربط (PDF)',
 };
 
