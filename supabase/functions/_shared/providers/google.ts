@@ -19,9 +19,25 @@ const SCOPES =
 const MEET = 'https://meet.googleapis.com/v2';
 const FIRST_LOOK_BACK_MS = 7 * 24 * 3_600_000; // the first check reads the last week, not years of history
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
-// work mail often lands in Updates / Forums (tool notifications), and people email themselves tasks: both are read
+// only mail people wrote (owner: "retrieve only tasks coming from the team or a human, relevant to my scope"): no
+// Promotions / Social / Updates / Forums (tool notifications and alerts live there), no no-reply senders. People
+// emailing themselves a task is still read.
 const INBOX_QUERY =
-  'in:inbox -category:promotions -category:social -subject:"Muntej code" -from:(noreply OR no-reply OR donotreply OR do-not-reply OR notifications OR mailer-daemon)';
+  'in:inbox -category:promotions -category:social -category:updates -category:forums -subject:"Muntej code" -from:(noreply OR no-reply OR donotreply OR do-not-reply OR notifications OR notification OR alerts OR alert OR security OR mailer-daemon OR postmaster)';
+
+// sender names that are systems, not people (the part before @)
+const SYSTEM_SENDER =
+  /^(no-?reply|do-?not-?reply|notifications?|notify|alerts?|security|accounts?|account-security|mailer(-daemon)?|postmaster|bounces?|billing|invoices?|receipts?|news(letter)?|updates?|digest|marketing|hello|hey|hi|team|support|help|info|system|robot|bot|automated?|calendar-notification|feedback)([+._-].*)?$/i;
+
+/** mail a system sent (alerts, notifications, newsletters, receipts), told apart by its headers and sender */
+function automated(h: (name: string) => string): boolean {
+  const auto = h('auto-submitted').toLowerCase();
+  if (auto && auto !== 'no') return true;
+  if (h('list-unsubscribe') || h('list-id') || h('feedback-id') || h('x-auto-response-suppress')) return true;
+  if (/^(bulk|list|junk)$/i.test(h('precedence').trim())) return true;
+  const address = (h('from').match(/<([^>]+)>/)?.[1] ?? h('from')).trim();
+  return SYSTEM_SENDER.test(address.split('@')[0] ?? '');
+}
 
 async function api<T>(t: Tokens, url: string): Promise<T> {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${t.access_token}` } });
@@ -146,6 +162,8 @@ export const google: Provider = {
         for (const { id } of list.messages ?? []) {
           const m = await api<GMessage>(t, `${GMAIL}/messages/${id}?format=full`);
           const h = (name: string) => m.payload?.headers?.find((x) => x.name.toLowerCase() === name)?.value ?? '';
+          // a system's mail is never a task (even when it says "check" or "review"): skipped before Saree3 reads it
+          if (automated(h)) continue;
           const from = h('from');
           const subject = h('subject');
           const body = withoutQuoted(bodyOf(m.payload));
