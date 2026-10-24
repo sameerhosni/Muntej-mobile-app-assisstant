@@ -1,0 +1,348 @@
+openapi: 3.1.0
+info:
+  title: Muntej API
+  version: '1.0.0'
+  summary: Give work to Muntej from your systems; Saree3 assigns, follows up, collects proof and reports back.
+  description: |
+    REST API for integrating ERP / CRM / HR and internal tools with Muntej.
+    Every key belongs to one company account and acts as the admin who created it.
+    See docs/api/README.md for a walkthrough (English + Arabic).
+servers:
+  - url: https://katwiedukkvssuxbjbqf.supabase.co/functions/v1/public-api
+security:
+  - bearerKey: []
+components:
+  securitySchemes:
+    bearerKey:
+      type: http
+      scheme: bearer
+      bearerFormat: mjk_<48 hex>
+      description: 'An account API key made by an admin (create_api_key). Also accepted as header X-API-Key.'
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Any unique string; repeating a POST with the same key within 24 h returns the first answer.
+      schema: { type: string, maxLength: 200 }
+    TaskId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [unauthorized, forbidden, rate_limited, not_found, invalid_body, invalid_field, unknown_person, cannot_create, cannot_update, cannot_invite, already_exists, server_error]
+            message: { type: string }
+    Task:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        status: { type: string, enum: [draft, assigned, in_progress, blocked, submitted, returned, done, cancelled] }
+        priority: { type: string, enum: [low, medium, high, urgent] }
+        due_at: { type: [string, 'null'], format: date-time }
+        owner_id: { type: [string, 'null'], format: uuid }
+        assigner_id: { type: string, format: uuid }
+        helper_id: { type: [string, 'null'], format: uuid }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        definition_of_done: { type: [string, 'null'] }
+        proof_required: { type: string, enum: [none, any, file, image, link] }
+        budget: { type: [string, 'null'] }
+        source: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        closed_at: { type: [string, 'null'], format: date-time }
+    NewTask:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 200 }
+        owner_email: { type: string, format: email, description: Someone in the account (or use owner_id). No owner = a draft Saree3 asks the admin to assign. }
+        owner_id: { type: string, format: uuid }
+        due_at: { type: string, format: date-time, description: 'ISO 8601, e.g. 2026-10-27T17:00:00+03:00' }
+        priority: { type: string, enum: [low, medium, high, urgent], default: medium }
+        description: { type: string, maxLength: 4000 }
+        definition_of_done: { type: string, maxLength: 1000 }
+        proof_required: { type: string, enum: [none, any, file, image, link], default: none }
+        budget: { type: string, maxLength: 100, example: '5,000 SAR' }
+        external_ref: { type: string, maxLength: 200, description: Your system's id for this task. }
+    TaskPatch:
+      type: object
+      properties:
+        status: { type: string, enum: [draft, assigned, in_progress, blocked, submitted, returned, done, cancelled] }
+        due_at: { type: [string, 'null'], format: date-time }
+        priority: { type: string, enum: [low, medium, high, urgent] }
+        owner_email: { type: string, format: email }
+        owner_id: { type: string, format: uuid }
+        title: { type: string, maxLength: 200 }
+    Person:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        name_ar: { type: [string, 'null'] }
+        email: { type: [string, 'null'] }
+        role: { type: string, enum: [employee, manager, admin, super_admin] }
+        title: { type: [string, 'null'] }
+        manager_id: { type: [string, 'null'], format: uuid }
+    NewPerson:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
+        name_ar: { type: string }
+        title: { type: string }
+        role: { type: string, enum: [employee, manager], default: employee }
+        manager_email: { type: string, format: email, description: Defaults to the key's admin. }
+        manager_id: { type: string, format: uuid }
+    Decision:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [extension_request, delay_risk, ambiguous_reply, reassignment, priority_question] }
+        status: { type: string, enum: [pending, approved, declined, expired] }
+        title: { type: string }
+        title_ar: { type: [string, 'null'] }
+        task_id: { type: [string, 'null'], format: uuid }
+        requested_by: { type: [string, 'null'], format: uuid }
+        manager_id: { type: string, format: uuid }
+        recommendation: { type: [string, 'null'] }
+        recommendation_ar: { type: [string, 'null'] }
+        details: { type: object }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: [string, 'null'], format: date-time }
+    NewMessage:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, maxLength: 20000, description: 'An email body, a chat message, meeting notes… Saree3 finds the tasks in it.' }
+        for_email: { type: string, format: email, description: Whose "Your tools" it lands in (default the key's admin). }
+        sender: { type: string }
+        subject: { type: string }
+        received_at: { type: string, format: date-time }
+        external_id: { type: string, description: Your message id; the same id is never read twice. }
+    Webhook:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string, format: uri }
+        events:
+          type: array
+          items: { type: string, enum: [task.created, task.updated, task.done, decision.created, decision.resolved] }
+        secret: { type: string, description: 'Returned once, on creation. Verify X-Muntej-Signature = sha256=HMAC_SHA256(secret, "<X-Muntej-Timestamp>.<raw body>").' }
+        created_at: { type: string, format: date-time }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+paths:
+  /v1/tasks:
+    get:
+      summary: List tasks
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: owner, in: query, description: owner id or email, schema: { type: string } }
+        - { name: updated_since, in: query, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: Tasks, newest change first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Task' } }
+                  limit: { type: integer }
+                  offset: { type: integer }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      summary: Create a task (Saree3 takes it from here)
+      description: Creates the task as the key's admin with the same follow-up plan as the app (hand-off push, receipt check, check-ins, due nudges).
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewTask' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { $ref: '#/components/schemas/Task' } } }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/tasks/{id}:
+    get:
+      summary: One task with its steps
+      parameters: [{ $ref: '#/components/parameters/TaskId' }]
+      responses:
+        '200':
+          description: The task
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Task'
+                      - type: object
+                        properties:
+                          steps:
+                            type: array
+                            items: { type: object, properties: { id: { type: string }, title: { type: string }, done: { type: boolean }, position: { type: integer } } }
+        default: { $ref: '#/components/responses/Error' }
+    patch:
+      summary: Change status, due date, priority, owner or title
+      parameters: [{ $ref: '#/components/parameters/TaskId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskPatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { $ref: '#/components/schemas/Task' } } }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/people:
+    get:
+      summary: People in the account
+      responses:
+        '200':
+          description: People
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/Person' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      summary: Add someone (they sign in with that email)
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewPerson' }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { id: { type: string }, email: { type: string }, role: { type: string }, signs_in_with: { type: string } } }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/decisions:
+    get:
+      summary: Decisions (filter status=pending for what waits for a person)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, approved, declined, expired] } }
+      responses:
+        '200':
+          description: Decisions, newest first (max 100)
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/Decision' } } } }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/messages:
+    post:
+      summary: Send a message in; Saree3 finds the tasks
+      description: Like a connected tool. Tasks found wait for an OK in "Your tools" (never added by themselves).
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewMessage' }
+      responses:
+        '202':
+          description: Read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      duplicate: { type: boolean }
+                      tasks_found:
+                        type: array
+                        items: { type: object, properties: { title: { type: string }, owner_id: { type: [string, 'null'] }, due_at: { type: [string, 'null'] }, priority: { type: string }, state: { type: string } } }
+                      waiting_for_ok_in: { type: string }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/webhooks:
+    get:
+      summary: Active webhooks
+      responses:
+        '200':
+          description: Webhooks (secrets are not shown again)
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/Webhook' } } } }
+        default: { $ref: '#/components/responses/Error' }
+    post:
+      summary: Subscribe a URL to events
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri, pattern: '^https://' }
+                events: { type: array, items: { type: string, enum: [task.created, task.updated, task.done, decision.created, decision.resolved] } }
+      responses:
+        '201':
+          description: Created (keep the secret)
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { $ref: '#/components/schemas/Webhook' } } }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/webhooks/{id}:
+    delete:
+      summary: Stop a webhook
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Stopped }
+        default: { $ref: '#/components/responses/Error' }
+webhooks:
+  task.created:
+    post:
+      summary: A task was created (in the app, by Saree3 or through the API)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id: { type: integer }
+                event: { type: string }
+                created_at: { type: string, format: date-time }
+                account_id: { type: string }
+                data: { type: object, properties: { task: { $ref: '#/components/schemas/Task' } } }
+      responses:
+        '200': { description: Received (any 2xx) }

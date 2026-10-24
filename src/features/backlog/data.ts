@@ -22,6 +22,11 @@ export const BACKLOG: BacklogSection[] = [
         "detail": "Google Cloud → enable Google Chat API; its Configuration tab: app name \"Muntej\", avatar URL, description, uncheck \"Interactive features\", Visibility = your domain, Save. OAuth consent screen → Data access → add chat.spaces.readonly, chat.messages.readonly, chat.memberships.readonly. Then in the app: Connected tools → Google → \"Allow\" on the Chat line. Workspace accounts only. Test end to end. · Built and deployed"
       },
       {
+        "id": "1.2c",
+        "title": "Public API v1 + webhooks go-live",
+        "detail": "Built, not applied/deployed (waits for the owner): apply supabase/migrations/20261024200000_public_api.sql; deploy public-api (--no-verify-jwt via config) and webhook-dispatch; create a key (create_api_key). Then: an admin screen in Settings to make / revoke keys (today: RPC only), invitation email for people added through the API, optional custom domain api.muntej.app. Docs: docs/api/README.md, docs/api/openapi.yaml, docs/design/HLD.md + LLD.md. · Built, not deployed"
+      },
+      {
         "id": "1.3",
         "title": "Google sign-in for everyone",
         "detail": "Google Cloud → Branding: add authorized domain muntej.app, Save → Audience: Publish app. Later: Google verification (Gmail is a restricted scope → security assessment) to remove the \"unverified app\" warning and the 100-user cap. In test mode refresh tokens expire every 7 days. · Done in code"

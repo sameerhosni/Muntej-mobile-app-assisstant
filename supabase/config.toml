@@ -460,3 +460,11 @@ verify_jwt = false
 
 [functions.verify-proof]
 verify_jwt = false
+
+[functions.public-api]
+# external systems call it with an API key (checked in the function), not a Supabase JWT
+verify_jwt = false
+
+[functions.webhook-dispatch]
+# called by pg_cron with x-cron-secret
+verify_jwt = false
