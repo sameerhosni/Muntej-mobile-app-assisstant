@@ -6,7 +6,7 @@
 // Data: src/features/incoming/api.ts.
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowDownUp, Check, ChevronLeft, CopyCheck, Inbox, Pencil, Plug, X } from 'lucide-react-native';
@@ -91,6 +91,31 @@ export default function IncomingScreen() {
     }
   };
 
+  // add / reject every waiting task in one go
+  const [bulk, setBulk] = useState<'add' | 'reject' | null>(null);
+  const waitingIds = () => (incoming.data ?? []).filter((it) => it.suggestions.some((s) => s.state === 'new')).map((it) => it.id);
+  const addEverything = async () => {
+    setBulk('add');
+    try {
+      await actions.acceptEverything(waitingIds());
+    } finally {
+      setBulk(null);
+    }
+  };
+  const rejectEverything = () => {
+    const go = async () => {
+      setBulk('reject');
+      try {
+        await actions.ignoreEverything(waitingIds());
+      } finally {
+        setBulk(null);
+      }
+    };
+    const msg = t('rejectConfirm', { n: waiting });
+    if (Platform.OS === 'web') {
+      if (window.confirm(msg)) go();
+    } else Alert.alert(t('rejectEverything'), msg, [{ text: t('cancel'), style: 'cancel' }, { text: t('rejectEverything'), style: 'destructive', onPress: go }]);
+  };
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const all = (pages.data?.pages ?? []).flat();
   const groupsHere = GROUPS.filter((g) => g === 'all' || all.some((it) => groupOf(it.source) === g));
@@ -159,6 +184,13 @@ export default function IncomingScreen() {
           )}
         </View>
 
+        {/* everything waiting, at once */}
+        {waiting > 1 && (
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Button label={t('addEverything', { n: waiting })} size="md" loading={bulk === 'add'} disabled={!!bulk} onPress={addEverything} style={{ flex: 1.3 }} />
+            <Button label={t('rejectEverything')} variant="outline" size="md" loading={bulk === 'reject'} disabled={!!bulk} onPress={rejectEverything} style={{ flex: 1 }} />
+          </View>
+        )}
         {pages.isLoading && <ActivityIndicator color={colors.primary} />}
         {pages.isError && (
           <Card tone="red" padding={spacing.lg}>

@@ -126,6 +126,15 @@ export function useIncomingActions() {
       await call({ action: 'accept_all', id });
       await done(true);
     },
+    /** every waiting message at once: add all their tasks / ignore them all (one refresh at the end) */
+    acceptEverything: async (ids: string[]) => {
+      for (const id of ids) await call({ action: 'accept_all', id });
+      await done(true);
+    },
+    ignoreEverything: async (ids: string[]) => {
+      for (const id of ids) await call({ action: 'ignore', id });
+      await done();
+    },
     ignore: async (id: string, index?: number) => {
       await call({ action: 'ignore', id, index });
       await done();

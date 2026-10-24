@@ -3,6 +3,9 @@ import { registerStrings } from '@/lib/i18n/register';
 // Screen 42 Incoming + the Home row / shortcut.
 const en = {
   title: 'Your tools',
+  addEverything: 'Add all ({{n}})',
+  rejectEverything: 'Reject all',
+  rejectConfirm: 'Ignore all {{n}} waiting tasks? They won’t be added.',
   back: 'Back',
   subtitle: 'Every tool you connected, what I found in each, and how often I read it. You OK each task.',
   g_all: 'All',
@@ -117,6 +120,9 @@ const en = {
 
 const ar: typeof en & Record<string, string> = {
   title: 'أدواتك',
+  addEverything: 'أضف الكل ({{n}})',
+  rejectEverything: 'ارفض الكل',
+  rejectConfirm: 'تتجاهل كل المهام الـ{{n}} اللي تنتظر؟ ما راح تنضاف.',
   back: 'رجوع',
   subtitle: 'كل أداة ربطتها، وش لقيت في كل وحدة، وكل كم أقراها. وأنت توافق على كل مهمة.',
   g_all: 'الكل',
