@@ -37,6 +37,7 @@ const en = {
   error: "Couldn't load what you're waiting on. Showing an example.",
   filter: { all: 'All', decisions: 'Decisions', blocked: 'Blocked tasks' },
   nothingHere: 'Nothing here',
+  emptyAll: 'You’re not waiting on anyone right now 👌 When you ask someone for something, I follow it up for you.',
   showAll: 'Show all',
   demo: {
     a: { who: 'Ahmed', what: 'Approve discount rate', blocks: 'SPL proposal', wait: '2d', msg: 'Discount waiting 2 days · due Thu. Approve?' },
@@ -82,6 +83,7 @@ const ar: typeof en = {
   error: 'ما قدرنا نجيب اللي تنتظره. نعرض لك مثال.',
   filter: { all: 'الكل', decisions: 'قرارات', blocked: 'مهام واقفة' },
   nothingHere: 'ما فيه شي هنا',
+  emptyAll: 'ما تنتظر أحد الحين 👌 لما تطلب شي من أحد، أنا أتابعه عنك.',
   showAll: 'عرض الكل',
   demo: {
     a: { who: 'أحمد', what: 'اعتماد نسبة الخصم', blocks: 'عرض SPL', wait: 'يومين', msg: 'الخصم ينتظرك من يومين والتسليم الخميس. تعتمده؟' },

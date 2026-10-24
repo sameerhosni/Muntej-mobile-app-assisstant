@@ -60,6 +60,24 @@ export function usePushbackModel(lang: string, taskId?: string) {
   const me = useMyProfile();
   const team = useTeam();
   const tasks = useTasks({ ownerId: me.data?.id });
+  // what I already asked my manager about: a task is never offered twice (sending again made duplicate requests)
+  const asked = useQuery({
+    queryKey: ['pushbackAsked', me.data?.id],
+    enabled: !!me.data?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('decisions')
+        .select('id, task_id, status')
+        .eq('requested_by', me.data!.id)
+        .eq('type', 'priority_question')
+        .neq('status', 'expired')
+        .order('created_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      const m = new Map<string, string>();
+      for (const d of data ?? []) if (d.task_id && !m.has(d.task_id)) m.set(d.task_id, d.id);
+      return m;
+    },
+  });
 
   const model = useMemo((): PushbackModel => {
     const profile = me.data;
@@ -73,7 +91,9 @@ export function usePushbackModel(lang: string, taskId?: string) {
     const active = (tasks.data ?? []).filter((t) => t.owner_id === profile?.id && ACTIVE_STATUSES.includes(t.status));
     if (!profile || active.length === 0) return { ...DEMO, ...base };
 
-    const newest = active.find((t) => t.id === taskId) ?? [...active].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+    // the task opened from its page; else the newest one I haven't asked about yet (all asked → the newest, shown as sent)
+    const byNewest = [...active].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const newest = active.find((t) => t.id === taskId) ?? byNewest.find((t) => !asked.data?.has(t.id)) ?? byNewest[0];
     const thisWeek = active
       .filter((t) => t.id !== newest.id)
       .filter((t) => !t.due_at || new Date(t.due_at).getTime() <= now + 7 * DAY_MS)
@@ -103,12 +123,14 @@ export function usePushbackModel(lang: string, taskId?: string) {
       topTitle: top?.task.title ?? null,
       slipDays: Math.max(1, Math.ceil(newHours / perDay)),
     };
-  }, [me.data, team.data, tasks.data, lang, taskId]);
+  }, [me.data, team.data, tasks.data, asked.data, lang, taskId]);
 
   return {
     model,
     profileId: me.data?.id ?? null,
-    isLoading: me.isLoading || tasks.isLoading,
+    /** the request already sent about the task on screen (then the screen shows its answer, not the question) */
+    askedId: (model.newTask.id && asked.data?.get(model.newTask.id)) || null,
+    isLoading: me.isLoading || tasks.isLoading || asked.isLoading,
   };
 }
 
@@ -150,7 +172,10 @@ export function useSendPushback() {
       if (error) throw new Error(error.message);
       return data.id;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['decisions'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['decisions'] });
+      qc.invalidateQueries({ queryKey: ['pushbackAsked'] });
+    },
   });
 }
 

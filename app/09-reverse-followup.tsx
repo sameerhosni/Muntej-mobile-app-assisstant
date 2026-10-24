@@ -1,6 +1,6 @@
 // Screen 09 · Reverse follow-up — see design/v2/html/ReverseFollowup.dc.html (Arabic: ReverseFollowupAR.dc.html)
 // Employee screen. Live data: pending decisions I requested (age) + blocked tasks I own or help on.
-// Falls back to the design's three sample items. "Remind them for me" sends a real reminder (nudge_waiting) for live items.
+// Nothing waiting → a calm empty note (the design's sample people confused real users). "Remind them for me" sends a real reminder (nudge_waiting) for live items.
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
@@ -14,7 +14,8 @@ import { ACTIVE_STATUSES, useDecisions, useMyProfile, useTasks, useTeam } from '
 import { supabase } from '@/lib/supabase';
 import { formatNumber } from '@/features/home/value';
 import { LEVEL, useWallet } from '@/features/rewards/wallet';
-import { demoItems, liveItems, type WaitItem, type WaitKind } from '@/features/reverse-followup/model';
+import { SHOW_REWARDS } from '@/features/rewards/visibility';
+import { liveItems, type WaitItem, type WaitKind } from '@/features/reverse-followup/model';
 
 type WaitFilter = 'all' | 'decisions' | 'blocked';
 const WAIT_FILTERS: WaitFilter[] = ['all', 'decisions', 'blocked'];
@@ -25,7 +26,7 @@ import { NS } from '@/features/reverse-followup/strings';
 /** Design value for the sample: hours of waiting Muntej's nudges cut this week. */
 const DEMO_WAITING_CUT_H = 31;
 /** Auto-nudges Muntej already sent before you open the screen (design). */
-const BASE_AUTO_NUDGES = 3;
+const BASE_AUTO_NUDGES = 0;
 
 export default function ReverseFollowupScreen() {
   const { t } = useScreenT(NS);
@@ -63,8 +64,8 @@ export default function ReverseFollowupScreen() {
   );
   const loading = (tasks.isLoading || decisions.isLoading || me.isLoading) && live.length === 0;
   const failed = tasks.isError && decisions.isError;
-  const items: WaitItem[] = live.length > 0 ? live : demoItems(t);
-  const isSample = live.length === 0;
+  const items: WaitItem[] = live;
+  const isSample = false;
   const filterOptions = WAIT_FILTERS.map((key) => ({
     key,
     label: t(`filter.${key}`),
@@ -105,6 +106,7 @@ export default function ReverseFollowupScreen() {
             <AppText variant="small" color="onDarkMuted" style={{ flex: 1 }} numberOfLines={1}>
               {myName ? t('whoLine', { name: myName, role }) : ' '}
             </AppText>
+            {SHOW_REWARDS && (
             <Pressable
               onPress={() => router.navigate('/25-employee-home')}
               accessibilityRole="link"
@@ -129,6 +131,7 @@ export default function ReverseFollowupScreen() {
                 {t('levelPill', { level: LEVEL, pts: formatNumber(w.balance, lang) })}
               </AppText>
             </Pressable>
+            )}
           </View>
           <View style={{ gap: 4 }}>
             <AppText variant="titleLg" color="onDark" style={{ lineHeight: 32 }}>
@@ -165,8 +168,14 @@ export default function ReverseFollowupScreen() {
             </Card>
           ) : (
             <>
-              <FilterChips options={filterOptions} value={filter} onChange={setFilter} />
-              {shown.length === 0 && (
+              {items.length === 0 ? (
+                <Card padding={spacing.lg}>
+                  <AppText color="textSoft">{t('emptyAll')}</AppText>
+                </Card>
+              ) : (
+                <FilterChips options={filterOptions} value={filter} onChange={setFilter} />
+              )}
+              {items.length > 0 && shown.length === 0 && (
                 <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
                   <AppText color="textMuted" align="center">
                     {t('nothingHere')}

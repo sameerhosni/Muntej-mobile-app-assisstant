@@ -2,7 +2,7 @@
 // Employee screen. Live data: my active tasks (useTasks, owner = me) → week load + newest task as "the new task"
 // (falls back to the design demo when I have none). Send = LIVE insert into decisions (type priority_question,
 // requested_by me, manager_id = my manager) via src/features/pushback/usePushback. Points pill = demo wallet.
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +25,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
 import { LEVEL, useWallet, wallet } from '@/features/rewards/wallet';
+import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { NS } from '@/features/pushback/strings';
 import { useDecisionStatus, usePushbackModel, useSendPushback } from '@/features/pushback/usePushback';
 
@@ -41,11 +42,18 @@ export default function PushbackScreen() {
   const me = useMyProfile();
   // ?task=<id> from the task page's "Too busy?": talk about that task
   const { task: taskParam } = useLocalSearchParams<{ task?: string }>();
-  const { model, profileId } = usePushbackModel(lang, taskParam);
+  const { model, profileId, askedId } = usePushbackModel(lang, taskParam);
   const send = useSendPushback();
   const [step, setStep] = useState<Step>('ask');
   const [decisionId, setDecisionId] = useState<string | null>(null);
   const status = useDecisionStatus(decisionId);
+  // already asked about this task: show where that request stands instead of asking again
+  useEffect(() => {
+    if (askedId && !decisionId) {
+      setDecisionId(askedId);
+      setStep('sent');
+    }
+  }, [askedId, decisionId]);
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const BackIcon = isRTL ? ChevronRight : ChevronLeft;
@@ -152,6 +160,7 @@ export default function PushbackScreen() {
             <IconButton variant="glass" label={t('back')} onPress={goBack}>
               <BackIcon color={colors.onDark} size={22} strokeWidth={2} />
             </IconButton>
+            {SHOW_REWARDS && (
             <Pressable
               onPress={() => router.push('/25-employee-home')}
               accessibilityRole="button"
@@ -175,6 +184,7 @@ export default function PushbackScreen() {
                 {`${t('level', { n: n(LEVEL) })}${n(balance)} ${t('pts')}`}
               </AppText>
             </Pressable>
+            )}
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md }}>
             <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
@@ -383,6 +393,7 @@ export default function PushbackScreen() {
                   </AppText>
                 </View>
               </Card>
+              {SHOW_REWARDS && (
               <View
                 style={{
                   alignSelf: 'flex-start',
@@ -401,6 +412,7 @@ export default function PushbackScreen() {
                   {`+${n(FLAG_POINTS)} ${t('flagged')}`}
                 </AppText>
               </View>
+              )}
               <Button label={t('done')} variant="outline" size="md" onPress={goBack} />
             </View>
           )}
