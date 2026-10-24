@@ -17,6 +17,11 @@ export const BACKLOG: BacklogSection[] = [
         "detail": "Google Cloud → enable Google Meet REST API; reconnect Google in the app (\"Allow\" on the Meet line); Workspace plan with transcripts; host turns on Transcripts / Take notes with Gemini. Test end to end. · Built and deployed"
       },
       {
+        "id": "1.2b",
+        "title": "Google Chat → tasks",
+        "detail": "Google Cloud → enable Google Chat API; its Configuration tab: app name \"Muntej\", avatar URL, description, uncheck \"Interactive features\", Visibility = your domain, Save. OAuth consent screen → Data access → add chat.spaces.readonly, chat.messages.readonly, chat.memberships.readonly. Then in the app: Connected tools → Google → \"Allow\" on the Chat line. Workspace accounts only. Test end to end. · Built and deployed"
+      },
+      {
         "id": "1.3",
         "title": "Google sign-in for everyone",
         "detail": "Google Cloud → Branding: add authorized domain muntej.app, Save → Audience: Publish app. Later: Google verification (Gmail is a restricted scope → security assessment) to remove the \"unverified app\" warning and the 100-user cap. In test mode refresh tokens expire every 7 days. · Done in code"
@@ -110,6 +115,16 @@ export const BACKLOG: BacklogSection[] = [
         "id": "3.7",
         "title": "Reset onboarding / screen tips on the test accounts (salsabilsamir@gmail.com, sales@nizamy.app) to try the new guide",
         "detail": ""
+      },
+      {
+        "id": "3.8",
+        "title": "Saree3's guided walkthrough on Home, Tasks, Tasks from email, task page, Team, Decisions (highlight lines up with the element; \"Show me how\" demos; \"Teach me this page\")",
+        "detail": ""
+      },
+      {
+        "id": "3.9",
+        "title": "Notification background is drawn by Android (dark in dark mode): only the icon and name color are ours (Muntej purple, in the new build)",
+        "detail": ""
       }
     ]
   },
@@ -123,7 +138,7 @@ export const BACKLOG: BacklogSection[] = [
       },
       {
         "id": "4.2",
-        "title": "Rename \"Tasks from email\" now that WhatsApp and Meet tasks land there too (e.g. \"Incoming tasks\")",
+        "title": "~~Rename \"Tasks from email\"~~ done: \"Tasks from your tools\" (24 Oct)",
         "detail": ""
       },
       {
