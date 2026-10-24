@@ -34,18 +34,18 @@ export function useResolveDecision() {
         // a task nobody owned (draft) becomes a real assignment once it has an owner
         check(await supabase.from('tasks').update({ status: 'assigned' }).eq('id', d.task_id).eq('status', 'draft'));
       }
-      // "give more time" (Muntej's late-work decision carries the new date): approving moves the due date
-      const newDue = jsonStr(d.details, 'new_due_at');
-      if (outcome === 'approved' && !moveTo && d.task_id && newDue) {
-        check(await supabase.from('tasks').update({ due_at: newDue, expected_close_at: newDue }).eq('id', d.task_id));
-      }
-
       check(
         await supabase
           .from('decisions')
           .update({ status: outcome, resolved_by: meId, resolved_at: now })
           .eq('id', d.id),
       );
+      // "give more time" (the decision carries the new date): approving moves the due date. After the decision is
+      // saved: the server then moves the task's waiting reminders by the same amount and tells the person who asked
+      const newDue = jsonStr(d.details, 'new_due_at');
+      if (outcome === 'approved' && !moveTo && d.task_id && newDue) {
+        check(await supabase.from('tasks').update({ due_at: newDue, expected_close_at: newDue }).eq('id', d.task_id));
+      }
 
       const tEn = (k: string, o: Record<string, string>) => i18n.t(`${NS}.log.${k}`, { ...o, lng: 'en' });
       const tAr = (k: string, o: Record<string, string>) => i18n.t(`${NS}.log.${k}`, { ...o, lng: 'ar' });

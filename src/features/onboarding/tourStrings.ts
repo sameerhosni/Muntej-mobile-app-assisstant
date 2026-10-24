@@ -16,6 +16,8 @@ const en = {
   // items
   t_profile: 'Your name and company',
   w_profile: 'Your team sees your name on every task, and the company name on every invitation.',
+  t_sector: 'Your field of work',
+  w_sector: 'I connect to dozens of tools. Tell me your field and I’ll show the ones you use first.',
   p_profile: 'I set you up as {{name}} at {{company}}. Right?',
   p_profileMember: 'Your team added you as {{name}}. Is that right?',
   yes: 'Yes, that’s right',
@@ -90,6 +92,8 @@ const ar: typeof en & Record<string, string> = {
   goHome: 'وديني للرئيسية',
   t_profile: 'اسمك واسم شركتك',
   w_profile: 'فريقك يشوف اسمك على كل مهمة، واسم الشركة على كل دعوة.',
+  t_sector: 'مجال شغلك',
+  w_sector: 'أرتبط بأدوات كثيرة. قل لي مجالك وأحط لك الأدوات اللي تستخدمها أول شي.',
   p_profile: 'سجلتك {{name}} في {{company}}. صح؟',
   p_profileMember: 'فريقك أضافك باسم {{name}}. صح؟',
   yes: 'إيه صح',

@@ -26,7 +26,8 @@ export type AlertKind =
   | 'no_reply'
   | 'escalated'
   | 'tool_sync'
-  | 'new_feature';
+  | 'new_feature'
+  | 'request_answered';
 
 export type AlertItem = {
   id: string;

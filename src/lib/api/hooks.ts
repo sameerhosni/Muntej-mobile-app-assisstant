@@ -104,14 +104,20 @@ export function useTask(id: string | undefined) {
 }
 
 export function useDecisions(status?: DecisionStatus) {
+  const me = useMyProfile();
+  const meId = me.data?.id;
   return useQuery({
-    queryKey: qk.decisions(status),
+    queryKey: [...qk.decisions(status), meId],
+    enabled: !!meId,
     queryFn: async (): Promise<DecisionWithContext[]> => {
+      // only decisions that are yours to make: the person who asked can read their own request (to see its answer),
+      // but never gets it as a decision with Approve / Decline
       let q = supabase
         .from('decisions')
         .select(
           '*, task:tasks(id, title, due_at), requester:profiles!decisions_requested_by_fkey(id, full_name, full_name_ar)',
         )
+        .eq('manager_id', meId!)
         .order('created_at', { ascending: false });
       if (status) q = q.eq('status', status);
       return unwrap(await q) as unknown as DecisionWithContext[];

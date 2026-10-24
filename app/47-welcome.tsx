@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   BellRing,
+  Briefcase,
   Building2,
   Check,
   GraduationCap,
@@ -27,6 +28,7 @@ import {
   type LucideProps,
 } from 'lucide-react-native';
 import { AppText, Button } from '@/components/ui';
+import { SectorPicker } from '@/features/sectors/SectorPicker';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -47,6 +49,7 @@ import { TOUR_NS } from '@/features/onboarding/tourStrings';
 type T = (k: string, o?: Record<string, unknown>) => string;
 const ICON: Record<SetupKey, ComponentType<LucideProps>> = {
   profile: Building2,
+  sector: Briefcase,
   team: Users,
   structure: Network,
   email: Mail,
@@ -56,6 +59,7 @@ const ICON: Record<SetupKey, ComponentType<LucideProps>> = {
 };
 /** "Teach me": the screen where it lives (its one-time tip explains it there) */
 const TEACH: Partial<Record<SetupKey, Href>> = {
+  sector: '/12-sources',
   team: '/48-invite',
   structure: '/39-team',
   email: '/42-incoming',
@@ -232,6 +236,8 @@ function Step({ k, t, setup, onDone }: { k: SetupKey; t: T; setup: Setup; onDone
   switch (k) {
     case 'profile':
       return <ProfileStep t={t} setup={setup} onDone={onDone} />;
+    case 'sector':
+      return <SectorPicker showAsk={false} onPicked={() => onDone()} />;
     case 'team':
       return <TeamStep t={t} setup={setup} onDone={onDone} />;
     case 'structure':

@@ -32,6 +32,7 @@ import { NS as INCOMING_NS } from '@/features/incoming/strings';
 import { MORE_NS } from '@/features/more/strings';
 import { MySteps } from '@/features/steps/MySteps';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
+import { MyRequests } from '@/features/home/MyRequests';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
 
 const HOME_STEPS = [
@@ -126,6 +127,8 @@ export default function EmployeeHome() {
           <TourTarget id="home.confirm">
             <ConfirmNew />
           </TourTarget>
+          {/* what you asked for (more time, help, which first) and the answer */}
+          <MyRequests />
           <TourTarget id="home.from">
             <FromSaree3 />
           </TourTarget>

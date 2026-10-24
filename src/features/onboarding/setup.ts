@@ -8,8 +8,9 @@ import { useMyAccounts } from '@/features/accounts/api';
 import { useConnections } from '@/features/sources/connections';
 import { usePushStatus } from '@/features/notifications/push';
 import { useOnboarding } from './api';
+import { useMySector } from '@/features/sectors/sectors';
 
-export type SetupKey = 'profile' | 'team' | 'structure' | 'email' | 'notify' | 'task' | 'checkin';
+export type SetupKey = 'profile' | 'sector' | 'team' | 'structure' | 'email' | 'notify' | 'task' | 'checkin';
 export type SetupItem = { key: SetupKey; done: boolean };
 
 export function useSetup() {
@@ -20,6 +21,7 @@ export function useSetup() {
   const accounts = useMyAccounts();
   const connections = useConnections();
   const push = usePushStatus();
+  const sector = useMySector();
 
   const ready = !!me.data && row.isFetched && !!team.data && !!tasks.data && !!connections.data;
   const member = (row.data as { kind?: string } | null | undefined)?.kind === 'member';
@@ -32,12 +34,14 @@ export function useSetup() {
   const items: SetupItem[] = member
     ? [
         { key: 'profile', done: profileDone },
+        { key: 'sector', done: !!sector },
         { key: 'notify', done: notifyOn },
         { key: 'checkin', done: !!row.data?.demo_seen },
         { key: 'email', done: emailOn },
       ]
     : [
         { key: 'profile', done: profileDone },
+        { key: 'sector', done: !!sector },
         { key: 'team', done: others.length > 0 },
         // only once there are 2+ teammates is "who reports to whom" a question
         ...(others.length >= 2 ? [{ key: 'structure' as const, done: others.every((p) => !!p.manager_id || p.role === 'admin') }] : []),

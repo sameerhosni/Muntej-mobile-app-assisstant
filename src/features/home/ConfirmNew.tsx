@@ -98,6 +98,7 @@ export function ConfirmNew() {
     setNote('');
     setSaid(reply === 'got_it' ? t('saidGotIt') : t(reply === 'need_time' ? 'saidTime' : 'saidHelp', { name: boss }));
     invalidateTaskData(qc);
+    qc.invalidateQueries({ queryKey: ['myRequests'] });
   };
 
   return (

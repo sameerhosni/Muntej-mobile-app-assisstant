@@ -23,7 +23,8 @@ export type AlertKind =
   | 'no_reply'
   | 'escalated'
   | 'tool_sync'
-  | 'new_feature';
+  | 'new_feature'
+  | 'request_answered';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -46,6 +47,8 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   tool_sync: null,
   // "New in Muntej" — once per feature per person, only if they never saw it in the app
   new_feature: null,
+  // your manager answered what you asked (more time, which first, help)
+  request_answered: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
@@ -53,6 +56,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
 // the next morning brief (whatsapp_status 'batched').
 export const EXCEPTION_KINDS = new Set<AlertKind>([
   'task_assigned',
+  'request_answered',
   'new_submission',
   'decision_waiting',
   'escalated',

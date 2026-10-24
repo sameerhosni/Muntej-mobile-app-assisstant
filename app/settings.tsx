@@ -1,6 +1,7 @@
 // Screen · Settings — profile, language, sign out, all-screens dev index; no mockup, v2 style per design/TOKENS.md
 // The prototype tour, the all-screens list and the Manager/Employee "View as" switch are for admins only.
 import { Pressable, View } from 'react-native';
+import { SectorSetting } from '@/features/sectors/SectorPicker';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
@@ -210,6 +211,9 @@ export default function SettingsScreen() {
           </View>
         </Card>
       )}
+
+      {/* your field of work: which tools come first on Connect your tools */}
+      <SectorSetting />
 
       {/* every deeper screen in one place (screen 44) */}
       <Card

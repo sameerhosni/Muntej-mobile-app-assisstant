@@ -26,6 +26,7 @@ import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
 import { MuntejHandling, TeamPulse } from '@/features/home/TodayHome';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
+import { MyRequests } from '@/features/home/MyRequests';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { NS } from '@/features/home/strings';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
@@ -96,6 +97,8 @@ export default function ManagerHome() {
           <TourTarget id="home.confirm">
             <ConfirmNew />
           </TourTarget>
+          {/* what you asked for (more time, help, which first) and the answer */}
+          <MyRequests />
           {/* what happened since your last visit and what Saree3 did about it */}
           <TourTarget id="home.from">
             <FromSaree3 />
