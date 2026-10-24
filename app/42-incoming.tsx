@@ -1,6 +1,7 @@
-// Screen 42 · Tasks from email (Incoming) — no mockup; v2 light style per design/TOKENS.md
-// Your email first: connect Gmail / Outlook right here (their own sign-in, nothing to set up); opening the screen
-// reads the new mail, and every task found waits below with Add task / Edit / Ignore. Pasting a message (WhatsApp,
+// Screen 42 · Your tools (Incoming) — no mockup; v2 light style per design/TOKENS.md
+// One place for every connected tool: a card each (last read, found today, next read, Read now, How often?), then
+// the tasks found, filtered by tool, each waiting with Add task / Edit / Ignore. No email yet: connect Gmail /
+// Outlook right here. Pasting a message (WhatsApp,
 // notes) is folded at the bottom; ?text= (muntej://42-incoming?text=…) opens it pre-filled. Other tools: Sources.
 // Data: src/features/incoming/api.ts.
 import { SetupBar } from '@/features/onboarding/SetupBar';
@@ -21,7 +22,8 @@ import { NS } from '@/features/incoming/strings';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { EmailAccounts } from '@/features/incoming/EmailAccounts';
-import { ToolsGrid } from '@/features/incoming/ToolsGrid';
+import { ToolCards } from '@/features/incoming/ToolCards';
+import { useConnections } from '@/features/sources/connections';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 
@@ -29,6 +31,17 @@ const EMAIL_STEPS = [
   { target: 'email.connect', key: 'emailConnect' },
   { target: 'email.add', key: 'emailAdd', demo: 'add' as const },
 ];
+
+const GROUPS = ['all', 'email', 'chat', 'meetings', 'work', 'pasted'] as const;
+type Group = (typeof GROUPS)[number];
+/** which tool family an incoming item came from */
+function groupOf(source: string): Group {
+  if (['gmail', 'outlook', 'email'].includes(source)) return 'email';
+  if (['google_chat', 'teams', 'slack', 'whatsapp'].includes(source)) return 'chat';
+  if (['meet', 'meeting', 'calendar'].includes(source)) return 'meetings';
+  if (['paste', 'share'].includes(source)) return 'pasted';
+  return 'work';
+}
 
 export default function IncomingScreen() {
   const { t } = useScreenT(NS);
@@ -47,6 +60,10 @@ export default function IncomingScreen() {
   const [note, setNote] = useState<string | null>(null);
   // the paste box stays folded unless something was shared in
   const [pasteOpen, setPasteOpen] = useState(false);
+  const conns = useConnections();
+  const hasEmail = (conns.data ?? []).some((c) => c.provider === 'google' || c.provider === 'microsoft');
+  // results by tool
+  const [group, setGroup] = useState<Group>('all');
 
   useEffect(() => {
     if (typeof params.text === 'string' && params.text) {
@@ -74,7 +91,9 @@ export default function IncomingScreen() {
   };
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  const items = (pages.data?.pages ?? []).flat();
+  const all = (pages.data?.pages ?? []).flat();
+  const groupsHere = GROUPS.filter((g) => g === 'all' || all.some((it) => groupOf(it.source) === g));
+  const items = group === 'all' ? all : all.filter((it) => groupOf(it.source) === group);
   const waiting = (incoming.data ?? []).reduce((n, it) => n + it.suggestions.filter((s) => s.state === 'new').length, 0);
 
   return (
@@ -95,9 +114,21 @@ export default function IncomingScreen() {
         <AppText color="textMuted">{t('subtitle')}</AppText>
         {/* your email, connected right here; opening the screen reads it, the found tasks wait below for an OK */}
         <SetupBar />
+        {/* every connected tool: when I read it, what it brought, Read now, How often? (no email yet: connect it here) */}
         <TourTarget id="email.connect">
-          <EmailAccounts />
+          <View style={{ gap: spacing.md }}>
+            <ToolCards />
+            {!hasEmail && <EmailAccounts />}
+          </View>
         </TourTarget>
+        {/* the tasks found, by tool */}
+        {groupsHere.length > 2 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+            {groupsHere.map((g) => (
+              <Chip key={g} label={t(`g_${g}`)} selected={group === g} onPress={() => setGroup(g)} />
+            ))}
+          </ScrollView>
+        )}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <AppText weight="bold" color="primary" style={{ flex: 1 }}>
             {waiting > 0 ? t('waiting', { count: waiting, n: waiting }) : ''}
@@ -206,7 +237,17 @@ export default function IncomingScreen() {
 
         {/* other tools (Outlook, WhatsApp, Jira, ClickUp…) bring their tasks here too: a grid with each one's state */}
         <TourTarget id="email.tools">
-          <ToolsGrid />
+          <Card onPress={() => router.push('/12-sources')} accessibilityLabel={t('connectMore')} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <IconBadge size={40} bg="greenTint" round>
+              <Plug color={colors.green} size={18} strokeWidth={2} />
+            </IconBadge>
+            <View style={{ flex: 1, gap: 2 }}>
+              <AppText weight="bold">{t('connectMore')}</AppText>
+              <AppText variant="caption" color="textMuted">
+                {t('connectMoreSub')}
+              </AppText>
+            </View>
+          </Card>
         </TourTarget>
       </ScrollView>
     </SafeAreaView>

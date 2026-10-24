@@ -27,6 +27,8 @@ export type Connection = {
   export_target: { id: string; name: string; since?: string } | null;
   /** what this account may read (Google: gmail / calendar / meet; missing = on) */
   features: Record<string, boolean>;
+  /** how often Saree3 reads it, in minutes (0 = only when you tap "Read now") */
+  read_every_min: number;
   /** the tool's own bookkeeping; Google's meet_ok = this sign-in allowed Google Meet */
   cursor: Record<string, unknown> | null;
 };
@@ -102,16 +104,18 @@ export function useConnectionActions() {
     /** the two switches and where tasks go */
     settings: async (
       provider: ProviderId,
-      patch: { import_on?: boolean; export_on?: boolean; export_target?: Target | null; features?: Record<string, boolean> },
+      patch: { import_on?: boolean; export_on?: boolean; export_target?: Target | null; features?: Record<string, boolean>; read_every_min?: number },
       id?: string,
     ) => {
       await call({ action: 'settings', provider, id, ...patch });
       await refresh();
     },
-    syncNow: async (provider: ProviderId) => {
+    /** read now: one account (id) or every account of that tool */
+    syncNow: async (provider: ProviderId, id?: string) => {
       const r = await call<{ read: number; tasks: number; sent: number; closedHere: number; closedThere: number; updated: number; error?: string }>({
         action: 'sync',
         provider,
+        id,
       });
       await refresh();
       await qc.invalidateQueries({ queryKey: ['incoming'] });

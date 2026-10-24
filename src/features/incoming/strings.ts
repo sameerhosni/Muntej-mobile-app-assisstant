@@ -2,9 +2,17 @@ import { registerStrings } from '@/lib/i18n/register';
 
 // Screen 42 Incoming + the Home row / shortcut.
 const en = {
-  title: 'Tasks from your tools',
+  title: 'Your tools',
   back: 'Back',
-  subtitle: 'Muntej reads your new email and pulls the tasks out. You OK each one.',
+  subtitle: 'Every tool you connected, what I found in each, and how often I read it. You OK each task.',
+  g_all: 'All',
+  g_email: 'Email',
+  g_chat: 'Chats',
+  g_meetings: 'Meetings',
+  g_work: 'Work tools',
+  g_pasted: 'Pasted',
+  connectMore: 'Connect another tool',
+  connectMoreSub: 'Your field’s tools first, the rest one tap away',
   connectTools: 'Other tools: Teams, Jira, ClickUp, Trello…',
   pasteLabel: 'Or paste a message (WhatsApp, notes…)',
   pasteOpen: 'Paste a message instead',
@@ -46,7 +54,7 @@ const en = {
   sameMessage: 'You already sent this message. It is below.',
   error: "Couldn't read that. Try again.",
   loadError: "Couldn't load your incoming messages.",
-  empty: 'Nothing waiting. New tasks from your email show up here for your OK.',
+  empty: 'Nothing waiting. New tasks from your tools show up here for your OK.',
   src_paste: 'Pasted',
   src_share: 'Shared',
   src_email: 'Email',
@@ -104,13 +112,21 @@ const en = {
   homeRow_one: '{{n}} task found in your tools',
   homeRow_other: '{{n}} tasks found in your tools',
   homeSub: 'Add or ignore with one tap',
-  shortcut: 'Tasks from your tools',
+  shortcut: 'Your tools',
 };
 
 const ar: typeof en & Record<string, string> = {
-  title: 'مهام من أدواتك',
+  title: 'أدواتك',
   back: 'رجوع',
-  subtitle: 'منتج يقرا إيميلاتك الجديدة ويطلّع منها المهام. وأنت توافق على كل وحدة.',
+  subtitle: 'كل أداة ربطتها، وش لقيت في كل وحدة، وكل كم أقراها. وأنت توافق على كل مهمة.',
+  g_all: 'الكل',
+  g_email: 'الإيميل',
+  g_chat: 'المحادثات',
+  g_meetings: 'الاجتماعات',
+  g_work: 'أدوات العمل',
+  g_pasted: 'اللي لصقتها',
+  connectMore: 'اربط أداة ثانية',
+  connectMoreSub: 'أدوات مجالك أول شي، والباقي بضغطة',
   connectTools: 'أدوات ثانية: تيمز، جيرا، كليك أب، تريلو…',
   pasteLabel: 'أو الصق رسالة (واتساب، ملاحظات…)',
   pasteOpen: 'الصق رسالة بدال كذا',
@@ -162,7 +178,7 @@ const ar: typeof en & Record<string, string> = {
   sameMessage: 'هالرسالة أرسلتها قبل. تلقاها تحت.',
   error: 'ما قدرت أقراها. جرّب مرة ثانية.',
   loadError: 'ما قدرنا نجيب الوارد.',
-  empty: 'ما فيه شي ينتظر. المهام الجديدة من إيميلك تطلع هنا توافق عليها.',
+  empty: 'ما فيه شي ينتظر. المهام الجديدة من أدواتك تطلع هنا توافق عليها.',
   src_paste: 'ملصوقة',
   src_share: 'مشاركة',
   src_email: 'إيميل',
@@ -219,7 +235,7 @@ const ar: typeof en & Record<string, string> = {
   homeRow_one: 'لقيت {{n}} مهمة في أدواتك',
   homeRow_other: 'لقيت {{n}} مهام في أدواتك',
   homeSub: 'أضفها أو تجاهلها بضغطة',
-  shortcut: 'مهام من أدواتك',
+  shortcut: 'أدواتك',
 };
 
 export const NS = registerStrings('s42', { en, ar });

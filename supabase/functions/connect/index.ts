@@ -164,6 +164,9 @@ serve(async (req) => {
           patch.export_target = { ...tgt, since: new Date().toISOString() };
         }
       }
+      // how often Saree3 reads this tool (minutes; 0 = only when you tap "Read now")
+      const every = (body as { read_every_min?: unknown }).read_every_min;
+      if (typeof every === 'number' && [0, 10, 30, 60, 180, 1440].includes(every)) patch.read_every_min = every;
       // one account's switches (Google: gmail / calendar / meet), merged into what it has
       const f = (body as { features?: Record<string, unknown> }).features;
       if (f && body.id) {
