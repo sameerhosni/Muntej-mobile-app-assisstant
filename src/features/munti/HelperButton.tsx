@@ -300,10 +300,12 @@ export function HelperButton() {
   const [dragging, setDragging] = useState(false);
   const [overBin, setOverBin] = useState(false);
   const binY = screenH - fabBottom - BIN / 2 - spacing.xxl;
-  const nearBin = (x: number, y: number) => Math.hypot(x - screenW / 2, y - binY) < BIN;
   const talking = useRef(false);
-  const geo = useRef({ baseLeft, top, minTop, maxTop, screenW });
-  geo.current = { baseLeft, top, minTop, maxTop, screenW };
+  // the pan handler is made once: it reads where things are NOW from this ref (the ✕ moves with the tab bar / screen)
+  const geo = useRef({ baseLeft, top, minTop, maxTop, screenW, binY, hide: () => {} });
+  geo.current = { baseLeft, top, minTop, maxTop, screenW, binY, hide: () => hide() };
+  // a generous drop zone: anywhere on or around the ✕ counts
+  const nearBin = (x: number, y: number) => Math.hypot(x - geo.current.screenW / 2, y - geo.current.binY) < BIN * 1.3;
   const responder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) => !talking.current && Math.hypot(g.dx, g.dy) > 6,
@@ -319,7 +321,7 @@ export function HelperButton() {
         setDragging(false);
         setOverBin(false);
         pan.setValue({ x: 0, y: 0 });
-        if (nearBin(g.moveX, g.moveY)) return hide();
+        if (nearBin(g.moveX, g.moveY)) return geo.current.hide();
         const c = geo.current;
         const centerX = c.baseLeft + g.dx + FAB / 2;
         const nextTop = Math.min(c.maxTop, Math.max(c.minTop, c.top + g.dy));

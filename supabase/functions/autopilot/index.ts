@@ -94,15 +94,17 @@ const whenText = (iso: string | number, ar: boolean) =>
 // ─── messages ─────────────────────────────────────────────────────────────────
 
 function chaseText(n: number, title: string, due: string, managerFirst: string, managerFirstAr: string) {
+  // the task's title is the notification's title: the text doesn't repeat it
+  void title;
   const en = [
-    `"${title}" was due ${whenText(due, false)}. Is it done? If you need more time, tell me the new date and I'll update it.`,
-    `Checking again on "${title}". What's holding it up? Reply with a date or what you need, and I'll sort it.`,
-    `Last reminder on "${title}". If I don't hear back, I'll ask ${managerFirst || 'your manager'} to decide what to do with it.`,
+    `⏰ This was due ${whenText(due, false)}. Done? Need more time? Tell me the new date and I'll handle it 🙌`,
+    `🕵️ Checking in again: what's holding it up? Reply with a date or what you need, and I'll sort it.`,
+    `🚨 Last reminder from me. No reply and I'll ask ${managerFirst || 'your manager'} to decide what to do with it.`,
   ];
   const ar = [
-    `«${title}» كان موعدها ${whenText(due, true)}. خلصت؟ لو تحتاج وقت زيادة قل لي الموعد الجديد وأنا أعدّله.`,
-    `أرجع أسأل عن «${title}». وش موقفها؟ رد بموعد أو باللي تحتاجه وأنا أتصرف.`,
-    `آخر تذكير عن «${title}». لو ما رديت، بطلب من ${managerFirstAr || 'مديرك'} يقرر وش نسوي فيها.`,
+    `⏰ كان موعدها ${whenText(due, true)}. خلصت؟ تحتاج وقت زيادة؟ قل لي الموعد الجديد وأنا أتصرف 🙌`,
+    `🕵️ أرجع أسأل: وش موقفها؟ رد بموعد أو باللي تحتاجه وأنا أدبّره.`,
+    `🚨 آخر تذكير مني. لو ما رديت، بطلب من ${managerFirstAr || 'مديرك'} يقرر وش نسوي فيها.`,
   ];
   const i = Math.min(n, 2);
   return { message: en[i], message_ar: ar[i] };

@@ -117,9 +117,19 @@ serve(async (req) => {
       continue;
     }
     if (checkin && unconfirmed) {
-      const chase = ar
-        ? `📬 ${first}، لسا ما أكدت استلام «${task.title}». كل شي واضح؟ اضغط استلمت، أو قل لي لو تحتاج وقت أو مساعدة`
-        : `📬 ${first}, you haven't confirmed "${task.title}" yet. All clear? Tap Got it, or tell me if you need time or help`;
+      // the title is the notification's title: the text doesn't repeat it, and isn't the same line every time
+      const lines = ar
+        ? [
+            `📬 ${first}، لسا ما أكدت استلامها. كل شي واضح؟ اضغط "استلمت"، أو قل لي لو تحتاج وقت أو مساعدة`,
+            `🚪 ${first}، طق طق… استلمتها؟ ضغطة وحدة وأكمل عنك`,
+            `🙋‍♂️ ${first}، أنتظر ردك على هالمهمة: استلمت، أحتاج وقت، أو أحتاج مساعدة؟`,
+          ]
+        : [
+            `📬 ${first}, you haven't confirmed it yet. All clear? Tap "Got it", or tell me if you need time or help`,
+            `🚪 ${first}, knock knock… got it? One tap and I take it from there`,
+            `🙋‍♂️ ${first}, waiting on you here: got it, need time, or need help?`,
+          ];
+      const chase = lines[Math.floor(Math.random() * lines.length)];
       const { count: chased } = await admin
         .from('activity_log')
         .select('id', { count: 'exact', head: true })
