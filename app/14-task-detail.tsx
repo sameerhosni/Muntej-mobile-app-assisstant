@@ -17,6 +17,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
 import { ReviewBar } from '@/features/review/ReviewBar';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { FromTag } from '@/features/tasks/FromTag';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { ProofSection } from '@/features/proof/ProofSection';
 import { PlanAndHelp } from '@/features/task-detail/PlanAndHelp';
@@ -233,6 +234,10 @@ export default function TaskDetailScreen() {
             </View>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {/* who gave it, same style as the task lists */}
+            {live && !!d?.assigner_id && d.assigner_id !== d.owner_id && (
+              <FromTag name={d.assigner_id === me.data?.id ? null : assignerName} you={d.assigner_id === me.data?.id} />
+            )}
             <MetaChip
               bg="purpleTint"
               fg="purpleText"

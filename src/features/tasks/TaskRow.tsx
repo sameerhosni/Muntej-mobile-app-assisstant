@@ -3,6 +3,7 @@
 //   one line: "Faisal · Thu 22 Oct"  |  red "Late · was due Mon 19 Oct"  |  green "Done ✓ · Ahmed will take a look"
 //   a small red dot before the title = urgent / high priority
 import { ActivityIndicator, Pressable, View } from 'react-native';
+import { FromTag } from './FromTag';
 import { router } from 'expo-router';
 import { Check, ChevronRight } from 'lucide-react-native';
 import { AppText, Card } from '@/components/ui';
@@ -35,6 +36,18 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
   const reviewerId = mineWaiting ? (task.assigner_id !== me.data?.id ? task.assigner_id : me.data?.manager_id) : null;
   const reviewer = reviewerId ? (team.data ?? []).find((x) => x.id === reviewerId) : undefined;
   const reviewerName = reviewer ? ((lang === 'ar' && reviewer.full_name_ar) || reviewer.full_name).split(' ')[0] : null;
+
+  // who gave it: someone else → "From Sameer"; you gave it to someone → "From you"; your own note → nothing
+  const assigner = (team.data ?? []).find((x) => x.id === task.assigner_id);
+  const fromYou = !!me.data && task.assigner_id === me.data.id && task.owner_id !== me.data.id;
+  const fromName: string | null | undefined =
+    task.assigner_id && task.assigner_id !== task.owner_id
+      ? fromYou
+        ? null
+        : assigner
+          ? ((lang === 'ar' && assigner.full_name_ar) || assigner.full_name).split(' ')[0]
+          : undefined
+      : undefined;
 
   // the one line under the title
   const due = task.due_at ? formatDue(task.due_at, lang) : null;
@@ -126,6 +139,7 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
               </View>
             )}
           </View>
+          {fromName !== undefined && <FromTag name={fromName} you={fromYou} />}
           <AppText variant="caption" weight={late || mineWaiting ? 'semibold' : 'regular'} color={lineColor} numberOfLines={1}>
             {line}
           </AppText>

@@ -25,6 +25,7 @@ import { EmailAccounts } from '@/features/incoming/EmailAccounts';
 import { ToolCards } from '@/features/incoming/ToolCards';
 import { useConnections } from '@/features/sources/connections';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { FromTag } from '@/features/tasks/FromTag';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 
 const EMAIL_STEPS = [
@@ -300,6 +301,7 @@ function ItemCard({ item }: { item: IncomingItem }) {
           <SuggestionRow
             key={i}
             s={s}
+            from={item.sender}
             busy={busy === `s${i}`}
             onAccept={(edit) => run(`s${i}`, () => actions.accept(item.id, i, edit))}
             onIgnore={() => run(`s${i}`, () => actions.ignore(item.id, i))}
@@ -342,11 +344,14 @@ function ItemCard({ item }: { item: IncomingItem }) {
 
 function SuggestionRow({
   s,
+  from,
   busy,
   onAccept,
   onIgnore,
 }: {
   s: Suggestion;
+  /** the message's sender, when Saree3 didn't name who asked */
+  from?: string | null;
   busy: boolean;
   onAccept: (edit?: SuggestionEdit) => void;
   onIgnore: () => void;
@@ -380,6 +385,8 @@ function SuggestionRow({
       >
         {s.title}
       </AppText>
+      {/* who asked for it, in the same "From" style as every task */}
+      <FromTag name={s.requested_by ?? from ?? null} />
       {/* who · when · how urgent · what to send back · budget, as small chips you read at a glance */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         <Chip label={`👤 ${ownerName ?? t('noOwner')}`} />

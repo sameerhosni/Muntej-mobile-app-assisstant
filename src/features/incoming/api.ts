@@ -12,6 +12,8 @@ const untyped = supabase as any;
 export type Suggestion = {
   title: string;
   owner_id: string | null;
+  /** who asked for it (name as written), when Saree3 could tell */
+  requested_by?: string | null;
   due_at: string | null;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   definition_of_done: string | null;

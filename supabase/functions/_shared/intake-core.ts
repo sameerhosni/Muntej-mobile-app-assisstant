@@ -22,6 +22,7 @@ const Found = z.object({
     z.object({
       title: z.string().describe('Short action title, starts with a verb, in the message language'),
       owner_id: z.string().nullable().describe('id from team: who the message means (by name, To/Cc, role or skill), or null'),
+      requested_by: z.string().nullable().describe('who asked for this work: their name as written (the sender, or the person in the chat / meeting who asked), or null'),
       due_at: z.string().nullable().describe('ISO 8601 with +03:00: the date AND time the message gives, or null'),
       priority: z.enum(['low', 'medium', 'high', 'urgent']),
       description: z
@@ -280,6 +281,7 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
             estimate_hours: null,
             confidence: 1,
             quote: (st.link ?? st.description ?? '').slice(0, 200),
+            requested_by: input.sender ?? null,
           },
         ],
       }
@@ -313,6 +315,8 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     return {
       ...t,
       owner_id: owner,
+      // who asked: as Saree3 read it, else whoever sent the message
+      requested_by: t.requested_by?.trim() || input.sender || null,
       due_at: due,
       quote: t.quote.slice(0, 200),
       confidence: Math.max(0, Math.min(1, t.confidence)),
