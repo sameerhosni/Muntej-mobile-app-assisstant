@@ -308,7 +308,8 @@ export const google: Provider = {
           if (!rec.endTime) continue;
           const text = await meetTranscript(t, rec.name);
           meetSeen.push({ end: rec.endTime, chars: text.length });
-          if (text.length < 80) continue; // no transcript (yet), or nothing said
+          // one spoken sentence can be a task ("Faisal, the deck by tomorrow"): only an empty transcript is skipped
+          if (text.trim().length < 15) continue;
           // the meeting's name, organiser and invitees from its Calendar event (matched by the Meet code), so Saree3
           // knows who assigned what and to whom
           const ev = await meetEvent(t, rec).catch(() => null);
