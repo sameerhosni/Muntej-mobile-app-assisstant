@@ -13,6 +13,18 @@ export type PushMessage = {
   image?: string | null;
 };
 
+const ARABIC = /[؀-ۿ]/;
+const RLM = '‏';
+/** Arabic text reads right to left even when a line starts with a Latin name ("Sameer: عدّلت…"): the phone takes a
+ *  line's direction from its first letter, so each line starts with a right-to-left mark */
+export function rtlSafe(text: string): string {
+  if (!ARABIC.test(text)) return text;
+  return text
+    .split('\n')
+    .map((l) => (l.startsWith(RLM) ? l : RLM + l))
+    .join('\n');
+}
+
 /** Service-role client: push tokens are private to their owners, so only the server may read other people's. */
 export function adminClient(): SupabaseClient {
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? requireEnv('SUPABASE_SECRET_KEY');
@@ -47,8 +59,8 @@ export async function sendPush(profileIds: string[], msg: PushMessage, admin = a
       body: JSON.stringify(
         batch.map((to) => ({
           to,
-          title: msg.title,
-          body: msg.body,
+          title: rtlSafe(msg.title),
+          body: rtlSafe(msg.body),
           data: msg.data ?? {},
           sound: 'default',
           channelId: 'muntej',

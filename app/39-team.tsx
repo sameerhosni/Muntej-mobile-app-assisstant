@@ -31,6 +31,7 @@ import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { PersonSheet } from '@/features/org/PersonSheet';
 import { PersonForm, type FormMode } from '@/features/org/PersonForm';
+import { QuickAdd } from '@/features/invite/QuickAdd';
 import { Munti } from '@/features/munti/Munti';
 import { MUNTI_NS } from '@/features/munti/tips';
 import { NS } from '@/features/org/strings';
@@ -295,9 +296,16 @@ export default function TeamScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {form ? (
+              {form?.kind === 'add' ? (
+                // adding: one box (email, or name + email, several at once) + role + reports to
+                <QuickAdd
+                  key={`add-${form.managerId ?? 'top'}`}
+                  managerId={form.managerId}
+                  onDone={(id) => setSelectedId(id)}
+                />
+              ) : form ? (
                 <PersonForm
-                  key={form.kind === 'edit' ? `edit-${form.person.id}` : `add-${form.managerId ?? 'top'}`}
+                  key={`edit-${form.person.id}`}
                   mode={form}
                   me={me}
                   people={people}

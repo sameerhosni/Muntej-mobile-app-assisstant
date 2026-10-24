@@ -20,6 +20,7 @@ import { isNewFor, useMyFeatureStates } from '@/features/launch/launch';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
 import { AutoApproveTag } from '@/features/review/ReviewBar';
 import { useProofGaps, useReviewDeadlines } from '@/features/review/countdown';
+import { useResolveDecision } from '@/features/decisions/useResolveDecision';
 
 /** Saree3's one-sentence status, in his colour, for the Home header. Tap → the tasks it names. */
 export function SareeLine({ onDark = true }: { onDark?: boolean }) {
@@ -87,6 +88,7 @@ export function NeedsYou() {
   const tasks = useTasks();
   const decisions = useDecisions('pending');
   const { approve } = useTodayActions();
+  const resolve = useResolveDecision();
   const { t: ti } = useScreenT(INCOMING_NS);
   const incoming = useIncomingCount();
   const reviewIds = (tasks.data ?? []).filter((x) => x.status === 'submitted').map((x) => x.id);
@@ -119,8 +121,21 @@ export function NeedsYou() {
       bg: 'purpleTint' as ColorToken,
       fg: colors.purple,
       title: (ar && d.title_ar) || d.title,
-      sub: t('ny_decision'),
+      // Saree3's suggestion is the answer most of the time: say it, and let "Approve" apply it from Home
+      sub: ((ar && d.recommendation_ar) || d.recommendation) ? `💡 ${(ar && d.recommendation_ar) || d.recommendation}` : t('ny_decision'),
       href: '/04-decisions' as Href,
+      action: meId
+        ? {
+            label: t('approve'),
+            done: t('approved'),
+            tone: 'primary' as const,
+            run: () =>
+              resolve
+                .mutateAsync({ decision: d, outcome: 'approved', meId })
+                .then(() => true)
+                .catch(() => false),
+          }
+        : undefined,
     })),
     ...(tasks.data ?? [])
       .filter((x) => x.status === 'submitted' && x.owner_id !== meId)

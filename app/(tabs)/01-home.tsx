@@ -24,7 +24,7 @@ import { useMyProfile } from '@/lib/api';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
-import { MuntejHandling, TeamPulse } from '@/features/home/TodayHome';
+import { TeamPulse } from '@/features/home/TodayHome';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { MyRequests } from '@/features/home/MyRequests';
 import { Spotlight } from '@/features/launch/Spotlight';
@@ -93,39 +93,31 @@ export default function ManagerHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
           {/* a new account: Saree3's getting-started steps until they're done */}
           <GettingStarted />
-          {/* tasks someone gave you, waiting for your "got it" (Saree3 asks; nothing else to do) */}
-          <TourTarget id="home.confirm">
-            <ConfirmNew />
-          </TourTarget>
-          {/* what you asked for (more time, help, which first) and the answer */}
-          <MyRequests />
-          {/* what happened since your last visit and what Saree3 did about it */}
-          <TourTarget id="home.from">
-            <FromSaree3 />
-          </TourTarget>
 
-          {/* 2. the team at a glance + what Muntej is handling by itself */}
-          <View style={{ gap: spacing.md }}>
-            <Spotlight id="home.pulse">
-              <TeamPulse />
-            </Spotlight>
-            <Spotlight id="home.handling">
-              <MuntejHandling />
-            </Spotlight>
-          </View>
-
-          {/* risks across the team, each with what Saree3 is doing about it */}
-          <TourTarget id="home.risks">
-            <TeamRisks />
-          </TourTarget>
-
-          {/* 3. what needs you, max 3, with one-tap actions */}
+          {/* 1. what needs you, first: decisions (with Saree3's suggestion + Approve) and work waiting for review */}
           <TourTarget id="home.needs">
             <NeedsYou />
           </TourTarget>
 
-          {/* no task lists here: Saree3 follows every task himself and only brings what needs you (owner's position).
-              Your own tasks are on the Tasks tab. */}
+          {/* 2. tasks someone gave you, waiting for your "got it", and what you asked for */}
+          <TourTarget id="home.confirm">
+            <ConfirmNew />
+          </TourTarget>
+          <MyRequests />
+
+          {/* 3. Saree3: what he did since your last visit, and the risks he's watching (with what he's doing) */}
+          <TourTarget id="home.from">
+            <FromSaree3>
+              <TourTarget id="home.risks">
+                <TeamRisks embedded />
+              </TourTarget>
+            </FromSaree3>
+          </TourTarget>
+
+          {/* 4. the team at a glance */}
+          <Spotlight id="home.pulse">
+            <TeamPulse />
+          </Spotlight>
 
           {/* this week's achievements */}
           <TeamWins />

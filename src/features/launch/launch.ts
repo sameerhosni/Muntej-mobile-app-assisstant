@@ -27,7 +27,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   sectors: { href: '/12-sources', spot: 'sources.sector' },
   my_requests: { href: '/25-employee-home' },
   objective_plan: { href: '/40-objectives' },
-  autopilot: { href: '/01-home', spot: 'home.handling' },
+  autopilot: { href: '/03-autopilot' },
   incoming: { href: '/42-incoming', spot: 'email.connect' },
   tools: { href: '/12-sources', spot: 'sources.list' },
   saree3: {},

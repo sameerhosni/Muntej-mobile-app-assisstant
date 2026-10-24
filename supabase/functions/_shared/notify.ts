@@ -331,7 +331,8 @@ export async function deliverPending(
           {
             alerts: list,
             title: ar ? `${list.length} تحديثات من منتج` : `${list.length} updates from Muntej`,
-            body: list.slice(0, 3).map(tTitle).join(' · ') + (list.length > 3 ? ' …' : ''),
+            // one update per line (joined with " · " the directions got mixed)
+            body: list.slice(0, 3).map(tTitle).join('\n') + (list.length > 3 ? '\n…' : ''),
             data: { screen: 'alerts', count: list.length } as Record<string, unknown>,
           },
         ]

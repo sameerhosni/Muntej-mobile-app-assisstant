@@ -38,7 +38,7 @@ function useLastVisit() {
   return last;
 }
 
-export function FromSaree3() {
+export function FromSaree3({ children }: { children?: ReactNode }) {
   const { t } = useScreenT(RADAR_NS);
   const { lang } = useDirection();
   const last = useLastVisit();
@@ -67,9 +67,8 @@ export function FromSaree3() {
       text: t('foundMail', { count: incoming.count, n: incoming.count }),
       href: '/42-incoming',
     });
+  // decisions aren't listed here: "Needs you" sits at the very top of Home
   const need = decisions ?? 0;
-  if (need)
-    lines.push({ icon: <AlertTriangle color={colors.red} size={16} />, text: t('needsYou', { count: need, n: need }), href: '/04-decisions' });
 
   return (
     <Card padding={spacing.lg} style={{ gap: spacing.sm, borderWidth: 1.5, borderColor: colors.purpleBorder }}>
@@ -89,11 +88,13 @@ export function FromSaree3() {
       ) : (
         lines.map((l) => <Line key={l.text} icon={l.icon} text={l.text} href={l.href} />)
       )}
+      {children}
     </Card>
   );
 }
 
-export function TeamRisks() {
+/** embedded: inside Saree3's card on Home (compact rows, no title of its own, nothing when there's no risk) */
+export function TeamRisks({ embedded = false }: { embedded?: boolean }) {
   const { t } = useScreenT(RADAR_NS);
   const { lang } = useDirection();
   const ar = lang === 'ar';
@@ -150,10 +151,13 @@ export function TeamRisks() {
     return out.slice(0, 5);
   }, [tasks.data, me.data, team.data, activity.data, t, lang, ar]);
   if (!rows || me.data?.role === 'employee') return null;
+  if (embedded && !rows.length) return null;
 
   return (
-    <View style={{ gap: spacing.sm }}>
-      <AppText variant="section">{t('risksTitle')}</AppText>
+    <View style={{ gap: spacing.sm, ...(embedded ? { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm } : {}) }}>
+      <AppText variant={embedded ? 'small' : 'section'} weight={embedded ? 'bold' : undefined} color={embedded ? 'textMuted' : undefined}>
+        {embedded ? t('watching') : t('risksTitle')}
+      </AppText>
       {rows.length === 0 ? (
         <Card padding={spacing.lg}>
           <AppText color="textSoft">{t('risksNone')}</AppText>
@@ -168,8 +172,8 @@ export function TeamRisks() {
               flexDirection: 'row',
               alignItems: 'center',
               gap: spacing.md,
-              minHeight: sizes.touch + 12,
-              padding: spacing.md,
+              minHeight: embedded ? sizes.touch : sizes.touch + 12,
+              padding: embedded ? spacing.sm : spacing.md,
               borderRadius: radius.tile,
               backgroundColor: r.tone === 'red' ? colors.redTint : colors.amberTint,
               opacity: pressed ? 0.85 : 1,
@@ -188,8 +192,6 @@ export function TeamRisks() {
           </Pressable>
         ))
       )}
-      {/* progress people report vs the proof behind it (Saree3 checks; you look only if you want) */}
-      <Line icon={<ShieldCheck color={colors.primary} size={16} />} text={t('proofGaps')} href="/10-evidence" />
     </View>
   );
 }
@@ -241,12 +243,13 @@ export function TeamWins() {
       </Card>
       {/* the week in more depth: the receipt (what Saree3 saved you), performance, the wins timeline */}
       <TourTarget id="home.week">
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           {(
             [
               ['weekReceipt', '/32-receipt'],
               ['weekPerformance', '/16-dashboard'],
               ['weekWins', '/21-achievements'],
+              ['weekProof', '/10-evidence'],
             ] as const
           ).map(([k, href]) => (
             <Pressable
@@ -254,7 +257,7 @@ export function TeamWins() {
               onPress={() => router.push(href)}
               accessibilityRole="button"
               style={({ pressed }) => ({
-                flex: 1,
+                width: '48.5%',
                 minHeight: sizes.touch,
                 borderRadius: radius.pill,
                 backgroundColor: colors.surface,
