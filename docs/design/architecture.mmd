@@ -1,0 +1,51 @@
+flowchart TB
+  %% Muntej: the full system on one page (rendered to docs/design/out/Muntej-Architecture.png)
+  PEOPLE["👥 Manager · Employee · Admin"]
+
+  subgraph CLIENT["📱 Mobile app · Expo / React Native"]
+    direction LR
+    HOME["Home<br/>Needs you · From Saree3"]
+    MIC["🎤 Mic + Saree3 chat"]
+    TOOLS["Your tools<br/>Read now · schedules"]
+    TASK["Task page<br/>steps · proof · review"]
+    PUSHH["Push buttons<br/>Got it · Need time · Need help"]
+  end
+
+  subgraph EF["⚙️ Supabase Edge Functions (Deno)"]
+    direction LR
+    CHAT["muntej-chat<br/>transcribe"]
+    INT["intake · connect<br/>sync-sources"]
+    FUP["send-followups · team-alerts<br/>autopilot · daily-summary"]
+    PRF["verify-proof"]
+    WAF["whatsapp"]
+    API["public-api /v1<br/>webhook-dispatch"]
+  end
+
+  subgraph DATA["🟢 Supabase data · RLS per account"]
+    direction LR
+    AUTH["Auth<br/>email OTP · 2FA"]
+    DB[("Postgres<br/>tasks · followups · alerts · decisions<br/>connections · incoming_items · activity_log")]
+    RPC["RPC + triggers<br/>create_task_with_plan · checkin_reply<br/>notify_* · emit_webhook"]
+    STORE["Storage<br/>evidence files"]
+    CRON["⏱ pg_cron<br/>1 · 10 · 15 min"]
+  end
+
+  subgraph EXTERNAL["🌐 Outside services"]
+    direction LR
+    AI["🧠 OpenAI<br/>gpt-5-mini · gpt-4o-transcribe"]
+    PUSH["📣 Expo Push · Resend email<br/>WhatsApp Cloud API"]
+    SRC["🔌 Google · Microsoft 365<br/>Jira · ClickUp · Trello · Slack"]
+    EXT["🏢 ERP · CRM · HR<br/>Odoo · Zoho"]
+  end
+
+  PEOPLE --> CLIENT
+  CLIENT -- "JWT · invoke" --> EF
+  CLIENT -- "queries (RLS)" --> DATA
+  CRON -. "schedules" .-> EF
+  EF --> DATA
+  EF --> AI
+  EF --> PUSH
+  PUSH -. "push" .-> PUSHH
+  EF <--> SRC
+  EXT -- "API key" --> API
+  API -. "signed webhooks" .-> EXT

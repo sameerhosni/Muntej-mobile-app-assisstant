@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Muntej architecture</title>
+<!-- The whole system on one image, layer by layer (rendered to docs/design/out/Muntej-Architecture.png by
+     scripts/build-design-docs.js). Edit this file when a part of the system changes. -->
+<style>
+  :root { --ink:#0B1A33; --soft:#4A5875; --brand:#2F6BFF; --purple:#6D4AFF; --green:#16A36A; --amber:#E39A00; --line:#DCE4F2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; width: 1600px; background: #fff; font-family: 'Segoe UI', Arial, sans-serif; color: var(--ink); }
+  .wrap { padding: 28px 34px 30px; }
+  .title { font-size: 34px; font-weight: 800; color: var(--brand); }
+  .sub { color: var(--soft); font-size: 15px; margin-top: 2px; }
+  .layer { border-radius: 18px; padding: 14px 16px 16px; margin-top: 10px; border: 2px solid; }
+  .layer h3 { margin: 0 0 10px; font-size: 16px; display: flex; gap: 8px; align-items: center; }
+  .layer h3 span { font-weight: 500; color: var(--soft); font-size: 13px; }
+  .row { display: flex; gap: 10px; }
+  .box { flex: 1; background: #fff; border-radius: 12px; padding: 10px 12px; border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(11,26,51,.06); }
+  .box b { display: block; font-size: 14px; }
+  .box small { display: block; color: var(--soft); font-size: 12px; margin-top: 3px; line-height: 1.35; }
+  .people { background: #F4F7FC; border-color: #C9D6EE; }
+  .app { background: #EEF3FF; border-color: #9DB8FF; }
+  .fn { background: #F3EFFF; border-color: #B9A6FF; }
+  .data { background: #EAF8F1; border-color: #8FD5B4; }
+  .out { background: #FFF6E5; border-color: #F3C870; }
+  .arrow { display: flex; justify-content: center; gap: 70px; margin: 6px 0 -2px; color: var(--soft); font-size: 13px; font-weight: 600; }
+  .arrow div::before { content: '⬇ '; color: var(--brand); font-size: 16px; }
+  .arrow .up::before { content: '⬆ '; color: var(--purple); }
+  .arrow .both::before { content: '⬍ '; color: var(--green); }
+  .legend { margin-top: 12px; display: flex; gap: 22px; color: var(--soft); font-size: 12.5px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; color: var(--purple); background: #F3EFFF; border-radius: 99px; padding: 1px 8px; margin-top: 5px; }
+</style>
+</head>
+<body><div class="wrap">
+  <div class="title">Muntej · منتج — System design</div>
+  <div class="sub">Create it and forget it: the manager gives a task once; Saree3 assigns, follows up, collects proof and reports. The manager only sees decisions and exceptions.</div>
+
+  <div class="layer people"><h3>👥 People <span>one login · several accounts (tenants) · one profile per account</span></h3>
+    <div class="row">
+      <div class="box"><b>Manager</b><small>gives work by voice or text · decides exceptions</small></div>
+      <div class="box"><b>Employee</b><small>gets the hand-off · Got it / Need time / Need help · sends proof</small></div>
+      <div class="box"><b>Admin</b><small>team, roles, tools, API keys for the account</small></div>
+      <div class="box"><b>Super admin</b><small>every account · backlog · design documents</small></div>
+    </div>
+  </div>
+
+  <div class="arrow"><div>uses the app</div><div class="up">pushes · Saree3's messages</div></div>
+
+  <div class="layer app"><h3>📱 Mobile app <span>Expo · React Native · Expo Router · TanStack Query · Arabic RTL / English · OTA updates (EAS)</span></h3>
+    <div class="row">
+      <div class="box"><b>Home</b><small>Needs you (Approve) · new tasks · your requests · From Saree3 + risks · the week</small></div>
+      <div class="box"><b>🎤 Mic + Saree3 chat</b><small>say it once → task with owner, date, priority, proof</small></div>
+      <div class="box"><b>Your tools</b><small>a card per tool · Read now · how often · Add all / Reject all</small></div>
+      <div class="box"><b>Task page</b><small>steps · proof · review · From chip · change it with Saree3</small></div>
+      <div class="box"><b>Saree3</b><small>walkthroughs · New in Muntej · setup guide · announcements</small></div>
+    </div>
+  </div>
+
+  <div class="arrow"><div>JWT · invoke functions</div><div>queries under RLS</div><div>uploads proof</div></div>
+
+  <div class="layer fn"><h3>⚙️ Edge Functions <span>Deno on Supabase · AI and integrations only run here · jobs triggered by pg_cron</span></h3>
+    <div class="row">
+      <div class="box"><b>muntej-chat · transcribe</b><small>Saree3's brain · voice → text (Saudi Arabic)</small></div>
+      <div class="box"><b>intake · connect · sync-sources</b><small>tools → tasks · each tool on its own schedule</small></div>
+      <div class="box"><b>send-followups</b><small>every minute: the plan, receipt chases, alerts with a daily budget</small></div>
+      <div class="box"><b>team-alerts · autopilot · daily-summary</b><small>late / at risk / overload · chase · morning brief</small></div>
+      <div class="box"><b>verify-proof · whatsapp</b><small>AI proof check · voice notes to Muntej's number</small></div>
+      <div class="box"><b>public-api · webhook-dispatch</b><small>REST /v1 with API keys · signed events</small><span class="tag">integration</span></div>
+    </div>
+  </div>
+
+  <div class="arrow"><div class="both">reads / writes</div><div>⏱ pg_cron: 1 · 10 · 15 min</div></div>
+
+  <div class="layer data"><h3>🟢 Supabase data <span>Postgres + Row Level Security: a wall per account; managers see their branch</span></h3>
+    <div class="row">
+      <div class="box"><b>Auth</b><small>email OTP · optional 2FA · account sessions</small></div>
+      <div class="box"><b>Work</b><small>tasks · steps · evidence · reviews · objectives · recurring</small></div>
+      <div class="box"><b>Follow-up</b><small>followups · alerts · decisions · notification prefs</small></div>
+      <div class="box"><b>Tools</b><small>connections (schedule) · sealed tokens 🔒 · incoming_items</small></div>
+      <div class="box"><b>Audit</b><small>activity_log: who · what · why · undo</small></div>
+      <div class="box"><b>Integration</b><small>api_keys (hash) · webhooks · deliveries</small></div>
+      <div class="box"><b>Storage</b><small>evidence files</small></div>
+    </div>
+  </div>
+
+  <div class="arrow"><div class="both">AI calls</div><div>push · email · WhatsApp</div><div class="both">read tools (OAuth)</div><div class="both">API · webhooks</div></div>
+
+  <div class="layer out"><h3>🌐 Outside services</h3>
+    <div class="row">
+      <div class="box"><b>🧠 OpenAI</b><small>gpt-5-mini: tasks, intake, proof · gpt-4o-transcribe: speech</small></div>
+      <div class="box"><b>📣 Delivery</b><small>Expo Push (FCM · APNs) · Resend email · WhatsApp Cloud API</small></div>
+      <div class="box"><b>🔌 Connected tools</b><small>Google: Gmail · Calendar · Meet · Chat · Microsoft 365: Outlook · Teams · Jira · ClickUp · Trello · Slack · Notion · Azure DevOps</small></div>
+      <div class="box"><b>🏢 Your other systems</b><small>ERP · CRM · HR · Odoo · Zoho → API key · REST /v1 · webhooks back</small></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div>🔒 secrets live only in Edge Functions · OAuth tokens sealed</div>
+    <div>Every AI action is logged and undoable</div>
+    <div>Notification budget: exceptions always, 3 everyday pushes a day</div>
+  </div>
+</div></body>
+</html>

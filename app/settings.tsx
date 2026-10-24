@@ -5,7 +5,7 @@ import { SectorSetting } from '@/features/sectors/SectorPicker';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ListTodo, ShieldCheck, Sparkles, Users } from 'lucide-react-native';
+import { Bell, BellRing, ChevronLeft, ChevronRight, LayoutGrid, ListTodo, Network, ShieldCheck, Sparkles, Users } from 'lucide-react-native';
 import Constants from 'expo-constants';
 import {
   AppText,
@@ -214,6 +214,25 @@ export default function SettingsScreen() {
 
       {/* your field of work: which tools come first on Connect your tools */}
       <SectorSetting />
+
+      {/* super admin: the system design (HLD + LLD), the full design image and the integration API (PDFs) */}
+      {realRole === 'super_admin' && (
+        <Card
+          onPress={() => router.push('/52-design' as Href)}
+          accessibilityLabel={tb('designRow')}
+          style={{ flexDirection: 'row', alignItems: 'center' }}
+        >
+          <IconBadge size={44} bg="primaryTint">
+            <Network color={colors.primary} size={20} strokeWidth={2} />
+          </IconBadge>
+          <View style={{ flex: 1, gap: 2 }}>
+            <AppText variant="cardTitle">{tb('designRow')}</AppText>
+            <AppText variant="caption" color="textMuted" numberOfLines={2}>
+              {tb('designSub')}
+            </AppText>
+          </View>
+        </Card>
+      )}
 
       {/* every deeper screen in one place (screen 44) */}
       <Card
