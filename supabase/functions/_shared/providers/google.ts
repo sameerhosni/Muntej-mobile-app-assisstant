@@ -235,6 +235,8 @@ export const google: Provider = {
     // Google Meet: meetings that ended since the last check and have a transcript (Workspace plans with transcripts,
     // when the host turned on transcription or "Take notes with Gemini"): who said what → the action items
     const meetOk = (t.scope ?? '').includes('meetings');
+    // a failed Meet read is kept on the connection (e.g. "Google Meet REST API" not enabled) so it can be seen
+    let meetError: string | null = null;
     if (on('meet') && meetOk)
       try {
         const filter = `end_time>="${new Date(Date.parse(since) - 6 * 3_600_000).toISOString()}"`;
@@ -266,7 +268,8 @@ export const google: Provider = {
         }
       } catch (e) {
         if ((e as Error).message === 'Sign in again') throw e;
-        console.warn('google meet', (e as Error).message);
+        meetError = (e as Error).message.slice(0, 200);
+        console.warn('google meet', meetError);
       }
 
     // Google Chat: new messages people wrote in the spaces and direct messages this person is in. Each conversation's
@@ -328,7 +331,7 @@ export const google: Provider = {
     // a little overlap: the same message is never read twice (external id), so nothing slips between runs
     return {
       items,
-      cursor: { ...cursor, meet_ok: meetOk, chat_ok: chatOk, chat_error: chatError, since: new Date(now.getTime() - 2 * 60_000).toISOString() },
+      cursor: { ...cursor, meet_ok: meetOk, meet_error: meetError, meet_checked: on('meet') && meetOk ? now.toISOString() : (cursor.meet_checked ?? null), chat_ok: chatOk, chat_error: chatError, since: new Date(now.getTime() - 2 * 60_000).toISOString() },
     };
   },
 };
