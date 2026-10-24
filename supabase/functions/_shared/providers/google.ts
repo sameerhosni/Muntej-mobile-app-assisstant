@@ -17,7 +17,9 @@ import { tokenRequest, type Fetched, type Provider, type Tokens } from '../conne
 const SCOPES =
   'openid email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/meetings.space.readonly' +
   // Google Chat (Workspace accounts only; enable "Google Chat API" + its Configuration page in Google Cloud)
-  ' https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/chat.memberships.readonly';
+  ' https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/chat.memberships.readonly' +
+  // turn on automatic transcripts for the meetings you organise, so nobody has to press "Start transcription"
+  ' https://www.googleapis.com/auth/meetings.space.settings';
 const CHAT = 'https://chat.googleapis.com/v1';
 const MEET = 'https://meet.googleapis.com/v2';
 const FIRST_LOOK_BACK_MS = 7 * 24 * 3_600_000; // the first check reads the last week, not years of history
@@ -40,6 +42,57 @@ function automated(h: (name: string) => string): boolean {
   if (/^(bulk|list|junk)$/i.test(h('precedence').trim())) return true;
   const address = (h('from').match(/<([^>]+)>/)?.[1] ?? h('from')).trim();
   return SYSTEM_SENDER.test(address.split('@')[0] ?? '');
+}
+
+async function apiPatch<T>(t: Tokens, url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${t.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) throw new Error('Sign in again');
+  if (!res.ok) throw new Error(`Google ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return (await res.json()) as T;
+}
+
+/** switch "transcribe automatically" on for the meetings this person organises in the next 7 days (once each) */
+async function autoTranscripts(t: Tokens, done: string[]): Promise<{ done: string[]; error: string | null }> {
+  const seen = new Set(done);
+  let error: string | null = null;
+  try {
+    const now = Date.now();
+    const events = await api<{ items?: (GEvent & { conferenceData?: { conferenceId?: string }; organizer?: { self?: boolean } })[] }>(
+      t,
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${new URLSearchParams({
+        timeMin: new Date(now).toISOString(),
+        timeMax: new Date(now + 7 * 86_400_000).toISOString(),
+        singleEvents: 'true',
+        orderBy: 'startTime',
+        maxResults: '50',
+      })}`,
+    );
+    for (const e of events.items ?? []) {
+      const code = e.conferenceData?.conferenceId;
+      if (!code || !e.organizer?.self || seen.has(code)) continue;
+      try {
+        const space = await api<{ name?: string; config?: { artifactConfig?: { transcriptionConfig?: { autoTranscriptionGeneration?: string } } } }>(
+          t,
+          `${MEET}/spaces/${code}`,
+        );
+        if (space.name && space.config?.artifactConfig?.transcriptionConfig?.autoTranscriptionGeneration !== 'ON')
+          await apiPatch(t, `${MEET}/${space.name}?updateMask=config.artifactConfig.transcriptionConfig.autoTranscriptionGeneration`, {
+            config: { artifactConfig: { transcriptionConfig: { autoTranscriptionGeneration: 'ON' } } },
+          });
+        seen.add(code);
+      } catch (x) {
+        error = (x as Error).message.slice(0, 200);
+      }
+    }
+  } catch (x) {
+    if ((x as Error).message === 'Sign in again') throw x;
+    error = (x as Error).message.slice(0, 200);
+  }
+  return { done: [...seen].slice(-200), error };
 }
 
 async function api<T>(t: Tokens, url: string): Promise<T> {
@@ -149,7 +202,11 @@ export const google: Provider = {
     // whether this sign-in allowed Meet (older ones didn't: the app asks to sign in again for it)
     return {
       label: me.email ?? me.name ?? 'Google',
-      cursor: { meet_ok: (t.scope ?? '').includes('meetings'), chat_ok: (t.scope ?? '').includes('chat.messages') },
+      cursor: {
+        meet_ok: (t.scope ?? '').includes('meetings'),
+        tx_ok: (t.scope ?? '').includes('meetings.space.settings'),
+        chat_ok: (t.scope ?? '').includes('chat.messages'),
+      },
     };
   },
 
@@ -237,9 +294,12 @@ export const google: Provider = {
     const meetOk = (t.scope ?? '').includes('meetings');
     // a failed Meet read is kept on the connection (e.g. "Google Meet REST API" not enabled) so it can be seen
     let meetError: string | null = null;
+    // what the last read saw (meetings ended in the last day, and how much transcript each had), for troubleshooting
+    const meetSeen: { end: string; chars: number }[] = [];
     if (on('meet') && meetOk)
       try {
-        const filter = `end_time>="${new Date(Date.parse(since) - 6 * 3_600_000).toISOString()}"`;
+        // a day back: transcripts can take a while after the meeting, and one already read is never read twice
+        const filter = `end_time>="${new Date(Date.parse(since) - 24 * 3_600_000).toISOString()}"`;
         const recs = await api<{ conferenceRecords?: MeetRecord[] }>(
           t,
           `${MEET}/conferenceRecords?${new URLSearchParams({ filter, pageSize: '10' })}`,
@@ -247,6 +307,7 @@ export const google: Provider = {
         for (const rec of recs.conferenceRecords ?? []) {
           if (!rec.endTime) continue;
           const text = await meetTranscript(t, rec.name);
+          meetSeen.push({ end: rec.endTime, chars: text.length });
           if (text.length < 80) continue; // no transcript (yet), or nothing said
           // the meeting's name, organiser and invitees from its Calendar event (matched by the Meet code), so Saree3
           // knows who assigned what and to whom
@@ -271,6 +332,12 @@ export const google: Provider = {
         meetError = (e as Error).message.slice(0, 200);
         console.warn('google meet', meetError);
       }
+
+    // Automatic transcripts: every meeting you organise in the next week gets "transcribe automatically" switched on
+    // (Meet settings API), so the transcript exists without anyone pressing a button and Saree3 can read it after.
+    const txOk = (t.scope ?? '').includes('meetings.space.settings');
+    let tx: { done: string[]; error: string | null } = { done: Array.isArray(cursor.tx_done) ? (cursor.tx_done as string[]) : [], error: null };
+    if (on('meet') && meetOk && txOk) tx = await autoTranscripts(t, tx.done);
 
     // Google Chat: new messages people wrote in the spaces and direct messages this person is in. Each conversation's
     // new messages are read together (with who said them), so "Faisal, the deck by tomorrow" makes sense in context.
@@ -331,7 +398,7 @@ export const google: Provider = {
     // a little overlap: the same message is never read twice (external id), so nothing slips between runs
     return {
       items,
-      cursor: { ...cursor, meet_ok: meetOk, meet_error: meetError, meet_checked: on('meet') && meetOk ? now.toISOString() : (cursor.meet_checked ?? null), chat_ok: chatOk, chat_error: chatError, since: new Date(now.getTime() - 2 * 60_000).toISOString() },
+      cursor: { ...cursor, meet_ok: meetOk, meet_error: meetError, meet_seen: meetSeen, tx_ok: txOk, tx_done: tx.done, tx_error: tx.error, meet_checked: on('meet') && meetOk ? now.toISOString() : (cursor.meet_checked ?? null), chat_ok: chatOk, chat_error: chatError, since: new Date(now.getTime() - 2 * 60_000).toISOString() },
     };
   },
 };

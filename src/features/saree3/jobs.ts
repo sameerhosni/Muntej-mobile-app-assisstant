@@ -22,6 +22,7 @@ function plain(err: string, t: T): { text: string; yours: boolean } {
   if (/sign in again|401|invalid_grant|revoked|expired/i.test(err)) return { text: t('errSignIn'), yours: true };
   if (/not been used|disabled|403/i.test(err)) return { text: t('errService'), yours: false };
   if (/workspace|personal/i.test(err)) return { text: t('errWorkspace'), yours: false };
+  if (/^transcripts:/.test(err)) return { text: t('errTranscripts'), yours: true };
   return { text: t('errTool'), yours: false };
 }
 
@@ -95,7 +96,8 @@ export function useSaree3Jobs(t: T, lang: string) {
     const err =
       (c.status === 'error' && c.last_error) ||
       (c.features?.meet !== false && typeof cur.meet_error === 'string' ? (cur.meet_error as string) : null) ||
-      (c.features?.chat !== false && typeof cur.chat_error === 'string' ? (cur.chat_error as string) : null);
+      (c.features?.chat !== false && typeof cur.chat_error === 'string' ? (cur.chat_error as string) : null) ||
+      (c.features?.meet !== false && typeof cur.tx_error === 'string' ? `transcripts: ${cur.tx_error as string}` : null);
     if (!err) continue;
     const p = plain(err, t);
     const every = c.read_every_min || 10;

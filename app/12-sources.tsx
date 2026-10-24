@@ -709,9 +709,11 @@ function GoogleParts({ onNote }: { onNote: (n: { tone: 'green' | 'red'; text: st
           {(['gmail', 'calendar', 'meet', 'chat'] as const).map((part) => {
             // Meet and Chat need permissions older sign-ins didn't ask for: "Allow" signs in again
             const allowed =
-              (part !== 'meet' || c.cursor?.meet_ok === true) && (part !== 'chat' || c.cursor?.chat_ok === true);
+              (part !== 'meet' || (c.cursor?.meet_ok === true && c.cursor?.tx_ok === true)) && (part !== 'chat' || c.cursor?.chat_ok === true);
             // Google refuses Chat for personal accounts (Workspace only)
             const chatRefused = part === 'chat' && allowed && c.features?.chat !== false && !!c.cursor?.chat_error;
+            // Google refused to switch on automatic transcripts (usually a plan without transcripts)
+            const txRefused = part === 'meet' && allowed && c.features?.meet !== false && !!c.cursor?.tx_error;
             return (
               <View
                 key={part}
@@ -727,6 +729,8 @@ function GoogleParts({ onNote }: { onNote: (n: { tone: 'green' | 'red'; text: st
                   <AppText variant="caption" color="textMuted">
                     {chatRefused
                       ? t('chatWorkspaceOnly')
+                      : txRefused
+                        ? t('txPlan')
                       : allowed
                         ? t(`part_${part}Hint`)
                         : t(part === 'chat' ? 'chatAllowHint' : 'meetAllowHint')}
