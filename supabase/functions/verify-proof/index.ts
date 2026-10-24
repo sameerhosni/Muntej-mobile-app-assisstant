@@ -6,7 +6,7 @@
 // Never blocks anything: a failed check just leaves ai_check empty. Model via PROOF_MODEL (default gpt-5-mini).
 import { z } from 'npm:zod@4.6.7';
 import { HttpError, json, requireEnv, serve } from '../_shared/http.ts';
-import { adminClient } from '../_shared/push.ts';
+import { adminClient, sendPush } from '../_shared/push.ts';
 
 const Check = z.object({
   verdict: z.enum(['pass', 'missing', 'unclear']),
@@ -107,5 +107,24 @@ serve(async (req) => {
     reason: check.summary,
     undoable: false,
   });
+  // something's missing: Saree3 tells the owner right away what to add (the reviewer sees the same on Home), so it
+  // gets fixed before anyone has to open the task
+  if (check.verdict !== 'pass' && check.missing.length && task.owner_id && task.owner_id !== review.reviewer_id) {
+    const { data: owner } = await admin.from('profiles').select('full_name, full_name_ar, locale').eq('id', task.owner_id).maybeSingle();
+    const ar = owner?.locale === 'ar' || lang === 'ar';
+    const first = ((ar && owner?.full_name_ar) || owner?.full_name || '').split(' ')[0];
+    const items = check.missing.slice(0, 3).join(ar ? '، ' : ', ');
+    await sendPush(
+      [task.owner_id],
+      {
+        title: ar ? `📎 «${task.title}» ناقصها شي` : `📎 "${task.title}" is missing something`,
+        body: ar
+          ? `${first}، راجعت التسليم: ناقص ${items}. أضفها هنا وأنا أوصلها للمراجعة 👍`
+          : `${first}, I checked it: missing ${items}. Add it here and I'll pass it on 👍`,
+        data: { taskId: review.task_id },
+      },
+      admin,
+    );
+  }
   return json({ ok: true, verdict: check.verdict });
 });

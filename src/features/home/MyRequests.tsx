@@ -9,7 +9,8 @@ import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { supabase } from '@/lib/supabase';
-import { useMyProfile, useTeam } from '@/lib/api';
+import { useMyProfile, useTasks, useTeam } from '@/lib/api';
+import { useProofGaps } from '@/features/review/countdown';
 import { formatDue } from '@/features/capture/format';
 
 const en = {
@@ -21,6 +22,7 @@ const en = {
   noTime: '“{{task}}”: the date stays. Need help to make it? Open it and tell me',
   no: '“{{task}}”: {{name}} said not this time',
   someone: 'your manager',
+  missing: '📎 “{{task}}” is missing: {{items}}. Add it and I’ll send it on',
 };
 const ar: typeof en & Record<string, string> = {
   title: 'طلباتك',
@@ -31,6 +33,7 @@ const ar: typeof en & Record<string, string> = {
   noTime: '«{{task}}»: الموعد باقي. تحتاج مساعدة تلحق؟ افتحها وقل لي',
   no: '«{{task}}»: {{name}} ما وافق هالمرة',
   someone: 'مديرك',
+  missing: '📎 «{{task}}» ناقصها: {{items}}. أضفها وأنا أوصلها',
 };
 const NS = registerStrings('myRequests', { en, ar });
 
@@ -69,8 +72,13 @@ export function MyRequests() {
       return (data ?? []) as unknown as Req[];
     },
   });
+  const tasks = useTasks();
+  // my work waiting for review that Saree3's proof check found incomplete
+  const sent = (tasks.data ?? []).filter((x) => x.owner_id === meId && x.status === 'submitted');
+  const gaps = useProofGaps(sent.map((x) => x.id));
+  const short = sent.filter((x) => gaps.data?.has(x.id));
   const rows = reqs.data ?? [];
-  if (!rows.length) return null;
+  if (!rows.length && !short.length) return null;
   const ar_ = lang === 'ar';
   const nameOf = (id: string) => {
     const p = (team.data ?? []).find((x) => x.id === id);
@@ -82,6 +90,13 @@ export function MyRequests() {
       <AppText weight="extrabold" style={{ fontSize: 17 }}>
         {t('title')}
       </AppText>
+      {short.map((x) => (
+        <View key={x.id} style={{ padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.amberTint }}>
+          <AppText weight="semibold" onPress={() => router.push({ pathname: '/14-task-detail', params: { id: x.id } })}>
+            {t('missing', { task: x.title, items: gaps.data!.get(x.id)!.join(ar_ ? '، ' : ', ') })}
+          </AppText>
+        </View>
+      ))}
       {rows.map((r) => {
         const task = r.task?.title ?? '…';
         const name = nameOf(r.manager_id);

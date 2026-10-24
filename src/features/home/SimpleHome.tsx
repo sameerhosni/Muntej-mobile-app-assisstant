@@ -19,7 +19,7 @@ import { useIncomingCount } from '@/features/incoming/api';
 import { isNewFor, useMyFeatureStates } from '@/features/launch/launch';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
 import { AutoApproveTag } from '@/features/review/ReviewBar';
-import { useReviewDeadlines } from '@/features/review/countdown';
+import { useProofGaps, useReviewDeadlines } from '@/features/review/countdown';
 
 /** Saree3's one-sentence status, in his colour, for the Home header. Tap → the tasks it names. */
 export function SareeLine({ onDark = true }: { onDark?: boolean }) {
@@ -69,6 +69,8 @@ type Need = {
   fg: string;
   title: string;
   sub: string;
+  /** what the proof check found missing (review rows) */
+  missing?: string[];
   href: Href;
   /** one-tap action on the row (Approve / Nudge); tapping the row still opens the details */
   action?: { label: string; done: string; tone: 'primary' | 'green'; run: () => Promise<boolean> };
@@ -89,6 +91,7 @@ export function NeedsYou() {
   const incoming = useIncomingCount();
   const reviewIds = (tasks.data ?? []).filter((x) => x.status === 'submitted').map((x) => x.id);
   const deadlines = useReviewDeadlines(reviewIds);
+  const gaps = useProofGaps(reviewIds);
   const meId = me.data?.id;
   const ar = lang === 'ar';
   const first = (id: string | null) => {
@@ -128,6 +131,8 @@ export function NeedsYou() {
         fg: colors.green,
         title: x.title,
         sub: t('ny_review', { name: first(x.owner_id) ?? '…' }),
+        // what Saree3's proof check found missing, right here (no need to open the task)
+        missing: gaps.data?.get(x.id),
         href: { pathname: '/15-review', params: { id: x.id } } as Href,
         action: { label: t('approve'), done: t('approved'), tone: 'green' as const, run: () => approve(x.id) },
         autoAt: deadlines.data?.get(x.id) ?? null,
@@ -189,6 +194,11 @@ export function NeedsYou() {
                   <AppText variant="caption" color="textMuted" numberOfLines={1}>
                     {n.sub}
                   </AppText>
+                  {!!n.missing?.length && (
+                    <AppText variant="caption" weight="semibold" color="amberText" numberOfLines={2}>
+                      {t('ny_missing', { items: n.missing.join(ar ? '، ' : ', ') })}
+                    </AppText>
+                  )}
                   {!!n.autoAt && <AutoApproveTag at={n.autoAt} />}
                 </View>
                 {!n.action && <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />}

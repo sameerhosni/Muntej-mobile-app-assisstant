@@ -72,3 +72,30 @@ export function useReviewDeadlines(taskIds: string[]) {
     },
   });
 }
+
+/** What Saree3's proof check found missing on work waiting for review (task id → short items), so Home can say it
+ *  without opening the task. Only checks that didn't pass. */
+export function useProofGaps(taskIds: string[]) {
+  const ids = [...taskIds].sort();
+  return useQuery({
+    queryKey: ['proofGaps', ids],
+    enabled: ids.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<Map<string, string[]>> => {
+      // ai_check isn't in the generated types yet
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('reviews')
+        .select('task_id, ai_check')
+        .in('task_id', ids)
+        .is('decision', null);
+      if (error) throw new Error(error.message);
+      const m = new Map<string, string[]>();
+      for (const r of (data ?? []) as { task_id: string; ai_check: { verdict?: string; missing?: string[] } | null }[]) {
+        const c = r.ai_check;
+        if (c && c.verdict !== 'pass' && c.missing?.length) m.set(r.task_id, c.missing);
+      }
+      return m;
+    },
+  });
+}
