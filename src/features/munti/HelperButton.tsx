@@ -44,6 +44,7 @@ import { formatNumber } from '@/features/home/value';
 import { useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { wallet } from '@/features/rewards/wallet';
 import { supabase } from '@/lib/supabase';
+import { JOBS_NS } from '@/features/saree3/strings';
 
 /** "I need more time" on a task someone gave you: a decision for them (checkin_reply need_time) */
 async function askMoreTime(taskId: string) {
@@ -109,6 +110,7 @@ const SPEAK: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'talk', watc
 
 export function HelperButton() {
   const { t } = useScreenT(MUNTI_NS);
+  const { t: tj } = useScreenT(JOBS_NS);
   const { t: tw } = useScreenT(WALK_NS);
   const { t: tg } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -551,6 +553,8 @@ export function HelperButton() {
     }
   };
   const quick = [
+    // "What happened?": everything Saree3 is handling, and the state of each
+    { key: 'happened', label: tj('whatHappened'), run: () => go('/54-saree3' as Href) },
     { key: 'needs', label: t('q_needs'), run: () => ask(t('q_needs_msg')) },
     me.data?.role === 'employee'
       ? { key: 'next', label: t('q_next'), run: () => ask(t('q_next_msg')) }

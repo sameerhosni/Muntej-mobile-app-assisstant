@@ -149,6 +149,8 @@ type Conn = {
   export_on?: boolean;
   export_target?: { id: string; name: string; since?: string } | null;
   features?: Record<string, boolean>;
+  status?: string;
+  last_error?: string | null;
 };
 export type SyncResult = { read: number; tasks: number; sent: number; closedHere: number; closedThere: number; updated: number; error?: string };
 
@@ -417,6 +419,7 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
       });
     }
 
+    await tellHealth(admin, conn, problemOf(conn.status ?? 'connected', conn.last_error ?? null, conn.cursor, conn.features), problemOf('connected', null, nextCursor, conn.features), out.read);
     await admin
       .from('connections')
       .update({
@@ -433,7 +436,53 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
   } catch (e) {
     const msg = (e as Error).message.slice(0, 300);
     console.error('sync failed', conn.provider, msg);
+    await tellHealth(admin, conn, problemOf(conn.status ?? 'connected', conn.last_error ?? null, conn.cursor, conn.features), msg, 0);
     await admin.from('connections').update({ status: 'error', last_error: msg, last_sync_at: nowIso(), updated_at: nowIso() }).eq('id', conn.id);
     return { ...out, error: msg };
   }
+}
+
+// ─── Saree3 keeps you posted (owner: "this is the behaviour I need Muntej to have with users") ───────────────────
+// A tool that breaks is retried by itself on every run; you hear about it once, only when it needs YOU (sign in
+// again). When it works again you hear that too, with what it read. "Google not ready" and similar stay quiet.
+
+/** what's wrong with a connection right now, or null (a part's error counts only while that part is switched on) */
+export function problemOf(status: string, lastError: string | null, cursor: unknown, features: unknown): string | null {
+  if (status === 'error' && lastError) return lastError;
+  const c = (cursor ?? {}) as Record<string, unknown>;
+  const f = (features ?? {}) as Record<string, boolean>;
+  if (f.meet !== false && typeof c.meet_error === 'string' && c.meet_error) return c.meet_error;
+  if (f.chat !== false && typeof c.chat_error === 'string' && c.chat_error) return c.chat_error;
+  return null;
+}
+
+/** sign-in problems are the person's to fix; everything else Saree3 retries without bothering them */
+export const needsPerson = (problem: string) => /sign in again|401|invalid_grant|revoked|expired/i.test(problem);
+
+async function tellHealth(admin: SupabaseClient, conn: Conn, before: string | null, after: string | null, read: number) {
+  const fixed = !!before && !after;
+  const broke = !before && !!after && needsPerson(after);
+  if (!fixed && !broke) return;
+  const { data: who } = await admin.from('profiles').select('locale').eq('id', conn.profile_id).maybeSingle();
+  const ar = who?.locale === 'ar';
+  const tool = TOOL_NAME[conn.provider]?.[ar ? 'ar' : 'en'] ?? conn.provider;
+  await sendPush(
+    [conn.profile_id],
+    fixed
+      ? {
+          title: ar ? `✅ ${tool} رجع يشتغل` : `✅ ${tool} works again`,
+          body: ar
+            ? `حاولت لين ضبطت${read ? `، وقريت ${read} جديدة` : ''}. ما تحتاج تسوي شي 👍`
+            : `I kept trying until it worked${read ? `, and read ${read} new` : ''}. Nothing for you to do 👍`,
+          data: { screen: '/42-incoming' },
+        }
+      : {
+          title: ar ? `🙋 ${tool} يحتاجك` : `🙋 ${tool} needs you`,
+          body: ar
+            ? 'انتهى دخولك فيه. افتح «أدواتك» واضغط «اربط من جديد»، والباقي علي.'
+            : 'Your sign-in ended. Open "Your tools" and tap "Reconnect"; I’ll do the rest.',
+          data: { screen: '/12-sources' },
+        },
+    admin,
+  ).catch(() => 0);
 }

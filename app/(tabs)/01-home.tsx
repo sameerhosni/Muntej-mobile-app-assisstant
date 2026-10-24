@@ -27,6 +27,7 @@ import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
 import { TeamPulse } from '@/features/home/TodayHome';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { WhatsNewStrip } from '@/features/launch/WhatsNew';
+import { JobsStrip } from '@/features/saree3/JobsStrip';
 import { MyRequests } from '@/features/home/MyRequests';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { NS } from '@/features/home/strings';
@@ -96,6 +97,10 @@ export default function ManagerHome() {
           <GettingStarted />
           {/* everything new in Muntej, while some of it is still new to you */}
           <WhatsNewStrip />
+          {/* everything Saree3 is handling for you right now (tap: each one and its state) */}
+          <TourTarget id="home.jobs">
+            <JobsStrip />
+          </TourTarget>
 
           {/* 1. what needs you, first: decisions (with Saree3's suggestion + Approve) and work waiting for review */}
           <TourTarget id="home.needs">
