@@ -39,7 +39,7 @@ serve(async (req) => {
   const { data: due, error } = await admin
     .from('followups')
     .select(
-      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, status, owner_id, assigner_id, created_at), recipient:profiles!followups_recipient_id_fkey(locale, full_name, full_name_ar, manager_id)',
+      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, status, owner_id, assigner_id, created_at, due_at), recipient:profiles!followups_recipient_id_fkey(locale, full_name, full_name_ar, manager_id)',
     )
     .eq('status', 'scheduled')
     .gte('scheduled_at', from.toISOString())
@@ -63,7 +63,7 @@ serve(async (req) => {
     taskIds.length
       ? admin
           .from('activity_log')
-          .select('task_id, actor_id')
+          .select('task_id, actor_id, created_at')
           .in('task_id', taskIds)
           .in('action', ['update_received', 'task_status_changed', 'task_updated'])
           .gte('created_at', new Date(now.getTime() - DAY).toISOString())
@@ -75,9 +75,14 @@ serve(async (req) => {
     perPerson.set(s.recipient_id, (perPerson.get(s.recipient_id) ?? 0) + 1);
     perTask.add(s.task_id);
   }
-  const ownerAnswered = new Set(((answered ?? []) as { task_id: string; actor_id: string | null }[]).map((a) => `${a.task_id}:${a.actor_id}`));
+  // when each owner last told Muntej something about each task
+  const lastAnswer = new Map<string, number>();
+  for (const a of (answered ?? []) as { task_id: string; actor_id: string | null; created_at: string }[]) {
+    const k = `${a.task_id}:${a.actor_id}`;
+    lastAnswer.set(k, Math.max(lastAnswer.get(k) ?? 0, Date.parse(a.created_at)));
+  }
   for (const f of due ?? []) {
-    const task = f.task as unknown as { title: string; status: string; owner_id: string | null; assigner_id: string | null; created_at: string } | null;
+    const task = f.task as unknown as { title: string; status: string; owner_id: string | null; assigner_id: string | null; created_at: string; due_at: string | null } | null;
     const who = f.recipient as unknown as { locale?: string; full_name?: string; full_name_ar?: string | null; manager_id?: string | null } | null;
     const locale = who?.locale;
     // a task that was finished or cancelled since the plan was made needs no more chasing
@@ -105,7 +110,7 @@ serve(async (req) => {
     const unconfirmed = given && task.status === 'assigned';
     const ar = locale === 'ar';
     const first = ((ar && who?.full_name_ar) || who?.full_name || '').split(' ')[0];
-    if (checkin && !unconfirmed && Date.parse(f.scheduled_at) < Date.parse(task.created_at) + 4 * 3_600_000) {
+    if (checkin && !unconfirmed && f.message.startsWith('📬')) {
       // the early receipt check, but they already confirmed: nothing to ask
       await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
       skipped++;
@@ -156,14 +161,17 @@ serve(async (req) => {
       continue;
     }
     if (checkin) {
-      // they told Muntej something in the last 24 h: silence after that means on track, no need to ask
-      if (ownerAnswered.has(`${f.task_id}:${f.recipient_id}`)) {
+      // work due within a day keeps its rhythm (owner: "don't keep silent"): an answer only quiets the next 2 hours,
+      // and it isn't held to one check-in a day. Longer work: an answer in the last 24 h means on track
+      const soon = !!task.due_at && Date.parse(task.due_at) - now.getTime() < DAY;
+      const answeredAt = lastAnswer.get(`${f.task_id}:${f.recipient_id}`) ?? 0;
+      if (answeredAt && now.getTime() - answeredAt < (soon ? 2 * 3_600_000 : DAY)) {
         await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
         skipped++;
         continue;
       }
       // at most one check-in per task and three per person a day: the rest waits for the next working morning
-      if (perTask.has(f.task_id) || (perPerson.get(f.recipient_id) ?? 0) >= 3) {
+      if ((!soon && perTask.has(f.task_id)) || (perPerson.get(f.recipient_id) ?? 0) >= (soon ? 6 : 3)) {
         await admin
           .from('followups')
           .update({ scheduled_at: nextWorkingMorning(now).toISOString() })

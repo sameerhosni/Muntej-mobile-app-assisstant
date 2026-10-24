@@ -8,6 +8,8 @@ export type PlanStep = {
   channel: 'whatsapp' | 'in_app' | 'push' | 'email';
   summary: string;
   message: string;
+  /** the "have you got it?" check right after a hand-off (send-followups skips it once they've confirmed) */
+  receipt?: boolean;
 };
 
 const H = 3600_000;
@@ -76,8 +78,17 @@ export function buildPlan(opts: {
         : `Hi ${name} 👋 ${from ? `${from} gave you a task` : 'New task for you'}: "${title}"${when ? `\n⏰ Due ${when}` : ''}${helper ? `\n🤝 ${helper} will help` : ''}\nTap to confirm you've got it`,
   };
 
-  const check = (at: number): PlanStep => ({
-    at: iso(intoWorkHours(at)),
+  // a moment for a reminder: inside working hours when that still lands before the deadline; when the deadline itself
+  // is outside them (an evening, a Saturday) the real time, but never at night (NaN = no reminder)
+  const fit = (t: number) => {
+    const w = intoWorkHours(t);
+    if (Number.isNaN(due) || w < due - 15 * 60_000) return w;
+    const h = new Date(t + RIYADH).getUTCHours();
+    return h >= 8 && h < 22 && t < due ? t : NaN;
+  };
+  const at = (t: number) => (Number.isNaN(fit(t)) ? '' : iso(fit(t)));
+  const check = (t: number): PlanStep => ({
+    at: at(t),
     kind: 'check',
     channel: 'push',
     summary: ar ? 'أسأل وين وصل' : 'Check where it is at',
@@ -88,9 +99,21 @@ export function buildPlan(opts: {
 
   // ~2 working hours after the hand-off: still not confirmed → Saree3 asks again (send-followups words it as a receipt
   // chase; once they've confirmed it is skipped). Not for your own tasks.
-  const receipt = self ? [] : [check(now + 2 * H)];
-  // two checks that working hours rounded onto the same moment are one
-  const once = (steps: PlanStep[]) => steps.filter((s, i) => s.kind !== 'check' || steps.findIndex((o) => o.kind === 'check' && o.at === s.at) === i);
+  // (sooner when the deadline is close: a third of the time left, at least an hour)
+  const receiptIn = Number.isNaN(due) ? 2 * H : Math.min(2 * H, Math.max(H, (due - now) / 3));
+  const receipt: PlanStep[] = self
+    ? []
+    : [
+        {
+          ...check(now + receiptIn),
+          receipt: true,
+          // 📬 marks it for send-followups: skipped once they've confirmed
+          message: ar ? `📬 ${name}، استلمت «${title}»؟ ضغطة وحدة تكفي` : `📬 ${name}, got "${title}"? One tap is enough`,
+        },
+      ];
+  // steps without a moment are dropped; two checks that working hours rounded onto the same moment are one
+  const once = (steps: PlanStep[]) =>
+    steps.filter((s, i) => !!s.at && (s.kind !== 'check' || steps.findIndex((o) => o.kind === 'check' && o.at === s.at) === i));
 
   // no due date: brief + one check in ~2 working days
   if (Number.isNaN(due) || due <= now) return once([brief, ...receipt, check(now + 48 * H)]);
@@ -105,10 +128,34 @@ export function buildPlan(opts: {
       ? ar ? `🎯 اليوم يوم «${title}»! خلّصها وارتاح 💪` : `🎯 Today is "${title}" day! Finish it and relax 💪`
       : ar ? `🎯 ${name}، اليوم موعد «${title}». ارفع التسليم هنا وأنا أوصله 📎` : `🎯 ${name}, "${title}" is due today. Drop it here and I'll deliver it 📎`,
   };
-  if (span < 24 * H) return once([brief, ...receipt, check(now + span / 2), collect].filter((s) => s.kind !== 'check' || Date.parse(s.at) < due));
+  // due within a day: Saree3 stays on it all the way (owner: "don't keep silent till someone takes action"):
+  // receipt (~1 h) · a check half-way · "one hour left" · the due time itself; after that the autopilot chases it as late
+  if (span < 24 * H) {
+    const lastCall: PlanStep = {
+      at: due - H > now + 30 * 60_000 ? iso(due - H) : '',
+      kind: 'risk',
+      channel: 'push',
+      summary: ar ? 'تذكير قبل الموعد بساعة' : 'One hour before the deadline',
+      message: self
+        ? ar ? `⏰ باقي ساعة على «${title}». خلصت؟` : `⏰ One hour left on "${title}". Done?`
+        : ar ? `⏰ ${name}، باقي ساعة على «${title}». خلصتها؟ لو تحتاج شي قول الحين وأدبّره` : `⏰ ${name}, one hour left on "${title}". Done? Need anything? Tell me now and I'll sort it`,
+    };
+    const dueNow: PlanStep = {
+      ...collect,
+      message: self
+        ? ar ? `🎯 حان موعد «${title}». خلّصتها؟` : `🎯 "${title}" is due now. Done?`
+        : ar ? `🎯 ${name}، حان موعد «${title}». خلصتها؟ ارفع التسليم هنا وأنا أوصله 📎` : `🎯 ${name}, "${title}" is due now. Done? Drop it here and I'll deliver it 📎`,
+    };
+    const mid = span >= 3 * H ? [check(now + span / 2)] : [];
+    // a receipt check within half an hour of "one hour left" is one message too many (unconfirmed, the last call is
+    // worded as the receipt chase anyway)
+    const close = (a: string, b: string) => !!a && !!b && Math.abs(Date.parse(a) - Date.parse(b)) < 30 * 60_000;
+    const rec = receipt.filter((r) => !close(r.at, lastCall.at));
+    return once([brief, ...rec, ...mid, lastCall, dueNow].filter((s) => s === brief || s === dueNow || !s.at || Date.parse(s.at) < due));
+  }
 
   const risk: PlanStep = {
-    at: iso(intoWorkHours(now + span * 0.65)),
+    at: at(now + span * 0.65),
     kind: 'risk',
     channel: 'push',
     summary: ar ? 'لو التقدم أقل من ٥٠٪ أنبهك ومعي حل' : 'If progress is under 50%, flag it with a fix',
@@ -118,5 +165,5 @@ export function buildPlan(opts: {
   };
   const steps = [brief, ...receipt, check(now + span * 0.35), risk, collect];
   // drop any middle step that working-hours rounding pushed past the due date
-  return once(steps.filter((s) => s.kind === 'collect' || s.kind === 'brief' || Date.parse(s.at) < due));
+  return once(steps.filter((s) => s.kind === 'collect' || s.kind === 'brief' || !s.at || Date.parse(s.at) < due));
 }
