@@ -43,6 +43,14 @@ import { timeLabel, useWeekValue, type WeekValue } from './value';
 import { formatNumber } from '@/features/home/value';
 import { useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { wallet } from '@/features/rewards/wallet';
+import { supabase } from '@/lib/supabase';
+
+/** "I need more time" on a task someone gave you: a decision for them (checkin_reply need_time) */
+async function askMoreTime(taskId: string) {
+  const rpc = supabase.rpc.bind(supabase) as unknown as (fn: string, args: object) => PromiseLike<{ error: { message: string } | null }>;
+  const { error } = await rpc('checkin_reply', { p_task: taskId, p_reply: 'need_time', p_note: null });
+  if (error) throw new Error(error.message);
+}
 
 const FAB = MUNTI_SIZES.md;
 /** support mode: about 50% bigger */
@@ -515,11 +523,25 @@ export function HelperButton() {
           { pathname: '/15-review', params: { id: it.taskId } },
         );
       }
-      case 'late':
-        return row(t('sup_late', { title: it.title }), t('sup_moreTime'), () => ask(t('ask_moreTime', { title: it.title })), {
-          pathname: '/14-task-detail',
-          params: { id: it.taskId },
-        });
+      case 'late': {
+        // someone gave it to you → Saree3 asks them for you (a decision for them, the answer comes back to you);
+        // your own task → just move it, in the chat locked on THAT task (two tasks can share a title)
+        const task = (tasks.data ?? []).find((x) => x.id === it.taskId);
+        const given = !!task?.assigner_id && task.assigner_id !== me.data?.id;
+        return row(
+          t('sup_late', { title: it.title }),
+          given ? t('sup_moreTime') : t('sup_moveIt'),
+          given
+            ? () => {
+                setOpen(false);
+                askMoreTime(it.taskId)
+                  .then(() => munti.say(t('sup_asked'), 'celebrate'))
+                  .catch(() => munti.say(tg('capture.failed'), 'oops'));
+              }
+            : () => go({ pathname: '/02-capture', params: { mode: 'text', focus: it.taskId, say: t('ask_moveIt') } }),
+          { pathname: '/14-task-detail', params: { id: it.taskId } },
+        );
+      }
       case 'blocked':
         return row(t('sup_blocked', { title: it.title }), t('sup_tell'), () =>
           go({ pathname: '/02-capture', params: { mode: 'text', focus: it.taskId, draft: t('draft_blocked', { title: it.title }) } }),
