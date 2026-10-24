@@ -13,6 +13,7 @@ import { useDirection } from '@/lib/i18n';
 import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
 import { canSwitchView } from '@/features/view-as/store';
+import { homeRouteFor } from '@/features/screens/registry';
 import { walkthrough } from '@/features/walkthrough/store';
 import { munti } from '@/features/munti/store';
 import { FEATURE_PLACES, isNewFor, markFeature, useFeatures, useMyFeatureStates, type Feature } from './launch';
@@ -63,13 +64,22 @@ export function useWhatsNew() {
   const isNew = (f: Feature) => isNewFor(states.data, f.key);
   // still new first (in launch order), then the rest, newest released first
   const list = [...mine.filter(isNew), ...mine.filter((f) => !isNew(f)).sort((a, b) => b.released_at.localeCompare(a.released_at))];
-  return { list, isNew, count: mine.filter(isNew).length, ready: !!features.data && !!states.data };
+  return { list, isNew, role, count: mine.filter(isNew).length, ready: !!features.data && !!states.data };
+}
+
+const HOMES = ['/', '/01-home', '/25-employee-home'];
+
+/** go to where a feature lives. Home features go to YOUR home (managers 01, employees 25) and back to it rather than
+ *  stacking a new copy: pushing '/' (a redirect) or the other role's home showed a blank screen */
+export function goToPlace(href: Href, role: string | undefined) {
+  if (typeof href === 'string' && HOMES.includes(href)) return router.navigate(homeRouteFor(role === 'employee' ? 'employee' : 'manager'));
+  router.push(href);
 }
 
 /** "Show me how": go where it lives and light it up with Saree3's line; counts as seen only when finished */
-export function showFeature(f: Feature, ar: boolean, demoText: string) {
+export function showFeature(f: Feature, ar: boolean, demoText: string, role: string | undefined) {
   const place = FEATURE_PLACES[f.key] ?? {};
-  if (place.href) router.push(place.href);
+  if (place.href) goToPlace(place.href, role);
   if (place.spot)
     walkthrough.startWhenReady(
       `new_${f.key}`,

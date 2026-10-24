@@ -29,6 +29,7 @@ import {
   type FeatureEvent,
 } from './launch';
 import { LAUNCH_NS } from './strings';
+import { goToPlace } from './WhatsNew';
 
 const HOMES = ['/01-home', '/25-employee-home'];
 const DELAY_MS = 4000;
@@ -124,7 +125,7 @@ export function LaunchCard() {
       if (place.spot) highlight(place.spot);
       else markFeature(feature.key, 'tried');
     } else if (place.href) {
-      router.push(place.href);
+      goToPlace(place.href, me.data?.role);
       if (place.spot) highlight(place.spot);
       else markFeature(feature.key, 'tried');
     } else {

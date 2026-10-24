@@ -16,7 +16,7 @@ export default function WhatsNewScreen() {
   const { t } = useScreenT(WHATS_NEW_NS);
   const { lang, isRTL } = useDirection();
   const insets = useSafeAreaInsets();
-  const { list, isNew, count } = useWhatsNew();
+  const { list, isNew, count, role } = useWhatsNew();
   const ar = lang === 'ar';
 
   return (
@@ -62,7 +62,7 @@ export default function WhatsNewScreen() {
                 label={t('showHow')}
                 size="md"
                 variant={fresh ? 'primary' : 'outline'}
-                onPress={() => showFeature(f, ar, t('myDemo'))}
+                onPress={() => showFeature(f, ar, t('myDemo'), role)}
               />
             </View>
           </Card>
