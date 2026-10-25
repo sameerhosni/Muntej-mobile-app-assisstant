@@ -59,7 +59,12 @@ export const BACKLOG: BacklogSection[] = [
       {
         "id": "1.8",
         "title": "Exposed secrets",
-        "detail": "Delete the Expo tokens pasted in chat (two) in Expo → Access tokens; rotate the SMTP app password that was pasted earlier."
+        "detail": "Delete the Expo tokens pasted in chat (two) in Expo → Access tokens; rotate the SMTP app password that was pasted earlier; change the Intercom password (sales@muntej.app) that was pasted on 25 Oct."
+      },
+      {
+        "id": "1.9",
+        "title": "Intercom support chat (Saree3 → \"Talk to the Muntej team\")",
+        "detail": "In Intercom: Settings → Installation → copy the Android (and iOS) API key; Settings → Security → turn on identity verification and copy its secret. Run scripts/set-intercom-keys.ps1 (hidden prompts). Then a new build (2.5). Optional: Messenger colors + greeting. After it's installed, apply docs/support-chat-announcement.sql as a migration so Saree3 announces it. · Built (app + support-identity deployed); waits for keys + build"
       }
     ]
   },
@@ -84,6 +89,11 @@ export const BACKLOG: BacklogSection[] = [
       {
         "id": "2.4",
         "title": "New app icon and splash",
+        "detail": ""
+      },
+      {
+        "id": "2.5",
+        "title": "Intercom Messenger (@intercom/intercom-react-native, keys from EAS env via app.config.js): after 1.9",
         "detail": ""
       }
     ]
