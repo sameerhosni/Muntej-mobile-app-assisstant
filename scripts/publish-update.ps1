@@ -14,11 +14,15 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 $env:NODE_OPTIONS = '--use-system-ca'   # trust the company network's certificate
 
-if (-not $env:EXPO_TOKEN) {
+# a real token is long; a placeholder or a failed paste (Ctrl+V in the old console types one character) is not
+$env:EXPO_TOKEN = "$env:EXPO_TOKEN".Trim()
+while ($env:EXPO_TOKEN.Length -lt 20 -or $env:EXPO_TOKEN -match '\s|your-|PASTE') {
   Write-Host ''
-  Write-Host 'Paste your Expo access token (it stays hidden) and press Enter:' -ForegroundColor Cyan
+  Write-Host 'Paste your Expo access token and press Enter (it stays hidden).' -ForegroundColor Cyan
+  Write-Host 'To paste here: RIGHT-CLICK inside this window (Ctrl+V does not work in this prompt).' -ForegroundColor Yellow
   $secure = Read-Host -AsSecureString
-  $env:EXPO_TOKEN = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
+  $env:EXPO_TOKEN = ([Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))).Trim()
+  if ($env:EXPO_TOKEN.Length -lt 20) { Write-Host "That was $($env:EXPO_TOKEN.Length) characters, not a token. Try again." -ForegroundColor Red }
 }
 
 Write-Host "Publishing an update to the $Channel app..." -ForegroundColor Cyan
