@@ -8,13 +8,12 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, Inbox, PartyPopper, ShieldCheck, Trophy } from 'lucide-react-native';
+import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, PartyPopper, ShieldCheck, Trophy } from 'lucide-react-native';
 import { AppText, Card } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useActivity, useMyProfile, usePendingDecisionCount, useTasks, useTeam, type TaskWithPeople } from '@/lib/api';
-import { useIncomingCount } from '@/features/incoming/api';
 import { formatDue } from '@/features/capture/format';
 import { Munti } from '@/features/munti/Munti';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
@@ -38,14 +37,14 @@ function useLastVisit() {
   return last;
 }
 
-export function FromSaree3({ children }: { children?: ReactNode }) {
+/** top: what he is working on (Home puts the jobs line here), children: risks and what is new, all in this one card */
+export function FromSaree3({ children, top }: { children?: ReactNode; top?: ReactNode }) {
   const { t } = useScreenT(RADAR_NS);
   const { lang } = useDirection();
   const last = useLastVisit();
   const tasks = useTasks();
   const activity = useActivity(300);
   const decisions = usePendingDecisionCount();
-  const incoming = useIncomingCount();
   if (last === undefined || !tasks.data) return null;
   const since = last ?? Date.now() - DAY;
   const after = (iso: string) => Date.parse(iso) > since;
@@ -61,12 +60,7 @@ export function FromSaree3({ children }: { children?: ReactNode }) {
     lines.push({ icon: <AlertTriangle color={colors.amberText} size={16} />, text: t('didAlert', { count: alerts, n: alerts }), href: '/18-alerts' });
   const proofs = count('proof_checked');
   if (proofs) lines.push({ icon: <ShieldCheck color={colors.primary} size={16} />, text: t('didProof', { count: proofs, n: proofs }) });
-  if (incoming.count)
-    lines.push({
-      icon: <Inbox color={colors.primary} size={16} />,
-      text: t('foundMail', { count: incoming.count, n: incoming.count }),
-      href: '/42-incoming',
-    });
+  // tasks found in your tools aren't repeated here: they sit in Needs you
   // decisions aren't listed here: "Needs you" sits at the very top of Home
   const need = decisions ?? 0;
 
@@ -83,6 +77,7 @@ export function FromSaree3({ children }: { children?: ReactNode }) {
           </AppText>
         </View>
       </View>
+      {top}
       {lines.length === 0 ? (
         <AppText color="textSoft">{t('allQuiet')}</AppText>
       ) : (

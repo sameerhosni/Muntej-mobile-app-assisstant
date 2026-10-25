@@ -2,7 +2,7 @@
 // Got it · Need more time · Need help. The answer goes to checkin_reply: "Got it" starts the task and nobody else is
 // bothered; "more time" becomes a decision for your manager with Saree3's suggestion; "help" tells them what's in the
 // way. Hidden when there's nothing to confirm.
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -61,7 +61,7 @@ export const CONFIRM_NS = registerStrings('confirmNew', { en, ar });
 
 type Reply = 'got_it' | 'need_time' | 'blocked';
 
-export function ConfirmNew() {
+export function ConfirmNew({ bare = false }: { bare?: boolean } = {}) {
   const { t } = useScreenT(CONFIRM_NS);
   const { lang } = useDirection();
   const me = useMyProfile();
@@ -101,8 +101,9 @@ export function ConfirmNew() {
     qc.invalidateQueries({ queryKey: ['myRequests'] });
   };
 
+  const Frame = bare ? Section : Card;
   return (
-    <Card padding={spacing.lg} style={{ gap: spacing.md, borderWidth: 1.5, borderColor: colors.primary }}>
+    <Frame padding={spacing.lg} style={{ gap: spacing.md, borderWidth: 1.5, borderColor: colors.primary }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
         <Munti size="sm" mood="talk" />
         <AppText weight="extrabold" style={{ flex: 1, fontSize: 17 }}>
@@ -178,6 +179,11 @@ export function ConfirmNew() {
           {error}
         </AppText>
       )}
-    </Card>
+    </Frame>
   );
+}
+
+/** inside another card (the Home's Needs you): a divided section, not a card of its own */
+function Section({ children }: { children: ReactNode; padding?: number; style?: object }) {
+  return <View style={{ gap: spacing.sm, padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>{children}</View>;
 }

@@ -22,7 +22,7 @@ import { NS } from './strings';
 import { useForgetRate } from '@/features/forget/forget';
 import { FORGET_NS } from '@/features/forget/strings';
 
-const tasksLink = (ids: string[]): Href =>
+export const tasksLink = (ids: string[]): Href =>
   ids.length ? { pathname: '/38-tasks', params: { ids: ids.slice(0, 50).join(',') } } : '/38-tasks';
 
 /** Small pill button for a row's one-tap action (≥44 touch area via hitSlop). */

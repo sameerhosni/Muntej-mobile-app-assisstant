@@ -1,7 +1,7 @@
 // Home: what you asked for and where it stands, so asking for more time (or help, or which task first) visibly
 // changes something: "⏳ waiting for Sameer" until they answer, then "✅ new due date …" / "the date stays" for two
 // days. Saree3 chases the answer; you don't need to.
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -55,7 +55,7 @@ type Req = {
   task: { title: string } | null;
 };
 
-export function MyRequests() {
+export function MyRequests({ bare = false }: { bare?: boolean } = {}) {
   const { t } = useScreenT(NS);
   const [open, setOpen] = useState(false);
   const { lang, isRTL } = useDirection();
@@ -97,8 +97,9 @@ export function MyRequests() {
     return p ? ((ar_ && p.full_name_ar) || p.full_name).split(' ')[0] : t('someone');
   };
 
+  const Frame = bare ? Section : Card;
   return (
-    <Card padding={spacing.lg} style={{ gap: spacing.sm }}>
+    <Frame padding={spacing.lg} style={{ gap: spacing.sm }}>
       <AppText weight="extrabold" style={{ fontSize: 17 }}>
         {t('title')}
       </AppText>
@@ -134,7 +135,7 @@ export function MyRequests() {
         </Pressable>
       )}
       {open && info.map(line)}
-    </Card>
+    </Frame>
   );
 
   function line(r: Req) {
@@ -161,4 +162,9 @@ export function MyRequests() {
           </View>
         );
   }
+}
+
+/** inside another card (the Home's Needs you): a divided section, not a card of its own */
+function Section({ children }: { children: ReactNode; padding?: number; style?: object }) {
+  return <View style={{ gap: spacing.sm, padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }}>{children}</View>;
 }

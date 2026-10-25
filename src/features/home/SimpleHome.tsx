@@ -1,6 +1,6 @@
 // The simple Home building blocks (manager + employee): one Saree3 status line, "Needs you" (max 3), a shortcuts row.
 // Principle: Home answers "what needs me now?" — everything else is one tap away, not on the screen.
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { ChevronRight, ClipboardCheck, Gavel, Inbox, type LucideProps } from 'lucide-react-native';
@@ -31,6 +31,8 @@ export function SareeLine({ onDark = true }: { onDark?: boolean }) {
   const say = (l: Line) => {
     const vars: Record<string, unknown> = { ...l.vars };
     if (typeof vars.color === 'string') vars.color = t(vars.color);
+    // names and titles keep their own direction inside the line (no «Call client»» flips)
+    for (const k of ['title', 'who', 'name']) if (typeof vars[k] === 'string') vars[k] = `⁨${vars[k]}⁩`;
     return t(l.key, vars);
   };
   const text = say(perf.message);
@@ -80,7 +82,9 @@ type Need = {
 };
 
 /** Manager: only what needs a decision — tasks found in messages, decisions, finished work waiting for review (Approve). */
-export function NeedsYou() {
+/** children: the other things that need you (tasks given to you, your requests), inside this one card;
+ *  hasMore: whether any of them shows, so "nothing needs you" never sits above them */
+export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; hasMore?: boolean } = {}) {
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
   const me = useMyProfile();
@@ -165,9 +169,10 @@ export function NeedsYou() {
         </AppText>
         {/* the way into Incoming (paste a message) is a shortcut now: this block is decisions only */}
       </View>
-      {needs.length === 0 ? (
+      {needs.length === 0 && !hasMore ? (
         <Card padding={spacing.lg}>
-          <AppText color="textMuted">{t('nothingNeeds')}</AppText>
+          <AppText color="greenText" weight="semibold">{t('nothingNeeds')}</AppText>
+          {children}
         </Card>
       ) : (
         <Card padding={spacing.sm} style={{ gap: 0 }}>
@@ -234,6 +239,7 @@ export function NeedsYou() {
               </AppText>
             </Pressable>
           )}
+          {children}
         </Card>
       )}
     </View>

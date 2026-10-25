@@ -1,12 +1,11 @@
 // Screen 01 · Manager Home — see design/v2/html/Main.dc.html (Arabic: MainAR.dc.html)
-// "Today" — what a manager checks every morning, top to bottom, each block short (max 3 rows) and hidden when empty:
-//   1. slim header: greeting + bell + avatar, and Saree3's one-line status in his colour
-//   2. team pulse: working on · late · done this week · yours (each number opens those tasks)
-//      + "Muntej is on it": late work it is chasing, things it did by itself today (→ Autopilot log)
-//   3. "Needs you": decisions only — tasks found in messages, decisions, finished work (one-tap Approve)
-//   4. who needs support (late / blocked / sent back / overbooked); Muntej is already following up with them
-//   5. next 3 days: the most important work coming up (team + yours); then your own tasks, tick to finish
-//   6. shortcuts: Your week, Team, Tasks from email, Record a meeting, More (everything else: 44-more)
+// "Today", five cards (owner: organised as cards, the dashboard numbers on Home, nothing twice):
+//   header: greeting + bell + avatar, and Saree3's one-line status in his colour
+//   1. today at a glance: open · late · urgent · waiting for you (each opens its tasks), Saree3's line on what
+//      matters most, the busiest teams, and the full dashboard (screen 56)
+//   2. needs you, one card: decisions (Approve), work to approve, tasks from your tools, tasks given to you, answers
+//   3. Saree3, one card: what he's working on, what he did since your last visit, risks, what's new
+//   4. this week's wins · 5. shortcuts: Your week, Team, Your tools, More
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { FromSaree3, TeamRisks, TeamWins } from '@/features/home/TeamRadar';
@@ -24,7 +23,8 @@ import { useMyProfile } from '@/lib/api';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
-import { TeamPulse } from '@/features/home/TodayHome';
+import { GlanceCard } from '@/features/home/GlanceCard';
+import { useTasks } from '@/lib/api';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { WhatsNewStrip } from '@/features/launch/WhatsNew';
 import { JobsStrip } from '@/features/saree3/JobsStrip';
@@ -56,6 +56,9 @@ export default function ManagerHome() {
   const me = useMyProfile();
   const { active: protoActive } = useProto();
   const qc = useQueryClient();
+  const tasks = useTasks();
+  // tasks someone gave me, waiting for my "got it" (they sit inside Needs you)
+  const confirmCount = (tasks.data ?? []).filter((x) => x.owner_id === me.data?.id && x.status === 'assigned' && !!x.assigner_id && x.assigner_id !== me.data?.id).length;
 
   if (me.data?.role === 'employee' && !protoActive) return <Redirect href="/25-employee-home" />;
 
@@ -95,39 +98,40 @@ export default function ManagerHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.xxl }}>
           {/* a new account: Saree3's getting-started steps until they're done */}
           <GettingStarted />
-          {/* everything new in Muntej, while some of it is still new to you */}
-          <WhatsNewStrip />
-          {/* everything Saree3 is handling for you right now (tap: each one and its state) */}
-          <TourTarget id="home.jobs">
-            <JobsStrip />
-          </TourTarget>
+          {/* 1. today at a glance: the 4 numbers, Saree3's line on what matters most, the busiest teams */}
+          <Spotlight id="home.pulse">
+            <GlanceCard />
+          </Spotlight>
 
-          {/* 1. what needs you, first: decisions (with Saree3's suggestion + Approve) and work waiting for review */}
+          {/* 2. everything that needs you, in one card: decisions, work to approve, tasks from your tools, tasks
+                 given to you waiting for your "got it", answers to what you asked */}
           <TourTarget id="home.needs">
-            <NeedsYou />
+            <NeedsYou hasMore={confirmCount > 0}>
+              <TourTarget id="home.confirm">
+                <ConfirmNew bare />
+              </TourTarget>
+              <MyRequests bare />
+            </NeedsYou>
           </TourTarget>
 
-          {/* 2. tasks someone gave you, waiting for your "got it", and what you asked for */}
-          <TourTarget id="home.confirm">
-            <ConfirmNew />
-          </TourTarget>
-          <MyRequests />
-
-          {/* 3. Saree3: what he did since your last visit, and the risks he's watching (with what he's doing) */}
+          {/* 3. Saree3, one card: what he's working on, what he did since your last visit, the risks he's watching,
+                 and what's new in Muntej */}
           <TourTarget id="home.from">
-            <FromSaree3>
+            <FromSaree3
+              top={
+                <TourTarget id="home.jobs">
+                  <JobsStrip />
+                </TourTarget>
+              }
+            >
               <TourTarget id="home.risks">
                 <TeamRisks embedded />
               </TourTarget>
+              <WhatsNewStrip />
             </FromSaree3>
           </TourTarget>
 
-          {/* 4. the team at a glance */}
-          <Spotlight id="home.pulse">
-            <TeamPulse />
-          </Spotlight>
-
-          {/* this week's achievements */}
+          {/* 4. this week's achievements */}
           <TeamWins />
 
           {/* 6. everything else, one tap away */}

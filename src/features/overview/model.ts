@@ -7,7 +7,7 @@ import type { Person } from '@/features/org/model';
 import { closedAt, DAY_MS, isLateOpen, isOpen, startOfDay, startOfWeek } from '@/features/dashboard/metrics';
 
 export const DIRECT = 'direct';
-export type Team = { key: string; lead: Person | null; open: number };
+export type Team = { key: string; lead: Person | null; open: number; late: number };
 
 /** which team a task's owner belongs to, seen from `meId` */
 export function teamOf(ownerId: string | null, meId: string, byId: Map<string, Person>, hasTeam: Set<string>): string {
@@ -80,9 +80,12 @@ export function computeOverview(input: {
   // teams with their open work (all of them, before the filter)
   const openAll = live.filter(isOpen);
   const teams: Team[] = [
-    ...directs.map((p) => ({ key: p.id, lead: p, open: openAll.filter((x) => keyOf(x) === p.id).length })),
-    { key: DIRECT, lead: null, open: openAll.filter((x) => keyOf(x) === DIRECT).length },
-  ];
+    ...directs.map((p) => ({ key: p.id, lead: p as Person | null })),
+    { key: DIRECT, lead: null },
+  ].map((tm) => {
+    const mine = openAll.filter((x) => keyOf(x) === tm.key);
+    return { ...tm, open: mine.length, late: mine.filter((x) => isLateOpen(x, t0)).length };
+  });
 
   const scoped = input.team === 'all' ? live : live.filter((x) => keyOf(x) === input.team);
   const open = scoped.filter(isOpen);

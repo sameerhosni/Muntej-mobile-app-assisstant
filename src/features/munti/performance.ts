@@ -80,7 +80,8 @@ export function usePerformance(lang: 'en' | 'ar'): Performance | null {
     };
     // «Title» · «Title» (+2) — and the owner's name for team tasks
     const list = (xs: TaskWithPeople[], withOwner: boolean) => {
-      const shown = xs.slice(0, 2).map((x) => `«${x.title}»${withOwner && x.owner_id ? ` (${first(x.owner_id)})` : ''}`);
+      // each item isolated (FSI…PDI): an English title inside an Arabic line keeps its own direction
+      const shown = xs.slice(0, 2).map((x) => `⁨«${x.title}»${withOwner && x.owner_id ? ` (${first(x.owner_id)})` : ''}⁩`);
       const more = xs.length > 2 ? (ar ? ` و${xs.length - 2} غيرها` : ` +${xs.length - 2} more`) : '';
       return shown.join(ar ? ' و' : ' and ') + more;
     };
