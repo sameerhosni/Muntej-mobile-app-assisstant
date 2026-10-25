@@ -2,9 +2,8 @@
 // Real connections (table connections + Edge Function `connect`): Connect opens the tool's own sign-in page, which
 // sends the person back here (?connected=… / ?error=…). Every 10 minutes sync-sources reads what's new and passes it
 // to Muntej's intake (sure tasks are added, the rest wait in Incoming). Check now / Disconnect per tool.
-// Tools that aren't built yet show "Coming soon"; built ones without the server's app credentials, "Needs admin setup".
-// Sectors: your field's tools come first (its coming-soon tools too); the rest wait under "More tools". No sector yet →
-// Saree3 asks for it at the top.
+// Only the tools you've connected are listed, plus WhatsApp (owner: no "coming soon" sections). Connect email from
+// Your tools (screen 42).
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -29,8 +28,6 @@ import {
 import { CONN_NS } from '@/features/sources/connStrings';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
-import { SECTOR_TOOLS, SOON_TOOLS, useMySector, type SoonTool, type ToolId } from '@/features/sectors/sectors';
-import { SectorPicker, SECTOR_NS } from '@/features/sectors/SectorPicker';
 
 /** letter badge per tool (brand logos aren't in the app; colours from the theme) */
 const BADGE: Record<ProviderId, { letter: string; bg: ColorToken; fg: string }> = {
@@ -74,16 +71,9 @@ export default function SourcesScreen() {
   const byId = new Map((conns.data ?? []).map((c) => [c.provider, c]));
   const info = new Map((providers.data ?? []).map((p) => [p.id, p]));
   // connected first, then the ones you can connect, then the rest
-  const sector = useMySector();
-  const { t: ts } = useScreenT(SECTOR_NS);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const mine: ToolId[] | null = sector ? SECTOR_TOOLS[sector] : null;
-  const inMine = (id: ToolId) => !mine || mine.includes(id) || byId.has(id as ProviderId);
-  // within your sector: connected first, then in the sector's order
-  const order = [...PROVIDER_IDS].sort((a, b) => rank(a) - rank(b) || (mine ? mine.indexOf(a) - mine.indexOf(b) : 0));
-  const firstGroup = order.filter(inMine);
-  const moreGroup = order.filter((id) => !inMine(id));
-  const soon = (mine ?? []).filter((id): id is SoonTool => (SOON_TOOLS as readonly string[]).includes(id));
+  const order = [...PROVIDER_IDS].sort((a, b) => rank(a) - rank(b));
+  // owner: only the tools you've connected (plus WhatsApp, Muntej's own number); nothing "coming soon"
+  const firstGroup = order.filter((id) => byId.has(id));
   const firstConnectable = order.find((id) => !byId.has(id) && (info.get(id)?.token || info.get(id)?.configured));
   function rank(id: ProviderId) {
     if (byId.has(id)) return 0;
@@ -138,37 +128,10 @@ export default function SourcesScreen() {
 
         {(conns.isLoading || providers.isLoading) && <ActivityIndicator color={colors.primary} />}
 
-        {/* no field picked yet: Saree3 asks, so the long tool list starts with what you use */}
-        {!sector && (
-          <TourTarget id="sources.sector">
-            <Card padding={spacing.lg}>
-              <SectorPicker />
-            </Card>
-          </TourTarget>
-        )}
-        {!!sector && (
-          <TourTarget id="sources.sector">
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <AppText variant="section">{ts('yourTools', { sector: ts(`s_${sector}`) })}</AppText>
-              <AppText variant="small" weight="bold" color="primary" onPress={() => router.push('/settings')}>
-                {ts('change')}
-              </AppText>
-            </View>
-          </TourTarget>
-        )}
-
         {/* Muntej's own WhatsApp number: voice notes → tasks */}
-        {inMine('whatsapp') && (
-          <TourTarget id="sources.whatsapp">
-            <WhatsAppCard />
-          </TourTarget>
-        )}
+        <TourTarget id="sources.whatsapp">
+          <WhatsAppCard />
+        </TourTarget>
 
         {firstGroup.map((id) => {
           const row = (
@@ -193,75 +156,6 @@ export default function SourcesScreen() {
             row
           );
         })}
-
-        {/* your field's tools Muntej doesn't connect to yet */}
-        {soon.map((id) => (
-          <Card
-            key={id}
-            padding={spacing.lg}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.md,
-              opacity: 0.75,
-            }}
-          >
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: colors.chip,
-              }}
-            >
-              <AppText weight="extrabold" style={{ fontSize: 18 }}>
-                {ts(`tool_${id}`).slice(0, 1)}
-              </AppText>
-            </View>
-            <AppText weight="bold" style={{ flex: 1 }}>
-              {ts(`tool_${id}`)}
-            </AppText>
-            <AppText variant="caption" weight="bold" color="textMuted">
-              {t('soon')}
-            </AppText>
-          </Card>
-        ))}
-
-        {/* everything else, one tap away */}
-        {!!sector && (moreGroup.length > 0 || !inMine('whatsapp')) && (
-          <>
-            <Pressable
-              onPress={() => setMoreOpen((v) => !v)}
-              accessibilityRole="button"
-              style={{ minHeight: sizes.touch, justifyContent: 'center' }}
-            >
-              <AppText weight="bold" color="primary">
-                {moreOpen
-                  ? ts('lessTools')
-                  : ts('moreTools', {
-                      n: moreGroup.length + (inMine('whatsapp') ? 0 : 1),
-                    })}
-              </AppText>
-            </Pressable>
-            {moreOpen && !inMine('whatsapp') && <WhatsAppCard />}
-            {moreOpen &&
-              moreGroup.map((id) => (
-                <ToolRow
-                  key={id}
-                  id={id}
-                  conn={byId.get(id)}
-                  available={!!info.get(id)?.available}
-                  configured={!!info.get(id)?.configured}
-                  token={!!info.get(id)?.token}
-                  tokenFields={info.get(id)?.tokenFields ?? ['token']}
-                  twoWay={!!info.get(id)?.twoWay}
-                  onNote={setNote}
-                />
-              ))}
-          </>
-        )}
 
         <Card style={{ gap: spacing.sm }}>
           <View
