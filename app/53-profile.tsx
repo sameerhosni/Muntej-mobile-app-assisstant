@@ -13,6 +13,7 @@ import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTeam } from '@/lib/api';
 import { useMyAccounts } from '@/features/accounts/api';
 import { useMySector } from '@/features/sectors/sectors';
+import { EmployeeSteps } from '@/features/ladder/Journey';
 import { SECTOR_NS } from '@/features/sectors/SectorPicker';
 
 const en = {
@@ -191,6 +192,8 @@ export default function MyProfileScreen() {
           )}
         </>
       )}
+      {/* employees: their steps in Muntej (value ladder E1–E3) */}
+      <EmployeeSteps />
     </ScrollView>
   );
 }

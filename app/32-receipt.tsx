@@ -28,6 +28,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { NS } from '@/features/receipt/strings';
 import { periodStart, useReceipt, type Period, type ReceiptCounts } from '@/features/receipt/useReceipt';
+import { useBriefOpened } from '@/features/ladder/api';
 import { ForgetCard } from '@/features/forget/ForgetCard';
 
 const RATES = [100, 150, 200, 250, 300, 400];
@@ -53,6 +54,7 @@ const ZIG_BOTTOM = (() => {
 })();
 
 export default function ReceiptScreen() {
+  useBriefOpened();
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
   const insets = useSafeAreaInsets();

@@ -3,6 +3,7 @@ import { colors } from '@/theme/tokens';
 import { useMyProfile, usePendingDecisionCount } from '@/lib/api';
 import { TabBar } from '@/features/navigation/TabBar';
 import { SCREENS } from '@/features/screens/registry';
+import { LadderCelebrations } from '@/features/ladder/Journey';
 
 // All role tabs live in one navigator; TabBar shows only the signed-in role's tabs.
 export default function TabsLayout() {
@@ -11,6 +12,9 @@ export default function TabsLayout() {
   const role = me?.role === 'employee' ? 'employee' : 'manager';
 
   return (
+    <>
+    {/* value ladder: a toast (and once, the M3 card) when a new moment is reached */}
+    {me && <LadderCelebrations />}
     <Tabs
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
       tabBar={(props) => {
@@ -32,5 +36,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="26-rewards" />
       <Tabs.Screen name="29-badges" />
     </Tabs>
+    </>
   );
 }

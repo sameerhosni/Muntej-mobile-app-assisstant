@@ -93,6 +93,7 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   tool_sync: { Icon: ArrowLeftRight, bg: 'primary' },
   new_feature: { Icon: Sparkles, bg: 'purple' },
   request_answered: { Icon: CircleCheck, bg: 'green' },
+  ladder_nudge: { Icon: Sparkles, bg: 'purple' },
 };
 
 function RecentAlerts() {

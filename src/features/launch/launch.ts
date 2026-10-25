@@ -31,6 +31,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   saree3_jobs: { href: '/01-home', spot: 'home.jobs' },
   whatsapp_approve: { href: '/55-tool?tool=whatsapp' as Href, spot: 'sources.whatsapp' },
   tool_pages: { href: '/42-incoming', spot: 'tools.tiles' },
+  journey_ladder: { href: '/01-home', spot: 'home.journey' },
   my_requests: { href: '/25-employee-home' },
   objective_plan: { href: '/40-objectives' },
   autopilot: { href: '/03-autopilot' },

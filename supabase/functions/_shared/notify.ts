@@ -24,7 +24,9 @@ export type AlertKind =
   | 'escalated'
   | 'tool_sync'
   | 'new_feature'
-  | 'request_answered';
+  | 'request_answered'
+  // the value ladder: one gentle nudge when someone is stuck before a step (an everyday push, within the budget)
+  | 'ladder_nudge';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -49,6 +51,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   new_feature: null,
   // your manager answered what you asked (more time, which first, help)
   request_answered: null,
+  ladder_nudge: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday

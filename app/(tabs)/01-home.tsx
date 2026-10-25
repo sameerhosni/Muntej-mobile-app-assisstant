@@ -24,6 +24,7 @@ import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
 import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
 import { GlanceCard } from '@/features/home/GlanceCard';
+import { JourneyCard } from '@/features/ladder/Journey';
 import { useTasks } from '@/lib/api';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { WhatsNewStrip } from '@/features/launch/WhatsNew';
@@ -102,6 +103,11 @@ export default function ManagerHome() {
           <Spotlight id="home.pulse">
             <GlanceCard />
           </Spotlight>
+
+          {/* the value ladder: the next moment on the way to "create it and forget it" (gone once the team runs on it) */}
+          <TourTarget id="home.journey">
+            <JourneyCard />
+          </TourTarget>
 
           {/* 2. everything that needs you, in one card: decisions, work to approve, tasks from your tools, tasks
                  given to you waiting for your "got it", answers to what you asked */}

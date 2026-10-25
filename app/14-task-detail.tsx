@@ -27,6 +27,7 @@ import { shortName } from '@/features/decisions/people';
 import { person, personLabel } from '@/features/demo/team';
 import { ClarityRing } from '@/features/task-detail/ClarityRing';
 import { useToggleSubtask } from '@/features/task-detail/useToggleSubtask';
+import { useTaskSeen } from '@/features/ladder/api';
 import { NS } from '@/features/task-detail/strings';
 
 type CheckKey = 'owner' | 'due' | 'doneDef' | 'budget';
@@ -85,6 +86,8 @@ export default function TaskDetailScreen() {
   const tool = useTaskTools().data?.get(id ?? '');
   const team = useTeam();
   const me = useMyProfile();
+  // the owner opened it: the hand-off reached them (value ladder M2 / E1)
+  useTaskSeen(task.data?.id, !!me.data?.id && task.data?.owner_id === me.data.id, !!(task.data as { seen_at?: string | null } | undefined)?.seen_at);
   const toggle = useToggleSubtask();
 
   const [asked, setAsked] = useState<Partial<Record<CheckKey, boolean>>>({});

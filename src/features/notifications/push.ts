@@ -7,6 +7,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Device from 'expo-device';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/tokens';
+import { markBriefOpen } from '@/features/ladder/api';
 import i18n from '@/lib/i18n';
 
 export type PushStatus = 'unsupported' | 'checking' | 'denied' | 'on' | 'error';
@@ -142,7 +143,11 @@ function openFrom(data: unknown) {
   if (d.taskId) router.push({ pathname: '/14-task-detail', params: { id: d.taskId } } as Href);
   else if (d.kind === 'decision_waiting') router.push('/04-decisions' as Href);
   // the daily summary opens Home
-  else if (d.screen) router.push(d.screen as Href);
+  else if (d.screen) {
+    // the morning brief opened from its push (value ladder M5)
+    markBriefOpen();
+    router.push(d.screen as Href);
+  }
   else router.push('/18-alerts' as Href);
 }
 

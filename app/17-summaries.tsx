@@ -34,6 +34,7 @@ import { personName } from '@/features/dashboard/metrics';
 import { useRatedReviews } from '@/features/dashboard/model';
 import { useDemoAudio } from '@/features/brief/useDemoAudio';
 import { demoSummary, summarize, useWorkspaces, type Item, type Tab, type Tone } from '@/features/summaries/model';
+import { useBriefOpened } from '@/features/ladder/api';
 import { NS } from '@/features/summaries/strings';
 
 const TABS: Tab[] = ['p', 'r', 'e'];
@@ -52,6 +53,7 @@ const TONE: Record<Tone, { bg: ColorToken; Icon: typeof Check }> = {
 
 export default function SummariesScreen() {
   const { t } = useScreenT(NS);
+  useBriefOpened();
   const { lang, isRTL } = useDirection();
   const tasks = useTasks();
   const team = useTeam();

@@ -27,7 +27,8 @@ export type AlertKind =
   | 'escalated'
   | 'tool_sync'
   | 'new_feature'
-  | 'request_answered';
+  | 'request_answered'
+  | 'ladder_nudge';
 
 export type AlertItem = {
   id: string;
