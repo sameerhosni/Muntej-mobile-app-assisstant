@@ -25,17 +25,21 @@ Write-Host 'Intercom > Settings > Installation' -ForegroundColor Cyan
 $android = Hidden 'Android API key'
 $ios = Hidden 'iOS API key (Enter to skip)'
 Write-Host 'Intercom > Settings > Security (Messenger identity verification)' -ForegroundColor Cyan
-$secret = Hidden 'Identity verification secret'
-if ($android.Length -lt 10 -or $secret.Length -lt 10) {
+$secret = Hidden 'Identity verification secret (Enter to skip: support works without it, add it later)'
+if ($android.Length -lt 10) {
   Write-Host '   Something is missing. Nothing saved.' -ForegroundColor Red
   exit 1
 }
 
-# 1. the identity secret: Supabase only
-$body = ConvertTo-Json -Compress @(@{ name = 'INTERCOM_IDENTITY_SECRET'; value = $secret })
-Invoke-WebRequest -UseBasicParsing -Method Post -Uri "https://api.supabase.com/v1/projects/$ref/secrets" `
-  -Headers @{ Authorization = "Bearer $token" } -ContentType 'application/json' -Body $body | Out-Null
-Write-Host '   Saved the identity secret in Supabase.' -ForegroundColor Green
+# 1. the identity secret (optional): Supabase only
+if ($secret.Length -ge 10) {
+  $body = ConvertTo-Json -Compress @(@{ name = 'INTERCOM_IDENTITY_SECRET'; value = $secret })
+  Invoke-WebRequest -UseBasicParsing -Method Post -Uri "https://api.supabase.com/v1/projects/$ref/secrets" `
+    -Headers @{ Authorization = "Bearer $token" } -ContentType 'application/json' -Body $body | Out-Null
+  Write-Host '   Saved the identity secret in Supabase.' -ForegroundColor Green
+} else {
+  Write-Host '   No identity secret: support chat works; add it later by running this again.' -ForegroundColor Yellow
+}
 
 # 2. the mobile keys: EAS build env (preview + production)
 $env:EXPO_TOKEN = "$env:EXPO_TOKEN".Trim()
