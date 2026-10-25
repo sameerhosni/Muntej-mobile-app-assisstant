@@ -104,19 +104,30 @@ export async function logoutSupport() {
   else webIntercom()?.('shutdown');
 }
 
-/** unread replies from the team (Saree3's badge) */
+/** unread replies from the team (badges). Never allowed to break a screen: any Intercom error just means 0. */
 export function useUnreadSupport() {
   const [n, setN] = useState(0);
   useEffect(() => {
-    const sdk = native();
-    if (sdk) {
-      sdk.default.getUnreadConversationCount().then(setN, () => {});
-      const sub = sdk.default.addEventListener(sdk.IntercomEvents.IntercomUnreadCountDidChange, (e: { count?: number }) => setN(e?.count ?? 0));
-      return () => sub?.remove?.();
+    let sub: { remove?: () => void } | undefined;
+    try {
+      const sdk = native();
+      if (sdk && signedIn) {
+        sdk.default.getUnreadConversationCount().then(setN, () => {});
+        const ev = sdk.IntercomEvents?.IntercomUnreadCountDidChange;
+        if (ev) sub = sdk.default.addEventListener(ev, (e: { count?: number }) => setN(e?.count ?? 0));
+      } else if (Platform.OS === 'web') {
+        webIntercom()?.('onUnreadCountChange', (c: number) => setN(c));
+      }
+    } catch {
+      // no badge rather than a crash
     }
-    const web = webIntercom();
-    web?.('onUnreadCountChange', (c: number) => setN(c));
-    return undefined;
+    return () => {
+      try {
+        sub?.remove?.();
+      } catch {
+        // ignore
+      }
+    };
   }, []);
   return n;
 }
