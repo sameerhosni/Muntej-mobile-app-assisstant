@@ -35,6 +35,12 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('POST only', { status: 405 });
 
   const raw = await req.text();
+  // one-time setup from the server itself (x-cron-secret): register the number, let Meta send this app the number's
+  // messages, set the business profile, and report the number's status. The keys never leave the server.
+  const cron = Deno.env.get('CRON_SECRET');
+  if (cron && req.headers.get('x-cron-secret') === cron) return new Response(JSON.stringify(await setup(JSON.parse(raw || '{}'))), {
+    headers: { 'Content-Type': 'application/json' },
+  });
   if (!(await signedByMeta(raw, req.headers.get('x-hub-signature-256')))) return new Response('Bad signature', { status: 401 });
   const body = JSON.parse(raw || '{}') as { entry?: { changes?: { value?: { messages?: WaMessage[] } }[] }[] };
   const messages = (body.entry ?? []).flatMap((e) => (e.changes ?? []).flatMap((c) => c.value?.messages ?? []));
@@ -43,6 +49,55 @@ Deno.serve(async (req) => {
   else await work;
   return new Response('ok');
 });
+
+/** register the number (2-step PIN), subscribe the app to its WhatsApp account, profile, status */
+async function setup(o: { pin?: string; about?: string; description?: string; business?: string; waba?: string; test_to?: string }) {
+  const token = Deno.env.get('WHATSAPP_TOKEN') ?? '';
+  const phone = Deno.env.get('WHATSAPP_PHONE_ID') ?? '';
+  const call = async (path: string, init?: RequestInit) => {
+    const r = await fetch(`${GRAPH}/${path}`, {
+      ...init,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    });
+    return { ok: r.ok, status: r.status, body: await r.json().catch(() => ({})) };
+  };
+  const out: Record<string, unknown> = {};
+  // which WhatsApp accounts this token can manage (from the token itself)
+  const dbg = await call(`debug_token?input_token=${token}`);
+  const scopes = ((dbg.body as { data?: { granular_scopes?: { scope: string; target_ids?: string[] }[]; scopes?: string[] } }).data ?? {}) as {
+    granular_scopes?: { scope: string; target_ids?: string[] }[];
+    scopes?: string[];
+  };
+  out.scopes = scopes.scopes;
+  const wabas = [...new Set((scopes.granular_scopes ?? []).filter((g) => g.scope.startsWith('whatsapp')).flatMap((g) => g.target_ids ?? []))];
+  if (o.waba) wabas.push(o.waba);
+  // a token with access to everything lists no ids: ask the business which WhatsApp accounts it has
+  if (!wabas.length && o.business)
+    for (const kind of ['owned_whatsapp_business_accounts', 'client_whatsapp_business_accounts']) {
+      const r = await call(`${o.business}/${kind}?fields=id,name`);
+      out[kind] = r.body;
+      for (const w of ((r.body as { data?: { id: string }[] }).data ?? [])) wabas.push(w.id);
+    }
+  out.wabas = wabas;
+  // let Meta deliver the number's messages to this app's webhook
+  out.subscribed = await Promise.all(wabas.map((w) => call(`${w}/subscribed_apps`, { method: 'POST' }).then((r) => ({ waba: w, ...r }))));
+  // register the number on the Cloud API (it shows "connected" after this)
+  o.pin ??= Deno.env.get('WHATSAPP_PIN') ?? undefined;
+  if (o.pin) out.register = await call(`${phone}/register`, { method: 'POST', body: JSON.stringify({ messaging_product: 'whatsapp', pin: o.pin }) });
+  if (o.about || o.description)
+    out.profile = await call(`${phone}/whatsapp_business_profile`, {
+      method: 'POST',
+      body: JSON.stringify({ messaging_product: 'whatsapp', vertical: 'PROF_SERVICES', ...(o.about ? { about: o.about } : {}), ...(o.description ? { description: o.description } : {}) }),
+    });
+  out.number = await call(`${phone}?fields=display_phone_number,verified_name,name_status,code_verification_status,quality_rating,platform_type,status`);
+  // Meta's ready-made "hello_world" template: works before the person has written to the number
+  if (o.test_to)
+    out.test = await call(`${phone}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ messaging_product: 'whatsapp', to: o.test_to.replace(/\D/g, ''), type: 'template', template: { name: 'hello_world', language: { code: 'en_US' } } }),
+    });
+  return out;
+}
 
 async function signedByMeta(raw: string, header: string | null): Promise<boolean> {
   const secret = Deno.env.get('WHATSAPP_APP_SECRET');
