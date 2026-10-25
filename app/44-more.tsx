@@ -85,6 +85,8 @@ export default function MoreScreen() {
         { key: 'team', href: '/39-team', Icon: Users, bg: 'primaryTint', fg: colors.primary, who: 'manager' },
         { key: 'invite', href: '/48-invite', Icon: UserPlus, bg: 'greenTint', fg: colors.green, who: 'manager' },
         { key: 'performance', href: '/16-dashboard', Icon: TrendingUp, bg: 'greenTint', fg: colors.green, who: 'manager' },
+        // preview of a client's dashboard made for every company (screen 56); goes into the journey once confirmed
+        { key: 'overview', href: '/56-overview' as Href, Icon: LayoutGrid, bg: 'primaryTint', fg: colors.primary, who: 'manager' },
         { key: 'achievements', href: '/21-achievements', Icon: Award, bg: 'amberTint', fg: colors.amberText, who: 'all' },
         { key: 'agents', href: '/22-agents', Icon: Bot, bg: 'purpleTint', fg: colors.purple, who: 'manager' },
         { key: 'week', href: '/32-receipt', Icon: Receipt, bg: 'greenTint', fg: colors.green, who: 'all' },
