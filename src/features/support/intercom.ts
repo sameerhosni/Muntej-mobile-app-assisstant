@@ -3,7 +3,7 @@
 // Intercom keys: older builds simply don't offer it, so over-the-air updates never crash them). Web: Intercom's JS
 // Messenger. The person is signed in to Intercom with a server-made identity hash (supabase/functions/support-identity).
 import { useEffect, useState } from 'react';
-import { NativeModules, Platform } from 'react-native';
+import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 
@@ -15,7 +15,8 @@ const APP_ID = (Constants.expoConfig?.extra as { intercomAppId?: string } | unde
 
 /** the native SDK, only when this build includes it */
 function native(): Any | null {
-  if (Platform.OS === 'web' || !NativeModules.IntercomModule) return null;
+  // new architecture registers it as a TurboModule; older builds as a classic native module
+  if (Platform.OS === 'web' || !(TurboModuleRegistry.get('IntercomModule') ?? NativeModules.IntercomModule)) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('@intercom/intercom-react-native');
