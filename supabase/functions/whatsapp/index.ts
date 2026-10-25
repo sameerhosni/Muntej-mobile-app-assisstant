@@ -10,7 +10,7 @@
 import { corsHeaders } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
 import { sendWhatsApp } from '../_shared/notify.ts';
-import { ingestMessage, OPEN, type Creator } from '../_shared/intake-core.ts';
+import { createFromSuggestion, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
@@ -23,7 +23,29 @@ type WaMessage = {
   text?: { body?: string };
   audio?: { id: string; mime_type?: string };
   voice?: { id: string; mime_type?: string };
+  interactive?: { type: string; button_reply?: { id: string; title: string } };
 };
+
+/** a message with up to 3 reply buttons (free inside the 24 h window, like a text) */
+async function sendButtons(phone: string, body: string, buttons: { id: string; title: string }[], footer?: string) {
+  const res = await fetch(`${GRAPH}/${Deno.env.get('WHATSAPP_PHONE_ID')}/messages`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${Deno.env.get('WHATSAPP_TOKEN')}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: body.slice(0, 1024) },
+        ...(footer ? { footer: { text: footer.slice(0, 60) } } : {}),
+        action: { buttons: buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title.slice(0, 20) } })) },
+      },
+    }),
+  });
+  if (!res.ok) console.error('WhatsApp buttons error', res.status, (await res.text()).slice(0, 300));
+  return res.ok;
+}
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -132,6 +154,56 @@ async function handle(m: WaMessage) {
     me = people.find((p) => p.account_id === s?.account_id) ?? me;
   }
   const ar = me.locale !== 'en';
+  const rtl = (s: string) => (ar ? s.split('\n').map((l) => (l ? `‏${l}` : l)).join('\n') : s);
+
+  const { data: team } = await admin
+    .from('profiles')
+    .select('id, full_name, full_name_ar, title, skills')
+    .eq('account_id', me.account_id)
+    .eq('status', 'active')
+    .eq('hidden', false);
+  const nameOf = (id: string | null) => {
+    const p = (team ?? []).find((x) => x.id === id);
+    return p ? (p.id === me.id ? (ar ? 'أنت' : 'You') : (ar && p.full_name_ar) || p.full_name) : null;
+  };
+  const create: Creator = async (p) => {
+    const { data, error } = await admin.rpc('create_task_as', { p, actor: me.id });
+    if (error) throw new Error(error.message);
+    return data as string;
+  };
+
+  // a tap on Approve / Ignore under a task: same as in the app (Your tools)
+  if (m.type === 'interactive' && m.interactive?.button_reply) {
+    const [verb, itemId, idx] = m.interactive.button_reply.id.split(':');
+    const { data: row } = await admin.from('incoming_items').select('*').eq('id', itemId).eq('owner_id', me.id).maybeSingle();
+    const item = row as Item | null;
+    const s = item?.suggestions[Number(idx)];
+    if (!item || !s) return void (await sendWhatsApp(from, ar ? 'ما لقيت هالمهمة 🤔 شيّك عليها في منتج ← أدواتك' : 'I couldn’t find that task 🤔 Check Muntej → Your tools'));
+    if (s.state !== 'new')
+      return void (await sendWhatsApp(
+        from,
+        rtl(ar ? `سبق وتعاملنا معها ✓ (${s.state === 'accepted' ? 'معتمدة' : 'متجاهلة'})\n📝 ${s.title}` : `Already handled ✓ (${s.state})\n📝 ${s.title}`),
+      ));
+    if (verb === 'ok') {
+      s.task_id = await createFromSuggestion(admin, me.id, item, s, create);
+      s.state = 'accepted';
+      await saveItem(admin, item);
+      const who = nameOf(s.owner_id);
+      await sendWhatsApp(
+        from,
+        rtl(
+          ar
+            ? `تم ✅ اعتمدتها\n📝 ${s.title}\n${who ? (s.owner_id === me.id ? '👤 هي عندك، وأذكّرك قبل الموعد ⏰' : `👤 وصلت لـ ${who}، وأنا أتابع معه لين يخلص 💪`) : '👤 ما لها أحد للحين، اختر لها شخص من منتج'}`
+            : `Done ✅ Approved\n📝 ${s.title}\n${who ? (s.owner_id === me.id ? '👤 It’s yours, I’ll remind you before it’s due ⏰' : `👤 Sent to ${who}, I’ll follow up until it’s done 💪`) : '👤 Nobody owns it yet, pick someone in Muntej'}`,
+        ),
+      );
+    } else {
+      s.state = 'ignored';
+      await saveItem(admin, item);
+      await sendWhatsApp(from, rtl(ar ? `تمام 👍 تجاهلتها\n📝 ${s.title}` : `OK 👍 Ignored\n📝 ${s.title}`));
+    }
+    return;
+  }
 
   // what they said: a text, or a voice note written down
   let text = '';
@@ -146,23 +218,12 @@ async function handle(m: WaMessage) {
     return;
   }
 
-  const { data: team } = await admin
-    .from('profiles')
-    .select('id, full_name, full_name_ar, title, skills')
-    .eq('account_id', me.account_id)
-    .eq('status', 'active')
-    .eq('hidden', false);
   const ids = (team ?? []).map((p) => p.id as string);
   const { data: open } = await admin
     .from('tasks')
     .select('id, title, owner_id')
     .in('status', OPEN)
     .in('owner_id', ids.length ? ids : [me.id]);
-  const create: Creator = async (p) => {
-    const { data, error } = await admin.rpc('create_task_as', { p, actor: me.id });
-    if (error) throw new Error(error.message);
-    return data as string;
-  };
   const item = await ingestMessage(admin, {
     profileId: me.id,
     text,
@@ -179,11 +240,9 @@ async function handle(m: WaMessage) {
   const n = item.suggestions.length;
   // one small card per task (title, who, when, what to send back), each line on its own so Arabic and English
   // never mix on one line; RLM keeps Arabic lines right-aligned even when they start with an emoji or a number
-  const rtl = (s: string) => (ar ? s.split('\n').map((l) => (l ? `‏${l}` : l)).join('\n') : s);
   const PROOF: Record<string, [string, string]> = { file: ['ملف', 'a file'], image: ['صورة', 'a photo'], link: ['رابط', 'a link'], any: ['أي إثبات', 'any proof'] };
   const card = (s: (typeof item.suggestions)[number]) => {
-    const p = (team ?? []).find((x) => x.id === s.owner_id);
-    const who = p ? (p.id === me.id ? (ar ? 'أنت' : 'You') : (ar && p.full_name_ar) || p.full_name) : ar ? 'ما حددت أحد، اختره لما توافق' : 'Nobody yet, pick them when you approve';
+    const who = nameOf(s.owner_id) ?? (ar ? 'ما حددت أحد، اختره من منتج' : 'Nobody yet, pick them in Muntej');
     const fmt = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(ar ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { ...o, timeZone: 'Asia/Riyadh' }).format(new Date(s.due_at!));
     const when = s.due_at ? `${fmt({ weekday: 'long', day: 'numeric', month: 'long' })} · ${fmt({ hour: 'numeric', minute: '2-digit' })}` : ar ? 'بدون موعد' : 'No deadline';
     const proof = PROOF[s.proof_required ?? 'none'];
@@ -195,18 +254,20 @@ async function handle(m: WaMessage) {
     ].join('\n');
   };
   const count = ar ? (n === 1 ? 'مهمة جديدة' : n === 2 ? 'مهمتين' : `${n} مهام`) : `${n} new task${n > 1 ? 's' : ''}`;
-  await sendWhatsApp(
-    from,
-    n
-      ? rtl(
-          ar
-            ? `تمام ✅ لقيت ${count}:\n\n${item.suggestions.map(card).join('\n\n')}\n\n👈 وافق عليها من منتج ← أدواتك، وأنا أتابع الباقي.`
-            : `Done ✅ I found ${count}:\n\n${item.suggestions.map(card).join('\n\n')}\n\n👉 Approve in Muntej → Your tools and I'll handle the rest.`,
-        )
-      : ar
-        ? 'قريتها ✓ بس ما لقيت فيها مهمة 🤔'
-        : 'Got it ✓ but I didn’t find a task in it 🤔',
-  );
+  if (!n) return void (await sendWhatsApp(from, ar ? 'قريتها ✓ بس ما لقيت فيها مهمة 🤔' : 'Got it ✓ but I didn’t find a task in it 🤔'));
+  const head = ar ? `تمام ✅ لقيت ${count}` : `Done ✅ I found ${count}`;
+  // several tasks: a short heading, then each task with its own buttons
+  if (n > 1) await sendWhatsApp(from, rtl(ar ? `${head}، كل وحدة تحتها أزرارها 👇` : `${head}, each with its own buttons 👇`));
+  for (const [i, s] of item.suggestions.entries())
+    await sendButtons(
+      from,
+      rtl(n === 1 ? `${head}:\n\n${card(s)}` : card(s)),
+      [
+        { id: `ok:${item.id}:${i}`, title: ar ? '✅ اعتمد' : '✅ Approve' },
+        { id: `no:${item.id}:${i}`, title: ar ? '✖️ تجاهل' : '✖️ Ignore' },
+      ],
+      ar ? 'وأنا أتابع الباقي 💪' : 'I’ll handle the rest 💪',
+    );
 }
 
 /** a WhatsApp voice note → text (Meta media download, then the same speech model as the app) */

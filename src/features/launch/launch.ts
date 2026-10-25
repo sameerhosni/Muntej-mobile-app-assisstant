@@ -29,6 +29,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   your_tools: { href: '/42-incoming', spot: 'email.connect' },
   my_profile: { href: '/53-profile' as Href },
   saree3_jobs: { href: '/01-home', spot: 'home.jobs' },
+  whatsapp_approve: { href: '/12-sources', spot: 'sources.whatsapp' },
   my_requests: { href: '/25-employee-home' },
   objective_plan: { href: '/40-objectives' },
   autopilot: { href: '/03-autopilot' },
