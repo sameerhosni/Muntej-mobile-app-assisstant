@@ -3,7 +3,7 @@
 // Intercom keys: older builds simply don't offer it, so over-the-air updates never crash them). Web: Intercom's JS
 // Messenger. The person is signed in to Intercom with a server-made identity hash (supabase/functions/support-identity).
 import { useEffect, useState } from 'react';
-import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
+import { Linking, NativeModules, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 
@@ -43,8 +43,6 @@ function webIntercom(): Any | null {
 
 /** support chat is offered everywhere; a build without Intercom says so when opened */
 export const supportAvailable = () => true;
-/** whether this build registered Intercom's native module (for the error line) */
-const registered = () => !!(TurboModuleRegistry.get('IntercomModule') ?? NativeModules.IntercomModule);
 
 let signedIn = false;
 
@@ -81,18 +79,22 @@ export async function loginSupport() {
   signedIn = true;
 }
 
-/** open the conversation with the Muntej team; on failure, the reason (Saree3 shows it) */
+/** open the conversation with the Muntej team. On the phone: the support page in the browser with a one-time link
+ *  (Intercom's in-app screens crashed on Android, 25 Oct); on the web: Intercom's web chat right here.
+ *  Returns the reason when it can't open (Saree3 shows it). */
 export async function openSupport(): Promise<string | null> {
   try {
-    const sdk = native();
-    if (!sdk && Platform.OS !== 'web') throw new Error('Intercom is not in this app build');
-    await loginSupport();
-    // straight to a new message to the team (Intercom's Home is empty until it's set up in Intercom)
-    if (sdk) await sdk.default.presentMessageComposer('');
-    else webIntercom()?.('showNewMessage');
+    if (Platform.OS === 'web') {
+      await loginSupport();
+      webIntercom()?.('showNewMessage');
+      return null;
+    }
+    const { data, error } = await supabase.functions.invoke<{ url: string }>('support-identity', { body: { action: 'link' } });
+    if (error || !data?.url) throw new Error(error?.message ?? 'no link');
+    await Linking.openURL(data.url);
     return null;
   } catch (e) {
-    return `${(e as Error).message || String(e)} (native: ${registered() ? 'yes' : 'no'})`;
+    return (e as Error).message || String(e);
   }
 }
 

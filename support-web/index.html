@@ -1,0 +1,75 @@
+<!doctype html>
+<!-- Muntej support page (More → "Talk to the Muntej team" opens it in the browser with a one-time link ?t=…).
+     It trades the link for who the person is (supabase/functions/support-identity) and opens Intercom's web chat
+     signed in as them. Hosted on EAS Hosting (support-web/, deployed with `eas deploy --export-dir support-web`). -->
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>منتج · الدعم</title>
+  <style>
+    :root { --bg: #F3F6FB; --surface: #FFFFFF; --text: #0B1A33; --muted: #66728A; --primary: #1F6FEB; --red: #E5484D; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+      font-family: "Tajawal", "Segoe UI", system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .card { background: var(--surface); border-radius: 22px; padding: 28px 22px; max-width: 420px; width: 100%; text-align: center;
+      box-shadow: 0 8px 24px rgba(31, 111, 235, 0.10); }
+    h1 { font-size: 22px; margin: 12px 0 6px; }
+    p { color: var(--muted); margin: 0 0 18px; line-height: 1.6; }
+    .dot { width: 56px; height: 56px; border-radius: 50%; margin: 0 auto; background: linear-gradient(135deg, #1F6FEB, #2EC4D6);
+      display: flex; align-items: center; justify-content: center; color: #fff; font-size: 26px; }
+    button { min-height: 48px; width: 100%; border: 0; border-radius: 999px; background: var(--primary); color: #fff; font-size: 17px;
+      font-weight: 700; font-family: inherit; cursor: pointer; }
+    .err { color: var(--red); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="dot">💬</div>
+    <h1 id="title">كلّم فريق منتج</h1>
+    <p id="sub">لحظة، أوصلك بالفريق…</p>
+    <button id="open" hidden>افتح المحادثة</button>
+  </div>
+  <script>
+    const APP_ID = 'lrn5nc6m';
+    const FN = 'https://katwiedukkvssuxbjbqf.supabase.co/functions/v1/support-identity';
+    const $ = (id) => document.getElementById(id);
+    const say = (title, sub, bad) => { $('title').textContent = title; $('sub').textContent = sub; $('sub').className = bad ? 'err' : ''; };
+
+    // Intercom's standard loader
+    (function () {
+      const w = window, ic = function () { ic.c(arguments); };
+      ic.q = []; ic.c = function (a) { ic.q.push(a); }; w.Intercom = ic;
+      const s = document.createElement('script'); s.async = true; s.src = 'https://widget.intercom.io/widget/' + APP_ID;
+      document.head.appendChild(s);
+    })();
+
+    async function start() {
+      const token = new URLSearchParams(location.search).get('t');
+      let me = null;
+      if (token) {
+        try {
+          const r = await fetch(FN + '?token=' + encodeURIComponent(token));
+          if (r.ok) me = await r.json();
+          else say('الرابط انتهى', 'افتح «كلّم فريق منتج» من التطبيق مرة ثانية.', true);
+        } catch (e) { /* visitor below */ }
+      }
+      const en = me && me.locale === 'en';
+      if (en) { document.documentElement.lang = 'en'; document.documentElement.dir = 'ltr'; }
+      window.Intercom('boot', Object.assign(
+        { app_id: APP_ID, hide_default_launcher: true, language_override: en ? 'en' : 'ar' },
+        me ? {
+          user_id: me.userId, email: me.email || undefined, name: me.name, user_hash: me.hash || undefined,
+          company: me.company ? { company_id: me.company.id, name: me.company.name } : undefined, role: me.role,
+        } : {}
+      ));
+      window.Intercom('showNewMessage');
+      if (me) say(en ? 'Talk to the Muntej team' : 'كلّم فريق منتج', en ? 'A real person answers here. You can close this page any time.' : 'يرد عليك شخص من الفريق هنا. تقدر تقفل الصفحة متى ما تبي.');
+      $('open').hidden = false;
+      $('open').textContent = en ? 'Open the chat' : 'افتح المحادثة';
+    }
+    $('open').onclick = () => window.Intercom('showNewMessage');
+    start();
+  </script>
+</body>
+</html>
