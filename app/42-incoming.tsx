@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, ChevronRight, ClipboardPaste, Plug } from 'lucide-react-native';
+import { ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, Plus } from 'lucide-react-native';
 import { AppText, Button, Card, IconBadge, IconButton } from '@/components/ui';
 import { colors, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -16,11 +16,14 @@ import { useScreenT } from '@/lib/i18n/register';
 import { formatDue } from '@/features/capture/format';
 import { useIncoming, useIncomingActions } from '@/features/incoming/api';
 import { NS } from '@/features/incoming/strings';
-import { EmailAccounts } from '@/features/incoming/EmailAccounts';
-import { useConnections } from '@/features/sources/connections';
+import { useConnections, useProviders } from '@/features/sources/connections';
+import { CONN_NS } from '@/features/sources/connStrings';
+import { ConnectRow } from '@/features/tools/ConnectRow';
+import { featureUsed } from '@/features/launch/launch';
 import { useToolList, type ToolTile } from '@/features/tools/tools';
 import { TOOL_NS } from '@/features/tools/strings';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
+import { Spotlight } from '@/features/launch/Spotlight';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 
 const EMAIL_STEPS = [{ target: 'email.connect', key: 'emailConnect' }];
@@ -30,13 +33,31 @@ export default function IncomingScreen() {
   useWalkthrough('email', EMAIL_STEPS);
   const { isRTL } = useDirection();
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
-  const params = useLocalSearchParams<{ text?: string }>();
+  const { t: tt } = useScreenT(TOOL_NS);
+  const { t: tc } = useScreenT(CONN_NS);
+  const params = useLocalSearchParams<{ text?: string; connected?: string; error?: string; add?: string }>();
+  const providers = useProviders();
   const incoming = useIncoming();
   const actions = useIncomingActions();
   const conns = useConnections();
   const { tiles } = useToolList();
-  const hasEmail = (conns.data ?? []).some((c) => c.provider === 'google' || c.provider === 'microsoft');
   const [bulk, setBulk] = useState<'add' | 'reject' | null>(null);
+  const [note, setNote] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
+  // tools you can still connect (set up on the server, or with your own token); open at first when you have none
+  const connected = new Set((conns.data ?? []).map((c) => c.provider));
+  const canAdd = (providers.data ?? []).filter((p) => !connected.has(p.id) && (p.configured || p.token));
+  const [adding, setAdding] = useState(!!params.add);
+  const noTools = !!conns.data && conns.data.length === 0;
+
+  // back from a tool's sign-in page
+  useEffect(() => {
+    if (params.connected) {
+      featureUsed('tools');
+      setNote({ tone: 'green', text: tc('doneConnected', { name: tc(`n_${params.connected}`) }) });
+      conns.refetch();
+    } else if (params.error) setNote({ tone: 'red', text: tc('doneError') });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.connected, params.error]);
 
   // something shared into Muntej: straight to the paste page with the text in it
   useEffect(() => {
@@ -94,8 +115,15 @@ export default function IncomingScreen() {
             {t('title')}
           </AppText>
         </View>
-        <AppText color="textMuted">{t('subtitle')}</AppText>
+        <AppText color="textMuted">{tt('hubSub')}</AppText>
         <SetupBar />
+        {note && (
+          <Card tone={note.tone} padding={spacing.lg}>
+            <AppText variant="small" weight="semibold" color={note.tone === 'green' ? 'greenText' : 'red'}>
+              {note.text}
+            </AppText>
+          </Card>
+        )}
 
         {/* everything waiting, across every tool */}
         {waiting > 0 && (
@@ -111,6 +139,7 @@ export default function IncomingScreen() {
         )}
 
         {/* a tile per tool: tap for its own page */}
+        <AppText variant="section">{tt('yours')}</AppText>
         <TourTarget id="email.connect">
           <View style={{ gap: spacing.md }}>
             {tiles.map((tile, i) =>
@@ -122,27 +151,43 @@ export default function IncomingScreen() {
                 <Tile key={tile.tool.key} tile={tile} onPress={() => open(tile.tool.key)} />
               ),
             )}
-            {!hasEmail && <EmailAccounts />}
           </View>
         </TourTarget>
 
         {/* paste a message: its own page */}
         {!tiles.some((x) => x.tool.key === 'pasted') && <LinkRow Icon={ClipboardPaste} label={t('pasteOpen')} onPress={() => open('pasted')} />}
 
-        {/* more tools */}
+        {/* connect a tool: right here, no second screen */}
         <TourTarget id="email.tools">
-          <Card onPress={() => router.push('/12-sources')} accessibilityLabel={t('connectMore')} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <IconBadge size={40} bg="greenTint" round>
-              <Plug color={colors.green} size={18} strokeWidth={2} />
+          <Card onPress={() => setAdding((v) => !v)} accessibilityLabel={tt('addTool')} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <IconBadge size={40} bg="primaryTint" round>
+              <Plus color={colors.primary} size={20} strokeWidth={2.4} />
             </IconBadge>
             <View style={{ flex: 1, gap: 2 }}>
-              <AppText weight="bold">{t('connectMore')}</AppText>
+              <AppText weight="bold">{tt('addTool')}</AppText>
               <AppText variant="caption" color="textMuted">
-                {t('connectMoreSub')}
+                {tt('addToolSub')}
               </AppText>
             </View>
+            <ChevronDown color={colors.textMuted} size={20} style={{ transform: [{ rotate: adding || noTools ? '180deg' : '0deg' }] }} />
           </Card>
         </TourTarget>
+        {(adding || noTools) &&
+          (canAdd.length ? (
+            canAdd.map((p, i) =>
+              i === 0 ? (
+                <Spotlight key={p.id} id="sources.list">
+                  <ConnectRow info={p} onNote={setNote} />
+                </Spotlight>
+              ) : (
+                <ConnectRow key={p.id} info={p} onNote={setNote} />
+              ),
+            )
+          ) : (
+            <AppText variant="small" color="textMuted">
+              {providers.isLoading ? '…' : tt('addToolNone')}
+            </AppText>
+          ))}
       </ScrollView>
     </SafeAreaView>
   );
@@ -196,7 +241,7 @@ function Tile({ tile, onPress }: { tile: ToolTile; onPress: () => void }) {
   );
 }
 
-function LinkRow({ Icon, label, onPress }: { Icon: typeof Plug; label: string; onPress: () => void }) {
+function LinkRow({ Icon, label, onPress }: { Icon: typeof Plus; label: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" style={{ minHeight: sizes.touch, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
       <Icon color={colors.primary} size={18} />

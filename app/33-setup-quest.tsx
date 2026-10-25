@@ -21,7 +21,7 @@ type StepId = 'task' | 'team' | 'whatsapp' | 'quiet' | 'decision';
 const STEPS: { id: StepId; pts: number; Icon: ComponentType<LucideProps>; tint: ColorToken; ink: ColorToken; href: Href }[] = [
   { id: 'task', pts: 100, Icon: Mic, tint: 'primaryTint', ink: 'primary', href: { pathname: '/02-capture', params: { mode: 'text' } } },
   { id: 'team', pts: 100, Icon: Users, tint: 'purpleTint', ink: 'purple', href: '/34-add-team' },
-  { id: 'whatsapp', pts: 100, Icon: MessageCircle, tint: 'greenTint', ink: 'green', href: '/12-sources' },
+  { id: 'whatsapp', pts: 100, Icon: MessageCircle, tint: 'greenTint', ink: 'green', href: '/55-tool?tool=whatsapp' as Href },
   { id: 'quiet', pts: 100, Icon: Moon, tint: 'amberTint', ink: 'amberText', href: '/18-alerts' },
   { id: 'decision', pts: 100, Icon: CircleCheck, tint: 'orangeTint', ink: 'orange', href: '/04-decisions' },
 ];

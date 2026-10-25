@@ -4,6 +4,11 @@ import { registerStrings } from '@/lib/i18n/register';
 const en = {
   back: 'Back',
   open: 'Open',
+  hubSub: 'Tap a tool to see its tasks and settings.',
+  yours: 'Connected',
+  addTool: 'Connect a tool',
+  addToolSub: 'Email, chats, meetings and work tools',
+  addToolNone: 'Every tool you can connect is connected.',
   t_whatsapp: 'WhatsApp',
   t_gmail: 'Gmail',
   t_calendar: 'Google Calendar',
@@ -83,6 +88,11 @@ const en = {
 const ar: typeof en & Record<string, string> = {
   back: 'رجوع',
   open: 'افتح',
+  hubSub: 'اضغط على أي أداة تشوف مهامها وإعداداتها.',
+  yours: 'المربوطة',
+  addTool: 'اربط أداة',
+  addToolSub: 'الإيميل والمحادثات والاجتماعات وأدوات العمل',
+  addToolNone: 'ربطت كل الأدوات المتاحة.',
   t_whatsapp: 'واتساب',
   t_gmail: 'جيميل',
   t_calendar: 'تقويم قوقل',
