@@ -45,6 +45,8 @@ import { useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { wallet } from '@/features/rewards/wallet';
 import { supabase } from '@/lib/supabase';
 import { JOBS_NS } from '@/features/saree3/strings';
+import { openSupport, supportAvailable } from '@/features/support/intercom';
+import { SUPPORT_NS } from '@/features/support/strings';
 
 /** "I need more time" on a task someone gave you: a decision for them (checkin_reply need_time) */
 async function askMoreTime(taskId: string) {
@@ -111,6 +113,7 @@ const SPEAK: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'talk', watc
 export function HelperButton() {
   const { t } = useScreenT(MUNTI_NS);
   const { t: tj } = useScreenT(JOBS_NS);
+  const { t: ts } = useScreenT(SUPPORT_NS);
   const { t: tw } = useScreenT(WALK_NS);
   const { t: tg } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -560,6 +563,10 @@ export function HelperButton() {
       ? { key: 'next', label: t('q_next'), run: () => ask(t('q_next_msg')) }
       : { key: 'team', label: t('q_team'), run: () => ask(t('q_team_msg')) },
     { key: 'add', label: t('q_add'), run: () => go({ pathname: '/02-capture', params: { mode: 'text' } }) },
+    // a real person: support chat with the Muntej team (Intercom), where this build has it
+    ...(supportAvailable()
+      ? [{ key: 'support', label: ts('talk'), run: () => { setOpen(false); openSupport(); } }]
+      : []),
     // replay this screen's walkthrough (Saree3 lights up what matters here again)
     ...(walkthrough.canReplay()
       ? [

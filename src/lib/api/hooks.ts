@@ -5,6 +5,7 @@ import { useCallback } from 'react';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useViewAs, withView } from '@/features/view-as/store';
 import { qk, type TaskFilter } from './keys';
+import { logoutSupport } from '@/features/support/intercom';
 import {
   ACTIVE_STATUSES,
   type ActivityEntry,
@@ -171,6 +172,8 @@ export function useSignOut() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
+      // support chat: the next person on this phone starts fresh
+      await logoutSupport().catch(() => {});
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     },

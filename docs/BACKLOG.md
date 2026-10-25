@@ -21,7 +21,8 @@ Last updated: 2026-10-23
 | 1.5 | **Shared sign-in code 123456** | On for every existing person until **6 Nov 2026** (`QUICK_LOGIN_ALL`). Turn off once 1.4 works: `scripts/enable-quick-login.ps1 -Off`. | Temporary |
 | 1.6 | **Microsoft 365 / Outlook / Teams** | Azure app registration, run `scripts/set-microsoft-keys.ps1`. Card shows "needs setup" until then. | Built |
 | 1.7 | **Download page on muntej.app** | Host `website/index.html` on muntej.app; then replace the Expo build link (`DOWNLOAD_URL` in `src/features/invite/api.ts`, `supabase/functions/muntej-chat`, `supabase/templates/invite.html`). | Page built |
-| 1.8 | **Exposed secrets** | Delete the Expo tokens pasted in chat (two) in Expo → Access tokens; rotate the SMTP app password that was pasted earlier. | — |
+| 1.8 | **Exposed secrets** | Delete the Expo tokens pasted in chat (two) in Expo → Access tokens; rotate the SMTP app password that was pasted earlier; **change the Intercom password** (sales@muntej.app) that was pasted on 25 Oct. | — |
+| 1.9 | **Intercom support chat** (Saree3 → "Talk to the Muntej team") | In Intercom: Settings → Installation → copy the **Android** (and iOS) API key; Settings → Security → turn on identity verification and copy its **secret**. Run `scripts/set-intercom-keys.ps1` (hidden prompts). Then a new build (2.5). Optional: Messenger colors + greeting. After it's installed, apply `docs/support-chat-announcement.sql` as a migration so Saree3 announces it. | Built (app + `support-identity` deployed); waits for keys + build |
 
 ## 2. Needs a new app build (can't come by over-the-air update)
 
@@ -31,6 +32,7 @@ Last updated: 2026-10-23
 | 2.2 | Copy buttons + "Paste code" on the sign-in code screen (`expo-clipboard`) |
 | 2.3 | Photo / file proof (`expo-image-picker`, `expo-document-picker`) |
 | 2.4 | New app icon and splash |
+| 2.5 | Intercom Messenger (`@intercom/intercom-react-native`, keys from EAS env via `app.config.js`): after 1.9 |
 
 Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 

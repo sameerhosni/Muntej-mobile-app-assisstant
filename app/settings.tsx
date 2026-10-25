@@ -41,6 +41,7 @@ import { NS as TEAM_NS } from '@/features/org/strings';
 import { Munti } from '@/features/munti/Munti';
 import { munti, useMunti } from '@/features/munti/store';
 import { MUNTI_NS } from '@/features/munti/tips';
+import { SupportRow } from '@/features/support/SupportRow';
 import { NS as ALERTS_NS } from '@/features/alerts/strings';
 
 export default function SettingsScreen() {
@@ -425,6 +426,8 @@ export default function SettingsScreen() {
           {t('settings.version', { v: Constants.expoConfig?.version ?? '' })}
         </AppText>
       </View>
+      {/* a real person: support chat with the Muntej team */}
+      <SupportRow />
     </Screen>
   );
 }
