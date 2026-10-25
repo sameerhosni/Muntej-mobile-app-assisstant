@@ -87,8 +87,9 @@ export async function openSupport(): Promise<string | null> {
     const sdk = native();
     if (!sdk && Platform.OS !== 'web') throw new Error('Intercom is not in this app build');
     await loginSupport();
-    if (sdk) await sdk.default.present();
-    else webIntercom()?.('show');
+    // straight to a new message to the team (Intercom's Home is empty until it's set up in Intercom)
+    if (sdk) await sdk.default.presentMessageComposer('');
+    else webIntercom()?.('showNewMessage');
     return null;
   } catch (e) {
     return `${(e as Error).message || String(e)} (native: ${registered() ? 'yes' : 'no'})`;
