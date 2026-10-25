@@ -21,6 +21,7 @@ import { ToolCard } from '@/features/incoming/ToolCards';
 import { WhatsAppCard } from '@/features/sources/WhatsAppCard';
 import { useConnectionActions, useConnections, useProviders, type Connection } from '@/features/sources/connections';
 import { Directions, GoogleParts } from '@/features/tools/ToolSettings';
+import { ReadBar } from '@/features/tools/ReadBar';
 import { connectionsFor, problemOf, toolOf, useToolItems, useToolTasks } from '@/features/tools/tools';
 import { TOOL_NS } from '@/features/tools/strings';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
@@ -178,6 +179,9 @@ export default function ToolScreen() {
           </Card>
         )}
 
+        {/* Read now with its progress, right under the status: the tasks it finds land just below */}
+        {mine.length > 0 && <ReadBar conns={mine} onRead={() => items.refetch()} />}
+
         {/* the paste box sits on top of its own page: it's the reason you came */}
         {tool.key === 'pasted' && <PasteBox initial={typeof params.text === 'string' ? params.text : undefined} />}
 
@@ -251,7 +255,7 @@ export default function ToolScreen() {
         )}
         {mine.map((c) => (
           <View key={c.id} style={{ gap: spacing.sm }}>
-            <ToolCard c={c} />
+            <ToolCard c={c} hideRead />
             <Button label={mine.length > 1 ? t('disconnectAccount', { who: c.account_label ?? '' }) : t('disconnect')} variant="outline" size="md" onPress={() => disconnect(c)} />
           </View>
         ))}

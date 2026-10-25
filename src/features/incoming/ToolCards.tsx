@@ -82,7 +82,8 @@ export function ToolCards() {
   );
 }
 
-export function ToolCard({ c }: { c: Connection }) {
+/** hideRead: the tool page shows Read now (with its progress) at the top, so here it's only the account and How often */
+export function ToolCard({ c, hideRead }: { c: Connection; hideRead?: boolean }) {
   const { t } = useScreenT(NS);
   const { t: tc } = useScreenT(CONN_NS);
   const { lang } = useDirection();
@@ -153,10 +154,13 @@ export function ToolCard({ c }: { c: Connection }) {
               .filter(Boolean)
               .join(' · ')}
       </AppText>
-      <AppText variant="caption" color="textMuted">
-        {nextText()}
-      </AppText>
+      {!hideRead && (
+        <AppText variant="caption" color="textMuted">
+          {nextText()}
+        </AppText>
+      )}
 
+      {!hideRead && (
       <Pressable
         onPress={readNow}
         disabled={busy === 'read'}
@@ -177,6 +181,7 @@ export function ToolCard({ c }: { c: Connection }) {
           {busy === 'read' ? t('reading') : t('readNow')}
         </AppText>
       </Pressable>
+      )}
       {!!note && (
         <AppText variant="small" weight="semibold" color={note.ok ? 'green' : 'red'}>
           {note.text}
