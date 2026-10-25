@@ -51,17 +51,22 @@ let signedIn = false;
 /** sign the person in to Intercom (once per app run) */
 export async function loginSupport() {
   if (signedIn || !supportAvailable()) return;
-  const { data, error } = await supabase.functions.invoke<Identity>('support-identity', { body: {} });
-  if (error || !data) return;
-  const company = data.company ? { id: data.company.id, name: data.company.name } : undefined;
+  const { data } = await supabase.functions.invoke<Identity>('support-identity', { body: {} }).catch(() => ({ data: null }));
+  const company = data?.company ? { id: data.company.id, name: data.company.name } : undefined;
   const sdk = native();
   if (sdk) {
     const Intercom = sdk.default;
-    if (data.hash) await Intercom.setUserHash(data.hash);
-    await Intercom.loginUserWithUserAttributes({ userId: data.userId, email: data.email ?? undefined });
-    await Intercom.updateUser({ name: data.name, companies: company ? [company] : undefined, customAttributes: { role: data.role } });
-    await Intercom.setLauncherVisibility(sdk.Visibility.GONE);
-  } else {
+    // Intercom shows an empty screen until someone is signed in: as the person when we know them, else as a visitor
+    if (data) {
+      if (data.hash) await Intercom.setUserHash(data.hash);
+      if (await Intercom.isUserLoggedIn().catch(() => false)) await Intercom.logout().catch(() => {});
+      await Intercom.loginUserWithUserAttributes(data.email ? { userId: data.userId, email: data.email } : { userId: data.userId });
+      await Intercom.updateUser({ name: data.name, ...(company ? { companies: [company] } : {}), customAttributes: { role: data.role } }).catch(() => {});
+    } else {
+      await Intercom.loginUnidentifiedUser();
+    }
+    await Intercom.setLauncherVisibility(sdk.Visibility.GONE).catch(() => {});
+  } else if (data) {
     webIntercom()?.('boot', {
       app_id: APP_ID,
       user_id: data.userId,
