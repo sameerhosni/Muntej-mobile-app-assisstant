@@ -12,7 +12,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
 import { Munti } from '@/features/munti/Munti';
 import { munti } from '@/features/munti/store';
-import { useLadder, useMarkCelebrated, useSkipRung } from './api';
+import { useLadder, useLadderProgress, useMarkCelebrated, useSkipRung } from './api';
 import { EMPLOYEE_RUNGS, LADDER_NS, MANAGER_RUNGS, NEXT } from './rungs';
 
 function useReached() {
@@ -22,7 +22,7 @@ function useReached() {
   return { reached, skipped, ready: !!ladder.data, rows: ladder.data ?? [] };
 }
 
-function Steps({ ids, reached, skipped = new Set() }: { ids: readonly string[]; reached: Set<string>; skipped?: Set<string> }) {
+function Steps({ ids, reached, skipped = new Set(), progress }: { ids: readonly string[]; reached: Set<string>; skipped?: Set<string>; progress?: Record<string, number> }) {
   const { t } = useScreenT(LADDER_NS);
   const current = ids.find((id) => !reached.has(id) && !skipped.has(id));
   return (
@@ -50,6 +50,12 @@ function Steps({ ids, reached, skipped = new Set() }: { ids: readonly string[]; 
                   {done ? t(`feel_${id}`) : skipped.has(id) ? t('skipped') : t(`next_${id}`)}
                 </AppText>
               )}
+              {/* not done yet: where it stands, so it's clear why */}
+              {!done && progress?.[id] !== undefined && (
+                <AppText variant="caption" weight="semibold" color="primary">
+                  {t(`p_${id}`, { n: progress[id] })}
+                </AppText>
+              )}
             </View>
           </View>
         );
@@ -63,6 +69,7 @@ export function JourneyCard() {
   const { t } = useScreenT(LADDER_NS);
   const { reached, skipped, ready } = useReached();
   const skip = useSkipRung();
+  const progress = useLadderProgress();
   if (!ready || reached.has('M6')) return null;
   // a skipped step no longer holds the journey; when every open step is skipped, the card goes away
   const done = MANAGER_RUNGS.filter((id) => reached.has(id) || skipped.has(id)).length;
@@ -79,7 +86,7 @@ export function JourneyCard() {
         </AppText>
       </View>
       <ProgressBar value={done / MANAGER_RUNGS.length} />
-      <Steps ids={MANAGER_RUNGS} reached={reached} skipped={skipped} />
+      <Steps ids={MANAGER_RUNGS} reached={reached} skipped={skipped} progress={progress.data} />
       <Button label={`${t('go')}: ${t(`r_${next}`)}`} size="md" onPress={() => router.push(NEXT[next])} />
       <Button label={t('skip')} variant="ghost" size="md" onPress={() => skip(next)} />
     </Card>

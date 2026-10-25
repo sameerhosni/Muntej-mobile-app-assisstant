@@ -26,6 +26,20 @@ export function useLadder() {
   });
 }
 
+/** how far along each manager step is (tasks handed off, follow-ups sent, closed, brief days, teammates) */
+export function useLadderProgress() {
+  const me = useMyProfile();
+  return useQuery({
+    queryKey: ['ladder', 'progress', me.data?.id],
+    enabled: !!me.data?.id,
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await untyped.rpc('ladder_progress');
+      if (error) throw new Error(error.message);
+      return (data ?? {}) as Record<string, number>;
+    },
+  });
+}
+
 export function useMarkCelebrated() {
   const qc = useQueryClient();
   return async (rung: string) => {
