@@ -27,7 +27,8 @@ export type Suggestion = {
   confidence: number;
   quote: string;
   duplicate_of: { id: string; title: string } | null;
-  state: 'new' | 'accepted' | 'ignored';
+  /** filtered: Saree3's own check dropped it (stale, already done, your own update…): never shown */
+  state: 'new' | 'accepted' | 'ignored' | 'filtered';
   task_id: string | null;
   /** added by Muntej without asking (it was sure) */
   auto?: boolean;

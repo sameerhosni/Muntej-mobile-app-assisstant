@@ -8,6 +8,7 @@ import { z } from 'npm:zod@4.6.7';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { HttpError, requireEnv } from './http.ts';
 import { buildPlan } from './followup-plan.ts';
+import { review } from './review.ts';
 
 export const MAX_TEXT = 12_000;
 /** a recorded meeting's transcript is longer than a pasted message */
@@ -77,7 +78,10 @@ Rules:
 
 export type Suggestion = FoundTask & {
   duplicate_of: { id: string; title: string } | null;
-  state: 'new' | 'accepted' | 'ignored';
+  state: 'new' | 'accepted' | 'ignored' | 'filtered';
+  /** why Saree3's own check dropped it (state 'filtered'), see review.ts */
+  filtered_reason?: string;
+  filtered_note?: string;
   task_id: string | null;
   /** added by Muntej without asking (sure about it) */
   auto?: boolean;
@@ -359,9 +363,20 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     };
   });
 
+  // pass 2: Saree3 checks his own list before anything reaches the person (review.ts). Direct instructions to him
+  // (WhatsApp) and tasks from task tools skip it.
+  let checked = '';
+  if (suggestions.length && !st && !input.delegating) {
+    try {
+      checked = await review(admin, input, body, suggestions, now);
+    } catch (e) {
+      console.warn('review failed, keeping the list as read', (e as Error).message);
+    }
+  }
+
   if (input.rereadId) {
     const old = existing.data as Item | null;
-    const decided = (old?.suggestions ?? []).filter((x) => x.state !== 'new');
+    const decided = (old?.suggestions ?? []).filter((x) => x.state === 'accepted' || x.state === 'ignored');
     const all = [...decided, ...suggestions];
     const { data: upd, error: updErr } = await admin
       .from('incoming_items')
@@ -389,7 +404,7 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
       body,
       summary: found.summary.slice(0, 300),
       received_at: input.receivedAt ?? now.toISOString(),
-      status: suggestions.length ? 'new' : 'nothing',
+      status: suggestions.some((x) => x.state === 'new') ? 'new' : 'nothing',
       suggestions,
     })
     .select('*')
@@ -429,14 +444,14 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     item = await saveItem(admin, item);
   }
 
-  const n = suggestions.length;
+  const n = suggestions.filter((x) => x.state !== 'filtered').length;
   await admin.from('activity_log').insert({
     actor_type: 'muntej',
     subject_id: input.profileId,
     action: 'incoming_read',
     summary: `Read a message (${input.source}) and found ${n} task${n === 1 ? '' : 's'}`,
     summary_ar: `قرأ رسالة (${input.source}) ولقى ${n} مهام`,
-    reason: found.summary.slice(0, 300),
+    reason: `${found.summary.slice(0, 300)}${checked ? ` · ${checked}` : ''}`,
     undoable: false,
   });
   return item;

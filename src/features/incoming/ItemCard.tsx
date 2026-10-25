@@ -57,7 +57,7 @@ export function ItemCard({ item }: { item: IncomingItem }) {
       )}
 
       <View style={{ gap: spacing.sm }}>
-        {item.suggestions.map((s, i) => (
+        {item.suggestions.map((s, i) => s.state === 'filtered' ? null : (
           <SuggestionRow
             key={i}
             s={s}
