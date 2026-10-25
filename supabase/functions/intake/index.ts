@@ -6,11 +6,13 @@
 //   { action: 'accept', id, index, edit?: { title?, owner_id?, due_at? } }    → creates that task (as the caller, RLS applies)
 //   { action: 'accept_all', id }                                             → every open suggestion that isn't a duplicate
 //   { action: 'ignore', id, index? }                                         → one suggestion, or the whole item
+//   { action: 'recheck_owners' }                                             → re-pick owners of my waiting tasks
+//   (server, x-cron-secret) { action: 'recheck_owners', profiles: [ids] }    → the same for those people
 // Every read and every task created is written to activity_log.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
-import { createFromSuggestion, ingestMessage, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
+import { createFromSuggestion, ingestMessage, recheckOwners, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 
 async function loadItem(admin: SupabaseClient, profileId: string, id: unknown): Promise<Item> {
   const { data, error } = await admin.from('incoming_items').select('*').eq('id', String(id ?? '')).maybeSingle();
@@ -36,9 +38,16 @@ async function linkToTool(admin: SupabaseClient, profileId: string, item: Item, 
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
-  const { db, profileId } = await getCaller(req);
   const admin = adminClient();
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  // from the server itself: re-pick owners for these people (no user session)
+  const cron = Deno.env.get('CRON_SECRET');
+  if (cron && req.headers.get('x-cron-secret') === cron && body.action === 'recheck_owners') {
+    const out: Record<string, unknown> = {};
+    for (const id of (body.profiles as string[]) ?? []) out[id] = await recheckOwners(admin, id);
+    return json(out);
+  }
+  const { db, profileId } = await getCaller(req);
   // tasks are created as the caller: their RLS and their name on the activity log
   const create: Creator = async (p) => {
     const { data, error } = await db.rpc('create_task_with_plan', { p });
@@ -117,6 +126,9 @@ serve(async (req) => {
       }
       return json(await saveItem(admin, item));
     }
+
+    case 'recheck_owners':
+      return json(await recheckOwners(admin, profileId));
 
     default:
       throw new HttpError(400, 'Unknown action');

@@ -407,3 +407,94 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   });
   return item;
 }
+
+const Owners = z.object({
+  owners: z.array(
+    z.object({
+      index: z.number().describe('the task number given'),
+      owner_id: z.string().nullable().describe('id from team by the owner rules, or null'),
+      why: z.string().describe('a few words: why this person (title / skill / needs the user personally)'),
+    }),
+  ),
+});
+const { $schema: _o, ...OWNERS_SCHEMA } = z.toJSONSchema(Owners) as Record<string, unknown>;
+
+/**
+ * Re-picks the owner of every task still waiting for a manager's OK, with today's owner rules (owner: "these
+ * aren't all mine"). Only owner_id changes (the old one is kept as owner_before); nothing is added or removed.
+ * Logged in activity_log. Returns how many changed.
+ */
+export async function recheckOwners(admin: SupabaseClient, profileId: string): Promise<{ checked: number; changed: number }> {
+  const { data: me } = await admin.from('profiles').select('id, role, account_id').eq('id', profileId).maybeSingle();
+  if (!me || me.role === 'employee') return { checked: 0, changed: 0 };
+  const { data: team } = await admin
+    .from('profiles')
+    .select('id, full_name, full_name_ar, title, skills')
+    .eq('account_id', me.account_id)
+    .eq('status', 'active')
+    .eq('hidden', false);
+  const people = (team ?? []) as Person[];
+  const ids = new Set(people.map((p) => p.id));
+  const { data: rows } = await admin.from('incoming_items').select('*').eq('owner_id', profileId).eq('status', 'new');
+  const model = Deno.env.get('INTAKE_MODEL') ?? Deno.env.get('PARSE_MODEL') ?? 'gpt-5-mini';
+  let checked = 0;
+  let changed = 0;
+  const notes: string[] = [];
+  for (const item of (rows ?? []) as (Item & { source: string })[]) {
+    const open = item.suggestions.map((s, i) => ({ s, i })).filter(({ s }) => s.state === 'new');
+    if (!open.length) continue;
+    checked += open.length;
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${requireEnv('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: 'low' } : {}),
+        messages: [
+          { role: 'system', content: `${SYSTEM}\n\nNow only choose the owner (owner_id) of each task already found in this message, by the owner rules above.` },
+          {
+            role: 'user',
+            content: `Context:\n${JSON.stringify({
+              user_id: profileId,
+              user_is_manager: true,
+              team: people.map((p) => ({ id: p.id, name: p.full_name, name_ar: p.full_name_ar, title: p.title ?? null, skills: p.skills ?? [] })),
+              source: item.source,
+              sender: item.sender,
+              subject: item.subject,
+            })}\n\nMessage:\n"""${item.body.slice(0, MAX_TEXT)}"""\n\nTasks:\n${JSON.stringify(open.map(({ s, i }) => ({ index: i, title: s.title, description: s.description ?? null })))}`,
+          },
+        ],
+        response_format: { type: 'json_schema', json_schema: { name: 'owners', strict: true, schema: OWNERS_SCHEMA } },
+      }),
+    });
+    if (!res.ok) continue;
+    const out = (await res.json()) as { choices?: { message?: { content?: string | null } }[] };
+    const parsed = Owners.safeParse(JSON.parse(out.choices?.[0]?.message?.content ?? '{}'));
+    if (!parsed.success) continue;
+    let touched = false;
+    for (const o of parsed.data.owners) {
+      const s = item.suggestions[o.index];
+      if (!s || s.state !== 'new') continue;
+      const next = o.owner_id && ids.has(o.owner_id) ? o.owner_id : null;
+      if (next === s.owner_id) continue;
+      (s as Suggestion & { owner_before?: string | null }).owner_before = s.owner_id;
+      s.owner_id = next;
+      touched = true;
+      changed++;
+      const name = people.find((p) => p.id === next)?.full_name ?? 'nobody yet';
+      notes.push(`${s.title} → ${name} (${o.why})`.slice(0, 160));
+    }
+    if (touched) await saveItem(admin, item);
+  }
+  if (changed)
+    await admin.from('activity_log').insert({
+      actor_type: 'muntej',
+      subject_id: profileId,
+      action: 'incoming_owners_rechecked',
+      summary: `Re-checked who owns ${checked} waiting tasks and changed ${changed}`,
+      summary_ar: `راجعت مين صاحب ${checked} مهام تنتظر، وغيّرت ${changed}`,
+      reason: notes.join('\n').slice(0, 1500),
+      undoable: false,
+    });
+  return { checked, changed };
+}
