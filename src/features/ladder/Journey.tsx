@@ -12,18 +12,19 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
 import { Munti } from '@/features/munti/Munti';
 import { munti } from '@/features/munti/store';
-import { useLadder, useMarkCelebrated } from './api';
+import { useLadder, useMarkCelebrated, useSkipRung } from './api';
 import { EMPLOYEE_RUNGS, LADDER_NS, MANAGER_RUNGS, NEXT } from './rungs';
 
 function useReached() {
   const ladder = useLadder();
   const reached = new Set((ladder.data ?? []).filter((r) => r.reached_at).map((r) => r.rung_id));
-  return { reached, ready: !!ladder.data, rows: ladder.data ?? [] };
+  const skipped = new Set((ladder.data ?? []).filter((r) => r.skipped_at && !r.reached_at).map((r) => r.rung_id));
+  return { reached, skipped, ready: !!ladder.data, rows: ladder.data ?? [] };
 }
 
-function Steps({ ids, reached }: { ids: readonly string[]; reached: Set<string> }) {
+function Steps({ ids, reached, skipped = new Set() }: { ids: readonly string[]; reached: Set<string>; skipped?: Set<string> }) {
   const { t } = useScreenT(LADDER_NS);
-  const current = ids.find((id) => !reached.has(id));
+  const current = ids.find((id) => !reached.has(id) && !skipped.has(id));
   return (
     <View style={{ gap: spacing.sm }}>
       {ids.map((id) => {
@@ -44,9 +45,9 @@ function Steps({ ids, reached }: { ids: readonly string[]; reached: Set<string> 
               <AppText variant="small" weight={now ? 'extrabold' : 'semibold'} color={done ? 'greenText' : 'text'}>
                 {t(`r_${id}`)}
               </AppText>
-              {(done || now) && (
+              {(done || now || skipped.has(id)) && (
                 <AppText variant="caption" color="textMuted" numberOfLines={2}>
-                  {done ? t(`feel_${id}`) : t(`next_${id}`)}
+                  {done ? t(`feel_${id}`) : skipped.has(id) ? t('skipped') : t(`next_${id}`)}
                 </AppText>
               )}
             </View>
@@ -60,10 +61,13 @@ function Steps({ ids, reached }: { ids: readonly string[]; reached: Set<string> 
 /** manager Home: where they are on the way to "create it and forget it" (hidden once the team runs on Muntej) */
 export function JourneyCard() {
   const { t } = useScreenT(LADDER_NS);
-  const { reached, ready } = useReached();
+  const { reached, skipped, ready } = useReached();
+  const skip = useSkipRung();
   if (!ready || reached.has('M6')) return null;
-  const done = MANAGER_RUNGS.filter((id) => reached.has(id)).length;
-  const next = MANAGER_RUNGS.find((id) => !reached.has(id))!;
+  // a skipped step no longer holds the journey; when every open step is skipped, the card goes away
+  const done = MANAGER_RUNGS.filter((id) => reached.has(id) || skipped.has(id)).length;
+  const next = MANAGER_RUNGS.find((id) => !reached.has(id) && !skipped.has(id));
+  if (!next) return null;
   return (
     <Card style={{ gap: spacing.md }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -75,8 +79,9 @@ export function JourneyCard() {
         </AppText>
       </View>
       <ProgressBar value={done / MANAGER_RUNGS.length} />
-      <Steps ids={MANAGER_RUNGS} reached={reached} />
+      <Steps ids={MANAGER_RUNGS} reached={reached} skipped={skipped} />
       <Button label={`${t('go')}: ${t(`r_${next}`)}`} size="md" onPress={() => router.push(NEXT[next])} />
+      <Button label={t('skip')} variant="ghost" size="md" onPress={() => skip(next)} />
     </Card>
   );
 }

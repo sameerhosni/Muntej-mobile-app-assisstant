@@ -10,7 +10,7 @@ import { useMyProfile } from '@/lib/api';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const untyped = supabase as any;
 
-export type Rung = { rung_id: string; reached_at: string | null; celebrated_at: string | null };
+export type Rung = { rung_id: string; reached_at: string | null; celebrated_at: string | null; skipped_at: string | null };
 
 export function useLadder() {
   const me = useMyProfile();
@@ -19,7 +19,7 @@ export function useLadder() {
     enabled: !!me.data?.id,
     refetchInterval: 5 * 60_000,
     queryFn: async (): Promise<Rung[]> => {
-      const { data, error } = await untyped.from('value_ladder').select('rung_id, reached_at, celebrated_at').eq('profile_id', me.data!.id);
+      const { data, error } = await untyped.from('value_ladder').select('rung_id, reached_at, celebrated_at, skipped_at').eq('profile_id', me.data!.id);
       if (error) throw new Error(error.message);
       return (data ?? []) as Rung[];
     },
@@ -30,6 +30,15 @@ export function useMarkCelebrated() {
   const qc = useQueryClient();
   return async (rung: string) => {
     await untyped.rpc('ladder_celebrated', { p_rung: rung });
+    qc.invalidateQueries({ queryKey: ['ladder'] });
+  };
+}
+
+/** "Skip for now": the step stops holding the journey (it still ticks by itself if it happens) */
+export function useSkipRung() {
+  const qc = useQueryClient();
+  return async (rung: string) => {
+    await untyped.rpc('ladder_skip', { p_rung: rung });
     qc.invalidateQueries({ queryKey: ['ladder'] });
   };
 }

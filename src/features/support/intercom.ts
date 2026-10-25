@@ -13,10 +13,9 @@ type Any = any;
 
 const APP_ID = (Constants.expoConfig?.extra as { intercomAppId?: string } | undefined)?.intercomAppId ?? 'lrn5nc6m';
 
-/** the native SDK, only when this build includes it */
+/** the native SDK (builds since 25 Oct include it; an older build throws on use and we say so) */
 function native(): Any | null {
-  // new architecture registers it as a TurboModule; older builds as a classic native module
-  if (Platform.OS === 'web' || !(TurboModuleRegistry.get('IntercomModule') ?? NativeModules.IntercomModule)) return null;
+  if (Platform.OS === 'web') return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('@intercom/intercom-react-native');
@@ -42,8 +41,10 @@ function webIntercom(): Any | null {
   return w.Intercom;
 }
 
-/** support chat is available here (web, or a native build with Intercom) */
-export const supportAvailable = () => Platform.OS === 'web' || !!native();
+/** support chat is offered everywhere; a build without Intercom says so when opened */
+export const supportAvailable = () => true;
+/** whether this build registered Intercom's native module (for the error line) */
+const registered = () => !!(TurboModuleRegistry.get('IntercomModule') ?? NativeModules.IntercomModule);
 
 let signedIn = false;
 
@@ -75,12 +76,18 @@ export async function loginSupport() {
   signedIn = true;
 }
 
-/** open the conversation with the Muntej team */
-export async function openSupport() {
-  await loginSupport();
-  const sdk = native();
-  if (sdk) await sdk.default.present();
-  else webIntercom()?.('show');
+/** open the conversation with the Muntej team; on failure, the reason (Saree3 shows it) */
+export async function openSupport(): Promise<string | null> {
+  try {
+    const sdk = native();
+    if (!sdk && Platform.OS !== 'web') throw new Error('Intercom is not in this app build');
+    await loginSupport();
+    if (sdk) await sdk.default.present();
+    else webIntercom()?.('show');
+    return null;
+  } catch (e) {
+    return `${(e as Error).message || String(e)} (native: ${registered() ? 'yes' : 'no'})`;
+  }
 }
 
 /** on sign-out */

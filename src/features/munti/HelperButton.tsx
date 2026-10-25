@@ -565,7 +565,7 @@ export function HelperButton() {
     { key: 'add', label: t('q_add'), run: () => go({ pathname: '/02-capture', params: { mode: 'text' } }) },
     // a real person: support chat with the Muntej team (Intercom), where this build has it
     ...(supportAvailable()
-      ? [{ key: 'support', label: ts('talk'), run: () => { setOpen(false); openSupport(); } }]
+      ? [{ key: 'support', label: ts('talk'), run: () => { setOpen(false); openSupport().then((err) => err && munti.say(`⚠️ ${err}`)); } }]
       : []),
     // replay this screen's walkthrough (Saree3 lights up what matters here again)
     ...(walkthrough.canReplay()
