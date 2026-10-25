@@ -132,7 +132,7 @@ const say = (lang: Lang, key: Key, v: Record<string, string | number> = {}) => f
 const num = (n: number, lang: Lang) => n.toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US');
 const firstName = (p: Person | undefined, lang: Lang) => ((lang === 'ar' && p?.full_name_ar) || p?.full_name || '').split(' ')[0];
 const when = (iso: string, lang: Lang) =>
-  new Date(iso).toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', day: 'numeric', month: 'short' });
+  new Date(iso).toLocaleDateString(lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', day: 'numeric', month: 'short' });
 
 // ─── time (Riyadh, UTC+3, no DST) ─────────────────────────────────────────────
 

@@ -121,7 +121,11 @@ function handleResponse(r: import('expo-notifications').NotificationResponse) {
   const data = r.notification.request.content.data as { taskId?: string } | undefined;
   const action = r.actionIdentifier as CheckinAction;
   if (data?.taskId && CHECKIN_ACTIONS.includes(action)) {
-    answerCheckin(data.taskId, action, r.userText).finally(() => openFrom(data));
+    answerCheckin(data.taskId, action, r.userText).finally(() => {
+      // Android keeps a written reply "sending…" until the app clears that notification
+      Notifications?.dismissNotificationAsync(r.notification.request.identifier).catch(() => {});
+      openFrom(data);
+    });
     return;
   }
   openFrom(data);

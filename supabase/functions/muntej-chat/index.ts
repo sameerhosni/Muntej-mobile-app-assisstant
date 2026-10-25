@@ -885,7 +885,7 @@ ${message}`
     return p ? ((ar0 ? p.full_name_ar : null) ?? p.full_name) : null;
   };
   const fmtDue = (iso: string) =>
-    new Intl.DateTimeFormat(ar0 ? 'ar-SA' : 'en-GB', {
+    new Intl.DateTimeFormat(ar0 ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', {
       timeZone: 'Asia/Riyadh',
       weekday: 'short',
       day: 'numeric',
@@ -1689,7 +1689,7 @@ ${message}`
     const owner = nameOf(t.owner_id);
     const parts: string[] = [];
     const fmt = (iso: string) =>
-      new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', {
+      new Intl.DateTimeFormat(ar ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', {
         timeZone: 'Asia/Riyadh',
         weekday: 'long',
         day: 'numeric',
@@ -1808,7 +1808,7 @@ function median(xs: number[]): number {
 }
 
 function fmtRiyadh(iso: string, ar: boolean) {
-  return new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', {
+  return new Intl.DateTimeFormat(ar ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', {
     timeZone: 'Asia/Riyadh',
     weekday: 'short',
     day: 'numeric',
@@ -2201,7 +2201,7 @@ async function applyBrief(db: Caller['db'], profileId: string, raw: { source_id:
       names.set(p.id, ((ar && p.full_name_ar) || p.full_name).split(' ')[0]);
   }
   const dayFmt = (iso: string) =>
-    new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short' }).format(
+    new Intl.DateTimeFormat(ar ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short' }).format(
       new Date(iso),
     );
 
@@ -2746,7 +2746,7 @@ function isoOrNull(s: string | null | undefined) {
 }
 
 function fmtDay(iso: string, ar: boolean) {
-  return new Intl.DateTimeFormat(ar ? 'ar-SA' : 'en-GB', {
+  return new Intl.DateTimeFormat(ar ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', {
     timeZone: 'Asia/Riyadh',
     weekday: 'short',
     day: 'numeric',

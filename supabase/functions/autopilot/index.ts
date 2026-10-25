@@ -89,7 +89,7 @@ function isoWeek(d: Date): string {
   return `${t.getUTCFullYear()}-W${Math.ceil(((t.getTime() - y0.getTime()) / DAY + 1) / 7)}`;
 }
 const whenText = (iso: string | number, ar: boolean) =>
-  new Date(iso).toLocaleDateString(ar ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short' });
+  new Date(iso).toLocaleDateString(ar ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'long', day: 'numeric', month: 'short' });
 
 // ─── messages ─────────────────────────────────────────────────────────────────
 
