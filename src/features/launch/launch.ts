@@ -1,4 +1,4 @@
-// Feature launches (see supabase/migrations/20261021170000_feature_launch.sql): the features table holds what's new
+﻿// Feature launches (see supabase/migrations/20261021170000_feature_launch.sql): the features table holds what's new
 // and for whom; feature_events holds each person's state. Here: where each feature lives in the app, the state hooks,
 // featureUsed() to call wherever a feature is really used, and the spotlight that points at the right button.
 import { useSyncExternalStore } from 'react';
@@ -32,8 +32,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   whatsapp_approve: { href: '/55-tool?tool=whatsapp' as Href, spot: 'sources.whatsapp' },
   tool_pages: { href: '/42-incoming', spot: 'tools.tiles' },
   journey_ladder: { href: '/01-home', spot: 'home.journey' },
-  // Saree3 himself shows it (his menu): no place to go
-  support_chat: {},
+  support_chat: { href: '/44-more' as Href },
   my_requests: { href: '/25-employee-home' },
   objective_plan: { href: '/40-objectives' },
   autopilot: { href: '/03-autopilot' },
@@ -98,7 +97,7 @@ export async function markFeature(key: string, state: FeatureState) {
   if (!error) qcRef?.invalidateQueries({ queryKey: ['featureStates'] });
 }
 
-/** the person really used this feature → "using it" (call it from the feature's own success path) */
+/** the person really used this feature â†’ "using it" (call it from the feature's own success path) */
 export function featureUsed(key: string) {
   markFeature(key, 'adopted').catch(() => {});
 }
@@ -109,7 +108,7 @@ export function isNewFor(states: Map<string, FeatureEvent> | undefined, key: str
   return !s || s === 'seen' || s === 'later';
 }
 
-// ─── is a "New for you" card on screen? (Saree3 keeps his own pop-up quiet meanwhile) ─────
+// â”€â”€â”€ is a "New for you" card on screen? (Saree3 keeps his own pop-up quiet meanwhile) â”€â”€â”€â”€â”€
 
 let cardOn = false;
 const cardListeners = new Set<() => void>();
@@ -129,7 +128,7 @@ export function useLaunchCardOn(): boolean {
   );
 }
 
-// ─── spotlight: "Show me" lights up one place on the next screen ─────────────
+// â”€â”€â”€ spotlight: "Show me" lights up one place on the next screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let spot: string | null = null;
 let spotTimer: ReturnType<typeof setTimeout> | undefined;

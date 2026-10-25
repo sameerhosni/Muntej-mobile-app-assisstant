@@ -27,6 +27,7 @@ import {
   UserPlus,
   Users,
   Sparkles,
+  MessageCircleQuestion,
   Waypoints,
   type LucideProps,
 } from 'lucide-react-native';
@@ -38,9 +39,11 @@ import { useWhatsNew } from '@/features/launch/WhatsNew';
 import { useMyProfile } from '@/lib/api';
 import { useIncomingCount } from '@/features/incoming/api';
 import { MORE_NS } from '@/features/more/strings';
+import { openSupport, useUnreadSupport } from '@/features/support/intercom';
+import { munti } from '@/features/munti/store';
 import { CoachSwitch } from '@/features/coach/CoachSwitch';
 
-type Tile = { key: string; href: Href; Icon: ComponentType<LucideProps>; bg: ColorToken; fg: string; who: 'all' | 'manager' | 'super'; count?: number };
+type Tile = { key: string; href: Href; Icon: ComponentType<LucideProps>; bg: ColorToken; fg: string; who: 'all' | 'manager' | 'super'; count?: number; run?: () => void };
 
 export default function MoreScreen() {
   const { t } = useScreenT(MORE_NS);
@@ -50,6 +53,7 @@ export default function MoreScreen() {
   const incoming = useIncomingCount();
   const manager = me.data?.role !== 'employee';
   const whatsNew = useWhatsNew();
+  const supportUnread = useUnreadSupport();
 
   const groups: { key: string; tiles: Tile[] }[] = [
     {
@@ -77,6 +81,17 @@ export default function MoreScreen() {
         { key: 'incoming', href: '/42-incoming', Icon: Inbox, bg: 'primaryTint', fg: colors.primary, who: 'all', count: incoming.count },
         // every new feature with Saree3's "Show me how"
         { key: 'whatsNew', href: '/50-whats-new' as Href, Icon: Sparkles, bg: 'purpleTint', fg: colors.purple, who: 'all', count: whatsNew.count },
+        // a real person: support chat with the Muntej team (Intercom), opens over this screen
+        {
+          key: 'support',
+          href: '/44-more' as Href,
+          Icon: MessageCircleQuestion,
+          bg: 'greenTint',
+          fg: colors.green,
+          who: 'all',
+          count: supportUnread,
+          run: () => openSupport().then((err) => err && munti.say(`⚠️ ${err}`)),
+        },
       ],
     },
     {
@@ -125,7 +140,7 @@ export default function MoreScreen() {
                 {tiles.map((x) => (
                   <Pressable
                     key={x.key}
-                    onPress={() => router.push(x.href)}
+                    onPress={() => (x.run ? x.run() : router.push(x.href))}
                     accessibilityRole="link"
                     accessibilityLabel={`${t(x.key)}. ${t(`${x.key}Sub`)}`}
                     style={({ pressed }) => ({
