@@ -177,12 +177,21 @@ async function handle(m: WaMessage) {
   });
   if (item.duplicate_message) return;
   const n = item.suggestions.length;
+  // one line per task: what · who · when, so they know it was understood without opening the app
+  const line = (s: (typeof item.suggestions)[number]) => {
+    const p = (team ?? []).find((x) => x.id === s.owner_id);
+    const who = p ? (p.id === me.id ? (ar ? 'أنت' : 'you') : ((ar && p.full_name_ar) || p.full_name).split(' ')[0]) : null;
+    const when = s.due_at
+      ? new Intl.DateTimeFormat(ar ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(s.due_at))
+      : null;
+    return `• ${s.title}${[who && `👤 ${who}`, when && `⏰ ${when}`].filter(Boolean).map((x) => ` · ${x}`).join('')}`;
+  };
   await sendWhatsApp(
     from,
     n
       ? ar
-        ? `لقيت ${n === 1 ? 'مهمة' : n === 2 ? 'مهمتين' : `${n} مهام`} ✓ تنتظر موافقتك في منتج («مهام من الإيميل»):\n${item.suggestions.map((s) => `• ${s.title}`).join('\n')}`
-        : `Found ${n} task${n > 1 ? 's' : ''} ✓ waiting for your OK in Muntej:\n${item.suggestions.map((s) => `• ${s.title}`).join('\n')}`
+        ? `لقيت ${n === 1 ? 'مهمة' : n === 2 ? 'مهمتين' : `${n} مهام`} ✓ تنتظر موافقتك في منتج («أدواتك»):\n${item.suggestions.map(line).join('\n')}`
+        : `Found ${n} task${n > 1 ? 's' : ''} ✓ waiting for your OK in Muntej (Your tools):\n${item.suggestions.map(line).join('\n')}`
       : ar
         ? 'قريتها ✓ بس ما لقيت فيها مهمة 🤔'
         : 'Got it ✓ but I didn’t find a task in it 🤔',
