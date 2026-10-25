@@ -177,21 +177,32 @@ async function handle(m: WaMessage) {
   });
   if (item.duplicate_message) return;
   const n = item.suggestions.length;
-  // one line per task: what · who · when, so they know it was understood without opening the app
-  const line = (s: (typeof item.suggestions)[number]) => {
+  // one small card per task (title, who, when, what to send back), each line on its own so Arabic and English
+  // never mix on one line; RLM keeps Arabic lines right-aligned even when they start with an emoji or a number
+  const rtl = (s: string) => (ar ? s.split('\n').map((l) => (l ? `‏${l}` : l)).join('\n') : s);
+  const PROOF: Record<string, [string, string]> = { file: ['ملف', 'a file'], image: ['صورة', 'a photo'], link: ['رابط', 'a link'], any: ['أي إثبات', 'any proof'] };
+  const card = (s: (typeof item.suggestions)[number]) => {
     const p = (team ?? []).find((x) => x.id === s.owner_id);
-    const who = p ? (p.id === me.id ? (ar ? 'أنت' : 'you') : ((ar && p.full_name_ar) || p.full_name).split(' ')[0]) : null;
-    const when = s.due_at
-      ? new Intl.DateTimeFormat(ar ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { weekday: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(s.due_at))
-      : null;
-    return `• ${s.title}${[who && `👤 ${who}`, when && `⏰ ${when}`].filter(Boolean).map((x) => ` · ${x}`).join('')}`;
+    const who = p ? (p.id === me.id ? (ar ? 'أنت' : 'You') : (ar && p.full_name_ar) || p.full_name) : ar ? 'ما حددت أحد، اختره لما توافق' : 'Nobody yet, pick them when you approve';
+    const fmt = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(ar ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { ...o, timeZone: 'Asia/Riyadh' }).format(new Date(s.due_at!));
+    const when = s.due_at ? `${fmt({ weekday: 'long', day: 'numeric', month: 'long' })} · ${fmt({ hour: 'numeric', minute: '2-digit' })}` : ar ? 'بدون موعد' : 'No deadline';
+    const proof = PROOF[s.proof_required ?? 'none'];
+    return [
+      `📝 *${s.title}*`,
+      `👤 ${ar ? 'لـ' : 'For'}: ${who}`,
+      `⏰ ${ar ? 'الموعد' : 'Due'}: ${when}`,
+      ...(proof ? [`📎 ${ar ? 'يرسل لك' : 'Sends you'}: ${ar ? proof[0] : proof[1]}`] : []),
+    ].join('\n');
   };
+  const count = ar ? (n === 1 ? 'مهمة جديدة' : n === 2 ? 'مهمتين' : `${n} مهام`) : `${n} new task${n > 1 ? 's' : ''}`;
   await sendWhatsApp(
     from,
     n
-      ? ar
-        ? `لقيت ${n === 1 ? 'مهمة' : n === 2 ? 'مهمتين' : `${n} مهام`} ✓ تنتظر موافقتك في منتج («أدواتك»):\n${item.suggestions.map(line).join('\n')}`
-        : `Found ${n} task${n > 1 ? 's' : ''} ✓ waiting for your OK in Muntej (Your tools):\n${item.suggestions.map(line).join('\n')}`
+      ? rtl(
+          ar
+            ? `تمام ✅ لقيت ${count}:\n\n${item.suggestions.map(card).join('\n\n')}\n\n👈 وافق عليها من منتج ← أدواتك، وأنا أتابع الباقي.`
+            : `Done ✅ I found ${count}:\n\n${item.suggestions.map(card).join('\n\n')}\n\n👉 Approve in Muntej → Your tools and I'll handle the rest.`,
+        )
       : ar
         ? 'قريتها ✓ بس ما لقيت فيها مهمة 🤔'
         : 'Got it ✓ but I didn’t find a task in it 🤔',
