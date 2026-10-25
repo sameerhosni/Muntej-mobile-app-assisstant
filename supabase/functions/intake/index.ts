@@ -12,7 +12,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
-import { createFromSuggestion, ingestMessage, recheckOwners, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
+import { createFromSuggestion, ingestMessage, recheckOwners, rereadWaiting, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 
 async function loadItem(admin: SupabaseClient, profileId: string, id: unknown): Promise<Item> {
   const { data, error } = await admin.from('incoming_items').select('*').eq('id', String(id ?? '')).maybeSingle();
@@ -42,9 +42,9 @@ serve(async (req) => {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   // from the server itself: re-pick owners for these people (no user session)
   const cron = Deno.env.get('CRON_SECRET');
-  if (cron && req.headers.get('x-cron-secret') === cron && body.action === 'recheck_owners') {
+  if (cron && req.headers.get('x-cron-secret') === cron && (body.action === 'recheck_owners' || body.action === 'reread_waiting')) {
     const out: Record<string, unknown> = {};
-    for (const id of (body.profiles as string[]) ?? []) out[id] = await recheckOwners(admin, id);
+    for (const id of (body.profiles as string[]) ?? []) out[id] = body.action === 'reread_waiting' ? await rereadWaiting(admin, id, body.ids as string[] | undefined) : await recheckOwners(admin, id);
     return json(out);
   }
   const { db, profileId } = await getCaller(req);

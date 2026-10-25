@@ -22,6 +22,8 @@ const Found = z.object({
     z.object({
       title: z.string().describe('Short action title, starts with a verb, in the message language'),
       owner_id: z.string().nullable().describe('id from team: who the message means (by name, To/Cc, role or skill), or null'),
+      owner_name: z.string().nullable().describe('who the message says should do it, as written ("Mohammed Nabulsi", "the dev team"), even when they are not in team; null when unclear'),
+      outside: z.boolean().describe('true when the work is for a person or team that is not in team and is not the user'),
       requested_by: z.string().nullable().describe('who asked for this work: their name as written (the sender, or the person in the chat / meeting who asked), or null'),
       due_at: z.string().nullable().describe('ISO 8601 with +03:00: the date AND time the message gives, or null'),
       priority: z.enum(['low', 'medium', 'high', 'urgent']),
@@ -65,6 +67,9 @@ Rules:
 - only_tasks_for_user = true (the user is an employee): list ONLY work the user themself must do (asked of them, assigned to them, or that they promised). Work for anyone else, and group requests nobody owns yet, are not listed.
 - confidence: 0.9+ explicit request with owner or deadline; 0.6–0.8 clear but vague; under 0.5 maybe.
 - user_is_manager = true: the user runs a team, and a request reaching their inbox / chat / meeting is not automatically theirs. This holds even when the message says "you" / "can you…" / "تقدر" to the user: a manager hands such work on. Work someone on the team can do (prepare, check, test, review a file, fill in a form, write a report, data entry, follow up with a client, design, build) → owner_id = the teammate whose title, then skills, fit it best (a test / QA job → the tester; marketing work → the marketer). The user is the owner ONLY for what needs them personally: approve, decide, sign, attend a meeting they're invited to, reply as themselves, or when the message says they will do it. No teammate fits → null, not the user.
+- Group chats, channels and meetings (is_group = true): the user sees every line but only some of it is theirs. Keep a task only when it is asked of the user (by name, @mention, or "you" in a reply to them), or of a named team member, or of everyone ("@all", "team", "يا شباب") AND the user's title / role fits the work. Work for named people or teams that are not in team ("Anas", "the dev team", "OP team", "Nabulsi to follow up") → outside = true.
+- Messages the user wrote themself (sender = user_name) asking someone else ("send me the Trello card", "ابعتلي") are that person's work, not the user's: owner = that person; not in team → outside = true.
+- Sharing an article, a link or news with no ask ("FYI", "check this out") is not a task.
 - Information is not a task: news about someone else's plan or status ("Noura is on leave today so she starts tomorrow", "the release moved to Sunday", "X is done") has no task unless it asks someone to do something.
 - user_is_delegating = true: the user is talking to you (their assistant) by voice or text, as a manager handing out work. "I need someone to…", "احتاج حد يسوي", "خل أحد", "أحد من الفريق", a role or a team ("QE", "QA", "المبيعات", "the designer") → owner_id = the team member whose title, then skills, fit the work best (a test / QA / QE job → the tester; a report → whoever owns that area). NEVER the user for these. The user is the owner only when they say so ("remind me", "I'll", "ذكرني", "أنا بسويها", "لي أنا") or nobody else exists. This overrides rule 3 above.
 - earlier_request (when given): the same person's message a few minutes ago and the tasks you found in it, still waiting. If this message only adjusts that work ("make it tomorrow", "give it to someone in QE", "لا، أبيها تخلص بكرة", "أضفها على…"), return those earlier tasks again with the changes applied (keep their title and details unless the message changes them; resolve owner and due_at with the rules above) and amends_earlier = true. New work → amends_earlier = false.
@@ -253,6 +258,8 @@ export type IngestInput = {
   delegating?: boolean;
   /** their previous message, still waiting: this one may only change it (deadline, owner…) */
   earlier?: { text: string; tasks: { title: string; owner_id: string | null; due_at: string | null }[] } | null;
+  /** read this waiting item again with today's rules: its waiting tasks are replaced, decided ones stay */
+  rereadId?: string;
 };
 
 /** Reads a message and saves it as an incoming item (auto-adding the sure tasks). Same message twice → the same item. */
@@ -269,13 +276,16 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     .eq('source', input.source)
     .eq('external_id', externalId)
     .maybeSingle();
-  if (existing.data) return { ...(existing.data as Item), duplicate_message: true };
+  if (existing.data && !input.rereadId) return { ...(existing.data as Item), duplicate_message: true };
 
   const now = new Date();
   const st = input.structured;
   // an employee's email / chat / meetings bring only their own work (owner: "tasks for each employee should be only the
   // ones assigned to him or related to him"); managers also see their team's (giving out work is their job)
-  const { data: me } = await admin.from('profiles').select('role').eq('id', input.profileId).maybeSingle();
+  const { data: me } = await admin.from('profiles').select('role, full_name, full_name_ar').eq('id', input.profileId).maybeSingle();
+  // a group conversation: not every line is for the reader
+  const isGroup =
+    ['slack', 'teams', 'meet', 'meeting', 'calendar'].includes(input.source) || (input.source === 'google_chat' && input.subject !== 'Direct message');
   const onlyMine = me?.role === 'employee';
   const found: z.infer<typeof Found> = st
     ? {
@@ -296,6 +306,8 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
             quote: (st.link ?? st.description ?? '').slice(0, 200),
             requested_by: input.sender ?? null,
             amends_earlier: false,
+            owner_name: null,
+            outside: false,
           },
         ],
       }
@@ -313,6 +325,8 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
         user_id: input.profileId,
         only_tasks_for_user: onlyMine,
         user_is_manager: !onlyMine,
+        user_name: [me?.full_name, me?.full_name_ar].filter(Boolean).join(' / ') || null,
+        is_group: isGroup,
         team: input.team.map((p) => ({ id: p.id, name: p.full_name, name_ar: p.full_name_ar, title: p.title ?? null, skills: p.skills ?? [] })),
         sender: input.sender ?? null,
         subject: input.subject ?? null,
@@ -325,7 +339,9 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   // email: only real tasks reach the person (a "maybe" from a mailbox is noise)
   const fromMail = ['gmail', 'outlook', 'email'].includes(input.source);
   const confident = fromMail ? found.tasks.filter((t) => t.confidence >= 0.5) : found.tasks;
-  const kept = onlyMine ? confident.filter((t) => t.owner_id === input.profileId) : confident;
+  // work for people outside Muntej is theirs, not yours or your team's (owner: "not mine, other teams"), from any tool
+  const relevant = confident.filter((t) => !(t.outside && !t.owner_id));
+  const kept = onlyMine ? relevant.filter((t) => t.owner_id === input.profileId) : relevant;
   const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;
     const due = t.due_at && !Number.isNaN(Date.parse(t.due_at)) ? t.due_at : null;
@@ -342,6 +358,24 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
       task_id: null,
     };
   });
+
+  if (input.rereadId) {
+    const old = existing.data as Item | null;
+    const decided = (old?.suggestions ?? []).filter((x) => x.state !== 'new');
+    const all = [...decided, ...suggestions];
+    const { data: upd, error: updErr } = await admin
+      .from('incoming_items')
+      .update({
+        suggestions: all,
+        summary: found.summary.slice(0, 300),
+        status: all.some((x) => x.state === 'new') ? 'new' : decided.some((x) => x.state === 'accepted') ? 'done' : 'nothing',
+      })
+      .eq('id', input.rereadId)
+      .select('*')
+      .single();
+    if (updErr) throw updErr;
+    return upd as Item;
+  }
 
   const { data, error } = await admin
     .from('incoming_items')
@@ -497,4 +531,63 @@ export async function recheckOwners(admin: SupabaseClient, profileId: string): P
       undoable: false,
     });
   return { checked, changed };
+}
+
+/** Reads every message still waiting for this person again with today's rules (owner: "many of these aren't mine,
+ *  some aren't even tasks"). Waiting tasks are replaced; ones already added or ignored stay. Nothing is added
+ *  by itself. Logged in activity_log. */
+export async function rereadWaiting(admin: SupabaseClient, profileId: string, only?: string[]): Promise<{ messages: number; before: number; after: number }> {
+  const { data: me } = await admin.from('profiles').select('account_id').eq('id', profileId).maybeSingle();
+  if (!me) return { messages: 0, before: 0, after: 0 };
+  const { data: team } = await admin
+    .from('profiles')
+    .select('id, full_name, full_name_ar, title, skills')
+    .eq('account_id', me.account_id)
+    .eq('status', 'active')
+    .eq('hidden', false);
+  const ids = (team ?? []).map((p) => p.id as string);
+  const { data: open } = await admin.from('tasks').select('id, title, owner_id').in('status', OPEN).in('owner_id', ids.length ? ids : [profileId]);
+  let q = admin.from('incoming_items').select('*').eq('owner_id', profileId).eq('status', 'new');
+  if (only?.length) q = q.in('id', only); // a few at a time: each one is a full read
+  const { data: rows } = await q;
+  let before = 0;
+  let after = 0;
+  let messages = 0;
+  const noCreate: Creator = () => Promise.reject(new Error('reread never adds tasks'));
+  for (const row of (rows ?? []) as (Item & { external_id: string; received_at: string; connection_id: string | null })[]) {
+    if (row.source === 'whatsapp') continue; // your own requests to Saree3: already read with the delegating rules
+    before += row.suggestions.filter((x) => x.state === 'new').length;
+    try {
+      const item = await ingestMessage(admin, {
+        profileId,
+        text: row.body,
+        source: row.source,
+        externalId: row.external_id,
+        sender: row.sender,
+        subject: row.subject,
+        receivedAt: row.received_at,
+        connectionId: row.connection_id,
+        team: (team ?? []) as Person[],
+        open: open ?? [],
+        create: noCreate,
+        confirmFirst: true,
+        rereadId: row.id,
+      });
+      after += item.suggestions.filter((x) => x.state === 'new').length;
+      messages++;
+    } catch (e) {
+      console.warn('reread failed', row.id, (e as Error).message);
+      after += row.suggestions.filter((x) => x.state === 'new').length;
+    }
+  }
+  await admin.from('activity_log').insert({
+    actor_type: 'muntej',
+    subject_id: profileId,
+    action: 'incoming_reread',
+    summary: `Read ${messages} waiting messages again with the new rules: ${before} tasks became ${after}`,
+    summary_ar: `قريت ${messages} رسائل تنتظر من جديد بالقواعد الجديدة: ${before} مهام صارت ${after}`,
+    reason: 'Group chats: only work for you or your team; own requests and outside teams dropped; news is not a task',
+    undoable: false,
+  });
+  return { messages, before, after };
 }

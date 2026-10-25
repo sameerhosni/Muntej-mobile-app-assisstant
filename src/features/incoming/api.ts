@@ -12,6 +12,8 @@ const untyped = supabase as any;
 export type Suggestion = {
   title: string;
   owner_id: string | null;
+  /** who the message says should do it, as written, when they aren't on the team ("Mohammed Nabulsi") */
+  owner_name?: string | null;
   /** who asked for it (name as written), when Saree3 could tell */
   requested_by?: string | null;
   due_at: string | null;

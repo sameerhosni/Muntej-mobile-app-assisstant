@@ -149,7 +149,7 @@ function SuggestionRow({
       <FromTag name={s.requested_by ?? from ?? null} />
       {/* who · when · how urgent · what to send back · budget, as small chips you read at a glance */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        <Chip label={`👤 ${ownerName ?? t('noOwner')}`} />
+        <Chip label={`👤 ${ownerName ?? (s.owner_name ? t('outsideOwner', { name: s.owner_name }) : t('noOwner'))}`} />
         <Chip label={`📅 ${s.due_at ? formatDue(s.due_at, lang) : t('noDue')}`} />
         {(s.priority === 'urgent' || s.priority === 'high') && <Chip label={`${s.priority === 'urgent' ? '🔴' : '🟠'} ${t(`pr_${s.priority}`)}`} />}
         {!!s.proof_required && s.proof_required !== 'none' && <Chip label={`📎 ${t(`proof_${s.proof_required}`)}`} />}
