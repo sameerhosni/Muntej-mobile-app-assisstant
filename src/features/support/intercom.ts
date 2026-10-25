@@ -110,8 +110,9 @@ export function useUnreadSupport() {
   useEffect(() => {
     let sub: { remove?: () => void } | undefined;
     try {
-      const sdk = native();
-      if (sdk && signedIn) {
+      // Intercom isn't touched at all until the chat was opened once (opening More crashed on 25 Oct)
+      const sdk = signedIn ? native() : null;
+      if (sdk) {
         sdk.default.getUnreadConversationCount().then(setN, () => {});
         const ev = sdk.IntercomEvents?.IntercomUnreadCountDidChange;
         if (ev) sub = sdk.default.addEventListener(ev, (e: { count?: number }) => setN(e?.count ?? 0));
