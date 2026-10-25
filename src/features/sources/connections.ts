@@ -53,7 +53,7 @@ export function useConnections() {
       const { data, error } = await untyped
         .from('connections')
         .select(
-          'id, provider, status, account_label, last_sync_at, last_error, found_today, found_day, import_on, export_on, export_target, features, cursor',
+          'id, provider, status, account_label, last_sync_at, last_error, found_today, found_day, import_on, export_on, export_target, features, read_every_min, cursor',
         );
       if (error) throw new Error(error.message);
       return (data ?? []) as Connection[];

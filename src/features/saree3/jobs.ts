@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useDecisions, useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { useConnections } from '@/features/sources/connections';
 import { useIncomingCount } from '@/features/incoming/api';
+import { toolForConnection } from '@/features/tools/tools';
 import type { Href } from 'expo-router';
 
 export type JobKind = 'needs' | 'working' | 'waiting';
@@ -108,7 +109,7 @@ export function useSaree3Jobs(t: T, lang: string) {
       icon: p.yours ? '🙋' : '🔄',
       text: `${t(`tool_${c.provider}`)}${c.account_label ? ` · ${c.account_label}` : ''}: ${p.text}`,
       sub: p.yours ? t('reconnect') : t('retrying', { when: at(nextRead) }),
-      href: p.yours ? '/12-sources' : '/42-incoming',
+      href: { pathname: '/55-tool', params: { tool: toolForConnection(c) } } as unknown as Href,
     });
   }
   // ── working: late work Saree3 is chasing for you ──

@@ -82,7 +82,7 @@ export function ToolCards() {
   );
 }
 
-function ToolCard({ c }: { c: Connection }) {
+export function ToolCard({ c }: { c: Connection }) {
   const { t } = useScreenT(NS);
   const { t: tc } = useScreenT(CONN_NS);
   const { lang } = useDirection();

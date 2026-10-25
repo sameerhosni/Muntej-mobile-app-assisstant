@@ -25,11 +25,12 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   confirm_new: { href: '/01-home', spot: 'home.confirm' },
   week_links: { href: '/01-home', spot: 'home.week' },
   sectors: { href: '/12-sources', spot: 'sources.sector' },
-  google_chat: { href: '/12-sources', spot: 'sources.google' },
+  google_chat: { href: '/55-tool?tool=google_chat' as Href, spot: 'sources.google' },
   your_tools: { href: '/42-incoming', spot: 'email.connect' },
   my_profile: { href: '/53-profile' as Href },
   saree3_jobs: { href: '/01-home', spot: 'home.jobs' },
-  whatsapp_approve: { href: '/12-sources', spot: 'sources.whatsapp' },
+  whatsapp_approve: { href: '/55-tool?tool=whatsapp' as Href, spot: 'sources.whatsapp' },
+  tool_pages: { href: '/42-incoming', spot: 'tools.tiles' },
   my_requests: { href: '/25-employee-home' },
   objective_plan: { href: '/40-objectives' },
   autopilot: { href: '/03-autopilot' },
@@ -43,9 +44,9 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   // 23 Oct: each one's place is a TourTarget, so "Show me" runs Saree3's walkthrough right on it
   from_saree3: { href: '/', spot: 'home.from' },
   team_risks: { href: '/01-home', spot: 'home.risks' },
-  email_tasks: { href: '/42-incoming', spot: 'email.connect' },
-  whatsapp: { href: '/12-sources', spot: 'sources.whatsapp' },
-  meet: { href: '/12-sources', spot: 'sources.google' },
+  email_tasks: { href: '/55-tool?tool=gmail' as Href },
+  whatsapp: { href: '/55-tool?tool=whatsapp' as Href, spot: 'sources.whatsapp' },
+  meet: { href: '/55-tool?tool=meet' as Href, spot: 'sources.google' },
   more_tools: { href: '/42-incoming', spot: 'email.tools' },
 };
 

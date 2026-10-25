@@ -1,20 +1,20 @@
 // Screen 12 · Sources — see design/v2/html/Sources.dc.html (Arabic: SourcesAR.dc.html); now "Connect your tools".
 // Real connections (table connections + Edge Function `connect`): Connect opens the tool's own sign-in page, which
 // sends the person back here (?connected=… / ?error=…). Every 10 minutes sync-sources reads what's new and passes it
-// to Muntej's intake (sure tasks are added, the rest wait in Incoming). Check now / Disconnect per tool.
+// to Muntej's intake (sure tasks are added, the rest wait in Incoming). A connected tool opens its own page (screen 55:
+// its tasks, Read now, settings, Disconnect); Google opens a page per part (Gmail · Meet · Chat · Calendar).
 // Only the tools you've connected are listed, plus WhatsApp (owner: no "coming soon" sections). Connect email from
 // Your tools (screen 42).
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { ActivityIndicator, RefreshControl, ScrollView, View } from 'react-native';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Inbox, Lock } from 'lucide-react-native';
-import { AppText, Button, Card, IconBadge, IconButton, TextField, Toggle } from '@/components/ui';
-import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
+import { AppText, Button, Card, IconBadge, IconButton, TextField } from '@/components/ui';
+import { colors, radius, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
-import { WhatsAppCard } from '@/features/sources/WhatsAppCard';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import {
   PROVIDER_IDS,
@@ -23,11 +23,13 @@ import {
   useProviders,
   type Connection,
   type ProviderId,
-  type Target,
 } from '@/features/sources/connections';
 import { CONN_NS } from '@/features/sources/connStrings';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
+import { TOOL_NS } from '@/features/tools/strings';
+
+const openTool = (tool: string) => router.push({ pathname: '/55-tool', params: { tool } } as unknown as Href);
 
 /** letter badge per tool (brand logos aren't in the app; colours from the theme) */
 const BADGE: Record<ProviderId, { letter: string; bg: ColorToken; fg: string }> = {
@@ -43,6 +45,7 @@ const BADGE: Record<ProviderId, { letter: string; bg: ColorToken; fg: string }> 
 
 export default function SourcesScreen() {
   const { t } = useScreenT(CONN_NS);
+  const { t: tt } = useScreenT(TOOL_NS);
   const { isRTL } = useDirection();
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
   const conns = useConnections();
@@ -130,7 +133,20 @@ export default function SourcesScreen() {
 
         {/* Muntej's own WhatsApp number: voice notes → tasks */}
         <TourTarget id="sources.whatsapp">
-          <WhatsAppCard />
+          <Card onPress={() => openTool('whatsapp')} accessibilityLabel={tt('t_whatsapp')} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <IconBadge size={40} bg="greenTint">
+              <AppText weight="extrabold" style={{ color: colors.green, fontSize: 18 }}>
+                W
+              </AppText>
+            </IconBadge>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <AppText weight="bold">{tt('t_whatsapp')}</AppText>
+              <AppText variant="caption" color="textMuted">
+                {tt('alwaysOn')}
+              </AppText>
+            </View>
+            <Button label={tt('open')} size="md" onPress={() => openTool('whatsapp')} />
+          </Card>
         </TourTarget>
 
         {firstGroup.map((id) => {
@@ -209,6 +225,7 @@ function ToolRow({
   onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void;
 }) {
   const { t } = useScreenT(CONN_NS);
+  const { t: tt } = useScreenT(TOOL_NS);
   const { lang } = useDirection();
   const actions = useConnectionActions();
   const [busy, setBusy] = useState<null | 'connect' | 'sync' | 'disconnect' | 'token'>(null);
@@ -247,34 +264,6 @@ function ToolRow({
         text: t('tokenDone', { name, tasks: n(r.tasks) }),
       });
     });
-  const sync = () =>
-    run('sync', async () => {
-      const r = await actions.syncNow(id);
-      onNote(
-        r.error
-          ? { tone: 'red', text: t('problem', { msg: r.error }) }
-          : {
-              tone: 'green',
-              text: t('checkedResult2', {
-                tasks: n(r.tasks),
-                sent: n(r.sent ?? 0),
-                closed: n((r.closedHere ?? 0) + (r.closedThere ?? 0)),
-              }),
-            },
-      );
-    });
-  const disconnect = () => {
-    const go = () => run('disconnect', () => actions.disconnect(id));
-    if (Platform.OS === 'web') {
-      if (window.confirm(t('confirmDisconnect', { name }))) go();
-      return;
-    }
-    Alert.alert(name, t('confirmDisconnect', { name }), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('disconnect'), style: 'destructive', onPress: go },
-    ]);
-  };
-
   const status = conn
     ? conn.status === 'error'
       ? t('problem', { msg: conn.last_error ?? '' })
@@ -323,30 +312,19 @@ function ToolRow({
         </AppText>
       )}
 
-      {conn && <Directions id={id} conn={conn} twoWay={twoWay} onNote={onNote} />}
-      {/* Google: switch Gmail / Calendar / Meet on or off for each linked account */}
-      {conn && id === 'google' && (
-        <TourTarget id="sources.google">
-          <GoogleParts onNote={onNote} />
-        </TourTarget>
-      )}
-
+      {/* connected: everything about it lives on its own page (Google: a page per part) */}
       {conn ? (
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          {conn.status === 'error' ? (
-            <Button label={t('reconnect')} size="md" loading={busy === 'connect'} onPress={connect} style={{ flex: 1 }} />
-          ) : (
-            <Button label={t('checkNow')} size="md" loading={busy === 'sync'} onPress={sync} style={{ flex: 1 }} />
-          )}
-          <Button
-            label={t('disconnect')}
-            variant="outline"
-            size="md"
-            loading={busy === 'disconnect'}
-            onPress={disconnect}
-            style={{ flex: 1 }}
-          />
-        </View>
+        id === 'google' ? (
+          <TourTarget id="sources.google">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+              {(['gmail', 'meet', 'google_chat', 'calendar'] as const).map((k) => (
+                <Button key={k} label={tt(`t_${k}`)} variant="outline" size="md" onPress={() => openTool(k)} />
+              ))}
+            </View>
+          </TourTarget>
+        ) : (
+          <Button label={tt('open')} size="md" onPress={() => openTool(id)} />
+        )
       ) : (
         <View style={{ gap: spacing.sm }}>
           {configured && <Button label={t('connect')} size="md" loading={busy === 'connect'} onPress={connect} />}
@@ -397,254 +375,3 @@ function ToolRow({
   );
 }
 
-/** The two directions for a connected tool: bring tasks in / send my tasks out (+ where they go). */
-function Directions({
-  id,
-  conn,
-  twoWay,
-  onNote,
-}: {
-  id: ProviderId;
-  conn: Connection;
-  twoWay: boolean;
-  onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void;
-}) {
-  const { t } = useScreenT(CONN_NS);
-  const actions = useConnectionActions();
-  const [picking, setPicking] = useState(false);
-  const [targets, setTargets] = useState<Target[] | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const save = async (patch: { import_on?: boolean; export_on?: boolean; export_target?: Target | null }) => {
-    setSaving(true);
-    onNote(null);
-    try {
-      await actions.settings(id, patch);
-    } catch (e) {
-      onNote({ tone: 'red', text: (e as Error).message || t('error') });
-    } finally {
-      setSaving(false);
-    }
-  };
-  const openPicker = async () => {
-    setPicking(true);
-    setTargets(null);
-    try {
-      setTargets(await actions.targets(id));
-    } catch (e) {
-      setPicking(false);
-      onNote({ tone: 'red', text: (e as Error).message || t('error') });
-    }
-  };
-  const toggleOut = (on: boolean) => {
-    if (on && !conn.export_target) return openPicker(); // choose where first, then it switches on
-    save({ export_on: on });
-  };
-
-  const row = (label: string, hint: string, value: boolean, onChange: (v: boolean) => void) => (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        minHeight: 52,
-      }}
-    >
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <AppText weight="bold">{label}</AppText>
-        <AppText variant="caption" color="textMuted">
-          {hint}
-        </AppText>
-      </View>
-      <Toggle value={value} onValueChange={onChange} disabled={saving} accessibilityLabel={label} />
-    </View>
-  );
-
-  return (
-    <View
-      style={{
-        gap: spacing.xs,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-        paddingTop: spacing.sm,
-      }}
-    >
-      {row(`⬇ ${t('dirIn')}`, t('dirInHint'), conn.import_on, (v) => save({ import_on: v }))}
-      {twoWay && (
-        <>
-          {row(`⬆ ${t('dirOut')}`, t('dirOutHint'), conn.export_on, toggleOut)}
-          <Pressable
-            onPress={openPicker}
-            accessibilityRole="button"
-            style={{
-              minHeight: sizes.touch,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.sm,
-            }}
-          >
-            <AppText
-              variant="small"
-              weight="semibold"
-              color={conn.export_target ? 'text' : 'primary'}
-              style={{ flex: 1 }}
-              numberOfLines={2}
-            >
-              {conn.export_target ? t('where', { name: conn.export_target.name }) : t('pickWhere')}
-            </AppText>
-            {conn.export_target && (
-              <AppText variant="small" weight="bold" color="primary">
-                {t('change')}
-              </AppText>
-            )}
-          </Pressable>
-          <AppText variant="caption" color="textMuted">
-            {t('inStep')}
-          </AppText>
-        </>
-      )}
-
-      <Modal visible={picking} transparent animationType="slide" onRequestClose={() => setPicking(false)}>
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(11,26,51,0.35)' }}
-          onPress={() => setPicking(false)}
-          accessibilityLabel={t('cancel')}
-        />
-        <View
-          style={{
-            maxHeight: '70%',
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: radius.cardLg,
-            borderTopRightRadius: radius.cardLg,
-            padding: spacing.screen,
-            gap: spacing.md,
-          }}
-        >
-          <AppText variant="section">{t('pickTitle')}</AppText>
-          {!targets ? (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: spacing.md,
-              }}
-            >
-              <ActivityIndicator color={colors.primary} />
-              <AppText color="textMuted">{t('pickLoading')}</AppText>
-            </View>
-          ) : targets.length === 0 ? (
-            <AppText color="textMuted">{t('pickEmpty')}</AppText>
-          ) : (
-            <ScrollView style={{ maxHeight: 420 }}>
-              {targets.map((x) => (
-                <Pressable
-                  key={x.id}
-                  onPress={async () => {
-                    setPicking(false);
-                    await save({ export_target: x, export_on: true });
-                  }}
-                  accessibilityRole="button"
-                  style={({ pressed }) => ({
-                    minHeight: sizes.touch + 4,
-                    justifyContent: 'center',
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                    backgroundColor: pressed || conn.export_target?.id === x.id ? colors.primaryTint : colors.transparent,
-                    paddingHorizontal: spacing.sm,
-                  })}
-                >
-                  <AppText weight={conn.export_target?.id === x.id ? 'bold' : 'regular'}>{x.name}</AppText>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
-          <Button label={t('cancel')} variant="outline" size="md" onPress={() => setPicking(false)} />
-        </View>
-      </Modal>
-    </View>
-  );
-}
-
-/** Google: what each linked account may read (Gmail, Calendar, Google Meet transcripts), each with its own switch.
- *  Meet needs the newer sign-in (meetings access): older connections get "Allow Google Meet" instead of a switch. */
-function GoogleParts({ onNote }: { onNote: (n: { tone: 'green' | 'red'; text: string } | null) => void }) {
-  const { t } = useScreenT(CONN_NS);
-  const conns = useConnections();
-  const actions = useConnectionActions();
-  const [saving, setSaving] = useState<string | null>(null);
-  const google = (conns.data ?? []).filter((c) => c.provider === 'google');
-  const set = async (c: Connection, part: string, on: boolean) => {
-    setSaving(`${c.id}:${part}`);
-    onNote(null);
-    try {
-      await actions.settings('google', { features: { [part]: on } }, c.id);
-    } catch (e) {
-      onNote({ tone: 'red', text: (e as Error).message || t('error') });
-    } finally {
-      setSaving(null);
-    }
-  };
-  return (
-    <View
-      style={{
-        gap: spacing.md,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-        paddingTop: spacing.sm,
-      }}
-    >
-      {google.map((c) => (
-        <View key={c.id} style={{ gap: spacing.xs }}>
-          {google.length > 1 && (
-            <AppText variant="caption" weight="bold" color="textMuted">
-              {c.account_label}
-            </AppText>
-          )}
-          {(['gmail', 'calendar', 'meet', 'chat'] as const).map((part) => {
-            // Meet and Chat need permissions older sign-ins didn't ask for: "Allow" signs in again
-            const allowed =
-              (part !== 'meet' || (c.cursor?.meet_ok === true && c.cursor?.tx_ok === true)) && (part !== 'chat' || c.cursor?.chat_ok === true);
-            // Google refuses Chat for personal accounts (Workspace only)
-            const chatRefused = part === 'chat' && allowed && c.features?.chat !== false && !!c.cursor?.chat_error;
-            // Google refused to switch on automatic transcripts (usually a plan without transcripts)
-            const txRefused = part === 'meet' && allowed && c.features?.meet !== false && !!c.cursor?.tx_error;
-            return (
-              <View
-                key={part}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: spacing.md,
-                  minHeight: 52,
-                }}
-              >
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <AppText weight="bold">{t(`part_${part}`)}</AppText>
-                  <AppText variant="caption" color="textMuted">
-                    {chatRefused
-                      ? t('chatWorkspaceOnly')
-                      : txRefused
-                        ? t('txPlan')
-                      : allowed
-                        ? t(`part_${part}Hint`)
-                        : t(part === 'chat' ? 'chatAllowHint' : 'meetAllowHint')}
-                  </AppText>
-                </View>
-                {allowed ? (
-                  <Toggle
-                    value={c.features?.[part] !== false}
-                    onValueChange={(v) => set(c, part, v)}
-                    disabled={saving === `${c.id}:${part}`}
-                    accessibilityLabel={t(`part_${part}`)}
-                  />
-                ) : (
-                  <Button label={t('meetAllow')} size="md" onPress={() => actions.connect('google').catch(() => {})} />
-                )}
-              </View>
-            );
-          })}
-        </View>
-      ))}
-    </View>
-  );
-}
