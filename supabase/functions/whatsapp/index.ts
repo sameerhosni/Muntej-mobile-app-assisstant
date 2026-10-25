@@ -224,7 +224,23 @@ async function handle(m: WaMessage) {
     .select('id, title, owner_id')
     .in('status', OPEN)
     .in('owner_id', ids.length ? ids : [me.id]);
+  // their last WhatsApp request from the past 30 minutes that still waits: this message may only change it
+  // ("make it tomorrow", "give it to someone in QE"), like a follow-up in a chat
+  const { data: prev } = await admin
+    .from('incoming_items')
+    .select('*')
+    .eq('owner_id', me.id)
+    .eq('source', 'whatsapp')
+    .eq('status', 'new')
+    .gte('received_at', new Date(Date.now() - 30 * 60_000).toISOString())
+    .order('received_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const earlier = prev as Item | null;
+  const earlierOpen = (earlier?.suggestions ?? []).filter((s) => s.state === 'new');
   const item = await ingestMessage(admin, {
+    delegating: true,
+    earlier: earlier && earlierOpen.length ? { text: earlier.body, tasks: earlierOpen.map((s) => ({ title: s.title, owner_id: s.owner_id, due_at: s.due_at })) } : null,
     profileId: me.id,
     text,
     source: 'whatsapp',
@@ -238,6 +254,12 @@ async function handle(m: WaMessage) {
   });
   if (item.duplicate_message) return;
   const n = item.suggestions.length;
+  // a change to the earlier request: the new version replaces the old one (no second task)
+  const amended = !!earlier && earlierOpen.length > 0 && item.suggestions.some((s) => s.amends_earlier);
+  if (amended) {
+    for (const s of earlier!.suggestions) if (s.state === 'new') s.state = 'ignored';
+    await saveItem(admin, earlier!);
+  }
   // one small card per task (title, who, when, what to send back), each line on its own so Arabic and English
   // never mix on one line; RLM keeps Arabic lines right-aligned even when they start with an emoji or a number
   const PROOF: Record<string, [string, string]> = { file: ['ملف', 'a file'], image: ['صورة', 'a photo'], link: ['رابط', 'a link'], any: ['أي إثبات', 'any proof'] };
@@ -255,7 +277,13 @@ async function handle(m: WaMessage) {
   };
   const count = ar ? (n === 1 ? 'مهمة جديدة' : n === 2 ? 'مهمتين' : `${n} مهام`) : `${n} new task${n > 1 ? 's' : ''}`;
   if (!n) return void (await sendWhatsApp(from, ar ? 'قريتها ✓ بس ما لقيت فيها مهمة 🤔' : 'Got it ✓ but I didn’t find a task in it 🤔'));
-  const head = ar ? `تمام ✅ لقيت ${count}` : `Done ✅ I found ${count}`;
+  const head = amended
+    ? ar
+      ? 'تمام ✏️ عدّلتها، هذي النسخة الجديدة'
+      : 'Done ✏️ I updated it, here’s the new version'
+    : ar
+      ? `تمام ✅ لقيت ${count}`
+      : `Done ✅ I found ${count}`;
   // several tasks: a short heading, then each task with its own buttons
   if (n > 1) await sendWhatsApp(from, rtl(ar ? `${head}، كل وحدة تحتها أزرارها 👇` : `${head}, each with its own buttons 👇`));
   for (const [i, s] of item.suggestions.entries())

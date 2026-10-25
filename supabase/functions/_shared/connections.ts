@@ -270,6 +270,7 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
           create,
           structured: it.task,
           confirmFirst: provider.confirmFirst,
+          connectionId: conn.id,
         });
         if (item.duplicate_message) continue;
         out.read++;
