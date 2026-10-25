@@ -1,11 +1,13 @@
 // Home: what you asked for and where it stands, so asking for more time (or help, or which task first) visibly
 // changes something: "⏳ waiting for Sameer" until they answer, then "✅ new due date …" / "the date stays" for two
 // days. Saree3 chases the answer; you don't need to.
-import { View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, View } from 'react-native';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { AppText, Card } from '@/components/ui';
-import { colors, radius, spacing } from '@/theme/tokens';
+import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { supabase } from '@/lib/supabase';
@@ -22,6 +24,8 @@ const en = {
   noTime: '“{{task}}”: the date stays. Need help to make it? Open it and tell me',
   no: '“{{task}}”: {{name}} said not this time',
   someone: 'your manager',
+  updates_one: '✅ {{count}} update on your requests · see',
+  updates_other: '✅ {{count}} updates on your requests · see',
   missing: '📎 “{{task}}” is missing: {{items}}. Add it and I’ll send it on',
 };
 const ar: typeof en & Record<string, string> = {
@@ -33,6 +37,9 @@ const ar: typeof en & Record<string, string> = {
   noTime: '«{{task}}»: الموعد باقي. تحتاج مساعدة تلحق؟ افتحها وقل لي',
   no: '«{{task}}»: {{name}} ما وافق هالمرة',
   someone: 'مديرك',
+  updates_one: '✅ تحديث على طلباتك · شوف',
+  updates_other: '✅ {{count}} تحديثات على طلباتك · شوف',
+  updates_two: '✅ تحديثين على طلباتك · شوف',
   missing: '📎 «{{task}}» ناقصها: {{items}}. أضفها وأنا أوصلها',
 };
 const NS = registerStrings('myRequests', { en, ar });
@@ -50,7 +57,9 @@ type Req = {
 
 export function MyRequests() {
   const { t } = useScreenT(NS);
-  const { lang } = useDirection();
+  const [open, setOpen] = useState(false);
+  const { lang, isRTL } = useDirection();
+  const Chevron = isRTL ? ChevronLeft : ChevronRight;
   const me = useMyProfile();
   const team = useTeam();
   const meId = me.data?.id;
@@ -78,6 +87,9 @@ export function MyRequests() {
   const gaps = useProofGaps(sent.map((x) => x.id));
   const short = sent.filter((x) => gaps.data?.has(x.id));
   const rows = reqs.data ?? [];
+  // needs you: an extension that was turned down (help to make the date); the rest is just news
+  const act = rows.filter((r) => r.status === 'declined' && r.type === 'extension_request');
+  const info = rows.filter((r) => !act.includes(r));
   if (!rows.length && !short.length) return null;
   const ar_ = lang === 'ar';
   const nameOf = (id: string) => {
@@ -97,7 +109,35 @@ export function MyRequests() {
           </AppText>
         </View>
       ))}
-      {rows.map((r) => {
+      {/* lines that need you stay open; the rest (answers, approvals, "waiting") fold into one line */}
+      {act.map(line)}
+      {info.length > 0 && (
+        <Pressable
+          onPress={() => setOpen((o) => !o)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            minHeight: sizes.touch,
+            paddingHorizontal: spacing.md,
+            borderRadius: radius.md,
+            backgroundColor: colors.greenTint,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <AppText weight="bold" color="greenText" style={{ flex: 1 }}>
+            {t('updates', { count: info.length })}
+          </AppText>
+          <Chevron color={colors.greenText} size={18} style={{ transform: [{ rotate: open ? (isRTL ? '-90deg' : '90deg') : '0deg' }] }} />
+        </Pressable>
+      )}
+      {open && info.map(line)}
+    </Card>
+  );
+
+  function line(r: Req) {
         const task = r.task?.title ?? '…';
         const name = nameOf(r.manager_id);
         const time = r.type === 'extension_request';
@@ -120,7 +160,5 @@ export function MyRequests() {
             </AppText>
           </View>
         );
-      })}
-    </Card>
-  );
+  }
 }
