@@ -78,10 +78,13 @@
       [
         "expo-share-intent",
         {
-          "androidIntentFilters": ["text/*"],
+          "androidIntentFilters": [
+            "text/*"
+          ],
           "disableIOS": true
         }
-      ]
+      ],
+      "@intercom/intercom-react-native"
     ],
     "experiments": {
       "typedRoutes": true
