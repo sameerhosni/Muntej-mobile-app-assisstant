@@ -1,7 +1,7 @@
 // Wraps app.json: Intercom's Messenger (support chat, opened from Saree3) is set up at build time with the workspace
 // app id and the Intercom mobile API keys from the build's env (EAS env: INTERCOM_ANDROID_KEY / INTERCOM_IOS_KEY,
 // set with scripts/set-intercom-keys.ps1). Without the keys the plugin is left out and the app builds as before.
-const INTERCOM_APP_ID = 'kry6kbek';
+const INTERCOM_APP_ID = 'lrn5nc6m';
 
 module.exports = ({ config }) => {
   const android = process.env.INTERCOM_ANDROID_KEY;

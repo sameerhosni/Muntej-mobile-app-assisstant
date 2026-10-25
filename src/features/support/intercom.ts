@@ -11,7 +11,7 @@ type Identity = { userId: string; email: string | null; name: string; role: stri
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 
-const APP_ID = (Constants.expoConfig?.extra as { intercomAppId?: string } | undefined)?.intercomAppId ?? 'kry6kbek';
+const APP_ID = (Constants.expoConfig?.extra as { intercomAppId?: string } | undefined)?.intercomAppId ?? 'lrn5nc6m';
 
 /** the native SDK, only when this build includes it */
 function native(): Any | null {
