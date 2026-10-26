@@ -70,54 +70,56 @@ export function buildPlan(opts: {
   // Saree3's words. The task's title is already the notification's title, so the text never repeats it (owner: "content
   // duplicate and not funny"): one of a few playful lines per moment, picked when the plan is made.
   const n = name;
+  // Saree3's voice (docs/SAREE3_VOICE.md): a colleague on WhatsApp, short, one emoji at most; receipt lines keep 📬
+  // (send-followups recognises them by it)
   const LINES: Record<string, [string[], string[]]> = {
     selfStart: [
-      ['⏰ سجّلتها عندي، وأنا اللي بذكّرك. ركّز أنت وخلّ الذاكرة عليّ 😎', '📌 ثبّتها! وإذا نسيت، أنا ما أنسى 😄', '🧠 خلّ مخك للشغل، والتذكير شغلتي'],
-      ["⏰ Saved. I'll do the remembering, you do the work 😎", "📌 Pinned! If you forget, I won't 😄", '🧠 Keep your brain for the work, reminders are my job'],
+      ['سجّلتها، والتذكير عليّ. أنت ركّز على الشغل', 'ثبّتها عندي. لو نسيت، أنا ما أنسى 😄', 'خلّ راسك للشغل، والتذكير شغلتي'],
+      ["Got it. I'll do the remembering, you do the work", "Pinned. If you forget, I won't 😄", 'Keep your head for the work, reminders are my job'],
     ],
     selfCheck: [
-      ['👀 وين وصلت فيها؟ ضغطة وحدة: خلصت، ماشية، أو واقفة', '🏃‍♂️ كيف الشغل؟ طمّني بضغطة', '☕ استراحة قهوة؟ وأنت فيها قل لي وين وصلت'],
-      ["👀 Where's it at? One tap: done, on track or blocked", '🏃‍♂️ How is it going? One tap to tell me', '☕ Coffee break? While you are at it, tell me where it stands'],
+      ['وين وصلت فيها؟ ضغطة وحدة تكفي', 'كيف ماشية؟ طمّني', 'وأنت تشرب قهوتك ☕ قل لي وين وصلت'],
+      ["Where's it at? One tap is enough", 'How is it going?', 'While you have your coffee ☕ where is it at?'],
     ],
     check: [
-      [`👀 هلا ${n}، وين وصلت فيها؟ ضغطة وحدة تكفي 😉`, `🏃‍♂️ ${n}، كيف ماشية؟ طمّني بضغطة`, `☕ ${n}، سؤال سريع وأخليك: وين وصلت؟`],
-      [`👀 Hi ${n}, where's it at? One tap is enough 😉`, `🏃‍♂️ ${n}, how is it going? One tap`, `☕ Quick one ${n}, then I'm gone: where is it at?`],
+      [`هلا ${n}، وين وصلت فيها؟`, `${n}، كيف ماشية معك؟`, `سؤال سريع يا ${n} وأخليك: وين وصلت؟`],
+      [`Hey ${n}, where's it at?`, `${n}, how's it going?`, `Quick one ${n}, then I'm gone: where is it at?`],
     ],
     receipt: [
-      [`📬 ${n}، وصلتك؟ أكّد بضغطة وأنا أكمل عنك`, `📬 ${n}، طرقت الباب مرة ثانية 🚪 استلمتها؟`, `📬 ${n}، ضغطة "استلمت" وأفكّك مني 😄`],
-      [`📬 ${n}, did it reach you? One tap and I take it from there`, `📬 ${n}, knocking again 🚪 got it?`, `📬 ${n}, tap "Got it" and I'll leave you alone 😄`],
+      [`📬 ${n}، وصلتك؟ أكّد بضغطة وأكمل عنك`, `📬 ${n}، أطق الباب مرة ثانية… استلمتها؟`, `📬 ${n}، ضغطة "استلمت" وأفكّك مني 😄`],
+      [`📬 ${n}, did it reach you? One tap and I take it from there`, `📬 ${n}, knocking again… got it?`, `📬 ${n}, tap "Got it" and I'll leave you alone 😄`],
     ],
     risk: [
-      [`⏳ ${n}، الموعد يقرّب. تحتاج شي؟ قول وأنا أدبّره`, `⏳ ${n}، الساعة تمشي وأنا معك. فيه شي موقفك؟`, `🚀 ${n}، باقي القليل! لو تبي مساعدة أنا جاهز`],
-      [`⏳ ${n}, it's getting close. Need anything? Say it and I'll sort it`, `⏳ ${n}, the clock is ticking and I'm with you. Anything in the way?`, `🚀 ${n}, almost there! Want a hand? I'm ready`],
+      [`${n}، الموعد يقرّب. تحتاج شي؟ قله وأنا أدبّره`, `${n}، فيه شي موقفك؟ أنا موجود`, `باقي القليل يا ${n} 💪 تبي يد؟`],
+      [`${n}, it's getting close. Need anything? Say it and I'll sort it`, `${n}, anything in the way? I'm here`, `Almost there ${n} 💪 want a hand?`],
     ],
     selfRisk: [
-      ['⏳ الموعد يقرّب! وين وصلت؟ لو تحتاج شي قول', '🚀 باقي شوي! كمّلها وارتاح', '⏳ الساعة تركض… وأنت أسرع منها 💪'],
-      ["⏳ It's getting close! Where are you at?", '🚀 Almost there! Finish it and relax', "⏳ The clock is running… you're faster 💪"],
+      ['الموعد يقرّب. وين وصلت؟', 'باقي شوي، كمّلها وارتاح', 'الوقت يركض… وأنت أسرع منه 💪'],
+      ["It's getting close. Where are you at?", 'Almost there, finish it and relax', "The clock's running… you're faster 💪"],
     ],
     lastCall: [
-      [`⏰ ${n}، باقي ساعة! خلصتها؟ لو تحتاج شي قول الحين`, `⏰ ${n}، العد التنازلي بدأ: ساعة وحدة ⏳ كيف الوضع؟`, `⏰ ${n}، آخر ساعة! ضغطة "خلصت" تفرّحني 😄`],
-      [`⏰ ${n}, one hour left! Done? Need anything, tell me now`, `⏰ ${n}, countdown on: one hour ⏳ how's it looking?`, `⏰ ${n}, last hour! A "Done" tap would make my day 😄`],
+      [`${n}، باقي ساعة. خلصتها؟`, `ساعة وحدة يا ${n}… كيف الوضع؟`, `${n}، آخر ساعة! ضغطة "خلصت" تفرّحني 😄`],
+      [`${n}, one hour left. Done?`, `One hour ${n}… how's it looking?`, `${n}, last hour! A "Done" tap would make my day 😄`],
     ],
     selfLastCall: [
-      ['⏰ باقي ساعة! خلصت؟', '⏰ آخر ساعة… يلا نختمها 💪', '⏰ ساعة وحدة وتخلص منها!'],
-      ['⏰ One hour left! Done?', "⏰ Last hour… let's wrap it up 💪", '⏰ One hour and it is off your plate!'],
+      ['باقي ساعة. خلصت؟', 'آخر ساعة… يلا نختمها 💪', 'ساعة وحدة وتفتك منها'],
+      ['One hour left. Done?', "Last hour… let's wrap it up 💪", 'One hour and it is off your plate'],
     ],
     collect: [
-      [`🎯 ${n}، اليوم موعدها! ارفع التسليم هنا وأنا أوصله 📎`, `🎯 ${n}، يوم التسليم وصل 🥁 ارفعها وأنا أكمل الباقي`, `🎯 ${n}، اليوم يومها! خلّصها وأنا أوصلها 🚀`],
-      [`🎯 ${n}, it's due today! Drop it here and I'll deliver it 📎`, `🎯 ${n}, delivery day 🥁 send it and I'll do the rest`, `🎯 ${n}, today's the day! Finish it and I'll pass it on 🚀`],
+      [`${n}، اليوم موعدها. ارفع التسليم هنا وأنا أوصله`, `يوم التسليم يا ${n} 🥁 ارفعها وأكمل الباقي`, `${n}، اليوم يومها. خلّصها وأنا أوصلها`],
+      [`${n}, it's due today. Drop it here and I'll deliver it`, `Delivery day ${n} 🥁 send it and I'll do the rest`, `${n}, today's the day. Finish it and I'll pass it on`],
     ],
     selfCollect: [
-      ['🎯 اليوم يومها! خلّصها وارتاح 💪', '🥁 يوم التسليم! يلا نشطبها', '🎯 اليوم موعدها، وبعدها راحة 😌'],
-      ["🎯 Today's the day! Finish it and relax 💪", "🥁 Delivery day! Let's tick it off", "🎯 It's due today, then you rest 😌"],
+      ['اليوم يومها. خلّصها وارتاح', 'يوم التسليم 🥁 يلا نشطبها', 'اليوم موعدها، وبعدها راحة'],
+      ["Today's the day. Finish it and relax", "Delivery day 🥁 let's tick it off", "It's due today, then you rest"],
     ],
     dueNow: [
-      [`🎯 ${n}، حان الموعد! خلصتها؟ ارفع التسليم وأنا أوصله 📎`, `🔔 ${n}، الحين موعدها. ضغطة "خلصت" وأبشّر الكل 🎉`],
-      [`🎯 ${n}, it's due now! Done? Send it and I'll deliver it 📎`, `🔔 ${n}, it's due now. Tap "Done" and I'll tell everyone 🎉`],
+      [`${n}، الحين موعدها. خلصتها؟ ارفع التسليم وأنا أوصله`, `${n}، جا وقتها. ضغطة "خلصت" وأبشّر الكل 🎉`],
+      [`${n}, it's due now. Done? Send it and I'll deliver it`, `${n}, it's time. Tap "Done" and I'll tell everyone 🎉`],
     ],
     selfDueNow: [
-      ['🎯 حان الموعد! خلصتها؟', '🔔 الحين موعدها. ضغطة "خلصت" وتنشطب 🎉'],
-      ["🎯 It's due now! Done?", '🔔 Due now. Tap "Done" and it\'s off the list 🎉'],
+      ['الحين موعدها. خلصتها؟', 'جا وقتها. ضغطة "خلصت" وتنشطب 🎉'],
+      ["It's due now. Done?", 'Time's up. Tap "Done" and it's off the list 🎉'],
     ],
   };
   const line = (key: string) => {
@@ -135,8 +137,8 @@ export function buildPlan(opts: {
     message: self
       ? line('selfStart')
       : ar
-        ? `هلا ${name} 👋 ${from ? `${from} عطاك مهمة جديدة` : 'جاتك مهمة جديدة'}${when ? `\n⏰ موعدها ${when}` : ''}${helper ? `\n🤝 ${helper} بيساعدك` : ''}\nاضغط "استلمت" وأنا معك لين تخلص 🤝`
-        : `Hi ${name} 👋 ${from ? `${from} gave you a new task` : 'A new task for you'}${when ? `\n⏰ Due ${when}` : ''}${helper ? `\n🤝 ${helper} will help` : ''}\nTap "Got it" and I'm with you till it's done 🤝`,
+        ? `هلا ${name} 👋 ${from ? `${from} عطاك مهمة` : 'جاتك مهمة جديدة'}${when ? `\nموعدها ${when}` : ''}${helper ? `\n${helper} بيساعدك فيها` : ''}\nاضغط "استلمت" وأنا معك لين تخلص`
+        : `Hey ${name} 👋 ${from ? `${from} gave you a task` : 'A new task for you'}${when ? `\nDue ${when}` : ''}${helper ? `\n${helper} will help you with it` : ''}\nTap "Got it" and I'm with you till it's done`,
   };
 
   // a moment for a reminder: inside working hours when that still lands before the deadline; when the deadline itself
