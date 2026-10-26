@@ -119,7 +119,7 @@ export function buildPlan(opts: {
     ],
     selfDueNow: [
       ['الحين موعدها. خلصتها؟', 'جا وقتها. ضغطة "خلصت" وتنشطب 🎉'],
-      ["It's due now. Done?", 'Time's up. Tap "Done" and it's off the list 🎉'],
+      ["It's due now. Done?", `Time's up. Tap "Done" and it's off the list 🎉`],
     ],
   };
   const line = (key: string) => {
