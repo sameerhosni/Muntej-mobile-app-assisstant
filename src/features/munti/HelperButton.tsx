@@ -22,7 +22,8 @@ import { AccessibilityInfo, Animated, Easing, PanResponder, Platform, Pressable,
 import { router, usePathname, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react-native';
+import { CircleCheck, GraduationCap, History, Inbox, ListTodo, Plus, TriangleAlert, Users, X, type LucideProps } from 'lucide-react-native';
+import type { ComponentType } from 'react';
 import { AppText, Gradient } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
@@ -107,6 +108,18 @@ async function firstTime(key: string) {
 /** Face while the bubble is closed / open. */
 const REST: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'idle', watch: 'oops', behind: 'sad', overloaded: 'dizzy', quiet: 'sleep' };
 const SPEAK: Record<PerfStatus, MuntiMood> = { great: 'star', good: 'talk', watch: 'oops', behind: 'sad', overloaded: 'dizzy', quiet: 'sleep' };
+
+/** colour + icon per thing that needs you (decision purple, tools blue, review green, late red, blocked amber) */
+const KIND_LOOK: Record<
+  SupportItem['kind'],
+  { Icon: ComponentType<LucideProps>; bg: 'purpleTint' | 'primaryTint' | 'greenTint' | 'redTint' | 'amberTint'; fg: string }
+> = {
+  decisions: { Icon: CircleCheck, bg: 'purpleTint', fg: colors.purple },
+  incoming: { Icon: Inbox, bg: 'primaryTint', fg: colors.primary },
+  review: { Icon: CircleCheck, bg: 'greenTint', fg: colors.green },
+  late: { Icon: History, bg: 'redTint', fg: colors.red },
+  blocked: { Icon: TriangleAlert, bg: 'amberTint', fg: colors.amberText },
+};
 
 export function HelperButton() {
   const { t } = useScreenT(MUNTI_NS);
@@ -485,9 +498,17 @@ export function HelperButton() {
 
   /** one support row: what it is + its one-tap button */
   const supportRow = (it: SupportItem) => {
+    // each kind has its colour and icon, so a glance tells what it is (owner: "more creative and coloured")
+    const look = KIND_LOOK[it.kind];
     const row = (text: string, btn: string, onPress: () => void, link?: Href) => (
-      <View key={it.key} style={{ gap: 6 }}>
-        <AppText variant="small" weight="semibold" numberOfLines={2} onPress={link ? () => go(link) : undefined}>
+      <View
+        key={it.key}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.tile, backgroundColor: colors[look.bg] }}
+      >
+        <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }}>
+          <look.Icon color={look.fg} size={16} strokeWidth={2.4} />
+        </View>
+        <AppText variant="small" weight="semibold" numberOfLines={2} onPress={link ? () => go(link) : undefined} style={{ flex: 1 }}>
           {text}
         </AppText>
         <Pressable
@@ -495,16 +516,15 @@ export function HelperButton() {
           accessibilityRole="button"
           accessibilityLabel={`${btn}: ${text}`}
           style={({ pressed }) => ({
-            alignSelf: 'flex-start',
             minHeight: sizes.touch - 8,
-            paddingHorizontal: spacing.lg,
+            paddingHorizontal: spacing.md,
             borderRadius: radius.pill,
             justifyContent: 'center',
-            backgroundColor: colors.primary,
+            backgroundColor: look.fg,
             opacity: pressed ? 0.85 : 1,
           })}
         >
-          <AppText variant="small" weight="bold" color="onDark">
+          <AppText variant="small" weight="bold" color="onDark" numberOfLines={1}>
             {btn}
           </AppText>
         </Pressable>
@@ -554,18 +574,21 @@ export function HelperButton() {
   };
   const quick = [
     // "What happened?": everything Saree3 is handling, and the state of each
-    { key: 'happened', label: tj('whatHappened'), run: () => go('/54-saree3' as Href) },
-    { key: 'needs', label: t('q_needs'), run: () => ask(t('q_needs_msg')) },
+    { key: 'happened', label: tj('whatHappened'), Icon: History, bg: 'purpleTint' as const, fg: colors.purple, run: () => go('/54-saree3' as Href) },
+    { key: 'needs', label: t('q_needs'), Icon: Inbox, bg: 'redTint' as const, fg: colors.red, run: () => ask(t('q_needs_msg')) },
     me.data?.role === 'employee'
-      ? { key: 'next', label: t('q_next'), run: () => ask(t('q_next_msg')) }
-      : { key: 'team', label: t('q_team'), run: () => ask(t('q_team_msg')) },
-    { key: 'add', label: t('q_add'), run: () => go({ pathname: '/02-capture', params: { mode: 'text' } }) },
+      ? { key: 'next', label: t('q_next'), Icon: ListTodo, bg: 'greenTint' as const, fg: colors.green, run: () => ask(t('q_next_msg')) }
+      : { key: 'team', label: t('q_team'), Icon: Users, bg: 'greenTint' as const, fg: colors.green, run: () => ask(t('q_team_msg')) },
+    { key: 'add', label: t('q_add'), Icon: Plus, bg: 'primaryTint' as const, fg: colors.primary, run: () => go({ pathname: '/02-capture', params: { mode: 'text' } }) },
     // replay this screen's walkthrough (Saree3 lights up what matters here again)
     ...(walkthrough.canReplay()
       ? [
           {
             key: 'teach',
             label: tw('teachPage'),
+            Icon: GraduationCap,
+            bg: 'amberTint' as const,
+            fg: colors.amberText,
             run: () => {
               setOpen(false);
               setTimeout(() => walkthrough.replay(), 250);
@@ -585,29 +608,23 @@ export function HelperButton() {
             ...bubbleAnchor,
             width: bubbleW,
             backgroundColor: colors.surface,
-            borderRadius: radius.card,
-            borderWidth: 1,
-            borderColor: supportTurn ? colors.red : colors.borderBlue,
+            borderRadius: radius.cardLg,
+            overflow: 'hidden',
             boxShadow: shadows.raised,
-            paddingVertical: spacing.lg,
-            paddingStart: spacing.xxl,
-            paddingEnd: spacing.xs,
-            gap: spacing.sm,
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs }}>
-            {!showFab && <Munti key={toast?.id} size="sm" tone={tone} mood={toast?.mood ?? 'talk'} settleAfter={2400} style={{ marginTop: 2 }} />}
-            <View style={{ flex: 1, gap: spacing.xs, paddingTop: spacing.xs }}>
-              <AppText weight={subLines.length || supportTurn ? 'semibold' : 'regular'} style={{ lineHeight: 20 }}>
+          {/* his colour on top: Saree3 and what he says (purple-blue normally, warm amber when things need you) */}
+          <Gradient
+            name={supportTurn ? 'warning' : 'purple'}
+            style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, padding: spacing.md, paddingStart: spacing.lg }}
+          >
+            {!showFab && <Munti key={toast?.id} size="sm" tone={tone} mood={toast?.mood ?? 'talk'} settleAfter={2400} />}
+            <View style={{ flex: 1, gap: 2, paddingTop: spacing.xs }}>
+              <AppText weight="bold" color="onDark" style={{ lineHeight: 21 }}>
                 {bubbleText}
               </AppText>
               {subLines.map((line, i) => (
-                <AppText
-                  key={i}
-                  variant="small"
-                  color={i === subLines.length - 1 && open === 'tap' ? 'textMuted' : 'textSoft'}
-                  style={{ lineHeight: 18 }}
-                >
+                <AppText key={i} variant="small" color="onDarkMuted" style={{ lineHeight: 18 }}>
                   {line}
                 </AppText>
               ))}
@@ -620,11 +637,12 @@ export function HelperButton() {
                 hitSlop={4}
                 style={{ width: sizes.touch - 8, height: sizes.touch - 8, alignItems: 'center', justifyContent: 'center' }}
               >
-                <X color={colors.textMuted} size={16} strokeWidth={2.2} />
+                <X color={colors.onDark} size={18} strokeWidth={2.4} />
               </Pressable>
             )}
-          </View>
-          {supportTurn && <View style={{ gap: spacing.md, paddingEnd: spacing.lg }}>{support.items.slice(0, 2).map(supportRow)}</View>}
+          </Gradient>
+          <View style={{ padding: spacing.md, gap: spacing.sm }}>
+          {supportTurn && <View style={{ gap: spacing.sm }}>{support.items.slice(0, 3).map(supportRow)}</View>}
           {showMe && (
             <Pressable
               onPress={() => go(showMe)}
@@ -651,23 +669,28 @@ export function HelperButton() {
           )}
           {/* quick asks when you tapped him: straight into the chat */}
           {open === 'tap' && !toast && talk === 'idle' && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingEnd: spacing.md }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
               {quick.map((q) => (
                 <Pressable
                   key={q.key}
                   onPress={q.run}
                   accessibilityRole="button"
+                  accessibilityLabel={q.label}
                   style={({ pressed }) => ({
-                    minHeight: sizes.touch - 8,
-                    paddingHorizontal: spacing.md,
-                    borderRadius: radius.pill,
+                    flexBasis: '30%',
+                    flexGrow: 1,
+                    minHeight: 64,
+                    padding: spacing.sm,
+                    borderRadius: radius.tile,
+                    alignItems: 'center',
                     justifyContent: 'center',
-                    borderWidth: 1,
-                    borderColor: colors.borderBlue,
-                    backgroundColor: pressed ? colors.primaryTint : colors.surface,
+                    gap: 4,
+                    backgroundColor: colors[q.bg],
+                    opacity: pressed ? 0.8 : 1,
                   })}
                 >
-                  <AppText variant="small" weight="bold" color="primary">
+                  <q.Icon color={q.fg} size={18} strokeWidth={2.3} />
+                  <AppText variant="micro" weight="bold" align="center" numberOfLines={2} style={{ color: q.fg }}>
                     {q.label}
                   </AppText>
                 </Pressable>
@@ -675,10 +698,14 @@ export function HelperButton() {
             </View>
           )}
           {open === 'tap' && !toast && talk === 'idle' && (
-            <AppText variant="caption" color="textFaint">
-              {t('holdHint')}
-            </AppText>
+            // the hint is Saree3 talking in a small bubble, not grey small print
+            <View style={{ alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.surfaceMuted }}>
+              <AppText variant="caption" color="textSoft">
+                {t('holdHint')}
+              </AppText>
+            </View>
           )}
+          </View>
         </View>
       )}
 
