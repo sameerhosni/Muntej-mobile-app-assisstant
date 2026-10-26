@@ -5,6 +5,8 @@
 // when they end. Called every minute by send-followups, right after changes by muntej-chat, and by team-alerts.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { sendPush } from './push.ts';
+import { ACTION_TEMPLATE, inWindow, waButtons, waTemplate } from './wa.ts';
+import { needsYouCards } from './wa-actions.ts';
 
 export type AlertKind =
   | 'task_late'
@@ -251,7 +253,7 @@ export async function deliverPending(
   const ids = [...new Set(rows.map((r) => r.profile_id))];
   const [prefs, { data: ppl }] = await Promise.all([
     loadPrefs(admin, ids),
-    admin.from('profiles').select('id, full_name, full_name_ar, locale, phone, whatsapp_connected').in('id', ids),
+    admin.from('profiles').select('id, full_name, full_name_ar, locale, phone, whatsapp_connected, wa_last_inbound_at').in('id', ids),
   ]);
   const people = new Map((ppl ?? []).map((p) => [p.id as string, p]));
   // high-priority work going late or at risk is urgent: it goes out at once like a decision (owner's request), never
@@ -378,8 +380,8 @@ export async function deliverPending(
       else if (!person?.whatsapp_connected || !person.phone) waStatus = 'not_connected';
       else if (!wants('whatsapp')) waStatus = 'off';
       else {
-        sentWa = await sendWhatsApp(person.phone as string, `*${m.title}*\n${m.body}`);
-        waStatus = sentWa ? 'sent' : 'error';
+        waStatus = await whatsAppAlert(admin, person as WaPerson, m, ar);
+        sentWa = waStatus === 'sent';
         if (sentWa) out.whatsapped++;
       }
 
@@ -404,6 +406,41 @@ export async function deliverPending(
     }
   }
   return out;
+}
+
+type WaPerson = { id: string; full_name: string; full_name_ar: string | null; phone: string; wa_last_inbound_at: string | null };
+
+/** An alert on WhatsApp. Inside the 24 h window: a decision / finished work comes with its buttons (Approve, Decline,
+ *  Send back…), anything else as text. Outside it Meta allows only templates: act-now alerts go as the "something
+ *  needs you" template (its button brings the cards); the rest wait for the next report. */
+async function whatsAppAlert(
+  admin: SupabaseClient,
+  person: WaPerson,
+  m: { alerts: PendingAlert[]; title: string; body: string },
+  ar: boolean,
+): Promise<'sent' | 'error' | 'outside_window'> {
+  if (!inWindow(person.wa_last_inbound_at)) {
+    if (!m.alerts.some((a) => EXCEPTION_KINDS.has(a.kind))) return 'outside_window';
+    const name = ((ar && person.full_name_ar) || person.full_name || '').split(' ')[0];
+    return (await waTemplate(person.phone, ACTION_TEMPLATE(), ar ? 'ar' : 'en', [name, m.title], 'act:')) ? 'sent' : 'error';
+  }
+  // the cards for exactly these alerts (a decision without a task: every pending decision)
+  const about = (kind: AlertKind) => m.alerts.filter((a) => a.kind === kind);
+  const decided = about('decision_waiting');
+  const reviewed = new Set(about('new_submission').map((a) => a.task_id));
+  if (m.alerts.every((a) => a.kind === 'decision_waiting' || a.kind === 'new_submission')) {
+    const cards = (await needsYouCards(admin, person.id, ar)).filter(
+      (c) =>
+        (c.kind === 'decision' && decided.some((a) => !a.task_id || a.task_id === c.taskId)) ||
+        (c.kind === 'review' && reviewed.has(c.taskId ?? null)),
+    );
+    if (cards.length) {
+      let ok = true;
+      for (const c of cards.slice(0, 3)) ok = (await waButtons(person.phone, c.body, c.buttons)) && ok;
+      return ok ? 'sent' : 'error';
+    }
+  }
+  return (await sendWhatsApp(person.phone, `*${m.title}*\n${m.body}`)) ? 'sent' : 'error';
 }
 
 /** Push for a follow-up step: same channel switch and quiet hours as alerts. Returns when to retry if held. */

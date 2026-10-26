@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleCheck,
+  CloudSun,
   Clock,
   FileText,
   Gauge,
@@ -70,6 +71,8 @@ const RULE_STYLE: Record<RuleKey, { Icon: ComponentType<LucideProps>; bg: ColorT
   new_submission: { Icon: FileText, bg: 'amberText' },
   kudos: { Icon: Star, bg: 'orange' },
   daily_summary: { Icon: Sun, bg: 'primary' },
+  midday_report: { Icon: CloudSun, bg: 'orange' },
+  evening_report: { Icon: Moon, bg: 'purple' },
   weekly_report: { Icon: ChartColumn, bg: 'purple' },
 };
 

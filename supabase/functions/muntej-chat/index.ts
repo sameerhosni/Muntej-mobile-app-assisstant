@@ -394,9 +394,12 @@ serve(async (req) => {
     /** Undo after "Do all" on a brief (one log per change) */
     undo_log_ids?: string[];
     lang?: string;
+    /** the turn came from Muntej's WhatsApp number (whatsapp function, as this user): short replies, tagged turns */
+    channel?: string;
   };
   const message = (body.message ?? '').trim();
   const source = body.source === 'voice' ? 'voice' : 'text';
+  const viaWhatsApp = body.channel === 'whatsapp';
 
   if (body.apply_org) return await applyOrg(db, profileId, body.apply_org.patch, body.lang === 'ar');
   if (body.apply_objective) return await applyObjective(db, profileId, body.apply_objective, body.lang === 'ar');
@@ -817,6 +820,9 @@ serve(async (req) => {
         messages: [
           { role: 'system', content: SYSTEM },
           { role: 'system', content: `Context:\n${JSON.stringify(context)}` },
+          ...(viaWhatsApp
+            ? [{ role: 'system', content: 'This turn is on WhatsApp: keep the reply short (at most 4 short lines), no markdown headings or tables. Cards and buttons are added for you.' }]
+            : []),
           ...conversation,
           // anchor the turn on the focused task so the reply talks about it (the saved message stays as typed)
           {
@@ -1727,13 +1733,24 @@ ${message}`
   // a Confirm tap / card choice has no user message of its own
   let userMsg: unknown = null;
   if (!tapped) {
-    const { data, error: e1 } = await db.from('chat_messages').insert({ profile_id: profileId, role: 'user', content: message }).select().single();
+    const { data, error: e1 } = await db
+      .from('chat_messages')
+      .insert({ profile_id: profileId, role: 'user', content: message, ...(viaWhatsApp ? { payload: { channel: 'whatsapp' } } : {}) })
+      .select()
+      .single();
     if (e1) throw new HttpError(500, e1.message);
     userMsg = data;
   }
   const { data: botMsg, error: e2 } = await db
     .from('chat_messages')
-    .insert({ profile_id: profileId, role: 'assistant', content: parsed.reply, task_id: taskId, action, payload })
+    .insert({
+      profile_id: profileId,
+      role: 'assistant',
+      content: parsed.reply,
+      task_id: taskId,
+      action,
+      payload: viaWhatsApp ? { ...(payload ?? {}), channel: 'whatsapp' } : payload,
+    })
     .select()
     .single();
   if (e2) throw new HttpError(500, e2.message);

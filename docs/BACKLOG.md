@@ -23,6 +23,7 @@ Last updated: 2026-10-23
 | 1.7 | **Download page on muntej.app** | Host `website/index.html` on muntej.app; then replace the Expo build link (`DOWNLOAD_URL` in `src/features/invite/api.ts`, `supabase/functions/muntej-chat`, `supabase/templates/invite.html`). | Page built |
 | 1.8 | **Exposed secrets** | Delete the Expo tokens pasted in chat (two) in Expo → Access tokens; rotate the SMTP app password that was pasted earlier; **change the Intercom password** (sales@muntej.app) that was pasted on 25 Oct. | — |
 | 1.9 | **Intercom support chat** (Saree3 → "Talk to the Muntej team") | In Intercom: Settings → Installation → copy the **Android** (and iOS) API key; Settings → Security → turn on identity verification and copy its **secret**. Run `scripts/set-intercom-keys.ps1` (hidden prompts). Then a new build (2.5). Optional: Messenger colors + greeting. After it's installed, apply `docs/support-chat-announcement.sql` as a migration so Saree3 announces it. | Built (app + `support-identity` deployed); waits for keys + build |
+| 1.10 | **WhatsApp report templates** (muntej_report, muntej_action; ar + en, Utility) | Submitted to Meta on 26 Oct, waiting for approval. Until approved, people who haven't written to Muntej's WhatsApp in the last 24 h get the reports by push only. Check: whatsapp setup with {"templates": true, "waba": "1359354379602818"} (lists their status). | Waiting for Meta |
 
 ## 2. Needs a new app build (can't come by over-the-air update)
 
@@ -51,6 +52,8 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 3.7 | Reset onboarding / screen tips on the test accounts (salsabilsamir@gmail.com, sales@nizamy.app) to try the new guide |
 | 3.8 | Saree3's guided walkthrough on Home, Tasks, Tasks from email, task page, Team, Decisions (highlight lines up with the element; "Show me how" demos; "Teach me this page") |
 | 3.9 | Notification background is drawn by Android (dark in dark mode): only the icon and name color are ours (Muntej purple, in the new build) |
+| 3.10 | Muntej from WhatsApp: chat as you (questions, new task, move / give a task with Confirm), "وش يحتاجني" cards (approve a decision, approve / send back a review with a note, Done / Need time / Need help), forwarded message → Approve / Ignore, "تقرير". Tested as dry runs only (nothing sent). |
+| 3.11 | Three reports a day on WhatsApp (08:00 / 13:00 / 17:30): full report + buttons inside the 24 h window, the template outside it |
 
 ## 4. Later ideas (not started)
 

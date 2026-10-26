@@ -15,6 +15,8 @@ export type RuleKey =
   | 'new_submission'
   | 'kudos'
   | 'daily_summary'
+  | 'midday_report'
+  | 'evening_report'
   | 'weekly_report';
 export const RULE_KEYS: RuleKey[] = [
   'task_at_risk',
@@ -23,6 +25,8 @@ export const RULE_KEYS: RuleKey[] = [
   'new_submission',
   'kudos',
   'daily_summary',
+  'midday_report',
+  'evening_report',
   'weekly_report',
 ];
 
@@ -56,6 +60,9 @@ export const DEFAULT_PREFS: AlertPrefs = {
     new_submission: { enabled: true, channels: ['push'] },
     kudos: { enabled: true, channels: ['push'], timing: 'instant' },
     daily_summary: { enabled: true, channels: ['push', 'email'], time: '08:00' },
+    // three reports a day (server defaults in daily-summary): midday and end of day, WhatsApp too when it's connected
+    midday_report: { enabled: true, channels: ['push', 'whatsapp'], time: '13:00' },
+    evening_report: { enabled: true, channels: ['push', 'whatsapp'], time: '17:30' },
     weekly_report: { enabled: false, channels: ['email'], day: 'thu', time: '16:00' },
   },
   quiet_hours: { enabled: true, prayer_times: true, after: '21:00', friday: true, ramadan: true },

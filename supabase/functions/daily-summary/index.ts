@@ -1,19 +1,24 @@
-// daily-summary — each working morning, every person's day in one message (push · email · WhatsApp).
-//   Manager:  team pulse (in progress · late · done yesterday), what needs them (decisions, reviews, late work),
-//             who needs support, their own tasks due.
-//   Employee: what's late / due today / sent back, what's waiting for review, the week's wins.
-// Time and channels come from the person's Alerts settings ("Daily summary" rule; default 08:00, push + email).
-// No summary on Friday/Saturday (Saudi weekend) and none when there's nothing to say.
+// daily-summary — three reports a day for every person (push · email · WhatsApp), owner's request (26 Oct):
+//   ☀️ morning (08:00)   the day ahead: risks, what needs you, your tasks, what I handled since yesterday, wins yesterday
+//   🌤️ midday (13:00)    what's done so far today, new risks, what still needs you
+//   🌙 end of day (17:30) today's wins, what's still open or late, what still needs you before tomorrow
+// Each has its own rule in Alerts (daily_summary / midday_report / evening_report: on/off, time, channels). No report
+// on Friday/Saturday (Saudi weekend), and midday / end of day are skipped when there's nothing worth saying.
+// WhatsApp: inside the 24 h window the whole report, then each decision / review with its buttons; outside it the
+// approved "report" template (counts + a "Show me" button that brings the full report).
 //
-// Called every 15 minutes by pg_cron (x-cron-secret), or by a signed-in user with {"test": true} to get theirs now.
-// Email goes through Resend (RESEND_API_KEY, RESEND_FROM). WhatsApp needs WHATSAPP_TOKEN, WHATSAPP_PHONE_ID and an
-// approved template WHATSAPP_SUMMARY_TEMPLATE (one body parameter) — until then it is skipped.
+// Called every 15 minutes by pg_cron (x-cron-secret), or by a signed-in user with {"test": true, kind?, only?} to get
+// theirs now ("Send me today's summary", or "report" on WhatsApp with only: 'whatsapp').
+// Email goes through Resend (RESEND_API_KEY, RESEND_FROM).
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { HttpError, getCaller, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
+import { inWindow, REPORT_TEMPLATE, rtl, waConfigured, waTemplate, waText } from '../_shared/wa.ts';
+import { needsYouCards, sendCards } from '../_shared/wa-actions.ts';
 
 type Lang = 'en' | 'ar';
+type Kind = 'daily' | 'midday' | 'evening';
 type Person = {
   id: string;
   full_name: string;
@@ -25,6 +30,7 @@ type Person = {
   email: string | null;
   phone: string | null;
   whatsapp_connected: boolean | null;
+  wa_last_inbound_at: string | null;
   weekly_capacity_hours: number | null;
 };
 type Task = {
@@ -38,41 +44,70 @@ type Task = {
   estimate_hours: number | null;
 };
 type Rule = { enabled?: boolean; channels?: string[]; time?: string };
-type Summary = { subject: string; headline: string; sections: { title: string; items: string[] }[]; short: string };
+type Section = { key: 'risks' | 'wins' | 'needs' | 'support' | 'yours' | 'handled' | 'waiting' | 'new' | 'since'; title: string; items: string[] };
+type Summary = {
+  subject: string;
+  hello: string;
+  headline: string;
+  sections: Section[];
+  short: string;
+  /** for the WhatsApp template: "3 risks · 2 decisions · 5 wins" */
+  counts: string;
+};
 
-const PERSON_COLS = 'id, full_name, full_name_ar, role, manager_id, status, locale, email, phone, whatsapp_connected, weekly_capacity_hours';
+const PERSON_COLS =
+  'id, full_name, full_name_ar, role, manager_id, status, locale, email, phone, whatsapp_connected, wa_last_inbound_at, weekly_capacity_hours';
 const OPEN = ['assigned', 'in_progress', 'blocked', 'returned'];
 const RIYADH_MS = 3 * 3_600_000;
 const DAY = 86_400_000;
+const KINDS: Kind[] = ['daily', 'midday', 'evening'];
+const RULE_KEY: Record<Kind, string> = { daily: 'daily_summary', midday: 'midday_report', evening: 'evening_report' };
+const DEFAULT_RULE: Record<Kind, Required<Rule>> = {
+  daily: { enabled: true, channels: ['push', 'email'], time: '08:00' },
+  midday: { enabled: true, channels: ['push', 'whatsapp'], time: '13:00' },
+  evening: { enabled: true, channels: ['push', 'whatsapp'], time: '17:30' },
+};
 /** a missed run still sends within this window after the chosen time, never later */
-const WINDOW_MS = 2 * 3_600_000;
-const DEFAULT_RULE: Required<Rule> = { enabled: true, channels: ['push', 'email'], time: '08:00' };
+const WINDOW_MS: Record<Kind, number> = { daily: 2 * 3_600_000, midday: 3_600_000, evening: 3_600_000 };
 
 // ─── words ────────────────────────────────────────────────────────────────────
 
 const W = {
   en: {
-    subjectMgr: 'Your team today · {date}',
-    subjectEmp: 'Your day · {date}',
-    hello: 'Good morning {name}',
-    pulse: '{working} in progress · {late} late · {done} done yesterday',
-    empHead: '{today} due today · {late} late · {back} sent back',
-    needsYou: 'Needs you',
-    handled: 'I handled it for you',
+    subject_daily: 'Your morning · {date}',
+    subject_midday: 'Your midday check · {date}',
+    subject_evening: 'Your day’s wrap-up · {date}',
+    hello_daily: 'Good morning {name} ☀️',
+    hello_midday: 'Hi {name} 🌤️ halfway through the day',
+    hello_evening: 'Good evening {name} 🌙',
+    pulse_daily: '{working} in progress · {late} late · {done} done yesterday',
+    pulse_midday: '{done} done so far today · {late} late · {needs} need you',
+    pulse_evening: '{done} done today · {open} still open · {late} late',
+    emp_daily: '{today} due today · {late} late · {back} sent back',
+    emp_midday: '{done} done so far · {today} still due today · {late} late',
+    emp_evening: '{done} done today · {late} late · {tomorrow} due tomorrow',
+    risks: '⚠️ Risks',
+    wins: '✅ Achievements',
+    needs: '📌 Needs you',
+    support: '🤝 Needs your support',
+    yours: '📝 Your tasks',
+    handled: '🤖 I handled it for you',
+    waiting: '⏳ Waiting for review',
     handledMoved: 'moved {n} of your late tasks to the next working day',
     handledNudged: 'sent {n} follow-ups to your team',
     decision: 'Decision: {title}',
     review: '{name} finished "{title}" · waiting for your review',
+    tools: '{n} tasks from your tools waiting for your OK',
     late: '"{title}" · {name} · was due {when}',
-    support: 'Needs your support',
-    yours: 'Your tasks',
+    blocked: '"{title}" · {name} · stuck, needs help',
+    dueToday: '"{title}" · {name} · due today, not started',
+    won: '"{title}" · {name}',
+    wonMine: '"{title}"',
     due: '"{title}" · due {when}',
     lateMine: '"{title}" · late since {when}',
     back: '"{title}" · sent back for changes',
-    waiting: 'Waiting for review',
     waitingN: '{n} finished, waiting for review',
-    wins: 'This week',
-    winsN: '{n} done this week. Keep going!',
+    winsWeek: '{n} done this week. Keep going! 💪',
     supLate: '{n} late',
     supBlocked: '{n} blocked',
     supBack: '{n} sent back',
@@ -80,38 +115,58 @@ const W = {
     more: '+{n} more in the app',
     open: 'Open the Muntej app to act on these.',
     footer: 'Sent by Muntej at the time you chose in Alerts.',
-    pushMgr: '{late} late · {reviews} to review · {decisions} decisions',
+    push_daily: '{late} late · {reviews} to review · {decisions} decisions',
+    push_midday: '{done} done so far · {late} late · {needs} need you',
+    push_evening: '{done} done today · {late} late · {needs} need you',
     pushEmp: '{today} due today · {late} late',
-    logSummary: 'Sent your morning summary ({via})',
-    logReason: 'Daily summary at {time}, as set in Alerts',
-    newFor: 'New for you ✨',
+    counts: '{label}: {risks} risks · {needs} need you · {wins} wins',
+    label_daily: '☀️ Morning report',
+    label_midday: '🌤️ Midday report',
+    label_evening: '🌙 End-of-day report',
+    logSummary: 'Sent your {label} ({via})',
+    logReason: '{label} at {time}, as set in Alerts',
+    newFor: '✨ New for you',
     allClear: 'All {n} tasks are moving. Nothing needs you today, enjoy your coffee ☕',
     allClearPush: "Nothing needs you today. I've got the rest ☕",
-    since: 'Since yesterday',
+    since: '🔔 Since yesterday',
     sinceN: '{n} small updates in the app, whenever you like',
+    below: 'What needs you, with buttons 👇',
   },
   ar: {
-    subjectMgr: 'صباحك مع فريقك · {date}',
-    subjectEmp: 'يومك · {date}',
-    hello: 'صباح الخير يا {name} ☀️',
-    pulse: '{working} شغالين عليها · {late} متأخرة · {done} خلصت أمس',
-    empHead: '{today} مطلوبة اليوم · {late} متأخرة · {back} راجعة للتعديل',
-    needsYou: 'يحتاجك',
-    handled: 'تكفّلت فيها عنك',
+    subject_daily: 'صباحك · {date}',
+    subject_midday: 'نص يومك · {date}',
+    subject_evening: 'حصيلة يومك · {date}',
+    hello_daily: 'صباح الخير يا {name} ☀️',
+    hello_midday: 'هلا {name} 🌤️ وصلنا نص اليوم',
+    hello_evening: 'مساء الخير يا {name} 🌙',
+    pulse_daily: '{working} شغالين عليها · {late} متأخرة · {done} خلصت أمس',
+    pulse_midday: '{done} خلصت لين الحين · {late} متأخرة · {needs} تحتاجك',
+    pulse_evening: '{done} خلصت اليوم · {open} باقية · {late} متأخرة',
+    emp_daily: '{today} مطلوبة اليوم · {late} متأخرة · {back} راجعة للتعديل',
+    emp_midday: '{done} خلصتها لين الحين · {today} باقية اليوم · {late} متأخرة',
+    emp_evening: '{done} خلصتها اليوم · {late} متأخرة · {tomorrow} مطلوبة بكرة',
+    risks: '⚠️ المخاطر',
+    wins: '✅ الإنجازات',
+    needs: '📌 يحتاجك',
+    support: '🤝 يحتاجون دعمك',
+    yours: '📝 مهامك',
+    handled: '🤖 تكفّلت فيها عنك',
+    waiting: '⏳ تنتظر المراجعة',
     handledMoved: 'أجّلت {n} من مهامك المتأخرة ليوم العمل الجاي',
     handledNudged: 'تابعت فريقك {n} مرات',
     decision: 'قرار: {title}',
     review: '{name} خلّص «{title}» · تنتظر مراجعتك',
+    tools: '{n} مهام من أدواتك تنتظر موافقتك',
     late: '«{title}» · {name} · كانت {when}',
-    support: 'يحتاجون دعمك',
-    yours: 'مهامك',
+    blocked: '«{title}» · {name} · واقفة ويحتاج مساعدة',
+    dueToday: '«{title}» · {name} · مطلوبة اليوم وما بدأ فيها',
+    won: '«{title}» · {name}',
+    wonMine: '«{title}»',
     due: '«{title}» · مطلوبة {when}',
     lateMine: '«{title}» · متأخرة من {when}',
     back: '«{title}» · راجعة للتعديل',
-    waiting: 'تنتظر المراجعة',
     waitingN: '{n} خلصتها وتنتظر المراجعة',
-    wins: 'هالأسبوع',
-    winsN: 'خلّصت {n} هالأسبوع. يا حلوك 💪',
+    winsWeek: 'خلّصت {n} هالأسبوع. يا حلوك 💪',
     supLate: '{n} متأخرة',
     supBlocked: '{n} واقفة',
     supBack: '{n} راجعة للتعديل',
@@ -119,15 +174,22 @@ const W = {
     more: '+{n} زيادة في التطبيق',
     open: 'افتح منتج وخلّصها بضغطة.',
     footer: 'أرسلتها لك بالوقت اللي اخترته. تقدر تغيّره من التنبيهات.',
-    pushMgr: '{late} متأخرة · {reviews} للمراجعة · {decisions} قرارات',
+    push_daily: '{late} متأخرة · {reviews} للمراجعة · {decisions} قرارات',
+    push_midday: '{done} خلصت لين الحين · {late} متأخرة · {needs} تحتاجك',
+    push_evening: '{done} خلصت اليوم · {late} متأخرة · {needs} تحتاجك',
     pushEmp: '{today} مطلوبة اليوم · {late} متأخرة',
-    logSummary: 'أرسل ملخّص الصباح ({via})',
-    logReason: 'الملخّص اليومي الساعة {time} حسب إعدادات التنبيهات',
-    newFor: 'جديد لك ✨',
+    counts: '{label}: {risks} مخاطر · {needs} تحتاجك · {wins} إنجازات',
+    label_daily: '☀️ تقرير الصباح',
+    label_midday: '🌤️ تقرير الظهر',
+    label_evening: '🌙 تقرير آخر اليوم',
+    logSummary: 'أرسل {label} ({via})',
+    logReason: '{label} الساعة {time} حسب إعدادات التنبيهات',
+    newFor: '✨ جديد لك',
     allClear: 'كل المهام ماشية ({n}). ما فيه شي يحتاجك اليوم، روح اشرب قهوتك ☕',
     allClearPush: 'ما فيه شي يحتاجك اليوم، والباقي عليّ ☕',
-    since: 'من أمس',
+    since: '🔔 من أمس',
     sinceN: '{n} تحديثات صغيرة في التطبيق، على راحتك',
+    below: 'اللي يحتاجك، وتحت كل وحدة أزرارها 👇',
   },
 } as const;
 
@@ -149,14 +211,21 @@ function chosenTimeUtc(d: Date, hhmm: string) {
   const [h, m] = hhmm.split(':').map((x) => Number(x) || 0);
   return riyadhMidnightUtc(d) + (h * 60 + m) * 60_000;
 }
+/** the report that fits the time of day ("report" on WhatsApp) */
+function kindNow(d: Date): Kind {
+  const h = riyadh(d).getUTCHours();
+  return h < 11 ? 'daily' : h < 15 ? 'midday' : 'evening';
+}
 
-// ─── building the summary ─────────────────────────────────────────────────────
+// ─── building the reports ─────────────────────────────────────────────────────
 
 type World = {
   people: Map<string, Person>;
   tasks: Task[];
   decisions: { manager_id: string; title: string; title_ar: string | null }[];
   reviews: { task_id: string; reviewer_id: string | null }[];
+  /** suggestions found in each person's tools still waiting for their OK */
+  toolsWaiting: Map<string, number>;
   /** what Saree3 did quietly in the last day (quiet Saree3: it shows here instead of as pushes) */
   quiet: { movedFor: Map<string, number>; nudgedFor: Map<string, number> };
 };
@@ -164,124 +233,174 @@ type World = {
 const top = (items: string[], lang: Lang, max = 3) =>
   items.length > max ? [...items.slice(0, max), say(lang, 'more', { n: num(items.length - max, lang) })] : items;
 
-function managerSummary(me: Person, w: World, now: Date, lang: Lang): Summary | null {
+/** the time span whose finished work counts as "achievements" */
+function winsSpan(kind: Kind, now: Date): [number, number] {
+  const today = riyadhMidnightUtc(now);
+  return kind === 'daily' ? [today - DAY, today] : [today, now.getTime() + 1];
+}
+
+function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind): Summary | null {
   const reports = [...w.people.values()].filter((p) => p.manager_id === me.id && p.status === 'active');
   const reportIds = new Set(reports.map((p) => p.id));
-  const name = (id: string | null) => firstName(id ? w.people.get(id) : undefined, lang);
+  const name = (id: string | null) => firstName(id ? w.people.get(id) : undefined, lang) || '…';
   const t = now.getTime();
+  const endToday = riyadhMidnightUtc(now) + DAY;
   const isLate = (x: Task) => OPEN.includes(x.status) && !!x.due_at && Date.parse(x.due_at) < t;
   const team = w.tasks.filter((x) => x.owner_id !== me.id && ((x.owner_id && reportIds.has(x.owner_id)) || x.assigner_id === me.id));
   const late = team.filter(isLate).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
+  const blocked = team.filter((x) => x.status === 'blocked' && !isLate(x));
+  const notStarted = team.filter((x) => (x.status === 'assigned' || x.status === 'returned') && x.due_at && Date.parse(x.due_at) >= t && Date.parse(x.due_at) < endToday);
   const working = team.filter((x) => OPEN.includes(x.status) && !isLate(x));
-  const startYesterday = riyadhMidnightUtc(now) - DAY;
-  const doneYesterday = team.filter(
-    (x) => x.status === 'done' && x.closed_at && Date.parse(x.closed_at) >= startYesterday && Date.parse(x.closed_at) < startYesterday + DAY,
+  const [from, to] = winsSpan(kind, now);
+  const won = [...team, ...w.tasks.filter((x) => x.owner_id === me.id)].filter(
+    (x) => x.status === 'done' && x.closed_at && Date.parse(x.closed_at) >= from && Date.parse(x.closed_at) < to,
   );
 
   const decisions = w.decisions.filter((d) => d.manager_id === me.id);
   const reviewTaskIds = new Set(w.reviews.filter((r) => r.reviewer_id === me.id).map((r) => r.task_id));
   const reviews = w.tasks.filter((x) => x.status === 'submitted' && (reviewTaskIds.has(x.id) || x.assigner_id === me.id) && x.owner_id !== me.id);
+  const tools = w.toolsWaiting.get(me.id) ?? 0;
 
+  const risks = [
+    ...late.map((x) => say(lang, 'late', { title: x.title, name: name(x.owner_id), when: when(x.due_at!, lang) })),
+    ...blocked.map((x) => say(lang, 'blocked', { title: x.title, name: name(x.owner_id) })),
+    ...notStarted.map((x) => say(lang, 'dueToday', { title: x.title, name: name(x.owner_id) })),
+  ];
   const needs = [
     ...decisions.map((d) => say(lang, 'decision', { title: (lang === 'ar' && d.title_ar) || d.title })),
-    ...reviews.map((x) => say(lang, 'review', { name: name(x.owner_id) || '…', title: x.title })),
-    ...late.map((x) => say(lang, 'late', { title: x.title, name: name(x.owner_id) || '…', when: when(x.due_at!, lang) })),
+    ...reviews.map((x) => say(lang, 'review', { name: name(x.owner_id), title: x.title })),
+    ...(tools ? [say(lang, 'tools', { n: num(tools, lang) })] : []),
   ];
+  const wins = won.map((x) => (x.owner_id === me.id ? say(lang, 'wonMine', { title: x.title }) : say(lang, 'won', { title: x.title, name: name(x.owner_id) })));
 
-  // people who look stuck (same signals as the Home "Needs your support" block)
+  // people who look stuck (same signals as the Home "Needs your support" block): the morning only
   const weekEnd = riyadhMidnightUtc(now) + 7 * DAY;
-  const support = reports
-    .map((p) => {
-      const open = w.tasks.filter((x) => x.owner_id === p.id && OPEN.includes(x.status));
-      const l = open.filter(isLate).length;
-      const b = open.filter((x) => x.status === 'blocked').length;
-      const r = open.filter((x) => x.status === 'returned').length;
-      const hours = open.filter((x) => x.due_at && Date.parse(x.due_at) < weekEnd).reduce((s, x) => s + (x.estimate_hours ?? 0), 0);
-      const pct = Math.round((hours / (p.weekly_capacity_hours && p.weekly_capacity_hours > 0 ? p.weekly_capacity_hours : 40)) * 100);
-      const score = l * 3 + b * 2 + r + (pct > 100 ? 2 : 0);
-      const why = [
-        l && say(lang, 'supLate', { n: num(l, lang) }),
-        b && say(lang, 'supBlocked', { n: num(b, lang) }),
-        r && say(lang, 'supBack', { n: num(r, lang) }),
-        pct > 100 && say(lang, 'supOver', { n: num(pct, lang) }),
-      ].filter(Boolean);
-      return { score, line: `${firstName(p, lang)}: ${why.join(' · ')}` };
-    })
-    .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map((s) => s.line);
+  const support =
+    kind !== 'daily'
+      ? []
+      : reports
+          .map((p) => {
+            const open = w.tasks.filter((x) => x.owner_id === p.id && OPEN.includes(x.status));
+            const l = open.filter(isLate).length;
+            const b = open.filter((x) => x.status === 'blocked').length;
+            const r = open.filter((x) => x.status === 'returned').length;
+            const hours = open.filter((x) => x.due_at && Date.parse(x.due_at) < weekEnd).reduce((s, x) => s + (x.estimate_hours ?? 0), 0);
+            const pct = Math.round((hours / (p.weekly_capacity_hours && p.weekly_capacity_hours > 0 ? p.weekly_capacity_hours : 40)) * 100);
+            const score = l * 3 + b * 2 + r + (pct > 100 ? 2 : 0);
+            const why = [
+              l && say(lang, 'supLate', { n: num(l, lang) }),
+              b && say(lang, 'supBlocked', { n: num(b, lang) }),
+              r && say(lang, 'supBack', { n: num(r, lang) }),
+              pct > 100 && say(lang, 'supOver', { n: num(pct, lang) }),
+            ].filter(Boolean);
+            return { score, line: `${firstName(p, lang)}: ${why.join(' · ')}` };
+          })
+          .filter((s) => s.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .map((s) => s.line);
 
-  const mine = ownWork(me, w, now, lang);
-  // what Saree3 handled quietly since yesterday (no pushes for it)
-  const moved = w.quiet.movedFor.get(me.id) ?? 0;
-  const nudged = w.quiet.nudgedFor.get(me.id) ?? 0;
+  const mine = ownWork(me, w, now, lang, kind);
+  const moved = kind === 'daily' ? (w.quiet.movedFor.get(me.id) ?? 0) : 0;
+  const nudged = kind === 'daily' ? (w.quiet.nudgedFor.get(me.id) ?? 0) : 0;
   const handled = [
     moved && say(lang, 'handledMoved', { n: num(moved, lang) }),
     nudged && say(lang, 'handledNudged', { n: num(nudged, lang) }),
   ].filter(Boolean) as string[];
-  if (!needs.length && !support.length && !mine.length && !working.length) return null;
+
+  // quiet Saree3: midday / end of day only when there's something worth saying
+  if (kind !== 'daily' && !risks.length && !needs.length && !wins.length && !mine.length) return null;
+  if (kind === 'daily' && !risks.length && !needs.length && !support.length && !mine.length && !working.length && !wins.length) return null;
 
   const date = when(now.toISOString(), lang);
-  // nothing needs them: one line, counted not listed (BRD v1.2 FR-BRF-04)
-  if (!needs.length && !support.length && !mine.length)
+  const label = say(lang, `label_${kind}`);
+  const counts = say(lang, 'counts', { label, risks: num(risks.length, lang), needs: num(needs.length, lang), wins: num(wins.length, lang) });
+  const base = { subject: say(lang, `subject_${kind}`, { date }), hello: say(lang, `hello_${kind}`, { name: firstName(me, lang) }), counts };
+  // nothing needs them in the morning: one line, counted not listed (BRD v1.2 FR-BRF-04)
+  if (kind === 'daily' && !risks.length && !needs.length && !support.length && !mine.length)
     return {
-      subject: say(lang, 'subjectMgr', { date }),
+      ...base,
       headline: say(lang, 'allClear', { n: num(working.length, lang) }),
-      sections: handled.length ? [{ title: say(lang, 'handled'), items: handled }] : [],
+      sections: [
+        { key: 'wins' as const, title: say(lang, 'wins'), items: top(wins, lang) },
+        { key: 'handled' as const, title: say(lang, 'handled'), items: handled },
+      ].filter((s) => s.items.length),
       short: say(lang, 'allClearPush'),
     };
+  const v = {
+    working: num(working.length, lang),
+    late: num(late.length, lang),
+    done: num(kind === 'daily' ? wins.length : won.length, lang),
+    needs: num(needs.length, lang),
+    open: num(working.length + late.length, lang),
+    reviews: num(reviews.length, lang),
+    decisions: num(decisions.length, lang),
+  };
   return {
-    subject: say(lang, 'subjectMgr', { date }),
-    headline: say(lang, 'pulse', { working: num(working.length, lang), late: num(late.length, lang), done: num(doneYesterday.length, lang) }),
-    sections: [
-      { title: say(lang, 'needsYou'), items: top(needs, lang) },
-      { title: say(lang, 'support'), items: top(support, lang) },
-      { title: say(lang, 'yours'), items: top(mine, lang) },
-      { title: say(lang, 'handled'), items: handled },
-    ].filter((s) => s.items.length),
-    short: say(lang, 'pushMgr', { late: num(late.length, lang), reviews: num(reviews.length, lang), decisions: num(decisions.length, lang) }),
+    ...base,
+    headline: say(lang, `pulse_${kind}`, v),
+    sections: (
+      [
+        { key: 'needs', title: say(lang, 'needs'), items: top(needs, lang, 5) },
+        { key: 'risks', title: say(lang, 'risks'), items: top(risks, lang, 5) },
+        { key: 'wins', title: say(lang, 'wins'), items: top(wins, lang, kind === 'evening' ? 6 : 3) },
+        { key: 'support', title: say(lang, 'support'), items: top(support, lang) },
+        { key: 'yours', title: say(lang, 'yours'), items: top(mine, lang) },
+        { key: 'handled', title: say(lang, 'handled'), items: handled },
+      ] as Section[]
+    ).filter((s) => s.items.length),
+    short: say(lang, `push_${kind}`, v),
   };
 }
 
-/** The person's own open work worth a mention today: late, due today, sent back. */
-function ownWork(me: Person, w: World, now: Date, lang: Lang): string[] {
+/** The person's own open work worth a mention: late, due today (and tomorrow at the end of the day), sent back. */
+function ownWork(me: Person, w: World, now: Date, lang: Lang, kind: Kind): string[] {
   const t = now.getTime();
   const endToday = riyadhMidnightUtc(now) + DAY;
+  const until = kind === 'evening' ? endToday + DAY : endToday;
   const mine = w.tasks.filter((x) => x.owner_id === me.id && OPEN.includes(x.status));
   const late = mine.filter((x) => x.due_at && Date.parse(x.due_at) < t).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
-  const today = mine.filter((x) => x.due_at && Date.parse(x.due_at) >= t && Date.parse(x.due_at) < endToday);
-  const back = mine.filter((x) => x.status === 'returned' && !late.includes(x) && !today.includes(x));
+  const soon = mine.filter((x) => x.due_at && Date.parse(x.due_at) >= t && Date.parse(x.due_at) < until).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
+  const back = mine.filter((x) => x.status === 'returned' && !late.includes(x) && !soon.includes(x));
   return [
     ...late.map((x) => say(lang, 'lateMine', { title: x.title, when: when(x.due_at!, lang) })),
-    ...today.map((x) => say(lang, 'due', { title: x.title, when: when(x.due_at!, lang) })),
+    ...soon.map((x) => say(lang, 'due', { title: x.title, when: when(x.due_at!, lang) })),
     ...back.map((x) => say(lang, 'back', { title: x.title })),
   ];
 }
 
-function employeeSummary(me: Person, w: World, now: Date, lang: Lang): Summary | null {
+function employeeReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind): Summary | null {
   const t = now.getTime();
   const endToday = riyadhMidnightUtc(now) + DAY;
   const mine = w.tasks.filter((x) => x.owner_id === me.id);
   const open = mine.filter((x) => OPEN.includes(x.status));
   const late = open.filter((x) => x.due_at && Date.parse(x.due_at) < t).length;
   const today = open.filter((x) => x.due_at && Date.parse(x.due_at) >= t && Date.parse(x.due_at) < endToday).length;
+  const tomorrow = open.filter((x) => x.due_at && Date.parse(x.due_at) >= endToday && Date.parse(x.due_at) < endToday + DAY).length;
   const back = open.filter((x) => x.status === 'returned').length;
   const waiting = mine.filter((x) => x.status === 'submitted').length;
+  const [from, to] = winsSpan(kind, now);
+  const won = mine.filter((x) => (x.status === 'done' || x.status === 'submitted') && x.closed_at && Date.parse(x.closed_at) >= from && Date.parse(x.closed_at) < to);
   const weekStart = riyadhMidnightUtc(now) - riyadh(now).getUTCDay() * DAY; // Sunday
-  const wins = mine.filter((x) => x.status === 'done' && x.closed_at && Date.parse(x.closed_at) >= weekStart).length + waiting;
+  const week = mine.filter((x) => x.status === 'done' && x.closed_at && Date.parse(x.closed_at) >= weekStart).length + waiting;
 
-  const work = ownWork(me, w, now, lang);
-  if (!work.length && !waiting) return null;
-
+  const work = ownWork(me, w, now, lang, kind);
+  const wins = won.map((x) => say(lang, 'wonMine', { title: x.title }));
+  if (kind === 'daily' ? !work.length && !waiting : !work.length && !wins.length) return null;
+  const v = { today: num(today, lang), late: num(late, lang), back: num(back, lang), done: num(won.length, lang), tomorrow: num(tomorrow, lang) };
+  const label = say(lang, `label_${kind}`);
   return {
-    subject: say(lang, 'subjectEmp', { date: when(now.toISOString(), lang) }),
-    headline: say(lang, 'empHead', { today: num(today, lang), late: num(late, lang), back: num(back, lang) }),
-    sections: [
-      { title: say(lang, 'yours'), items: top(work, lang, 5) },
-      { title: say(lang, 'waiting'), items: waiting ? [say(lang, 'waitingN', { n: num(waiting, lang) })] : [] },
-      { title: say(lang, 'wins'), items: wins ? [say(lang, 'winsN', { n: num(wins, lang) })] : [] },
-    ].filter((s) => s.items.length),
-    short: say(lang, 'pushEmp', { today: num(today, lang), late: num(late, lang) }),
+    subject: say(lang, `subject_${kind}`, { date: when(now.toISOString(), lang) }),
+    hello: say(lang, `hello_${kind}`, { name: firstName(me, lang) }),
+    headline: say(lang, kind === 'daily' ? 'emp_daily' : kind === 'midday' ? 'emp_midday' : 'emp_evening', v),
+    sections: (
+      [
+        { key: 'yours', title: say(lang, 'yours'), items: top(work, lang, 5) },
+        { key: 'wins', title: say(lang, 'wins'), items: kind === 'daily' ? (week ? [say(lang, 'winsWeek', { n: num(week, lang) })] : []) : top(wins, lang, 5) },
+        { key: 'waiting', title: say(lang, 'waiting'), items: waiting ? [say(lang, 'waitingN', { n: num(waiting, lang) })] : [] },
+      ] as Section[]
+    ).filter((s) => s.items.length),
+    short: say(lang, 'pushEmp', v),
+    counts: say(lang, 'counts', { label, risks: num(late, lang), needs: num(work.length, lang), wins: num(wins.length, lang) }),
   };
 }
 
@@ -343,26 +462,26 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   return res.ok;
 }
 
-/** Business-initiated WhatsApp needs an approved template; the whole summary goes in its one body parameter. */
-async function sendWhatsAppSummary(phone: string, lang: Lang, s: Summary): Promise<boolean> {
-  const token = Deno.env.get('WHATSAPP_TOKEN');
-  const phoneId = Deno.env.get('WHATSAPP_PHONE_ID');
-  const template = Deno.env.get('WHATSAPP_SUMMARY_TEMPLATE');
-  if (!token || !phoneId || !template) return false;
-  // template parameters can't hold new lines or long runs of spaces
-  const body = [s.headline, ...s.sections.map((sec) => `${sec.title}: ${sec.items.join(' · ')}`)].join(' | ').slice(0, 1000);
-  const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to: phone.replace(/\D/g, ''),
-      type: 'template',
-      template: { name: template, language: { code: lang }, components: [{ type: 'body', parameters: [{ type: 'text', text: body }] }] },
-    }),
-  });
-  if (!res.ok) console.error('WhatsApp template error', res.status, (await res.text()).slice(0, 300));
-  return res.ok;
+/** WhatsApp, bold section titles and one item per line (the whole report fits one message) */
+function whatsappText(s: Summary, lang: Lang) {
+  return rtl(
+    lang === 'ar',
+    [`*${s.hello}*`, s.headline, ...s.sections.flatMap((sec) => ['', `*${sec.title}*`, ...sec.items.map((i) => `• ${i}`)])].join('\n'),
+  );
+}
+
+/** inside the 24 h window: the report, then what needs them as cards with buttons; outside it: the approved template */
+async function sendWhatsAppReport(admin: SupabaseClient, me: Person, lang: Lang, s: Summary, kind: Kind): Promise<boolean> {
+  if (!me.phone) return false;
+  if (!inWindow(me.wa_last_inbound_at))
+    return await waTemplate(me.phone, REPORT_TEMPLATE(), lang, [firstName(me, lang), s.counts], `rep:${kind}`);
+  if (!(await waText(me.phone, whatsappText(s, lang)))) return false;
+  const cards = await needsYouCards(admin, me.id, lang === 'ar');
+  if (cards.length) {
+    await waText(me.phone, rtl(lang === 'ar', say(lang, 'below')));
+    await sendCards(me.phone, lang === 'ar', cards, 3);
+  }
+  return true;
 }
 
 // ─── run ──────────────────────────────────────────────────────────────────────
@@ -370,7 +489,7 @@ async function sendWhatsAppSummary(phone: string, lang: Lang, s: Summary): Promi
 async function loadWorld(admin: SupabaseClient): Promise<World> {
   const since = new Date(Date.now() - 14 * DAY).toISOString();
   const dayAgo = new Date(Date.now() - DAY).toISOString();
-  const [peopleRes, tasksRes, decRes, revRes, movedRes, nudgedRes] = await Promise.all([
+  const [peopleRes, tasksRes, decRes, revRes, movedRes, nudgedRes, itemsRes] = await Promise.all([
     // hidden = the super admin's viewing seat in an account: never part of the work
     admin.from('profiles').select(PERSON_COLS).neq('status', 'deleted').eq('hidden', false),
     admin
@@ -381,13 +500,20 @@ async function loadWorld(admin: SupabaseClient): Promise<World> {
     admin.from('reviews').select('task_id, reviewer_id').is('decision', null),
     admin.from('activity_log').select('subject_id').eq('action', 'due_moved').gte('created_at', dayAgo),
     admin.from('followups').select('task:tasks(assigner_id, owner_id)').in('status', ['sent', 'replied']).gte('sent_at', dayAgo),
+    admin.from('incoming_items').select('owner_id, suggestions').eq('status', 'new').gte('received_at', since),
   ]);
   for (const r of [peopleRes, tasksRes, decRes, revRes]) if (r.error) throw r.error;
+  const toolsWaiting = new Map<string, number>();
+  for (const it of (itemsRes.data ?? []) as { owner_id: string; suggestions: { state: string }[] | null }[]) {
+    const n = (it.suggestions ?? []).filter((s) => s.state === 'new').length;
+    if (n) toolsWaiting.set(it.owner_id, (toolsWaiting.get(it.owner_id) ?? 0) + n);
+  }
   return {
     people: new Map(((peopleRes.data ?? []) as Person[]).map((p) => [p.id, p])),
     tasks: ((tasksRes.data ?? []) as Task[]).filter((x) => x.status !== 'cancelled'),
     decisions: decRes.data ?? [],
     reviews: revRes.data ?? [],
+    toolsWaiting,
     quiet: {
       movedFor: count(((movedRes.data ?? []) as { subject_id: string | null }[]).map((r) => r.subject_id)),
       // reminders Saree3 sent on a manager's behalf (to the people they gave work to)
@@ -406,109 +532,127 @@ function count(ids: (string | null)[]) {
   return m;
 }
 
-function ruleOf(p: Prefs | undefined): Required<Rule> {
-  const r = (p?.rules?.daily_summary ?? {}) as Rule;
-  return { enabled: r.enabled ?? DEFAULT_RULE.enabled, channels: r.channels ?? DEFAULT_RULE.channels, time: r.time ?? DEFAULT_RULE.time };
+function ruleOf(p: Prefs | undefined, kind: Kind, me: Person): Required<Rule> {
+  const r = (p?.rules?.[RULE_KEY[kind]] ?? {}) as Rule;
+  const d = DEFAULT_RULE[kind];
+  // never chose the channels: WhatsApp too once it's connected
+  const channels = r.channels ?? (me.whatsapp_connected && !d.channels.includes('whatsapp') ? [...d.channels, 'whatsapp'] : d.channels);
+  return { enabled: r.enabled ?? d.enabled, channels, time: r.time ?? d.time };
 }
 
-async function sendOne(admin: SupabaseClient, me: Person, w: World, prefs: Prefs | undefined, now: Date, test: boolean) {
+async function sendOne(
+  admin: SupabaseClient,
+  me: Person,
+  w: World,
+  prefs: Prefs | undefined,
+  now: Date,
+  kind: Kind,
+  opts: { test: boolean; only?: string; dry?: boolean },
+) {
   const lang: Lang = me.locale === 'ar' ? 'ar' : 'en';
-  const rule = ruleOf(prefs);
-  const s = isManager(me, w) ? managerSummary(me, w, now, lang) : employeeSummary(me, w, now, lang);
-  if (!s) return { profile: me.id, sent: [] as string[], skipped: 'nothing to say' };
-
-  // "New for you": up to two features from the last 2 weeks this person hasn't tried (or turned down) yet
-  const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar').order('sort');
-  const { data: mine } = await admin.from('feature_events').select('feature_key, state').eq('profile_id', me.id);
-  const done = new Set(
-    (mine ?? []).filter((e) => ['tried', 'adopted', 'not_interested'].includes(e.state as string)).map((e) => e.feature_key as string),
-  );
+  const rule = ruleOf(prefs, kind, me);
   const mgr = isManager(me, w);
-  const fresh = (feats ?? []).filter(
-    (f) =>
-      Date.now() - Date.parse(f.released_at as string) <= 14 * DAY &&
-      !done.has(f.key as string) &&
-      (f.audience === 'all' ||
-        (f.audience === 'manager' && mgr) ||
-        (f.audience === 'employee' && !mgr) ||
-        (f.audience === 'admin' && (me.role === 'admin' || me.role === 'super_admin'))),
-  );
-  if (fresh.length)
-    s.sections.push({
-      title: say(lang, 'newFor'),
-      items: fresh.slice(0, 2).map((f) => (lang === 'ar' ? `${f.title_ar}: ${f.benefit_ar}` : `${f.title}: ${f.benefit}`)),
-    });
+  const s = mgr ? managerReport(me, w, now, lang, kind) : employeeReport(me, w, now, lang, kind);
+  if (!s) return { profile: me.id, kind, sent: [] as string[], skipped: 'nothing to say' };
 
-  // the everyday updates the notification budget kept quiet since yesterday (whatsapp_status 'batched'): counted here
-  const { data: quiet } = await admin
-    .from('alerts')
-    .select('title, title_ar')
-    .eq('profile_id', me.id)
-    .eq('whatsapp_status', 'batched')
-    .is('read_at', null)
-    .gte('created_at', new Date(now.getTime() - DAY).toISOString())
-    .order('created_at', { ascending: false });
-  if (quiet?.length)
-    s.sections.push({
-      title: say(lang, 'since'),
-      items: [
-        say(lang, 'sinceN', { n: num(quiet.length, lang) }),
-        ...quiet.slice(0, 3).map((a) => ((lang === 'ar' && a.title_ar) || a.title) as string),
-      ],
-    });
+  if (kind === 'daily') {
+    // "New for you": up to two features from the last 2 weeks this person hasn't tried (or turned down) yet
+    const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar').order('sort');
+    const { data: mine } = await admin.from('feature_events').select('feature_key, state').eq('profile_id', me.id);
+    const done = new Set(
+      (mine ?? []).filter((e) => ['tried', 'adopted', 'not_interested'].includes(e.state as string)).map((e) => e.feature_key as string),
+    );
+    const fresh = (feats ?? []).filter(
+      (f) =>
+        Date.now() - Date.parse(f.released_at as string) <= 14 * DAY &&
+        !done.has(f.key as string) &&
+        (f.audience === 'all' ||
+          (f.audience === 'manager' && mgr) ||
+          (f.audience === 'employee' && !mgr) ||
+          (f.audience === 'admin' && (me.role === 'admin' || me.role === 'super_admin'))),
+    );
+    if (fresh.length)
+      s.sections.push({
+        key: 'new',
+        title: say(lang, 'newFor'),
+        items: fresh.slice(0, 2).map((f) => (lang === 'ar' ? `${f.title_ar}: ${f.benefit_ar}` : `${f.title}: ${f.benefit}`)),
+      });
 
-  const hello = say(lang, 'hello', { name: firstName(me, lang) });
+    // the everyday updates the notification budget kept quiet since yesterday (whatsapp_status 'batched'): counted here
+    const { data: quiet } = await admin
+      .from('alerts')
+      .select('title, title_ar')
+      .eq('profile_id', me.id)
+      .eq('whatsapp_status', 'batched')
+      .is('read_at', null)
+      .gte('created_at', new Date(now.getTime() - DAY).toISOString())
+      .order('created_at', { ascending: false });
+    if (quiet?.length)
+      s.sections.push({
+        key: 'since',
+        title: say(lang, 'since'),
+        items: [say(lang, 'sinceN', { n: num(quiet.length, lang) }), ...quiet.slice(0, 3).map((a) => ((lang === 'ar' && a.title_ar) || a.title) as string)],
+      });
+  }
+
   const allowed = (c: string) => rule.channels.includes(c) && prefs?.channels?.[c] !== false;
-  const channels = test
-    ? [...new Set([...rule.channels, 'push', 'email'])].filter((c) => prefs?.channels?.[c] !== false)
-    : rule.channels.filter(allowed);
+  const channels = opts.dry
+    ? []
+    : opts.only
+    ? [opts.only]
+    : opts.test
+      ? [...new Set([...rule.channels, 'push', 'email'])].filter((c) => prefs?.channels?.[c] !== false)
+      : rule.channels.filter(allowed);
   const sent: string[] = [];
 
-  if (channels.includes('push') && (await sendPush(
+  if (channels.includes('push')) {
+    // Thursday (end of the Saudi week): the morning report opens the week's receipt
+    const receipt = kind === 'daily' && riyadh(now).getUTCDay() === 4;
+    const pushed = await sendPush(
       [me.id],
-      // Thursday (end of the Saudi week): the summary opens the week's receipt
-      riyadh(now).getUTCDay() === 4
-        ? { title: s.subject, body: `${hello} · ${s.short} · ${lang === 'ar' ? '🧾 إيصال أسبوعك جاهز' : '🧾 Your week’s receipt is ready'}`, data: { screen: '/32-receipt' } }
-        : { title: s.subject, body: `${hello} · ${s.short}`, data: { screen: '/' } },
+      receipt
+        ? { title: s.subject, body: `${s.hello} · ${s.short} · ${lang === 'ar' ? '🧾 إيصال أسبوعك جاهز' : '🧾 Your week’s receipt is ready'}`, data: { screen: '/32-receipt' } }
+        : { title: s.subject, body: `${s.hello} · ${s.short}`, data: { screen: '/' } },
       admin,
-    )) > 0)
-    sent.push('push');
-  if (channels.includes('email') && me.email && (await sendEmail(me.email, s.subject, emailHtml(s, hello, lang), plainText(s, hello, lang))))
-    sent.push('email');
-  if (channels.includes('whatsapp') && me.phone && me.whatsapp_connected && (await sendWhatsAppSummary(me.phone, lang, s))) sent.push('whatsapp');
-
-  if (!test) {
-    await admin.from('daily_summaries').upsert({ profile_id: me.id, day: riyadhDay(now), kind: 'daily', channels: sent });
+    );
+    if (pushed > 0) sent.push('push');
   }
+  if (channels.includes('email') && me.email && (await sendEmail(me.email, s.subject, emailHtml(s, s.hello, lang), plainText(s, s.hello, lang))))
+    sent.push('email');
+  if (channels.includes('whatsapp') && waConfigured() && me.phone && me.whatsapp_connected && (await sendWhatsAppReport(admin, me, lang, s, kind)))
+    sent.push('whatsapp');
+
+  if (!opts.test) await admin.from('daily_summaries').upsert({ profile_id: me.id, day: riyadhDay(now), kind, channels: sent });
   if (sent.length) {
     const via = sent.join(', ');
     await admin.from('activity_log').insert({
       actor_type: 'muntej',
       subject_id: me.id,
       action: 'daily_summary_sent',
-      summary: say('en', 'logSummary', { via }),
-      summary_ar: say('ar', 'logSummary', { via }),
-      reason: say(lang, 'logReason', { time: rule.time }),
+      summary: say('en', 'logSummary', { via, label: say('en', `label_${kind}`) }),
+      summary_ar: say('ar', 'logSummary', { via, label: say('ar', `label_${kind}`) }),
+      reason: say(lang, 'logReason', { time: rule.time, label: say(lang, `label_${kind}`) }),
       undoable: false,
     });
   }
-  return { profile: me.id, sent, preview: test ? plainText(s, hello, lang) : undefined };
+  return { profile: me.id, kind, sent, preview: opts.test ? (opts.dry ? whatsappText(s, lang) : plainText(s, s.hello, lang)) : undefined };
 }
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
-  const body = (await req.json().catch(() => ({}))) as { test?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { test?: boolean; kind?: string; only?: string; dry?: boolean };
   const admin = adminClient();
   const now = new Date();
 
-  // ── "Send me today's summary" from the Alerts screen ──
+  // ── "Send me today's summary" from the Alerts screen, or "report" on WhatsApp (only: 'whatsapp') ──
   if (body.test) {
     const { profileId } = await getCaller(req);
     const w = await loadWorld(admin);
     const me = w.people.get(profileId);
     if (!me) throw new HttpError(404, 'No profile');
     const prefs = (await loadPrefs(admin, [me.id])).get(me.id);
-    return json(await sendOne(admin, me, w, prefs, now, true));
+    const kind = KINDS.includes(body.kind as Kind) ? (body.kind as Kind) : kindNow(now);
+    return json(await sendOne(admin, me, w, prefs, now, kind, { test: true, only: body.only === 'whatsapp' ? 'whatsapp' : undefined, dry: !!body.dry }));
   }
 
   // ── cron run ──
@@ -519,24 +663,32 @@ serve(async (req) => {
   if (weekday === 5 || weekday === 6) return json({ skipped: 'weekend' });
   const nudged = await setupNudges(admin, now);
 
-  const w = await loadWorld(admin);
-  const active = [...w.people.values()].filter((p) => p.status === 'active');
-  const prefs = await loadPrefs(
-    admin,
-    active.map((p) => p.id),
-  );
-  const { data: done, error } = await admin.from('daily_summaries').select('profile_id').eq('day', riyadhDay(now)).eq('kind', 'daily');
+  const active = await (async () => {
+    const { data } = await admin.from('profiles').select('id').eq('status', 'active').eq('hidden', false);
+    return (data ?? []).map((p) => p.id as string);
+  })();
+  const prefs = await loadPrefs(admin, active);
+  const { data: done, error } = await admin.from('daily_summaries').select('profile_id, kind').eq('day', riyadhDay(now)).in('kind', KINDS);
   if (error) throw error;
-  const already = new Set((done ?? []).map((r) => r.profile_id as string));
+  const already = new Set((done ?? []).map((r) => `${r.profile_id}:${r.kind}`));
 
-  const due = active.filter((p) => {
-    const rule = ruleOf(prefs.get(p.id));
-    const at = chosenTimeUtc(now, rule.time);
-    return rule.enabled && !already.has(p.id) && now.getTime() >= at && now.getTime() < at + WINDOW_MS;
-  });
+  let w: World | null = null;
   const results = [];
-  for (const p of due) results.push(await sendOne(admin, p, w, prefs.get(p.id), now, false));
-  return json({ due: due.length, results, nudged });
+  for (const kind of KINDS) {
+    const due = active.filter((id) => {
+      if (already.has(`${id}:${kind}`)) return false;
+      const r = (prefs.get(id)?.rules?.[RULE_KEY[kind]] ?? {}) as Rule;
+      const at = chosenTimeUtc(now, r.time ?? DEFAULT_RULE[kind].time);
+      return (r.enabled ?? DEFAULT_RULE[kind].enabled) && now.getTime() >= at && now.getTime() < at + WINDOW_MS[kind];
+    });
+    if (!due.length) continue;
+    w ??= await loadWorld(admin);
+    for (const id of due) {
+      const me = w.people.get(id);
+      if (me) results.push(await sendOne(admin, me, w, prefs.get(id), now, kind, { test: false }));
+    }
+  }
+  return json({ results, nudged });
 });
 
 // Setup left halfway (owner's request: "if the user missed anything, Saree3 helps them continue"): once a day at 10:00
