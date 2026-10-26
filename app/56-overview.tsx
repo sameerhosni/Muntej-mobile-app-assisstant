@@ -8,9 +8,9 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, useWindowDimensions, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowUpLeft, ChevronLeft, RefreshCw } from 'lucide-react-native';
+import { ChevronLeft, RefreshCw } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, IconButton } from '@/components/ui';
-import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
+import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useDecisions, useMyProfile, useTasks, type TaskWithPeople } from '@/lib/api';
@@ -78,7 +78,7 @@ export default function OverviewScreen() {
   const prMax = Math.max(1, L.pr_urgent.length, L.pr_high.length, L.pr_medium.length, L.pr_low.length);
   const statusParts = [
     { key: 'st_done' as const, label: t('done'), color: colors.green },
-    { key: 'st_progress' as const, label: t('progress'), color: colors.navy },
+    { key: 'st_progress' as const, label: t('progress'), color: colors.primary },
     { key: 'st_waiting' as const, label: t('waiting'), color: colors.amber },
     { key: 'st_other' as const, label: t('other'), color: colors.textFaint },
   ];
@@ -124,23 +124,21 @@ export default function OverviewScreen() {
 
         {/* 4 headline numbers */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          <Big label={t('open')} value={L.open.length} sub={t('openSub', { count: Math.max(1, teamsWithWork.length) })} onPress={() => show('open', t('open'))} />
-          <Big label={t('urgent')} value={L.urgent.length} sub={t('urgentSub')} onPress={() => show('urgent', t('urgent'))} />
-          <Big label={t('late')} value={L.late.length} sub={t('lateSub')} tone="red" onPress={() => show('late', t('late'))} />
-          <Big label={t('approval')} value={L.approval.length + ov.decisions} sub={t('approvalSub')} onPress={() => show('approval', t('approval'))} />
+          <Big tint="primary" label={t('open')} value={L.open.length} sub={t('openSub', { count: Math.max(1, teamsWithWork.length) })} onPress={() => show('open', t('open'))} />
+          <Big tint="amber" label={t('urgent')} value={L.urgent.length} sub={t('urgentSub')} onPress={() => show('urgent', t('urgent'))} />
+          <Big tint="red" label={t('late')} value={L.late.length} sub={t('lateSub')} onPress={() => show('late', t('late'))} />
+          <Big tint="purple" label={t('approval')} value={L.approval.length + ov.decisions} sub={t('approvalSub')} onPress={() => show('approval', t('approval'))} />
         </View>
 
         {/* needs follow-up */}
-        <View style={{ borderRadius: radius.cardLg, overflow: 'hidden', backgroundColor: colors.surface, boxShadow: shadows.tile }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.navy, paddingHorizontal: spacing.lg, minHeight: 52 }}>
-            <AppText weight="bold" color="onDark" style={{ flex: 1 }}>
+        <Card style={{ gap: spacing.md }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <AppText variant="section" style={{ flex: 1 }}>
               {t('followUp')}
             </AppText>
-            <AppText weight="extrabold" style={{ color: colors.goldLight, fontSize: 18 }}>
-              {ov.followUp}
-            </AppText>
+            <Chip label={String(ov.followUp)} tone={ov.followUp ? 'primary' : 'neutral'} />
           </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
             <Small label={t('decision')} value={ov.decisions} onPress={() => router.push('/04-decisions')} />
             <Small label={t('late')} value={L.late.length} tone="red" onPress={() => show('late', t('late'))} />
             <Small label={t('quiet')} value={L.quiet.length} onPress={() => show('quiet', t('quiet'))} />
@@ -148,7 +146,7 @@ export default function OverviewScreen() {
             <Small label={t('noDue')} value={L.noDue.length} onPress={() => show('noDue', t('noDue'))} />
             <Small label={t('toReview')} value={L.toReview.length} onPress={() => show('toReview', t('toReview'))} />
           </View>
-        </View>
+        </Card>
 
         {/* by team · work status · priority */}
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: spacing.md }}>
@@ -178,7 +176,7 @@ export default function OverviewScreen() {
           </Panel>
           <Panel title={t('priority')} badge={String(L.open.length)} style={panel}>
             <BarRow label={t('pr_urgent')} value={L.pr_urgent.length} max={prMax} color={colors.red} onPress={() => show('pr_urgent', t('pr_urgent'))} />
-            <BarRow label={t('pr_high')} value={L.pr_high.length} max={prMax} color={colors.navy} onPress={() => show('pr_high', t('pr_high'))} />
+            <BarRow label={t('pr_high')} value={L.pr_high.length} max={prMax} color={colors.orange} onPress={() => show('pr_high', t('pr_high'))} />
             <BarRow label={t('pr_medium')} value={L.pr_medium.length} max={prMax} color={colors.amber} onPress={() => show('pr_medium', t('pr_medium'))} />
             <BarRow label={t('pr_low')} value={L.pr_low.length} max={prMax} color={colors.textFaint} onPress={() => show('pr_low', t('pr_low'))} />
           </Panel>
@@ -193,10 +191,10 @@ export default function OverviewScreen() {
             </AppText>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            <Big label={t('my_today')} value={L.my_today.length} dark onPress={() => show('my_today', t('my_today'))} />
-            <Big label={t('my_own')} value={L.my_own.length} onPress={() => show('my_own', t('my_own'))} />
-            <Big label={t('my_given')} value={L.my_given.length} onPress={() => show('my_given', t('my_given'))} />
-            <Big label={t('my_doneWeek')} value={L.my_doneWeek.length} onPress={() => show('my_doneWeek', t('my_doneWeek'))} />
+            <Big tint="red" label={t('my_today')} value={L.my_today.length} onPress={() => show('my_today', t('my_today'))} />
+            <Big tint="primary" label={t('my_own')} value={L.my_own.length} onPress={() => show('my_own', t('my_own'))} />
+            <Big tint="purple" label={t('my_given')} value={L.my_given.length} onPress={() => show('my_given', t('my_given'))} />
+            <Big tint="green" label={t('my_doneWeek')} value={L.my_doneWeek.length} onPress={() => show('my_doneWeek', t('my_doneWeek'))} />
           </View>
 
           {/* what moved since … */}
@@ -273,36 +271,41 @@ export default function OverviewScreen() {
   );
 }
 
-/** a headline number: label, big value, a small line under it; tap = the tasks behind it */
-function Big({ label, value, sub, tone, dark, onPress }: { label: string; value: number; sub?: string; tone?: 'red'; dark?: boolean; onPress: () => void }) {
+/** a headline number, like Home's glance tiles: tinted when there's something, grey when it's zero; tap = its tasks */
+const TINT = {
+  primary: { bg: 'primaryTint', fg: colors.primary },
+  amber: { bg: 'amberTint', fg: colors.amberText },
+  red: { bg: 'redTint', fg: colors.red },
+  purple: { bg: 'purpleTint', fg: colors.purple },
+  green: { bg: 'greenTint', fg: colors.greenText },
+} as const;
+function Big({ label, value, sub, tint, onPress }: { label: string; value: number; sub?: string; tint: keyof typeof TINT; onPress: () => void }) {
+  const c = TINT[tint];
   return (
     <Pressable
       onPress={onPress}
+      disabled={!value}
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value}`}
       style={({ pressed }) => ({
         flexGrow: 1,
         flexBasis: 150,
-        minHeight: 96,
+        minHeight: 92,
         padding: spacing.lg,
-        gap: 4,
+        gap: 2,
         borderRadius: radius.tile,
-        backgroundColor: dark ? colors.navy : colors.surface,
-        boxShadow: shadows.tile,
+        backgroundColor: value ? colors[c.bg] : colors.surfaceMuted,
         opacity: pressed ? 0.85 : 1,
       })}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <AppText variant="small" weight="semibold" color={dark ? 'onDark' : 'textSoft'} style={{ flex: 1 }} numberOfLines={2}>
-          {label}
-        </AppText>
-        <ArrowUpLeft color={dark ? colors.onDarkMuted : colors.textFaint} size={14} />
-      </View>
-      <AppText weight="extrabold" style={{ fontSize: 28, color: dark ? colors.goldLight : tone === 'red' ? colors.red : colors.text }}>
+      <AppText variant="titleLg" style={{ color: value ? c.fg : colors.textFaint }}>
         {value}
       </AppText>
+      <AppText variant="small" weight="bold" color={value ? 'textSoft' : 'textMuted'} numberOfLines={2}>
+        {label}
+      </AppText>
       {!!sub && (
-        <AppText variant="caption" color={dark ? 'onDarkMuted' : 'textMuted'} numberOfLines={1}>
+        <AppText variant="caption" color="textMuted" numberOfLines={1}>
           {sub}
         </AppText>
       )}
@@ -314,21 +317,21 @@ function Small({ label, value, tone, onPress }: { label: string; value: number; 
   return (
     <Pressable
       onPress={onPress}
+      disabled={!value}
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value}`}
       style={({ pressed }) => ({
         flexGrow: 1,
-        flexBasis: 110,
-        minHeight: 72,
+        flexBasis: 100,
+        minHeight: 66,
         padding: spacing.md,
         gap: 2,
-        borderColor: colors.border,
-        borderEndWidth: 1,
-        borderTopWidth: 1,
-        backgroundColor: pressed ? colors.primaryTint : colors.surface,
+        borderRadius: radius.tile,
+        backgroundColor: colors.surfaceMuted,
+        opacity: pressed ? 0.8 : 1,
       })}
     >
-      <AppText weight="extrabold" style={{ fontSize: 22, color: tone === 'red' ? colors.red : colors.text }}>
+      <AppText weight="extrabold" style={{ fontSize: 20, color: !value ? colors.textFaint : tone === 'red' ? colors.red : colors.text }}>
         {value}
       </AppText>
       <AppText variant="caption" color="textMuted" numberOfLines={2}>
@@ -340,16 +343,14 @@ function Small({ label, value, tone, onPress }: { label: string; value: number; 
 
 function Panel({ title, badge, children, style }: { title: string; badge: string; children: React.ReactNode; style?: object }) {
   return (
-    <View style={[{ borderRadius: radius.cardLg, overflow: 'hidden', backgroundColor: colors.surface, boxShadow: shadows.tile }, style]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.navy, paddingHorizontal: spacing.lg, minHeight: 48 }}>
-        <AppText weight="bold" color="onDark" style={{ flex: 1 }} numberOfLines={1}>
+    <Card style={[{ gap: spacing.sm }, style]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <AppText variant="section" style={{ flex: 1 }} numberOfLines={1}>
           {title}
         </AppText>
-        <AppText weight="extrabold" style={{ color: colors.goldLight }}>
-          {badge}
-        </AppText>
+        <Chip label={badge} tone="primary" />
       </View>
-      <View style={{ padding: spacing.lg, gap: spacing.xs }}>{children}</View>
-    </View>
+      <View style={{ gap: spacing.xs }}>{children}</View>
+    </Card>
   );
 }
