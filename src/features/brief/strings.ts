@@ -3,7 +3,7 @@ import { registerStrings } from '@/lib/i18n/register';
 const en = {
   title: 'Weekly brief',
   range: '{{month}} {{a}} – {{b}}',
-  savedYou: 'Muntej saved you',
+  savedYou: 'I saved you',
   sample: 'Sample week',
   hours: '{{h}} h',
   timeSaved: 'hours saved',
@@ -22,7 +22,7 @@ const en = {
   none: '—',
   pulse: 'Team pulse',
   pulseHint: 'on-time rate',
-  pulseEmpty: 'No due dates yet · rates show once tasks reach their due date.',
+  pulseEmpty: 'No due dates yet · the rates show up once tasks hit their due date.',
   suggestUp: '{{name}} ▲ {{n}}% on time',
   suggestTop: '{{name}} · {{n}}% on time',
   suggestAsk: 'Send kudos?',
@@ -36,7 +36,7 @@ const en = {
 const ar: typeof en = {
   title: 'ملخص الأسبوع',
   range: '{{a}} – {{b}} {{month}}',
-  savedYou: 'منتج وفّر عليك',
+  savedYou: 'وفّرت عليك',
   sample: 'أسبوع تجريبي',
   hours: '{{h}} ساعة',
   timeSaved: 'ساعات موفّرة',
@@ -46,7 +46,7 @@ const ar: typeof en = {
   play: 'شغّل الملخص الصوتي',
   pause: 'وقّف الملخص الصوتي',
   audioScript:
-    'هالأسبوع: خلصت {{closed}} مهمة، {{onTime}} منها بالموعد، وأرسلنا عنك {{followups}} متابعة، وعندك {{calls}} قرارات تنتظرك.',
+    'هالأسبوع: خلصت {{closed}} مهمة، {{onTime}} منها بالموعد، وأرسلت عنك {{followups}} متابعة، وعندك {{calls}} قرارات تنتظرك.',
   closed: 'مهمة خلصت',
   onTime: 'بالموعد',
   autoFollowups: 'متابعة تلقائية',
@@ -58,10 +58,10 @@ const ar: typeof en = {
   pulseEmpty: 'ما فيه مواعيد للحين · النسب تطلع أول ما توصل المهام موعدها.',
   suggestUp: '{{name}} ▲ {{n}}% التزام',
   suggestTop: '{{name}} · {{n}}% التزام',
-  suggestAsk: 'نرسل شكر؟',
+  suggestAsk: 'نرسل له شكر؟',
   acceptA11y: 'وافق: أرسل شكر لـ{{name}} مع 25 نقطة',
   pts: '+25 نقطة',
-  accepted: 'انرسل الشكر لـ{{name}} · +25 نقطة',
+  accepted: 'أرسلت الشكر لـ{{name}} · +25 نقطة',
   openKudos: 'افتح',
   month: 'هالشهر: {{h}} ساعة · {{sar}} ريال',
 };

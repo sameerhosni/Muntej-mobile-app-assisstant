@@ -43,7 +43,7 @@ const ar: typeof en = {
   pts: 'نقطة',
   approxSar: '≈ {{n}} ريال',
   thisWeek: '▲ +{{n}} هالأسبوع',
-  neverExpires: '∞ ما تنتهي',
+  neverExpires: '∞ ما تنتهي أبد',
   earn: 'اكسب',
   ruleOnTime: 'بالوقت',
   ruleEarly: 'بدري',

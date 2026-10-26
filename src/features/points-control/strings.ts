@@ -3,7 +3,7 @@ import { registerStrings } from '@/lib/i18n/register';
 const en = {
   back: 'Back',
   title: 'Team points',
-  subtitle: 'Set once · auto-awarded',
+  subtitle: 'Set it once · I hand them out',
   budget: '{{month}} budget',
   budgetOf: '/ {{total}}',
   budgetSar: 'SAR {{sar}}',
@@ -36,7 +36,7 @@ const en = {
 const ar: typeof en = {
   back: 'رجوع',
   title: 'نقاط الفريق',
-  subtitle: 'تضبطها مرة · وتنوزّع لحالها',
+  subtitle: 'تضبطها مرة · وأنا أوزّعها',
   budget: 'ميزانية {{month}}',
   budgetOf: '/ {{total}}',
   budgetSar: '{{sar}} ريال',
@@ -60,7 +60,7 @@ const ar: typeof en = {
   cost: '{{n}} نقطة',
   sar: '≈ {{n}} ريال',
   approve: 'وافق',
-  approved: 'تمت الموافقة ✓',
+  approved: 'وافقت ✓',
   fairTitle: '{{name}} · ولا شكر',
   fairSub: 'خلّص {{n}} مهام · آخر 30 يوم',
   sendKudos: 'اشكره',

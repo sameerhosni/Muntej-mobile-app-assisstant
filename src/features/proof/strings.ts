@@ -16,13 +16,13 @@ const en = {
   save: 'Add',
   cancel: 'Cancel',
   adding: 'Adding…',
-  failed: 'Couldn’t add it: {{reason}}',
-  noPermission: 'Allow Muntej to use photos in your phone settings',
-  checked: 'Muntej checked it',
-  v_pass: 'Looks complete',
+  failed: 'Couldn’t add it on my side: {{reason}}',
+  noPermission: 'I need photo access. Turn it on in your phone settings',
+  checked: 'I had a look',
+  v_pass: 'Looks all there',
   v_missing: 'Something is missing',
   v_unclear: 'Hard to tell from what’s attached',
-  updateApp: 'Photos and files arrive with the next app version; links work now',
+  updateApp: 'Photos and files come in the next update. Links work now',
 };
 
 const ar: typeof en = {
@@ -40,13 +40,13 @@ const ar: typeof en = {
   save: 'أضف',
   cancel: 'إلغاء',
   adding: 'قاعد أضيفه…',
-  failed: 'ما قدرت أضيفه: {{reason}}',
-  noPermission: 'اسمح لمنتج يستخدم الصور من إعدادات جوالك',
-  checked: 'منتج راجعه',
-  v_pass: 'يبان كامل',
+  failed: 'ما ضبط معي أضيفه: {{reason}}',
+  noPermission: 'أحتاج إذن الصور، فعّله من إعدادات جوالك',
+  checked: 'شيّكت عليه',
+  v_pass: 'كامل على ما يبان',
   v_missing: 'فيه شي ناقص',
   v_unclear: 'ما يبان من المرفق',
-  updateApp: 'الصور والملفات توصل مع النسخة الجاية من التطبيق، والروابط شغالة الحين',
+  updateApp: 'الصور والملفات جاية في التحديث الجاي، والروابط شغالة الحين',
 };
 
 export const PROOF_NS = registerStrings('proof', { en, ar });

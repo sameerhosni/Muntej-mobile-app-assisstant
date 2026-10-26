@@ -7,7 +7,7 @@ const en = {
   teamsLive: 'teams live',
   peopleActive: 'people active',
   selfJoined: 'self-joined',
-  noticed: 'Muntej noticed',
+  noticed: 'I noticed',
   branch: '{{city}}: {{n}} tasks, not on Muntej',
   jeddah: 'Jeddah',
   omar: 'Omar',
@@ -15,7 +15,7 @@ const en = {
   sar: 'SAR {{n}}',
   inviteBranch: 'Invite {{city}} manager',
   notNow: 'Not now',
-  invited: '{{name}} ({{city}}) invited · setup ready',
+  invited: 'Invited {{name}} ({{city}}) · all set up for them',
   newTeam: 'New team',
   newTeam_sub: 'Saves ~25 h/month',
   newTeam_reward: '+200 pts',
@@ -27,11 +27,11 @@ const en = {
   showBoss_reward: 'Receipt',
   referTitle: 'Know an owner who chases tasks?',
   freeMonth: 'Both get 1 free month',
-  sendsReceipt: 'Sends your receipt',
+  sendsReceipt: 'I’ll send your receipt',
   share: 'Share on WhatsApp',
   shared: 'Shared ✓',
   shareMessage:
-    'I stopped chasing my team for updates. Muntej follows up, collects proof and reports for me — it saved me ~{{h}} hours (≈ SAR {{sar}}) last month. Try it and we both get 1 free month.',
+    'I stopped chasing my team for updates. Muntej follows up and gets the proof for me. Saved me ~{{h}} hours (≈ SAR {{sar}}) last month. Try it and we both get a free month.',
 };
 
 const ar: typeof en = {
@@ -41,7 +41,7 @@ const ar: typeof en = {
   teamsLive: 'فرق شغّالة',
   peopleActive: 'شخص نشط',
   selfJoined: 'انضموا بنفسهم',
-  noticed: 'منتج لاحظ',
+  noticed: 'لاحظت شي',
   branch: '{{city}}: {{n}} مهمة، وهي برا منتج',
   jeddah: 'جدة',
   omar: 'عمر',
@@ -49,7 +49,7 @@ const ar: typeof en = {
   sar: '{{n}} ريال',
   inviteBranch: 'ادعُ مدير {{city}}',
   notNow: 'مو الحين',
-  invited: 'دعينا {{name}} ({{city}}) · تجهيزه جاهز',
+  invited: 'دعيت {{name}} ({{city}}) · وجهّزت له كل شي',
   newTeam: 'فريق جديد',
   newTeam_sub: 'يوفّر 25 ساعة/شهر',
   newTeam_reward: '200+ نقطة',
@@ -61,11 +61,11 @@ const ar: typeof en = {
   showBoss_reward: 'الإيصال',
   referTitle: 'تعرف أحد يلاحق المهام طول يومه؟',
   freeMonth: 'لكم شهر مجاني',
-  sendsReceipt: 'نرسل إيصالك',
+  sendsReceipt: 'أرسل إيصالك معها',
   share: 'شارك على الواتساب',
   shared: 'انرسل ✓',
   shareMessage:
-    'ارتحت من ملاحقة الفريق على التحديثات. منتج يتابع عني ويجمع الإثباتات ويرفع لي التقارير — وفّر لي تقريباً {{h}} ساعة (≈ {{sar}} ريال) الشهر اللي فات. جرّبه ولنا الاثنين شهر مجاني.',
+    'ارتحت من ملاحقة الفريق على التحديثات. منتج يتابع عني ويجيب لي الإثباتات، ووفّر لي تقريباً {{h}} ساعة (≈ {{sar}} ريال) الشهر اللي فات. جرّبه ولنا الثنين شهر مجاني.',
 };
 
 export const NS = registerStrings('s37', { en, ar });

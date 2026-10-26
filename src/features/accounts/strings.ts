@@ -2,7 +2,7 @@ import { registerStrings } from '@/lib/i18n/register';
 
 // Accounts: "not invited yet", the account name in Settings, and the super admin's switcher.
 const en = {
-  notInvitedTitle: 'You’re not invited yet',
+  notInvitedTitle: 'You’re not on the list yet',
   notInvitedBody: 'Muntej works by invitation. Ask your company’s admin to add {{email}}, then sign in again.',
   signOut: 'Sign out',
   account: 'Account',

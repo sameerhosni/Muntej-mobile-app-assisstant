@@ -29,13 +29,13 @@ const en = {
   days: { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu' },
   weeks: { w1: 'W1', w2: 'W2', w3: 'W3', w4: 'W4' },
   insight: {
-    empty: 'Nothing closed {{period}} yet · Muntej keeps following up',
-    late: '{{n}} late {{period}} · Muntej is chasing them for you',
+    empty: 'Nothing closed {{period}} yet · I’m still on it',
+    late: '{{n}} late {{period}} · I’m chasing them for you',
     clarity: 'Clearer asks = +{{n}} pts clarity, fewer delays',
-    up: 'Done ▲ {{n}}% vs. {{prev}} · keep the rhythm',
+    up: 'Done ▲ {{n}}% vs. {{prev}} · nice rhythm, keep it 💪',
     top: '{{name}} closed {{n}} · team {{pct}}% on time',
     steady: '{{n}} done {{period}} · team {{pct}}% on time',
-    doneOnly: '{{n}} done {{period}} · add due dates to track on-time',
+    doneOnly: '{{n}} done {{period}} · add due dates and I’ll track on-time',
   },
 };
 
@@ -68,13 +68,13 @@ const ar: typeof en = {
   days: { sun: 'الأحد', mon: 'الاثنين', tue: 'الثلاثاء', wed: 'الأربعاء', thu: 'الخميس' },
   weeks: { w1: 'أسبوع 1', w2: 'أسبوع 2', w3: 'أسبوع 3', w4: 'أسبوع 4' },
   insight: {
-    empty: 'ما خلصت مهام {{period}} للحين · منتج مكمّل المتابعة',
-    late: '{{n}} متأخرة {{period}} · منتج يلاحقها عنك',
+    empty: 'ما خلصت مهام {{period}} للحين · وأنا مكمّل وراهم',
+    late: '{{n}} متأخرة {{period}} · ألاحقها عنك',
     clarity: 'طلبات أوضح = +{{n}} نقطة وضوح وتأخير أقل',
-    up: 'المنجز ▲ {{n}}% عن {{prev}} · كمّلوا على هالنسق',
+    up: 'المنجز ▲ {{n}}% عن {{prev}} · حلو! كمّلوا كذا 💪',
     top: '{{name}}: {{n}} منجزة · الفريق {{pct}}% بوقته',
     steady: '{{n}} منجزة {{period}} · الفريق {{pct}}% بوقته',
-    doneOnly: '{{n}} منجزة {{period}} · حط مواعيد عشان نتابع الالتزام',
+    doneOnly: '{{n}} منجزة {{period}} · حط مواعيد وأتابع الالتزام عنك',
   },
 };
 

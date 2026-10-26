@@ -9,7 +9,7 @@ const en = {
   muntej: 'Muntej',
   showMe: 'Show me',
   doIt: 'Do it for me',
-  done: 'Done for you ✓',
+  done: 'Done, all yours ✓',
   secValue: '{{n}} sec',
   perAnswer: 'per answer',
   manuals: 'manuals to read',
@@ -17,7 +17,7 @@ const en = {
   askLabel: 'Ask a question',
   askPlaceholder: 'Ask anything · Arabic or English',
   send: 'Ask',
-  noMatch: "I don't have that one yet. Try one of the top questions.",
+  noMatch: "Hmm, I don't have that one yet. Try one of the top questions?",
   q: {
     task: {
       text: 'Give someone a task',
@@ -25,8 +25,8 @@ const en = {
       val: 'Saves ~25 min',
       act: 'Try a task now',
       s1: 'Hold the mic, speak',
-      s2: 'Muntej picks who and when',
-      s3: 'Sends on WhatsApp, follows up',
+      s2: 'I pick who and when',
+      s3: 'I send it on WhatsApp and follow up',
     },
     points: {
       text: 'How points work',
@@ -71,7 +71,7 @@ const en = {
       act: 'Nudge the rest',
       s1: 'Open Team launch',
       s2: "See who joined and who's pending",
-      s3: 'Muntej nudges the rest for you',
+      s3: 'I nudge the rest for you',
     },
   },
 };
@@ -83,9 +83,9 @@ const ar: typeof en = {
   noManuals: 'بدون كتيّبات',
   top: 'أكثر الأسئلة',
   muntej: 'منتج',
-  showMe: 'وريني',
+  showMe: 'ورّني',
   doIt: 'سوّها عني',
-  done: 'سوّيناها ✓',
+  done: 'سوّيتها عنك ✓',
   secValue: '{{n}}',
   perAnswer: 'ثواني للجواب',
   manuals: 'كتيّبات تقراها',
@@ -93,7 +93,7 @@ const ar: typeof en = {
   askLabel: 'اسأل سؤال',
   askPlaceholder: 'اسأل أي شي · عربي أو إنجليزي',
   send: 'اسأل',
-  noMatch: 'هذا ما عندي جوابه للحين. جرّب واحد من الأسئلة اللي فوق.',
+  noMatch: 'هذي ما عندي جوابها للحين. جرّب واحد من الأسئلة اللي فوق؟',
   q: {
     task: {
       text: 'كيف أعطي أحد مهمة؟',
@@ -101,8 +101,8 @@ const ar: typeof en = {
       val: 'توفّر 25 دقيقة',
       act: 'جرّب مهمة الحين',
       s1: 'اضغط المايك وتكلّم',
-      s2: 'منتج يحدد مين ومتى',
-      s3: 'يرسلها واتساب ويتابع عنك',
+      s2: 'أنا أحدد مين ومتى',
+      s3: 'أرسلها واتساب وأتابع عنك',
     },
     points: {
       text: 'كيف تشتغل النقاط؟',
@@ -147,7 +147,7 @@ const ar: typeof en = {
       act: 'ذكّر الباقين',
       s1: 'افتح «إطلاق الفريق»',
       s2: 'شوف مين انضم ومين باقي',
-      s3: 'منتج يذكّر الباقين عنك',
+      s3: 'أنا أذكّر الباقين عنك',
     },
   },
 };

@@ -19,7 +19,7 @@ const en = {
   tileHint: {
     connected: 'Connected. Tap to disconnect.',
     disconnected: 'Not connected. Tap to connect.',
-    error: 'Connection problem. Tap to reconnect.',
+    error: 'Lost the connection. Tap to reconnect.',
     soon: 'Coming soon. Tap to get notified.',
     soonOn: "Coming soon. You're on the list — tap to leave it.",
   },
@@ -50,16 +50,16 @@ const en = {
   syncM: 'M',
   snap: 'Snap a note',
   noteTaker: 'Note taker',
-  loading: 'Loading your sources…',
-  error: "Couldn't load your sources. Pull to retry.",
-  saveError: "Couldn't save that change. We put it back.",
+  loading: 'Getting your sources…',
+  error: "I couldn't load your sources. Pull down to try again.",
+  saveError: "That change didn't save, so I put it back.",
 };
 
 const ar: typeof en = {
   back: 'رجوع',
   title: 'مصادر مهامك',
   subtitle: 'كل القنوات · بقائمة وحدة',
-  caught: 'مهمة التقطناها',
+  caught: 'مهمة لقطتها',
   copyPaste: 'نسخ ولصق',
   savedValue: '{{n}}س',
   saved: 'توفير يومي',
@@ -70,13 +70,13 @@ const ar: typeof en = {
   reconnect: 'أعد الربط',
   soon: 'قريب',
   notify: '+ نبّهني',
-  onList: '✓ بننبّهك',
+  onList: '✓ بنبّهك',
   tileHint: {
     connected: 'مربوط. اضغط عشان تفصله.',
     disconnected: 'مو مربوط. اضغط عشان تربطه.',
-    error: 'فيه مشكلة بالربط. اضغط عشان تعيد الربط.',
-    soon: 'قريب. اضغط وننبّهك أول ما يجهز.',
-    soonOn: 'قريب. بننبّهك أول ما يجهز — اضغط عشان تلغي.',
+    error: 'الربط فصل. اضغط عشان تعيد ربطه.',
+    soon: 'قريب. اضغط وأنبّهك أول ما يجهز.',
+    soonOn: 'قريب. بنبّهك أول ما يجهز — اضغط عشان تلغي.',
   },
   name: {
     whatsapp: 'واتساب',
@@ -105,9 +105,9 @@ const ar: typeof en = {
   syncM: 'م',
   snap: 'صوّر ملاحظة',
   noteTaker: 'المدوّن',
-  loading: 'نجيب مصادرك…',
-  error: 'ما قدرنا نجيب مصادرك. اسحب وجرّب مرة ثانية.',
-  saveError: 'ما قدرنا نحفظ التغيير. رجّعناه مثل ما كان.',
+  loading: 'أجيب مصادرك…',
+  error: 'ما قدرت أجيب مصادرك. اسحب لتحت وأجرّب مرة ثانية.',
+  saveError: 'ما انحفظ التغيير، فرجّعته مثل ما كان.',
 };
 
 export const NS = registerStrings('s12', { en, ar });

@@ -41,7 +41,7 @@ const en = {
 
 const ar: typeof en = {
   back: 'رجوع',
-  title: 'المدوّن الذكي',
+  title: 'مدوّن الاجتماعات',
   subtitle: 'الوعود ← مهام',
   recording: 'يسجّل · دبوس منتج',
   timerLabel: 'مدة التسجيل {{time}}',
@@ -54,7 +54,7 @@ const ar: typeof en = {
     d: 'أنت · الخصم الجديد · الأحد',
   },
   stop: 'وقّف وطلّع المهام',
-  doneTitle: 'خلصنا · {{min}} د',
+  doneTitle: 'خلصت · {{min}} د',
   doneSummary: '{{n}} وعود + ملخص',
   review: 'راجع وأكّد',
   online: 'أونلاين · يدخل تلقائياً',

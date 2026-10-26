@@ -20,11 +20,11 @@ const en = {
   found_one: 'found {{count}} task today',
   found_other: 'found {{count}} tasks today',
   next: 'Next read {{when}}',
-  manualOnly: 'Reads only when you tap "Read now"',
+  manualOnly: 'I only read it when you tap "Read now"',
   readNow: 'Read now',
   reading: 'Reading…',
-  readDone_one: 'Done: read {{read}}, {{count}} new task',
-  readDone_other: 'Done: read {{read}}, {{count}} new tasks',
+  readDone_one: 'Done ✓ read {{read}}, {{count}} new task',
+  readDone_other: 'Done ✓ read {{read}}, {{count}} new tasks',
   readFail: 'Couldn’t read it: {{reason}}',
   howOften: 'How often?',
   e10: '10 min',
@@ -38,11 +38,11 @@ const en = {
   hAgo: '{{n}} h ago',
   inMin: 'in {{n}} min',
   at: 'at {{time}}',
-  error: 'Needs attention: {{msg}}',
+  error: 'Needs you: {{msg}}',
 };
 const ar: typeof en & Record<string, string> = {
   lastRead: 'آخر قراءة {{when}}',
-  never: 'ما انقرت للحين',
+  never: 'ما قريتها للحين',
   found_one: 'لقيت مهمة اليوم',
   found_other: 'لقيت {{count}} مهام اليوم',
   found_two: 'لقيت مهمتين اليوم',
@@ -50,8 +50,8 @@ const ar: typeof en & Record<string, string> = {
   manualOnly: 'ما أقراها إلا لما تضغط "اقرا الحين"',
   readNow: 'اقرا الحين',
   reading: 'أقرا…',
-  readDone_one: 'تم: قريت {{read}}، ومهمة جديدة',
-  readDone_other: 'تم: قريت {{read}}، و{{count}} مهام جديدة',
+  readDone_one: 'خلصت ✓ قريت {{read}}، ومهمة جديدة',
+  readDone_other: 'خلصت ✓ قريت {{read}}، و{{count}} مهام جديدة',
   readFail: 'ما قدرت أقراها: {{reason}}',
   howOften: 'كل كم أقراها؟',
   e10: '10 د',
@@ -65,7 +65,7 @@ const ar: typeof en & Record<string, string> = {
   hAgo: 'قبل {{n}} س',
   inMin: 'بعد {{n}} د',
   at: 'الساعة {{time}}',
-  error: 'تحتاج انتباه: {{msg}}',
+  error: 'تحتاجك: {{msg}}',
 };
 const NS = registerStrings('toolCards', { en, ar });
 

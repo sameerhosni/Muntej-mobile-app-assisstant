@@ -9,9 +9,9 @@ const en = {
   changeWithMuntej: 'Change with Muntej',
   waitingFor: 'Waiting for {{name}}’s approval',
   waitingForYou: '{{name}} finished this. Your call',
-  autoIn: 'Muntej approves it by itself in {{left}}',
+  autoIn: 'I’ll approve it myself in {{left}}',
   autoAt: '{{left}} · {{when}}',
-  autoNow: 'Muntej is approving it now',
+  autoNow: 'Approving it now',
   autoShort: 'Auto in {{left}}',
   left_dh: '{{d}}d {{h}}h',
   left_hm: '{{h}}h {{m}}m',
@@ -19,7 +19,7 @@ const en = {
   sent: 'Sent for review ✓',
   closed: 'Done ✓',
   approved: 'Approved ✓',
-  failed: 'Couldn’t save: {{reason}}',
+  failed: 'Didn’t save on my side: {{reason}}',
   yourManager: 'your manager',
 };
 
@@ -31,9 +31,9 @@ const ar: typeof en = {
   changeWithMuntej: 'غيّرها مع منتج',
   waitingFor: 'تنتظر اعتماد {{name}}',
   waitingForYou: '{{name}} خلّصها. القرار لك',
-  autoIn: 'منتج يعتمدها بنفسه بعد {{left}}',
+  autoIn: 'بعتمدها بنفسي بعد {{left}}',
   autoAt: '{{left}} · {{when}}',
-  autoNow: 'منتج يعتمدها الحين',
+  autoNow: 'قاعد أعتمدها الحين',
   autoShort: 'تلقائي بعد {{left}}',
   left_dh: '{{d}} يوم و{{h}} س',
   left_hm: '{{h}} س و{{m}} د',
@@ -41,7 +41,7 @@ const ar: typeof en = {
   sent: 'انرسلت للمراجعة ✓',
   closed: 'خلصت ✓',
   approved: 'اعتمدتها ✓',
-  failed: 'ما قدرت أحفظ: {{reason}}',
+  failed: 'ما ضبط الحفظ معي: {{reason}}',
   yourManager: 'مديرك',
 };
 

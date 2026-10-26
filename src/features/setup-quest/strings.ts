@@ -13,7 +13,7 @@ const en = {
   progress: '{{n}}/{{total}}',
   stepLeftOne: '1 step left',
   stepsLeft: '{{n}} steps left',
-  allSet: 'All set · Muntej is on',
+  allSet: 'All set · Muntej is on the job',
   earned: '{{earned}} / {{total}} team pts',
   ptsPlus: '+{{n}}',
   steps: {
@@ -28,11 +28,11 @@ const en = {
   stepTodo: 'Not done',
   next: 'Next: {{step}}',
   goHome: 'Go to my home',
-  stuck: 'Stuck? Ask Muntej',
+  stuck: 'Stuck? Ask me',
 };
 
 const ar: typeof en = {
-  close: 'إغلاق',
+  close: 'سكّر',
   welcome: 'هلا والله، {{name}}',
   title: 'يلا نشغّل منتج',
   liveValue: '5',
@@ -44,7 +44,7 @@ const ar: typeof en = {
   progress: '{{n}}/{{total}}',
   stepLeftOne: 'باقي خطوة وحدة',
   stepsLeft: '{{n}} خطوات باقية',
-  allSet: 'جاهز · منتج شغّال',
+  allSet: 'جاهز · منتج شغّال عنك',
   earned: '{{earned}} / {{total}} نقطة للفريق',
   ptsPlus: '+{{n}}',
   steps: {
@@ -59,7 +59,7 @@ const ar: typeof en = {
   stepTodo: 'باقية',
   next: 'التالي: {{step}}',
   goHome: 'روح للرئيسية',
-  stuck: 'علقت؟ اسأل منتج',
+  stuck: 'علقت؟ اسألني',
 };
 
 export const NS = registerStrings('s33', { en, ar });
