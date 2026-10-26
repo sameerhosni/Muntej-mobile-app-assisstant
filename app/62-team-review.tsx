@@ -2,18 +2,19 @@
 // whom, people Muntej already has (matched by email / phone / name), anything the reader wasn't sure of in yellow.
 // Tap a person to fix them (name, title, mobile, email, manager, leads a team, leave out); Confirm creates everyone
 // once, managers first, as you (team-import apply → upsert_person). Then: invite by email (WhatsApp invites come next).
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, CircleAlert, CircleCheck } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Chip, IconButton, TextField, TimedProgress, Toggle } from '@/components/ui';
+import { ChevronLeft } from 'lucide-react-native';
+import { AppText, Button, Card, Chip, IconButton, TimedProgress } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { useOrg, displayName } from '@/features/org/model';
 import { sendInvites } from '@/features/invite/api';
+import { TeamTree } from '@/features/teamImport/TeamTree';
 import { applyDraft, draftPhoto, saveDraft, useDraft, type ApplyResult, type DraftPerson } from '@/features/teamImport/api';
 import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
 
@@ -24,7 +25,6 @@ export default function TeamReviewScreen() {
   const draft = useDraft(id);
   const org = useOrg();
   const [people, setPeople] = useState<DraftPerson[] | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplyResult | null>(null);
@@ -53,28 +53,6 @@ export default function TeamReviewScreen() {
     return p ? displayName(p, lang) : null;
   };
 
-  // the tree: roots are people with no manager in the draft
-  const tree = useMemo(() => {
-    const list = people ?? [];
-    const refs = new Set(list.map((p) => p.ref));
-    const kids = new Map<string, DraftPerson[]>();
-    const roots: DraftPerson[] = [];
-    for (const p of list) {
-      if (p.manager_ref && refs.has(p.manager_ref) && p.manager_ref !== p.ref) kids.set(p.manager_ref, [...(kids.get(p.manager_ref) ?? []), p]);
-      else roots.push(p);
-    }
-    const out: { p: DraftPerson; depth: number }[] = [];
-    const seen = new Set<string>();
-    const walk = (p: DraftPerson, depth: number) => {
-      if (seen.has(p.ref)) return;
-      seen.add(p.ref);
-      out.push({ p, depth });
-      for (const k of kids.get(p.ref) ?? []) walk(k, depth + 1);
-    };
-    roots.forEach((r) => walk(r, 0));
-    list.forEach((p) => walk(p, 0)); // anything left in a loop
-    return out;
-  }, [people]);
 
   // the directory sign-in came back without a draft
   if (!id && back_error)
@@ -99,7 +77,6 @@ export default function TeamReviewScreen() {
   const managers = kept.filter((p) => p.role === 'manager').length;
   const unsure = kept.filter((p) => p.unsure.length).length;
   const exists = kept.filter((p) => p.existing_id).length;
-  const editingPerson = list.find((p) => p.ref === editing) ?? null;
 
   const confirm = async () => {
     if (!id) return;
@@ -186,45 +163,12 @@ export default function TeamReviewScreen() {
               </AppText>
             )}
             <Card style={{ paddingVertical: spacing.sm, gap: 0 }}>
-              {tree.map(({ p, depth }, i) => {
-                const outside = !p.manager_ref ? (p.manager_id ? t('underExisting', { name: existingName(p.manager_id) ?? '…' }) : t('underYou')) : null;
-                return (
-                  <Pressable
-                    key={p.ref}
-                    onPress={() => setEditing(p.ref)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t('edit')} ${p.full_name}`}
-                    style={({ pressed }) => ({
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: spacing.md,
-                      minHeight: 56,
-                      paddingStart: depth * 22,
-                      borderTopWidth: i ? 1 : 0,
-                      borderTopColor: colors.border,
-                      opacity: p.skip ? 0.45 : pressed ? 0.7 : 1,
-                    })}
-                  >
-                    {depth > 0 && <View style={{ width: 10, height: 2, backgroundColor: colors.border }} />}
-                    <Avatar name={p.full_name} size={34} />
-                    <View style={{ flex: 1, minWidth: 0, gap: 1 }}>
-                      <AppText weight="bold" numberOfLines={1}>
-                        {(lang === 'ar' && p.full_name_ar) || p.full_name}
-                      </AppText>
-                      <AppText variant="caption" color="textMuted" numberOfLines={1}>
-                        {[p.title, outside].filter(Boolean).join(' · ')}
-                      </AppText>
-                    </View>
-                    {p.skip ? (
-                      <Chip label={t('skipped')} />
-                    ) : p.unsure.length ? (
-                      <CircleAlert color={colors.amberText} size={20} />
-                    ) : p.existing_id ? (
-                      <CircleCheck color={colors.green} size={20} />
-                    ) : null}
-                  </Pressable>
-                );
-              })}
+              <TeamTree
+                people={list}
+                team={(org.data ?? []).map((p) => ({ id: p.id, name: displayName(p, lang) }))}
+                existingName={existingName}
+                onChange={update}
+              />
             </Card>
           </>
         )}
@@ -244,73 +188,7 @@ export default function TeamReviewScreen() {
         </Pressable>
       </Modal>
 
-      {/* edit one person */}
-      <Modal visible={!!editingPerson} transparent animationType="slide" onRequestClose={() => setEditing(null)}>
-        <Pressable onPress={() => setEditing(null)} style={{ flex: 1, backgroundColor: 'rgba(11,26,51,0.45)' }} accessibilityLabel={t('done')} />
-        {editingPerson && (
-          <EditPerson
-            person={editingPerson}
-            others={list.filter((p) => p.ref !== editingPerson.ref && !p.skip)}
-            team={(org.data ?? []).map((p) => ({ id: p.id, name: displayName(p, lang) }))}
-            onChange={(patch) => update(editingPerson.ref, patch)}
-            onDone={() => setEditing(null)}
-          />
-        )}
-      </Modal>
     </SafeAreaView>
   );
 }
 
-function EditPerson({
-  person: p,
-  others,
-  team,
-  onChange,
-  onDone,
-}: {
-  person: DraftPerson;
-  others: DraftPerson[];
-  team: { id: string; name: string }[];
-  onChange: (patch: Partial<DraftPerson>) => void;
-  onDone: () => void;
-}) {
-  const { t } = useScreenT(TEAM_IMPORT_NS);
-  const warn = (f: string) => (p.unsure.includes(f) ? t('check') : undefined);
-  return (
-    <View style={{ maxHeight: '88%', backgroundColor: colors.bg, borderTopLeftRadius: radius.cardLg, borderTopRightRadius: radius.cardLg }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.screen, gap: spacing.md }} keyboardShouldPersistTaps="handled">
-        <TextField label={t('name')} value={p.full_name} onChangeText={(v) => onChange({ full_name: v })} error={warn('name')} />
-        <TextField label={t('nameAr')} value={p.full_name_ar ?? ''} onChangeText={(v) => onChange({ full_name_ar: v || null })} />
-        <TextField label={t('jobTitle')} value={p.title ?? ''} onChangeText={(v) => onChange({ title: v || null })} error={warn('title')} />
-        <TextField label={t('phone')} value={p.phone ?? ''} onChangeText={(v) => onChange({ phone: v || null })} keyboardType="phone-pad" ltr error={warn('phone')} />
-        <TextField label={t('email')} value={p.email ?? ''} onChangeText={(v) => onChange({ email: v || null })} keyboardType="email-address" autoCapitalize="none" ltr error={warn('email')} />
-        <AppText weight="bold">
-          {t('manager')}
-          {warn('manager') ? ` · ${t('check')}` : ''}
-        </AppText>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          <Chip label={t('underYou')} selected={!p.manager_ref && !p.manager_id} onPress={() => onChange({ manager_ref: null, manager_id: null })} />
-          {others.map((o) => (
-            <Chip key={o.ref} label={o.full_name_ar || o.full_name} selected={p.manager_ref === o.ref} onPress={() => onChange({ manager_ref: o.ref, manager_id: null })} />
-          ))}
-          {team.slice(0, 30).map((m) => (
-            <Chip key={m.id} label={m.name} tone="green" selected={!p.manager_ref && p.manager_id === m.id} onPress={() => onChange({ manager_ref: null, manager_id: m.id })} />
-          ))}
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48 }}>
-          <AppText weight="bold" style={{ flex: 1 }}>
-            {t('isManager')}
-          </AppText>
-          <Toggle value={p.role === 'manager'} onValueChange={(v) => onChange({ role: v ? 'manager' : 'employee' })} accessibilityLabel={t('isManager')} />
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 48 }}>
-          <AppText weight="bold" style={{ flex: 1 }}>
-            {t('leaveOut')}
-          </AppText>
-          <Toggle value={!!p.skip} onValueChange={(v) => onChange({ skip: v })} accessibilityLabel={t('leaveOut')} />
-        </View>
-        <Button label={t('done')} onPress={onDone} />
-      </ScrollView>
-    </View>
-  );
-}
