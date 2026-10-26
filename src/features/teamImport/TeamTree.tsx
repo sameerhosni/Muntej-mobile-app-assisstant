@@ -29,7 +29,7 @@ export function TeamTree({
   onChange: (ref: string, patch: Partial<DraftPerson>) => void;
 }) {
   const { t } = useScreenT(TEAM_IMPORT_NS);
-  const { lang } = useDirection();
+  const { lang, isRTL } = useDirection();
   const [folded, setFolded] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -87,7 +87,8 @@ export function TeamTree({
                     {elbow ? (
                       <>
                         <View style={{ position: 'absolute', top: 0, height: last ? '50%' : '100%', width: 2, backgroundColor: LINE }} />
-                        <View style={{ position: 'absolute', top: '50%', start: STEP / 2, width: STEP / 2 + 4, height: 2, backgroundColor: LINE }} />
+                        {/* from the spine toward the person (physical sides: the layout is flipped by direction, not by I18nManager) */}
+                        <View style={{ position: 'absolute', top: '50%', ...(isRTL ? { left: -4 } : { left: STEP / 2 }), width: STEP / 2 + 4, height: 2, backgroundColor: LINE }} />
                       </>
                     ) : rails[level] ? (
                       <View style={{ position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: LINE }} />

@@ -166,33 +166,35 @@ export function WhatsNewStrip() {
   const { unseen: count, ready } = useWhatsNew();
   if (!ready || !count) return null;
   const Chevron = isRTL ? ChevronLeft : ChevronRight;
+  // the strip and its ✕ side by side (a button inside a button: on the web an error, on phones the ✕ wasn't reliable)
   return (
-    <Pressable
-      onPress={() => router.push('/50-whats-new' as Href)}
-      accessibilityRole="button"
-      style={({ pressed }) => ({
+    <View
+      style={{
         flexDirection: 'row',
         alignItems: 'center',
-        gap: spacing.md,
         minHeight: sizes.touch + 12,
-        padding: spacing.md,
         borderRadius: radius.tile,
         backgroundColor: colors.purpleTint,
         borderWidth: 1.5,
         borderColor: colors.purpleBorder,
-        opacity: pressed ? 0.85 : 1,
-      })}
+      }}
     >
-      <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }}>
-        <Sparkles color={colors.purple} size={20} />
-      </View>
-      <View style={{ flex: 1, gap: 2 }}>
-        <AppText weight="extrabold">{t('strip', { count })}</AppText>
-        <AppText variant="caption" color="textSoft">
-          {t('stripSub')}
-        </AppText>
-      </View>
-      <Chevron color={colors.purple} size={20} />
+      <Pressable
+        onPress={() => router.push('/50-whats-new' as Href)}
+        accessibilityRole="button"
+        style={({ pressed }) => ({ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, opacity: pressed ? 0.85 : 1 })}
+      >
+        <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface }}>
+          <Sparkles color={colors.purple} size={20} />
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <AppText weight="extrabold">{t('strip', { count })}</AppText>
+          <AppText variant="caption" color="textSoft">
+            {t('stripSub')}
+          </AppText>
+        </View>
+        <Chevron color={colors.purple} size={20} />
+      </Pressable>
       {/* close: hidden until a newer feature comes out (owner, 26 Oct) */}
       <Pressable
         onPress={() => {
@@ -206,6 +208,6 @@ export function WhatsNewStrip() {
       >
         <X color={colors.textMuted} size={18} strokeWidth={2.4} />
       </Pressable>
-    </Pressable>
+    </View>
   );
 }

@@ -49,17 +49,19 @@ export async function sessionFor(admin: SupabaseClient, person: { id: string; us
   }
   email ??= person.email?.toLowerCase() ?? (person.phone ? `${person.phone}@${PHONE_DOMAIN}` : null);
   if (!email) throw new Error('No way to sign this person in');
-  let link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
-  if (link.error) {
-    // first sign-in: make the sign-in user (confirmed); handle_new_user links the invited profile by email or phone
-    const created = await admin.auth.admin.createUser({
-      email,
-      email_confirm: true,
-      ...(person.phone ? { phone: person.phone, phone_confirm: true } : {}),
-    });
+  if (!person.user_id) {
+    // first sign-in: make the sign-in user BEFORE asking for a link. Asked first, Supabase quietly made the user itself
+    // and returned a sign-up confirmation token, which the app's sign-in rejects as "expired" (found by the QA run,
+    // 28 Oct: every invited person's first sign-in failed). Then link it to the invited profile ourselves.
+    let created = await admin.auth.admin.createUser({ email, email_confirm: true, ...(person.phone ? { phone: person.phone, phone_confirm: true } : {}) });
+    // the mobile may already belong to another sign-in (one person, two companies): the email is enough
+    if (created.error && /phone/i.test(created.error.message)) created = await admin.auth.admin.createUser({ email, email_confirm: true });
     if (created.error && !/already/i.test(created.error.message)) throw new Error(created.error.message);
-    link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
+    const userId =
+      created.data?.user?.id ?? (await admin.from('profiles').select('user_id').eq('id', person.id).maybeSingle()).data?.user_id ?? null;
+    if (userId) await admin.from('profiles').update({ user_id: userId }).eq('id', person.id).is('user_id', null);
   }
+  const link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
   const hash = link.data?.properties?.hashed_token;
   if (link.error || !hash) throw new Error('Could not sign in');
   return hash;

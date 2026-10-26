@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.0",
+    "playwright": "^1.49.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -61,7 +62,8 @@
     "typecheck": "tsc --noEmit",
     "db:apply": "powershell -ExecutionPolicy Bypass -File scripts/db-apply.ps1",
     "db:seed": "powershell -ExecutionPolicy Bypass -File scripts/db-apply.ps1 -Seed",
-    "db:types": "supabase gen types typescript --project-id katwiedukkvssuxbjbqf --schema public > src/lib/api/database.types.ts"
+    "db:types": "supabase gen types typescript --project-id katwiedukkvssuxbjbqf --schema public > src/lib/api/database.types.ts",
+    "qa": "node scripts/qa/run.mjs"
   },
   "private": true
 }

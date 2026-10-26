@@ -51,3 +51,7 @@ docs/design/out/
 
 # downloaded app builds (sent to phones for testing)
 builds/
+
+# QA run output (scripts/qa/run.mjs)
+qa-out/
+deno.lock
