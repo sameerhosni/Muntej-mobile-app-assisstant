@@ -12,17 +12,53 @@ import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { DEMO_PERSONAS, type DemoPersona } from '@/features/auth/demoPersonas';
 import { setPendingLogin } from '@/features/auth/pending';
+import { useBiometricSignIn } from '@/features/auth/BiometricCard';
+import { signInWithBiometric } from '@/features/auth/deviceKey';
 import { emailSchema, type EmailForm } from '@/features/auth/validation';
 
 export default function SignInScreen() {
   const { t } = useTranslation();
   return (
     <AuthShell title={t('auth.emailTitle')} hint={t('auth.emailHint')}>
+      {/* this phone signs in with the fingerprint: one tap */}
+      <BiometricButton />
       <EmailSignIn />
       {/* no email? the mobile your manager added, with a code on WhatsApp */}
       <Button label={t('auth.usePhone')} variant="outline" onPress={() => router.push('/phone' as Href)} />
       {__DEV__ && <DemoPersonas />}
     </AuthShell>
+  );
+}
+
+function BiometricButton() {
+  const { t } = useTranslation();
+  const set = useBiometricSignIn();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!set) return null;
+  return (
+    <>
+      <Button
+        label={t('auth.bioSignIn')}
+        loading={busy}
+        onPress={async () => {
+          setBusy(true);
+          setError(null);
+          try {
+            if (await signInWithBiometric(t('auth.bioPrompt'))) router.replace('/' as Href);
+          } catch {
+            setError(t('auth.genericError'));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+      {!!error && (
+        <AppText variant="small" color="red">
+          {error}
+        </AppText>
+      )}
+    </>
   );
 }
 

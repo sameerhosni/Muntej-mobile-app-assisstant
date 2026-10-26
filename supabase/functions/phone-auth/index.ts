@@ -4,13 +4,15 @@
 //   POST {action:'pin', phone, pin}      mobile + the PIN from the WhatsApp invite → {token_hash}
 //   POST {action:'send_code', phone}     a 6-digit code on WhatsApp (approved authentication template muntej_code)
 //   POST {action:'verify_code', phone, code} → {token_hash}
+//   POST {action:'device_enroll', device} (signed in) → {key, user_id}: fingerprint sign-in on this phone
+//   POST {action:'device_signin', user_id, key} → {token_hash}
 // Only people already in Muntej (a profile with that mobile, or the invite) can sign in this way; nobody is created
 // from nothing. Links and PINs are single use and expire after 7 days; codes after 10 minutes and 5 tries; every
 // mobile and every IP is rate-limited. Each sign-in is written to activity_log.
 // Deployed without JWT checks (people aren't signed in yet).
 import { HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
-import { newPin, normPhone, sessionFor, sha256, tooMany } from '../_shared/phone-session.ts';
+import { newPin, newToken, normPhone, sessionFor, sha256, tooMany } from '../_shared/phone-session.ts';
 import { CODE_TEMPLATE, waConfigured, waTemplateWith } from '../_shared/wa.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
@@ -20,12 +22,47 @@ const PERSON = 'id, user_id, email, phone, full_name, full_name_ar, account_id, 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
   const admin = adminClient();
-  const body = (await req.json().catch(() => ({}))) as { action?: string; token?: string; phone?: string; pin?: string; code?: string };
+  const body = (await req.json().catch(() => ({}))) as {
+    action?: string;
+    token?: string;
+    phone?: string;
+    pin?: string;
+    code?: string;
+    device?: string;
+    user_id?: string;
+    key?: string;
+  };
   const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
   if (await tooMany(admin, `ip:${ip}`, 40, 15)) throw new HttpError(429, 'Too many tries, wait a few minutes');
 
   // ── Muntej's WhatsApp number (the app opens a chat to it with "رمز الدخول": the reply is the code) ──
   if (body.action === 'wa_number') return json({ number: (Deno.env.get('WHATSAPP_NUMBER') ?? '966115209855').replace(/\D/g, '') });
+
+  // ── fingerprint / face: a device key (made here, kept on the phone behind its biometrics) ──
+  if (body.action === 'device_enroll') {
+    // signed in: Authorization carries their session
+    const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const { data: u } = await admin.auth.getUser(jwt);
+    if (!u?.user) throw new HttpError(401, 'Sign in first');
+    const secret = newToken();
+    await admin.from('device_keys').insert({ user_id: u.user.id, key_hash: await sha256(secret), device: String(body.device ?? '').slice(0, 80) || null });
+    return json({ key: secret, user_id: u.user.id });
+  }
+  if (body.action === 'device_signin') {
+    if (await tooMany(admin, `device:${body.user_id ?? ''}`, 10, 15)) throw new HttpError(429, 'Too many tries, wait a few minutes');
+    const { data: row } = await admin
+      .from('device_keys')
+      .select('id, user_id')
+      .eq('user_id', String(body.user_id ?? ''))
+      .eq('key_hash', await sha256(String(body.key ?? '')))
+      .maybeSingle();
+    if (!row) throw new HttpError(401, 'This phone isn’t set up for fingerprint sign-in any more');
+    await admin.from('device_keys').update({ last_used_at: new Date().toISOString() }).eq('id', row.id);
+    const { data: p } = await admin.from('profiles').select(PERSON).eq('user_id', row.user_id).neq('status', 'deleted').order('created_at').limit(1);
+    const person = (p ?? [])[0] as Person | undefined;
+    if (!person) throw new HttpError(404, 'No Muntej account for this phone');
+    return json({ token_hash: await signIn(person, 'fingerprint') });
+  }
 
   // ── the invite link ──
   if (body.action === 'opened' || body.action === 'redeem') {
@@ -105,7 +142,7 @@ serve(async (req) => {
       subject_id: p.id,
       action: 'phone_sign_in',
       summary: `Signed in with ${how.replace('_', ' ')}`,
-      summary_ar: how === 'whatsapp_code' ? 'دخل برمز الواتساب' : how === 'invite_pin' ? 'دخل برمز الدعوة' : 'دخل من رابط الدعوة',
+      summary_ar: how === 'whatsapp_code' ? 'دخل برمز الواتساب' : how === 'fingerprint' ? 'دخل ببصمته' : how === 'invite_pin' ? 'دخل برمز الدعوة' : 'دخل من رابط الدعوة',
       reason: 'Mobile sign-in',
       undoable: false,
     });

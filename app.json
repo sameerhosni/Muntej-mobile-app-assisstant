@@ -28,6 +28,13 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Muntej uses Face ID to sign you in without a code."
+        }
+      ],
+      "expo-secure-store",
       "expo-status-bar",
       "expo-font",
       [

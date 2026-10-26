@@ -13,6 +13,7 @@ import { useDirection } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 import { MFA_FACTORS_KEY, useTotpFactor } from '@/features/auth/useTotpFactor';
 import { useAuth } from '@/features/auth/AuthProvider';
+import { BiometricCard } from '@/features/auth/BiometricCard';
 
 type Enrollment = { factorId: string; qrSvg: string; secret: string; uri: string };
 
@@ -123,6 +124,9 @@ export default function SecurityScreen() {
           {t('security.intro')}
         </AppText>
       </Card>
+
+      {/* fingerprint / face sign-in on this phone */}
+      <BiometricCard />
 
       {factor.data && !enrollment ? (
         <Card>
