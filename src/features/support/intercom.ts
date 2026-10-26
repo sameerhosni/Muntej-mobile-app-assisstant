@@ -79,8 +79,9 @@ export async function loginSupport() {
   signedIn = true;
 }
 
-/** open the conversation with the Muntej team. On the phone: the support page in the browser with a one-time link
- *  (Intercom's in-app screens crashed on Android, 25 Oct); on the web: Intercom's web chat right here.
+/** open the conversation with the Muntej team: in the app, Intercom's Messenger (the workspace's Messenger had to be
+ *  installed first: before that it opened blank); without it, the support page in the browser with a one-time link;
+ *  on the web, Intercom's web chat right here.
  *  Returns the reason when it can't open (Saree3 shows it). */
 export async function openSupport(): Promise<string | null> {
   try {
@@ -88,6 +89,18 @@ export async function openSupport(): Promise<string | null> {
       await loginSupport();
       webIntercom()?.('showNewMessage');
       return null;
+    }
+    // the Messenger inside the app (Intercom's own window, not the composer screen that crashed on 25 Oct); if this
+    // build can't, the support page in the browser
+    const sdk = native();
+    if (sdk) {
+      try {
+        await loginSupport();
+        await sdk.default.present();
+        return null;
+      } catch {
+        // fall through to the browser
+      }
     }
     const { data, error } = await supabase.functions.invoke<{ url: string }>('support-identity', { body: { action: 'link' } });
     if (error || !data?.url) throw new Error(error?.message ?? 'no link');
