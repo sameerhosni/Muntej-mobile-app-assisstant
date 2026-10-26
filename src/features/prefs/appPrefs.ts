@@ -14,7 +14,8 @@ export type HomeSection = 'glance' | 'journey' | 'needs' | 'saree3' | 'wins' | '
 export const HOME_SECTIONS: HomeSection[] = ['glance', 'journey', 'needs', 'saree3', 'wins', 'whatsnew', 'shortcuts'];
 
 export type AppPrefs = {
-  home: Partial<Record<HomeSection, boolean>>;
+  /** core sections switched off (false) and feature cards switched on (f_<key>: true) */
+  home: Record<string, boolean>;
   whats_new_seen_at: string | null;
   saree3: { days?: string[]; used?: string[] };
 };
@@ -55,8 +56,10 @@ export function useSaveAppPrefs() {
   });
 }
 
-/** is this Home section on (default: yes) */
+/** is this on Home: core sections are on unless switched off, feature cards (f_<key>) only once added */
+export const isOn = (home: Record<string, boolean> | undefined, key: string) => (key.startsWith('f_') ? home?.[key] === true : home?.[key] !== false);
+
 export function useHomeSection() {
   const prefs = useAppPrefs();
-  return (s: HomeSection) => prefs.data?.home?.[s] !== false;
+  return (s: string) => isOn(prefs.data?.home, s);
 }
