@@ -64,7 +64,7 @@ export function useWhatsNew() {
   const isNew = (f: Feature) => isNewFor(states.data, f.key);
   // still new first (in launch order), then the rest, newest released first
   const list = [...mine.filter(isNew), ...mine.filter((f) => !isNew(f)).sort((a, b) => b.released_at.localeCompare(a.released_at))];
-  return { list, isNew, role, count: mine.filter(isNew).length, ready: !!features.data && !!states.data };
+  return { list, isNew, role, states: states.data, count: mine.filter(isNew).length, ready: !!features.data && !!states.data };
 }
 
 const HOMES = ['/', '/01-home', '/25-employee-home'];

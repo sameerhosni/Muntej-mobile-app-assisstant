@@ -36,6 +36,7 @@ import { WhatsNewStrip } from '@/features/launch/WhatsNew';
 import { JobsStrip } from '@/features/saree3/JobsStrip';
 import { MyRequests } from '@/features/home/MyRequests';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
+import { EmployeeJourneyCard } from '@/features/ladder/Journey';
 
 const HOME_STEPS = [
   { target: 'mic', key: 'homeMic', demo: 'say' as const },
@@ -126,6 +127,8 @@ export default function EmployeeHome() {
         <View style={{ paddingHorizontal: spacing.screen, gap: spacing.xxl + 4, marginTop: spacing.lg }}>
           {/* invited: Saree3's short tour until it's done */}
           <GettingStarted />
+          {/* your steps in Muntej (value ladder E1–E3), then Discover Muntej */}
+          <EmployeeJourneyCard />
           {/* everything new in Muntej, while some of it is still new to you */}
           <WhatsNewStrip />
           {/* everything Saree3 is handling for you right now (tap: each one and its state) */}
