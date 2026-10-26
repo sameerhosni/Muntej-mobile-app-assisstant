@@ -5,8 +5,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, View } from 'react-native';
 import { router } from 'expo-router';
-import { Check } from 'lucide-react-native';
-import { AppText, Button, Card, IconBadge, ProgressBar } from '@/components/ui';
+import { Check, X } from 'lucide-react-native';
+import { AppText, Button, Card, IconBadge, IconButton, ProgressBar } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
@@ -16,6 +16,8 @@ import { useLadder, useLadderProgress, useMarkCelebrated, useSkipRung } from './
 import { useDirection } from '@/lib/i18n';
 import { showFeature, useWhatsNew, WHATS_NEW_NS } from '@/features/launch/WhatsNew';
 import { markFeature } from '@/features/launch/launch';
+import { useAppPrefs, useSaveAppPrefs } from '@/features/prefs/appPrefs';
+import { track } from '@/lib/analytics';
 import { EMPLOYEE_RUNGS, LADDER_NS, MANAGER_RUNGS, NEXT } from './rungs';
 
 function useReached() {
@@ -193,9 +195,13 @@ export function DiscoverCard() {
   const { lang } = useDirection();
   const { list, states, role, ready } = useWhatsNew();
   const [passed, setPassed] = useState<Set<string>>(new Set());
-  if (!ready) return null;
+  const prefs = useAppPrefs();
+  const savePrefs = useSaveAppPrefs();
+  // hidden with its ✕ (also on the employee Home, which has no Customize switches of its own)
+  if (!ready || prefs.data?.home?.journey === false) return null;
   const used = (key: string) => ['adopted', 'tried'].includes(states?.get(key)?.state ?? '');
-  const open = list.filter((f) => !used(f.key) && states?.get(f.key)?.state !== 'not_interested' && !passed.has(f.key));
+  // put off ("Not now") or turned down: off the card for good (What's new still lists them)
+  const open = list.filter((f) => !used(f.key) && !['not_interested', 'later'].includes(states?.get(f.key)?.state ?? '') && !passed.has(f.key));
   const next = open[0];
   if (!next) return null;
   const tried = list.filter((f) => used(f.key)).length;
@@ -209,6 +215,16 @@ export function DiscoverCard() {
         <AppText variant="caption" weight="bold" color="textMuted">
           {t('discoverStep', { n: tried, total: list.length })}
         </AppText>
+        {/* hide the whole card (Customize Home brings it back) */}
+        <IconButton
+          label={t('hideCard')}
+          onPress={() => {
+            track('discover_hidden', { tried, total: list.length });
+            savePrefs.mutate({ home: { ...(prefs.data?.home ?? {}), journey: false } });
+          }}
+        >
+          <X color={colors.textMuted} size={18} />
+        </IconButton>
       </View>
       <ProgressBar value={list.length ? tried / list.length : 0} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
