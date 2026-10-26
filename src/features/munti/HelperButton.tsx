@@ -29,7 +29,7 @@ import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
 import { useDirection } from '@/lib/i18n';
 import { Munti, MUNTI_SIZES, type MuntiMood, type MuntiTone } from './Munti';
-import { useSupport, type SupportItem } from './support';
+import { markAskedMoreTime, useSupport, type SupportItem } from './support';
 import { useCompleteTask } from '@/features/tasks/useCompleteTask';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
 import { transcribeAudio } from '@/features/capture/api';
@@ -568,6 +568,8 @@ export function HelperButton() {
           given
             ? () => {
                 setOpen(false);
+                // gone from the list right away (it stays late until the manager answers)
+                markAskedMoreTime(it.taskId, task?.due_at ?? null);
                 askMoreTime(it.taskId)
                   .then(() => munti.say(t('sup_asked'), 'celebrate'))
                   .catch(() => munti.say(tg('capture.failed'), 'oops'));

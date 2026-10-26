@@ -145,17 +145,15 @@ export function ConfirmNew({ bare = false }: { bare?: boolean } = {}) {
                     textAlign: isAr ? 'right' : 'left',
                   }}
                 />
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                  <Button label={t('cancel')} variant="ghost" size="md" onPress={() => setAsking(null)} style={{ flex: 1 }} />
-                  <Button
-                    label={t('send')}
-                    size="md"
-                    loading={busy === x.id}
-                    disabled={asking.reply === 'blocked' && !note.trim()}
-                    onPress={() => answer(x.id, asking.reply, note)}
-                    style={{ flex: 1 }}
-                  />
-                </View>
+                {/* Send full width, Cancel under it: side by side in a row, Android drew Send blank */}
+                <Button
+                  label={t('send')}
+                  size="md"
+                  loading={busy === x.id}
+                  disabled={asking.reply === 'blocked' && !note.trim()}
+                  onPress={() => answer(x.id, asking.reply, note)}
+                />
+                <Button label={t('cancel')} variant="ghost" size="md" onPress={() => setAsking(null)} />
               </>
             ) : (
               <>
