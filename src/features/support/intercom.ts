@@ -86,11 +86,25 @@ export async function loginSupport() {
  *  installed first: before that it opened blank); without it, the support page in the browser with a one-time link;
  *  on the web, Intercom's web chat right here.
  *  Returns the reason when it can't open (Saree3 shows it). */
-export async function openSupport(): Promise<string | null> {
+export async function openSupport(opts: { tryNative?: boolean } = {}): Promise<string | null> {
   try {
     if (Platform.OS === 'web') {
       await loginSupport();
       webIntercom()?.('showNewMessage');
+      return null;
+    }
+    // the test path (long-press on the More tile): Intercom's own window with its detailed log on, to read the
+    // phone's log (adb logcat) and see why it opens empty
+    if (opts.tryNative) {
+      const sdk = native();
+      if (!sdk) return 'This build has no in-app chat';
+      const step = (s: string) => console.log(`[support] ${s}`);
+      await sdk.default.setLogLevel('VERBOSE').catch(() => {});
+      step('login');
+      await loginSupport();
+      step('present messages');
+      const ok = await sdk.default.presentSpace(sdk.Space.messages);
+      step(`presented: ${ok}`);
       return null;
     }
     // the Messenger inside the app (Intercom's own window, not the composer screen that crashed on 25 Oct) stays off

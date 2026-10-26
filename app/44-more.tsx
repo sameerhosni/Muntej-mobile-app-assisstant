@@ -43,7 +43,7 @@ import { openSupport, useUnreadSupport } from '@/features/support/intercom';
 import { munti } from '@/features/munti/store';
 import { CoachSwitch } from '@/features/coach/CoachSwitch';
 
-type Tile = { key: string; href: Href; Icon: ComponentType<LucideProps>; bg: ColorToken; fg: string; who: 'all' | 'manager' | 'super'; count?: number; run?: () => void };
+type Tile = { key: string; href: Href; Icon: ComponentType<LucideProps>; bg: ColorToken; fg: string; who: 'all' | 'manager' | 'super'; count?: number; run?: () => void; /** long-press (hidden test path) */ hold?: () => void };
 
 export default function MoreScreen() {
   const { t } = useScreenT(MORE_NS);
@@ -91,6 +91,8 @@ export default function MoreScreen() {
           who: 'all',
           count: supportUnread,
           run: () => openSupport().then((err) => err && munti.say(`⚠️ ${err}`)),
+          // long-press: Intercom's in-app window (test while fixing its empty screen)
+          hold: () => openSupport({ tryNative: true }).then((err) => err && munti.say(`⚠️ ${err}`)),
         },
       ],
     },
@@ -141,6 +143,7 @@ export default function MoreScreen() {
                   <Pressable
                     key={x.key}
                     onPress={() => (x.run ? x.run() : router.push(x.href))}
+                    onLongPress={x.hold}
                     accessibilityRole="link"
                     accessibilityLabel={`${t(x.key)}. ${t(`${x.key}Sub`)}`}
                     style={({ pressed }) => ({
