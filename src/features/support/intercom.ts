@@ -3,7 +3,7 @@
 // Intercom keys: older builds simply don't offer it, so over-the-air updates never crash them). Web: Intercom's JS
 // Messenger. The person is signed in to Intercom with a server-made identity hash (supabase/functions/support-identity).
 import { useEffect, useState } from 'react';
-import { Linking, NativeModules, Platform } from 'react-native';
+import { AppState, Linking, NativeModules, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 
@@ -98,13 +98,7 @@ export async function openSupport(opts: { tryNative?: boolean } = {}): Promise<s
     if (opts.tryNative) {
       const sdk = native();
       if (!sdk) return 'This build has no in-app chat';
-      const step = (s: string) => console.log(`[support] ${s}`);
-      await sdk.default.setLogLevel('VERBOSE').catch(() => {});
-      step('login');
-      await loginSupport();
-      step('present messages');
-      const ok = await sdk.default.presentSpace(sdk.Space.messages);
-      step(`presented: ${ok}`);
+      void diagnoseNative(sdk);
       return null;
     }
     // the Messenger inside the app (Intercom's own window, not the composer screen that crashed on 25 Oct) stays off
@@ -127,6 +121,59 @@ export async function openSupport(opts: { tryNative?: boolean } = {}): Promise<s
   } catch (e) {
     return (e as Error).message || String(e);
   }
+}
+
+/** The in-app chat opened empty on Android (26 Oct) and the phone's log can't be read over USB: open it step by step and
+ *  write what happened (each step's result or error, Intercom's window events, whether the app went to the
+ *  background as another screen came up) to activity_log ('support_debug'), so it can be read on the server. */
+async function diagnoseNative(sdk: Any) {
+  const t0 = Date.now();
+  const steps: string[] = [];
+  const note = (s: string) => steps.push(`${Date.now() - t0}ms ${s}`);
+  const subs: { remove?: () => void }[] = [];
+  const app = AppState.addEventListener('change', (s) => note(`app ${s}`));
+  for (const [name, ev] of Object.entries((sdk.IntercomEvents ?? {}) as Record<string, string>))
+    try {
+      subs.push(sdk.default.addEventListener(ev, () => note(`event ${name}`)));
+    } catch {
+      // not on this platform
+    }
+  const run = async (name: string, f: () => Promise<unknown>) => {
+    try {
+      note(`${name} → ${JSON.stringify(await f()) ?? 'ok'}`);
+    } catch (e) {
+      note(`${name} ✗ ${(e as Error)?.message ?? String(e)}`);
+    }
+  };
+  await run('setLogLevel', () => sdk.default.setLogLevel('VERBOSE'));
+  await run('loggedIn before', () => sdk.default.isUserLoggedIn());
+  await run('login', async () => {
+    signedIn = false;
+    await loginSupport();
+    return 'done';
+  });
+  await run('loggedIn after', () => sdk.default.isUserLoggedIn());
+  await run('user', () => sdk.default.fetchLoggedInUserAttributes?.());
+  await run('present messages', () => sdk.default.presentSpace(sdk.Space.messages));
+  await new Promise((r) => setTimeout(r, 8000));
+  app.remove();
+  for (const s of subs) s?.remove?.();
+  const { data: me } = await supabase.rpc('current_profile_id');
+  await supabase
+    .from('activity_log')
+    .insert({
+      actor_type: 'user',
+      actor_id: me as string,
+      action: 'support_debug',
+      summary: 'In-app chat test',
+      summary_ar: 'تجربة الدردشة داخل التطبيق',
+      reason: JSON.stringify({ os: Platform.OS, version: Platform.Version, steps }).slice(0, 4000),
+      undoable: false,
+    })
+    .then(
+      () => {},
+      () => {},
+    );
 }
 
 /** on sign-out */
