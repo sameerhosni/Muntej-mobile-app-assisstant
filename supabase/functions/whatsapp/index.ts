@@ -288,6 +288,17 @@ async function handle(m: WaMessage, dry = false) {
     .eq('hidden', false)
     .not('user_id', 'is', null);
   if (!people?.length) {
+    // in the team already (their manager added this mobile) but never signed in: say how to get in, not "not linked"
+    const { data: invited } = await admin.from('profiles').select('id, locale').eq('phone', from).neq('status', 'deleted').eq('hidden', false).limit(1);
+    if (invited?.length) {
+      await admin.from('profiles').update({ wa_last_inbound_at: new Date().toISOString() }).eq('id', invited[0].id);
+      return void (await waText(
+        from,
+        invited[0].locale === 'en'
+          ? 'Hi! 👋 Your team is already on Muntej. Install the app, choose "Sign in with my mobile number", and send me "Sign-in code" here: I reply with your code. Then talk to me here about your tasks anytime.'
+          : 'هلا! 👋 فريقك موجود في منتج. نزّل التطبيق، اختر «ادخل برقم جوالي»، وأرسل لي هنا «رمز الدخول» وأرد عليك بالرمز. وبعدها كلّمني هنا عن مهامك أي وقت.',
+      ));
+    }
     await waText(
       from,
       'هلا! 👋 رقمك مو مربوط بمنتج للحين. افتح منتج ← اربط أدواتك ← واتساب، وأضف رقمك. وبعدها كلّمني هنا مثل التطبيق بالضبط.\n\nHi! Your number isn’t linked to Muntej yet. Open Muntej → Connect your tools → WhatsApp and add it.',
@@ -536,6 +547,8 @@ async function handle(m: WaMessage, dry = false) {
     }
     if (verb === 'rep') return void (await report((rest[0] as 'daily' | 'midday' | 'evening') ?? 'auto'));
     if (verb === 'act') return void (await needsYou(10));
+    // "✅ تمام" under a report: the tap itself keeps the 24 h window open
+    if (verb === 'ack') return void (await say(ar ? 'تمام 👍 أنا ماسك الباقي. اسألني أي وقت عن مهامك أو فريقك.' : 'Great 👍 I’ve got the rest. Ask me anytime about your tasks or team.'));
     if (verb === 'd') return void (await decide(rest[0] as 'ok' | 'no' | 'mv', rest[1]));
     if (verb === 'r') return void (await review(rest[0] as 'ok' | 'back', rest[1]));
     if (verb === 'h') return void (await checkin(rest[0], rest[1]));

@@ -14,7 +14,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { HttpError, getCaller, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
-import { inWindow, REPORT_TEMPLATE, rtl, waConfigured, waTemplate, waText } from '../_shared/wa.ts';
+import { inWindow, REPORT_TEMPLATE, rtl, waButtons, waConfigured, waTemplate, waText } from '../_shared/wa.ts';
 import { needsYouCards, sendCards } from '../_shared/wa-actions.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
@@ -485,6 +485,16 @@ async function sendWhatsAppReport(admin: SupabaseClient, me: Person, lang: Lang,
     await waText(me.phone, rtl(lang === 'ar', say(lang, 'below')));
     await sendCards(me.phone, lang === 'ar', cards, 3);
   }
+  // one tap keeps WhatsApp's 24 h window open, so the next report comes in full (until Meta approves the template)
+  const ar = lang === 'ar';
+  await waButtons(
+    me.phone,
+    rtl(ar, ar ? 'وصلك؟ اضغط «تمام» وأرسل لك التقرير الجاي هنا كامل 👇\nوتقدر تسألني أي شي عن شغلك.' : 'Got it? Tap “OK” and the next report comes here in full 👇\nYou can also ask me anything about your work.'),
+    [
+      { id: 'ack:', title: ar ? '✅ تمام' : '✅ OK' },
+      { id: 'act:', title: ar ? '📌 وش يحتاجني' : '📌 What needs me' },
+    ],
+  );
   return true;
 }
 
@@ -539,8 +549,9 @@ function count(ids: (string | null)[]) {
 function ruleOf(p: Prefs | undefined, kind: Kind, me: Person): Required<Rule> {
   const r = (p?.rules?.[RULE_KEY[kind]] ?? {}) as Rule;
   const d = DEFAULT_RULE[kind];
-  // never chose the channels: WhatsApp too once it's connected
-  const channels = r.channels ?? (me.whatsapp_connected && !d.channels.includes('whatsapp') ? [...d.channels, 'whatsapp'] : d.channels);
+  // WhatsApp for everyone with a mobile (owner, 28 Oct), unless WhatsApp is switched off in Alerts (checked later)
+  const base = r.channels ?? d.channels;
+  const channels = me.phone && !base.includes('whatsapp') ? [...base, 'whatsapp'] : base;
   return { enabled: r.enabled ?? d.enabled, channels, time: r.time ?? d.time };
 }
 
@@ -627,7 +638,7 @@ async function sendOne(
   }
   if (channels.includes('email') && me.email && (await sendEmail(me.email, s.subject, emailHtml(s, s.hello, lang), plainText(s, s.hello, lang))))
     sent.push('email');
-  if (channels.includes('whatsapp') && waConfigured() && me.phone && me.whatsapp_connected && (await sendWhatsAppReport(admin, me, lang, s, kind)))
+  if (channels.includes('whatsapp') && waConfigured() && me.phone && (await sendWhatsAppReport(admin, me, lang, s, kind)))
     sent.push('whatsapp');
 
   if (!opts.test) await admin.from('daily_summaries').upsert({ profile_id: me.id, day: riyadhDay(now), kind, channels: sent });

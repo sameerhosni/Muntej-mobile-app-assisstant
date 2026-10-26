@@ -84,16 +84,14 @@ export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
   'tool_sync',
   // quiet Saree3 (owner, 26 Oct: only act-now, high risks and wins push): a stuck step on the journey waits for the brief
   'ladder_nudge',
-  'task_done_on_time',
-  'task_done_early',
-  'five_star',
-  'objective_achieved',
   'task_at_risk',
   'objective_at_risk',
   'overload',
   'new_feature',
 ]);
 export const DAILY_PUSHES = 1;
+/** wins go out when they happen, push and WhatsApp (owner, 28 Oct: "risks or achievements anytime, notify him") */
+export const WIN_KINDS = new Set<AlertKind>(['task_done_on_time', 'task_done_early', 'five_star', 'objective_achieved']);
 
 export type QuietHours = { enabled?: boolean; prayer_times?: boolean; after?: string; friday?: boolean; ramadan?: boolean };
 export type Prefs = {
@@ -270,7 +268,8 @@ export async function deliverPending(
   const taskIds = [...new Set(rows.filter((r) => r.task_id && URGENT_WHEN_HIGH.has(r.kind)).map((r) => r.task_id as string))];
   const { data: pri } = taskIds.length ? await admin.from('tasks').select('id, priority').in('id', taskIds) : { data: [] };
   const highTask = new Set((pri ?? []).filter((x) => x.priority === 'high' || x.priority === 'urgent').map((x) => x.id as string));
-  const urgent = (a: PendingAlert) => EXCEPTION_KINDS.has(a.kind) || (!!a.task_id && highTask.has(a.task_id) && URGENT_WHEN_HIGH.has(a.kind));
+  const urgent = (a: PendingAlert) =>
+    EXCEPTION_KINDS.has(a.kind) || WIN_KINDS.has(a.kind) || (!!a.task_id && highTask.has(a.task_id) && URGENT_WHEN_HIGH.has(a.kind));
   const waConfigured = !!Deno.env.get('WHATSAPP_TOKEN') && !!Deno.env.get('WHATSAPP_PHONE_ID');
   // "X assigned you" when Saree3's hand-off message (who, what, when) goes to the same person: one notification, not
   // two (owner's request). The alert stays on the Alerts screen; only Saree3's message is pushed
@@ -386,7 +385,7 @@ export async function deliverPending(
       let waStatus: string;
       let sentWa = false;
       if (!waConfigured) waStatus = 'not_configured';
-      else if (!person?.whatsapp_connected || !person.phone) waStatus = 'not_connected';
+      else if (!person?.phone) waStatus = 'not_connected';
       else if (!wants('whatsapp')) waStatus = 'off';
       else {
         waStatus = await whatsAppAlert(admin, person as WaPerson, m, ar);
@@ -432,7 +431,7 @@ async function whatsAppAlert(
   ar: boolean,
 ): Promise<'sent' | 'error' | 'outside_window'> {
   if (!inWindow(person.wa_last_inbound_at)) {
-    if (!m.alerts.some((a) => EXCEPTION_KINDS.has(a.kind))) return 'outside_window';
+    if (!m.alerts.some((a) => EXCEPTION_KINDS.has(a.kind) || WIN_KINDS.has(a.kind) || URGENT_WHEN_HIGH.has(a.kind))) return 'outside_window';
     const name = ((ar && person.full_name_ar) || person.full_name || '').split(' ')[0];
     return (await waTemplate(person.phone, ACTION_TEMPLATE(), ar ? 'ar' : 'en', [name, m.title], 'act:')) ? 'sent' : 'error';
   }
