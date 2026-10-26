@@ -471,3 +471,15 @@ verify_jwt = false
 
 [functions.support-identity]
 verify_jwt = false
+
+[functions.team-import]
+verify_jwt = false
+
+[functions.phone-auth]
+verify_jwt = false
+
+[functions.whatsapp]
+verify_jwt = false
+
+[functions.intercom-webhook]
+verify_jwt = false

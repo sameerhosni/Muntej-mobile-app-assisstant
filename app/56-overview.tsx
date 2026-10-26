@@ -239,6 +239,11 @@ export default function OverviewScreen() {
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(11,26,51,0.35)' }} onPress={() => setList(null)} accessibilityLabel={t('close')} />
         <View style={{ maxHeight: '75%', backgroundColor: colors.surface, borderTopLeftRadius: radius.cardLg, borderTopRightRadius: radius.cardLg, padding: spacing.screen, gap: spacing.md }}>
           <AppText variant="section">{`${list?.title ?? ''} · ${list?.items.length ?? 0}`}</AppText>
+          {!!list?.items.length && (
+            <AppText variant="caption" color="textMuted">
+              {t('tapToUpdate')}
+            </AppText>
+          )}
           <ScrollView style={{ maxHeight: 460 }}>
             {(list?.items ?? []).length === 0 && <AppText color="textMuted">{t('listEmpty')}</AppText>}
             {(list?.items ?? []).map((x, i) => (
@@ -249,8 +254,18 @@ export default function OverviewScreen() {
                   router.push({ pathname: '/14-task-detail', params: { id: x.id } });
                 }}
                 accessibilityRole="button"
-                style={({ pressed }) => ({ paddingVertical: spacing.sm, minHeight: sizes.touch + 8, gap: 4, borderTopWidth: i ? 1 : 0, borderTopColor: colors.border, opacity: pressed ? 0.7 : 1 })}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.sm,
+                  paddingVertical: spacing.sm,
+                  minHeight: sizes.touch + 8,
+                  borderTopWidth: i ? 1 : 0,
+                  borderTopColor: colors.border,
+                  opacity: pressed ? 0.7 : 1,
+                })}
               >
+                <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
                 <AppText weight="bold" numberOfLines={2}>
                   {x.title}
                 </AppText>
@@ -261,6 +276,9 @@ export default function OverviewScreen() {
                     t(`s_${x.status}`, { defaultValue: x.status }),
                   ].join(' · ')}
                 </AppText>
+                </View>
+                {/* opens the task: update it there */}
+                <ChevronLeft color={colors.textFaint} size={18} style={isRTL ? undefined : { transform: [{ scaleX: -1 }] }} />
               </Pressable>
             ))}
           </ScrollView>

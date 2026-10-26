@@ -40,6 +40,10 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
+/** the photo each draft was read from (this app session only): Review shows it beside the tree */
+const photos = new Map<string, string>();
+export const draftPhoto = (id: string | undefined) => (id ? photos.get(id) : undefined);
+
 /** a picked file → base64 (no extra native module: fetch + FileReader) */
 async function toBase64(uri: string): Promise<string> {
   const blob = await (await fetch(uri)).blob();
@@ -81,7 +85,9 @@ export async function readPhoto(from: 'camera' | 'library') {
   const a = r.assets[0];
   track('team_import_start', { source: 'photo', from });
   const base64 = await toBase64(a.uri);
-  return (await call<{ draft: Draft }>({ action: 'read', file: { name: a.fileName ?? 'org.jpg', mime: a.mimeType ?? 'image/jpeg', base64 } })).draft;
+  const draft = (await call<{ draft: Draft }>({ action: 'read', file: { name: a.fileName ?? 'org.jpg', mime: a.mimeType ?? 'image/jpeg', base64 } })).draft;
+  photos.set(draft.id, a.uri);
+  return draft;
 }
 
 /** Excel / CSV / PDF / photo file; null when cancelled */
@@ -92,7 +98,9 @@ export async function readFile() {
   const a = r.assets[0];
   track('team_import_start', { source: 'file', type: a.name.split('.').pop()?.toLowerCase() ?? null });
   const base64 = await toBase64(a.uri);
-  return (await call<{ draft: Draft }>({ action: 'read', file: { name: a.name, mime: a.mimeType ?? '', base64 } })).draft;
+  const draft = (await call<{ draft: Draft }>({ action: 'read', file: { name: a.name, mime: a.mimeType ?? '', base64 } })).draft;
+  if ((a.mimeType ?? '').startsWith('image/')) photos.set(draft.id, a.uri);
+  return draft;
 }
 
 export function useDraft(id: string | undefined) {

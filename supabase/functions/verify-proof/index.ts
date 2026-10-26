@@ -112,15 +112,15 @@ serve(async (req) => {
   if (check.verdict !== 'pass' && check.missing.length && task.owner_id && task.owner_id !== review.reviewer_id) {
     const { data: owner } = await admin.from('profiles').select('full_name, full_name_ar, locale').eq('id', task.owner_id).maybeSingle();
     const ar = owner?.locale === 'ar' || lang === 'ar';
-    const first = ((ar && owner?.full_name_ar) || owner?.full_name || '').split(' ')[0];
     const items = check.missing.slice(0, 3).join(ar ? '، ' : ', ');
     await sendPush(
       [task.owner_id],
       {
-        title: ar ? `📎 «${task.title}» ناقصها شي` : `📎 "${task.title}" is missing something`,
+        // the task name on its own line, then what's missing (owner, 26 Oct: the one-long-line version was hard to read)
+        title: ar ? '📎 تسليمك ناقصه شي بسيط' : '📎 Your hand-in is missing something',
         body: ar
-          ? `${first}، راجعت التسليم: ناقص ${items}. أضفها هنا وأنا أوصلها للمراجعة 👍`
-          : `${first}, I checked it: missing ${items}. Add it here and I'll pass it on 👍`,
+          ? `«${task.title}»\nناقص: ${items}\nأضفها هنا وأوصلها للمراجعة 👍`
+          : `"${task.title}"\nMissing: ${items}\nAdd it here and I'll pass it on 👍`,
         data: { taskId: review.task_id },
       },
       admin,

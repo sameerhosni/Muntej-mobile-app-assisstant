@@ -3,7 +3,7 @@
 // Tap a person to fix them (name, title, mobile, email, manager, leads a team, leave out); Confirm creates everyone
 // once, managers first, as you (team-import apply → upsert_person). Then: invite by email (WhatsApp invites come next).
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, CircleAlert, CircleCheck } from 'lucide-react-native';
@@ -14,7 +14,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { useOrg, displayName } from '@/features/org/model';
 import { sendInvites } from '@/features/invite/api';
-import { applyDraft, saveDraft, useDraft, type ApplyResult, type DraftPerson } from '@/features/teamImport/api';
+import { applyDraft, draftPhoto, saveDraft, useDraft, type ApplyResult, type DraftPerson } from '@/features/teamImport/api';
 import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
 
 export default function TeamReviewScreen() {
@@ -29,6 +29,8 @@ export default function TeamReviewScreen() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ApplyResult | null>(null);
   const [invited, setInvited] = useState<number | null>(null);
+  const [bigPhoto, setBigPhoto] = useState(false);
+  const photo = draftPhoto(id);
   const n = (x: number) => formatNumber(x, lang);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/61-build-team' as Href));
 
@@ -160,6 +162,15 @@ export default function TeamReviewScreen() {
         ) : (
           <>
             <AppText color="textMuted">{t('rSub', { n: n(kept.length), count: kept.length })}</AppText>
+            {/* the photo it was read from: check the names side by side */}
+            {!!photo && (
+              <Pressable onPress={() => setBigPhoto(true)} accessibilityRole="imagebutton" accessibilityLabel={t('photoHint')} style={{ gap: 4 }}>
+                <Image source={{ uri: photo }} resizeMode="cover" style={{ width: '100%', height: 160, borderRadius: radius.md, backgroundColor: colors.surfaceMuted }} />
+                <AppText variant="caption" color="textMuted">
+                  {t('photoHint')}
+                </AppText>
+              </Pressable>
+            )}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
               <Chip label={t('managers', { n: n(managers), count: managers })} tone="primary" />
               {!!unsure && <Chip label={t('unsureN', { n: n(unsure), count: unsure })} tone="amber" />}
@@ -220,6 +231,13 @@ export default function TeamReviewScreen() {
           <Button label={busy ? t('saving') : t('confirmN', { n: n(kept.length), count: kept.length })} onPress={confirm} loading={busy} />
         </View>
       )}
+
+      {/* the photo, big */}
+      <Modal visible={bigPhoto && !!photo} transparent animationType="fade" onRequestClose={() => setBigPhoto(false)}>
+        <Pressable onPress={() => setBigPhoto(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center' }} accessibilityLabel={t('done')}>
+          {!!photo && <Image source={{ uri: photo }} resizeMode="contain" style={{ width: '100%', height: '90%' }} />}
+        </Pressable>
+      </Modal>
 
       {/* edit one person */}
       <Modal visible={!!editingPerson} transparent animationType="slide" onRequestClose={() => setEditing(null)}>

@@ -25,6 +25,29 @@ export function rtlSafe(text: string): string {
     .join('\n');
 }
 
+const FSI = '\u2068';
+const PDI = '\u2069';
+const TITLE_MAX = 46;
+const BODY_MAX = 180;
+
+/** a quoted name («…» or "…") on its own direction island, so "«Call client tomorrow» ناقصها شي" keeps its order */
+const isolate = (s: string) => s.replace(/([«"“])([^»"”\n]+)([»"”])/g, (_m, a, x, b) => `${a}${FSI}${x}${PDI}${b}`);
+
+/** short title: the quoted name is cut first ("«Call client tomo…» ناقصها شي"), then the whole line */
+export function shapeTitle(t: string): string {
+  if (t.length <= TITLE_MAX) return t;
+  const q = t.match(/([«"“])([^»"”\n]+)([»"”])/);
+  if (q) {
+    const over = t.length - TITLE_MAX;
+    const keep = Math.max(8, q[2].length - over - 1);
+    if (keep < q[2].length) t = t.replace(q[0], `${q[1]}${q[2].slice(0, keep).trim()}…${q[3]}`);
+  }
+  return t.length <= TITLE_MAX + 4 ? t : `${t.slice(0, TITLE_MAX).trim()}…`;
+}
+
+/** body: at most ~3 lines on a phone */
+const shapeBody = (b: string) => (b.length <= BODY_MAX ? b : `${b.slice(0, BODY_MAX).trim()}…`);
+
 /** Service-role client: push tokens are private to their owners, so only the server may read other people's. */
 export function adminClient(): SupabaseClient {
   const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? requireEnv('SUPABASE_SECRET_KEY');
@@ -59,8 +82,8 @@ export async function sendPush(profileIds: string[], msg: PushMessage, admin = a
       body: JSON.stringify(
         batch.map((to) => ({
           to,
-          title: rtlSafe(msg.title),
-          body: rtlSafe(msg.body),
+          title: rtlSafe(isolate(shapeTitle(msg.title))),
+          body: rtlSafe(isolate(shapeBody(msg.body))),
           data: msg.data ?? {},
           sound: 'default',
           channelId: 'muntej',

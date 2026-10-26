@@ -26,7 +26,7 @@ serve(async (req) => {
   if (dry && body.action !== 'read') throw new HttpError(400, 'Dry runs only read');
   if (body.action === 'apply') return json(await apply(db, profileId, body.draft_id ?? '', body.people ?? []));
   if (body.action !== 'read') throw new HttpError(400, 'Unknown action');
-  return json({ draft: await readTeam(db, profileId, { text: body.text, file: body.file, source: body.source, dry }) });
+  return json({ draft: await readTeam(db, profileId, { text: body.text, file: body.file, source: body.source, dry, model: body.model, effort: body.effort }) });
 });
 
 /** create / update everyone, managers first, as the caller; one failure never stops the rest */

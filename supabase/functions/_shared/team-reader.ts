@@ -2,7 +2,8 @@
 // CSV / PDF file, a pasted list or a sentence ("Faisal leads sales with Abdullah and Saad") → people with their
 // managers, matched with who's already in Muntej. Used by team-import (Build your team) and muntej-chat ("team").
 // Images and PDFs go to the model as they are; Excel / CSV are turned into text first (SheetJS).
-// Env: OPENAI_API_KEY, IMPORT_MODEL (default gpt-4.1: reads Arabic org charts well).
+// Env: OPENAI_API_KEY, IMPORT_MODEL (text, default gpt-4.1), IMPORT_VISION_MODEL (photos / PDFs, default gpt-5 with
+// IMPORT_REASONING medium: hand-drawn charts need it).
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 // SheetJS (Excel / CSV reading)
 import * as XLSX from 'npm:xlsx@0.18.5';
@@ -33,8 +34,23 @@ const MAX_BYTES = 6 * 1024 * 1024;
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['company_name', 'people'],
+  required: ['boxes', 'company_name', 'people'],
   properties: {
+    // first, what is actually there (charts): every box / name exactly as written, and what it hangs from
+    boxes: {
+      type: 'array',
+      description: 'Org charts only (else empty): every box or written name, top to bottom, BEFORE deciding people',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['text', 'level', 'under'],
+        properties: {
+          text: { type: 'string', description: 'the words in the box exactly as written (best reading of handwriting)' },
+          level: { type: 'integer', description: '0 = top box, 1 = boxes its lines / arrows point to, 2 = theirs…' },
+          under: { type: ['string', 'null'], description: 'text of the box whose line / arrow points to this one; null for the top' },
+        },
+      },
+    },
     company_name: { type: ['string', 'null'] },
     people: {
       type: 'array',
@@ -62,7 +78,17 @@ const SCHEMA = {
 
 const PROMPT = `You read a company's team from an org chart picture, a staff spreadsheet, a PDF or a pasted list (Arabic,
 English or both; Saudi companies). Return every PERSON once (never departments or vacant boxes as people).
-- Org charts: a line from a box above means that box is the direct manager. Assistants beside a box report to it.
+- Org charts (printed or HAND-DRAWN): first fill "boxes": every name you see, its level and which box points to it.
+  Lines and arrows go from the manager down to the people under them; follow each arrow to its end. Then make
+  people ONLY from those boxes: never add a person who isn't written, never turn a word like "group" / "مجموعة" /
+  "team" / a department into a person, never drop a box. Count them: people = boxes that are names.
+  Handwriting: read each name fully (first + last name, e.g. "أحمد محمد", "منار سالم"); Arabic names are common
+  Saudi / Arab names, prefer the reading that is a real name; mark "name" unsure when a letter is doubtful.
+  Two boxes may have the same name: they are two people.
+  A name often wraps onto two lines in the same spot (first name above, family name below, sometimes underlined):
+  that is ONE person ("هدى" above "محمد" = "هدى محمد"), never two. Each arrow head points at exactly one person;
+  a person with no arrow leaving them has nobody under them. Follow every arrow from where it starts (the box above)
+  to where its head lands, even when lines curve or cross.
 - Spreadsheets: find the columns whatever they're called (الاسم، المسمى الوظيفي، المدير المباشر، القسم، الجوال،
   البريد / Name, Title, Line manager, Reports to, Dept, Mobile, Email). Employee numbers are not names.
 - Keep names exactly as written. If a manager is named in a row and that person is in the list, use manager_ref.
@@ -70,7 +96,15 @@ English or both; Saudi companies). Return every PERSON once (never departments o
 - Mark in "unsure" any field you guessed or could not read well; lower confidence for blurry or ambiguous parts.
 - company_name: only if the document clearly shows it.`;
 
-export type ReadInput = { text?: string; file?: { name?: string; mime?: string; base64?: string }; source?: string; dry?: boolean };
+export type ReadInput = {
+  text?: string;
+  file?: { name?: string; mime?: string; base64?: string };
+  source?: string;
+  dry?: boolean;
+  /** dry runs only: try another model / reasoning effort */
+  model?: string;
+  effort?: string;
+};
 export type Draft = { id?: string; source: string; people: DraftPerson[]; company_name: string | null };
 
 /** read whatever was given into a draft; saved in team_drafts (as the caller) unless dry */
@@ -103,7 +137,9 @@ export async function readTeam(db: SupabaseClient, profileId: string, body: Read
   if (!parts.length) throw new HttpError(400, 'Send a photo, a file or a list');
 
   // ── read it ──
-  const model = Deno.env.get('IMPORT_MODEL') ?? 'gpt-4.1';
+  // pictures and PDFs need careful reading (handwriting, lines): a reasoning model; text lists a fast one
+  const visual = parts.some((x) => x.type === 'input_image' || x.type === 'input_file');
+  const model = (body.dry && body.model) || (visual ? (Deno.env.get('IMPORT_VISION_MODEL') ?? 'gpt-5') : (Deno.env.get('IMPORT_MODEL') ?? 'gpt-4.1'));
   const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${requireEnv('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
@@ -111,6 +147,7 @@ export async function readTeam(db: SupabaseClient, profileId: string, body: Read
       model,
       instructions: PROMPT,
       input: [{ role: 'user', content: parts }],
+      ...(/^(gpt-5|o\d)/.test(model) ? { reasoning: { effort: (body.dry && body.effort) || (Deno.env.get('IMPORT_REASONING') ?? 'medium') } } : {}),
       text: { format: { type: 'json_schema', name: 'team', strict: true, schema: SCHEMA } },
     }),
   });
@@ -125,7 +162,10 @@ export async function readTeam(db: SupabaseClient, profileId: string, body: Read
   // ── match with who's already in Muntej, tidy phones and emails, guess roles ──
   const { data: me } = await db.from('profiles').select('account_id').eq('id', profileId).single();
   const { data: existing } = await db.from('profiles').select('id, full_name, full_name_ar, email, phone').eq('account_id', me!.account_id).neq('status', 'deleted');
-  const people = matchPeople(parsed.people, existing ?? []);
+  // photos: names written on two lines come back as a one-word person with a one-word person "under" them; and any
+  // handwriting is worth a check
+  const read = source === 'photo' ? joinSplitNames(parsed.people).map((x) => ({ ...x, unsure: [...new Set([...x.unsure, 'name'])] })) : parsed.people;
+  const people = matchPeople(read, existing ?? []);
 
   if (body.dry) return { source, people, company_name: parsed.company_name };
   const { data: draft, error } = await db
@@ -206,4 +246,26 @@ export function matchPeople(list: (Omit<DraftPerson, 'manager_id' | 'existing_id
   const leads = new Set(people.map((p) => p.manager_ref).filter(Boolean));
   for (const p of people) if (leads.has(p.ref)) p.role = 'manager';
   return people;
+}
+
+type Read = Omit<DraftPerson, 'manager_id' | 'existing_id' | 'role'> & { manager_name: string | null };
+
+/** "هدى" with only "محمد" under them, and nobody under "محمد": one person "هدى محمد" (the name wrapped onto two lines) */
+export function joinSplitNames(list: Read[]): Read[] {
+  const oneWord = (x: string) => !!x.trim() && !/\s/.test(x.trim());
+  let out = [...list];
+  for (let pass = 0; pass < 3; pass++) {
+    const kids = (ref: string) => out.filter((x) => x.manager_ref === ref);
+    const pair = out.find((x) => {
+      const k = kids(x.ref);
+      return oneWord(x.full_name) && k.length === 1 && oneWord(k[0].full_name) && kids(k[0].ref).length === 0;
+    });
+    if (!pair) break;
+    const child = kids(pair.ref)[0];
+    out = out
+      .filter((x) => x.ref !== child.ref)
+      .map((x) => (x.ref === pair.ref ? { ...x, full_name: `${x.full_name.trim()} ${child.full_name.trim()}`, full_name_ar: x.full_name_ar ? `${x.full_name_ar.trim()} ${(child.full_name_ar ?? child.full_name).trim()}` : null } : x));
+  }
+  // nobody left under a one-word person after joining: they were not a manager because of that line
+  return out;
 }
