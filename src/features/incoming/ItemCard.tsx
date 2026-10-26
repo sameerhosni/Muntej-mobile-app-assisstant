@@ -156,6 +156,18 @@ function SuggestionRow({
         {!!s.budget && <Chip label={`💰 ${s.budget}`} />}
         {s.confidence < 0.5 && <Chip label={t('maybe')} />}
       </View>
+      {/* the message names someone who isn't in Muntej yet: add them, then the task can go to them */}
+      {!done && !ownerName && !!s.owner_name && (
+        <Pressable
+          onPress={() => router.push({ pathname: '/39-team', params: { add: '1' } })}
+          accessibilityRole="link"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: sizes.touch - 8 }}
+        >
+          <AppText variant="caption" weight="bold" color="primary">
+            {t('addOutside', { name: s.owner_name })}
+          </AppText>
+        </Pressable>
+      )}
       {/* the details from the email: two lines, "more" opens the rest and what "done" means */}
       {!!s.description && (
         <Pressable onPress={() => setMore((m) => !m)} accessibilityRole="button" style={{ gap: 4 }}>

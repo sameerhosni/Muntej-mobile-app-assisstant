@@ -1,6 +1,7 @@
 // Screen 50 · New in Muntej — no mockup; v2 light style per design/TOKENS.md
 // Every new feature for this person's role, the ones still new first: what it does for you (one line) and "Show me
 // how" (Saree3's walkthrough on the real screen). Opened from the Home strip, More and Settings.
+import { useEffect } from 'react';
 import { ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +11,7 @@ import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { Munti } from '@/features/munti/Munti';
-import { showFeature, useWhatsNew, WHATS_NEW_NS } from '@/features/launch/WhatsNew';
+import { markWhatsNewOpened, showFeature, useWhatsNew, WHATS_NEW_NS } from '@/features/launch/WhatsNew';
 
 export default function WhatsNewScreen() {
   const { t } = useScreenT(WHATS_NEW_NS);
@@ -18,6 +19,10 @@ export default function WhatsNewScreen() {
   const insets = useSafeAreaInsets();
   const { list, isNew, count, role } = useWhatsNew();
   const ar = lang === 'ar';
+  // seen once: Home stops pointing here until something newer comes out
+  useEffect(() => {
+    markWhatsNewOpened();
+  }, []);
 
   return (
     <ScrollView

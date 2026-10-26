@@ -77,6 +77,7 @@ const en = {
   src_azure_devops: 'Azure DevOps',
   noOwner: 'No owner yet',
   outsideOwner: '{{name}} (not in Muntej)',
+  addOutside: '+ Add {{name}} to your team',
   noDue: 'no due date',
   pr_low: 'low',
   pr_medium: 'medium',
@@ -115,6 +116,8 @@ const en = {
   // Home
   homeRow_one: '{{n}} task found in your tools',
   homeRow_other: '{{n}} tasks found in your tools',
+  homeRowTool_one: 'I found a task in {{tool}}',
+  homeRowTool_other: 'I found {{n}} tasks in {{tool}}',
   homeSub: 'Add or ignore with one tap',
   shortcut: 'Your tools',
 };
@@ -205,6 +208,7 @@ const ar: typeof en & Record<string, string> = {
   src_azure_devops: 'أزور ديف أوبس',
   noOwner: 'بدون مسؤول للحين',
   outsideOwner: '{{name}} (مو في منتج)',
+  addOutside: '+ أضف {{name}} لفريقك',
   noDue: 'بدون موعد',
   pr_low: 'منخفضة',
   pr_medium: 'متوسطة',
@@ -242,6 +246,11 @@ const ar: typeof en & Record<string, string> = {
   actionError: 'ما ضبطت معي. جرّب مرة ثانية.',
   homeRow_one: 'لقيت {{n}} مهمة في أدواتك',
   homeRow_other: 'لقيت {{n}} مهام في أدواتك',
+  homeRowTool_one: 'لقيت مهمة في {{tool}}',
+  homeRowTool_two: 'لقيت مهمتين في {{tool}}',
+  homeRowTool_few: 'لقيت {{n}} مهام في {{tool}}',
+  homeRowTool_many: 'لقيت {{n}} مهمة في {{tool}}',
+  homeRowTool_other: 'لقيت {{n}} مهمة في {{tool}}',
   homeSub: 'أضفها أو تجاهلها بضغطة',
   shortcut: 'أدواتك',
 };

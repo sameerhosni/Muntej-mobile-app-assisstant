@@ -4,6 +4,8 @@
 //   showFeature()   "Show me how": the right screen, the right button lit up with Saree3's line (same as the card);
 //                   seen only once the walkthrough is finished
 //   WhatsNewStrip   Home: "✨ 5 new things in Muntej · See them" while anything is still new
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react-native';
@@ -49,6 +51,44 @@ const ar: typeof en & Record<string, string> = {
 };
 export const WHATS_NEW_NS = registerStrings('whatsNew', { en, ar });
 
+/** every feature about tools is one entry (owner: "many features are duplicated, the same like the tools"): the newest
+ *  one stands for all of them, with one combined line; it's new while any of them is */
+const TOOLS_GROUP = ['incoming', 'tools', 'email_tasks', 'more_tools', 'whatsapp', 'meet', 'sectors', 'google_chat', 'your_tools', 'whatsapp_approve', 'tool_pages'];
+const TOOLS_ENTRY = {
+  title: 'All your tools in one place',
+  title_ar: 'كل أدواتك في مكان واحد',
+  benefit: 'Gmail, Google Chat, Meet, Calendar and WhatsApp: I read them for you, each has its own page, and you OK what I find with one tap.',
+  benefit_ar: 'جيميل، قوقل شات، ميت، التقويم والواتساب: أقراها عنك، لكل أداة صفحتها، وتوافق على اللي ألقاه بضغطة.',
+};
+
+/** the What's new page is shown once: its strip comes back only for features released after you last opened it */
+const SEEN_KEY = 'whatsNewOpenedAt';
+let openedAt: string | null | undefined;
+const openedListeners = new Set<() => void>();
+export async function markWhatsNewOpened() {
+  openedAt = new Date().toISOString();
+  openedListeners.forEach((l) => l());
+  await AsyncStorage.setItem(SEEN_KEY, openedAt).catch(() => {});
+}
+function useOpenedAt() {
+  const [v, setV] = useState<string | null | undefined>(openedAt);
+  useEffect(() => {
+    const l = () => setV(openedAt);
+    openedListeners.add(l);
+    if (openedAt === undefined)
+      AsyncStorage.getItem(SEEN_KEY)
+        .then((x) => {
+          openedAt = x;
+          openedListeners.forEach((f) => f());
+        })
+        .catch(() => {});
+    return () => {
+      openedListeners.delete(l);
+    };
+  }, []);
+  return v;
+}
+
 export function useWhatsNew() {
   const me = useMyProfile();
   const features = useFeatures();
@@ -60,11 +100,17 @@ export function useWhatsNew() {
     (f.audience === 'admin' && canSwitchView(realRole)) ||
     (f.audience === 'manager' && role !== 'employee') ||
     (f.audience === 'employee' && role === 'employee');
-  const mine = (features.data ?? []).filter(forMe);
-  const isNew = (f: Feature) => isNewFor(states.data, f.key);
+  const all = (features.data ?? []).filter(forMe);
+  const group = all.filter((f) => TOOLS_GROUP.includes(f.key));
+  const lead = [...group].sort((a, b) => b.released_at.localeCompare(a.released_at))[0];
+  const mine = all.filter((f) => !TOOLS_GROUP.includes(f.key) || f === lead).map((f) => (f === lead ? { ...f, ...TOOLS_ENTRY } : f));
+  const isNew = (f: Feature) => (f.key === lead?.key ? group.some((g) => isNewFor(states.data, g.key)) : isNewFor(states.data, f.key));
   // still new first (in launch order), then the rest, newest released first
   const list = [...mine.filter(isNew), ...mine.filter((f) => !isNew(f)).sort((a, b) => b.released_at.localeCompare(a.released_at))];
-  return { list, isNew, role, states: states.data, count: mine.filter(isNew).length, ready: !!features.data && !!states.data };
+  const opened = useOpenedAt();
+  // the strip: only what came out after you last opened the page
+  const unseen = opened === undefined ? 0 : mine.filter((f) => isNew(f) && (!opened || f.released_at > opened)).length;
+  return { list, isNew, role, states: states.data, count: mine.filter(isNew).length, unseen, ready: !!features.data && !!states.data && opened !== undefined };
 }
 
 const HOMES = ['/', '/01-home', '/25-employee-home'];
@@ -99,7 +145,7 @@ export function showFeature(f: Feature, ar: boolean, demoText: string, role: str
 export function WhatsNewStrip() {
   const { t } = useScreenT(WHATS_NEW_NS);
   const { isRTL } = useDirection();
-  const { count, ready } = useWhatsNew();
+  const { unseen: count, ready } = useWhatsNew();
   if (!ready || !count) return null;
   const Chevron = isRTL ? ChevronLeft : ChevronRight;
   return (

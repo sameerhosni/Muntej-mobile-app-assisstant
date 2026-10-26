@@ -13,7 +13,11 @@ import { JOBS_NS } from './strings';
 export function JobsStrip() {
   const { t } = useScreenT(JOBS_NS);
   const { lang, isRTL } = useDirection();
-  const { jobs, needs, ready } = useSaree3Jobs(t, lang);
+  const all = useSaree3Jobs(t, lang);
+  // tasks found in your tools already sit in Needs you (one line, with the tool's name): not repeated here
+  const jobs = all.jobs.filter((j) => j.key !== 'inc');
+  const needs = jobs.filter((j) => j.kind === 'needs').length;
+  const ready = all.ready;
   if (!ready || !jobs.length) return null;
   const Chevron = isRTL ? ChevronLeft : ChevronRight;
   return (

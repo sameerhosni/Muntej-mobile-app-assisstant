@@ -16,6 +16,8 @@ import { MUNTI_NS } from '@/features/munti/tips';
 import { NS } from './strings';
 import { ActionPill, useTodayActions } from './TodayHome';
 import { useIncomingCount } from '@/features/incoming/api';
+import { toolForSource, toolOf } from '@/features/tools/tools';
+import { TOOL_NS } from '@/features/tools/strings';
 import { isNewFor, useMyFeatureStates } from '@/features/launch/launch';
 import { NS as INCOMING_NS } from '@/features/incoming/strings';
 import { AutoApproveTag } from '@/features/review/ReviewBar';
@@ -95,6 +97,17 @@ export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; 
   const resolve = useResolveDecision();
   const { t: ti } = useScreenT(INCOMING_NS);
   const incoming = useIncomingCount();
+  const { t: tt } = useScreenT(TOOL_NS);
+  // which tools the waiting tasks came from (only the ones with something still waiting)
+  const toolKeys = [
+    ...new Set(
+      incoming.items
+        .filter((it) => it.suggestions.some((x) => x.state === 'new'))
+        .map((it) => toolForSource(it.source)?.key)
+        .filter(Boolean),
+    ),
+  ];
+  const oneTool = toolKeys.length === 1 ? toolOf(toolKeys[0]) : undefined;
   const reviewIds = (tasks.data ?? []).filter((x) => x.status === 'submitted').map((x) => x.id);
   const deadlines = useReviewDeadlines(reviewIds);
   const gaps = useProofGaps(reviewIds);
@@ -113,9 +126,12 @@ export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; 
             Icon: Inbox,
             bg: 'primaryTint' as ColorToken,
             fg: colors.primary,
-            title: ti('homeRow', { count: incoming.count, n: incoming.count }),
+            // one tool: say which, and open its page; several: Your tools
+            title: oneTool
+              ? ti('homeRowTool', { count: incoming.count, n: incoming.count, tool: tt(`t_${oneTool.key}`) })
+              : ti('homeRow', { count: incoming.count, n: incoming.count }),
             sub: ti('homeSub'),
-            href: '/42-incoming' as Href,
+            href: (oneTool ? `/55-tool?tool=${oneTool.key}` : '/42-incoming') as Href,
           },
         ]
       : []),
