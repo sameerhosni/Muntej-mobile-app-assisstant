@@ -12,7 +12,7 @@ import { colors, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { Munti } from '@/features/munti/Munti';
-import { canFile, canPhoto, readFile, readPhoto, readText, type Draft } from '@/features/teamImport/api';
+import { canFile, canPhoto, readDirectory, readFile, readPhoto, readText, type Draft } from '@/features/teamImport/api';
 import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
 
 export default function BuildTeamScreen() {
@@ -22,6 +22,7 @@ export default function BuildTeamScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [text, setText] = useState('');
+  const [jisr, setJisr] = useState(false);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/39-team' as Href));
 
   const run = async (read: () => Promise<Draft | null>) => {
@@ -78,7 +79,16 @@ export default function BuildTeamScreen() {
             </View>
           )}
         </Way>
-        <Way Icon={PlugZap} bg="amberTint" fg={colors.amberText} title={t('connect')} sub={t('connectSub')} disabled badge={t('soon')} onPress={() => {}} />
+        <Way Icon={PlugZap} bg="amberTint" fg={colors.amberText} title={t('connect')} sub={t('connectSub')} disabled={busy} onPress={() => setJisr((j) => !j)}>
+          <Chip label={t('ms')} onPress={() => run(async () => (await readDirectory('microsoft_directory'), null))} />
+          <Chip label={t('google')} onPress={() => run(async () => (await readDirectory('google_directory'), null))} />
+          <Chip label={t('jisr')} onPress={() => setJisr(true)} />
+          {jisr && (
+            <AppText variant="caption" color="textSoft" style={{ width: '100%' }}>
+              {t('jisrHow')}
+            </AppText>
+          )}
+        </Way>
         <Way Icon={UserPlus} bg="chip" fg={colors.textSoft} title={t('manual')} sub={t('manualSub')} disabled={busy} onPress={() => router.push('/39-team?add=1' as Href)} />
         {!canPhoto && <Way Icon={ImageIcon} bg="chip" fg={colors.textFaint} title={t('photo')} sub={t('photoSub')} disabled badge={t('soon')} onPress={() => {}} />}
       </ScrollView>

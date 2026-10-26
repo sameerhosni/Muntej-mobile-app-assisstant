@@ -20,7 +20,7 @@ import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
 export default function TeamReviewScreen() {
   const { t } = useScreenT(TEAM_IMPORT_NS);
   const { isRTL, lang } = useDirection();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, error: back_error } = useLocalSearchParams<{ id?: string; error?: string }>();
   const draft = useDraft(id);
   const org = useOrg();
   const [people, setPeople] = useState<DraftPerson[] | null>(null);
@@ -72,6 +72,16 @@ export default function TeamReviewScreen() {
     list.forEach((p) => walk(p, 0)); // anything left in a loop
     return out;
   }, [people]);
+
+  // the directory sign-in came back without a draft
+  if (!id && back_error)
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg, padding: spacing.screen, gap: spacing.lg, justifyContent: 'center' }}>
+        <AppText variant="titleLg">{t('dirFailed')}</AppText>
+        {back_error === 'needs_admin' && <AppText color="textSoft">{t('dirNeedsAdmin')}</AppText>}
+        <Button label={t('back')} onPress={() => router.replace('/61-build-team' as Href)} />
+      </SafeAreaView>
+    );
 
   if (draft.data?.status === 'applied' && !result)
     return (

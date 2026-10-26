@@ -1,6 +1,6 @@
 // Smart team setup (owner, 26 Oct: "the org structure is the hook"): a photo of the org chart, an Excel / PDF file or
 // a pasted list → the team-import function reads it into a draft (team_drafts) → Review (screen 62) → confirm once.
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -50,6 +50,18 @@ async function toBase64(uri: string): Promise<string> {
     r.readAsDataURL(blob);
   });
   return url.slice(url.indexOf(',') + 1);
+}
+
+/** the company directory, read once (Microsoft 365 / Google Workspace): the sign-in page opens, and it comes back to
+ *  Review your team with the new draft (connect function, _shared/directory.ts) */
+export async function readDirectory(provider: 'microsoft_directory' | 'google_directory') {
+  track('team_import_start', { source: provider });
+  const ExpoLinking = require('expo-linking') as typeof import('expo-linking');
+  const redirect = ExpoLinking.createURL('/62-team-review');
+  const { data, error } = await supabase.functions.invoke<{ url: string }>('connect', { body: { action: 'start', provider, redirect } });
+  if (error || !data?.url) throw await toError(error);
+  if (Platform.OS === 'web') window.location.href = data.url;
+  else await Linking.openURL(data.url);
 }
 
 /** read pasted text / a sentence about the team */

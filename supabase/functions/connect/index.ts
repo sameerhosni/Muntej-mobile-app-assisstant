@@ -21,6 +21,7 @@ import {
   syncConnection,
   type ProviderId,
 } from '../_shared/connections.ts';
+import { directoryAuthorizeUrl, directoryConfigured, directoryDraft, isDirectory } from '../_shared/directory.ts';
 
 const STATE_TTL_MS = 10 * 60_000;
 /** only back into the app (deep link / Expo Go / the local web preview): never an open redirect */
@@ -49,6 +50,23 @@ async function callback(req: Request): Promise<Response> {
   if (!st) return new Response('This sign-in link expired. Go back to Muntej and tap Connect again.', { status: 400 });
   await admin.from('oauth_states').delete().eq('state', state);
   const back = (params: Record<string, string>) => Response.redirect(withParams(st.redirect as string, params), 302);
+  // a one-time look at the company directory (Build your team → Connect your system): a team draft, no connection kept
+  if (isDirectory(st.provider as string)) {
+    if (Date.now() - Date.parse(st.created_at as string) > STATE_TTL_MS) return back({ error: 'expired' });
+    const dcode = url.searchParams.get('code');
+    if (!dcode) return back({ error: url.searchParams.get('error') ?? 'cancelled' });
+    try {
+      const id = await directoryDraft(admin, st.provider as 'microsoft_directory' | 'google_directory', st.profile_id as string, {
+        code: dcode,
+        redirectUri: CALLBACK_URL,
+        verifier: st.verifier as string,
+      });
+      return back({ id });
+    } catch (e) {
+      console.error('directory read failed', st.provider, (e as Error).message);
+      return back({ error: (e as Error).message === 'needs_admin' ? 'needs_admin' : 'failed' });
+    }
+  }
   const provider = PROVIDERS[st.provider as ProviderId];
   if (!provider) return back({ error: 'not_available' });
   if (Date.now() - Date.parse(st.created_at as string) > STATE_TTL_MS) return back({ error: 'expired' });
@@ -245,6 +263,17 @@ serve(async (req) => {
     }
 
     case 'start': {
+      // the company directory, read once into a team draft (see _shared/directory.ts)
+      if (body.provider && isDirectory(body.provider)) {
+        if (!directoryConfigured(body.provider)) throw new HttpError(409, 'Your admin needs to finish this setup first');
+        const redirect = String(body.redirect ?? '');
+        if (!allowedRedirect(redirect)) throw new HttpError(400, 'Bad return address');
+        const state = randomToken();
+        const verifier = randomToken(48);
+        const { error } = await admin.from('oauth_states').insert({ state, profile_id: profileId, provider: body.provider, redirect, verifier });
+        if (error) throw error;
+        return json({ url: directoryAuthorizeUrl(body.provider, { state, redirectUri: CALLBACK_URL, challenge: await challengeOf(verifier) }) });
+      }
       const provider = body.provider ? PROVIDERS[body.provider] : undefined;
       if (!provider) throw new HttpError(400, 'This tool is coming soon');
       if (!provider.configured()) throw new HttpError(409, 'Your admin needs to finish this tool’s setup first');
