@@ -162,6 +162,7 @@ const en = {
     codeLabel: '6-digit code',
     verify: 'Sign in',
     pasteCode: 'Paste code from email',
+    nothingToPaste: 'No code copied yet. Copy the 6-digit code from the email, then tap again (or type it).',
     resend: 'Resend code',
     resent: 'New code sent',
     changeEmail: 'Change email',

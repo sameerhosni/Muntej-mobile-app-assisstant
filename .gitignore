@@ -48,3 +48,6 @@ supabase/.branches/
 *firebase-adminsdk*.json
 muntej-fbfe5-*.json
 docs/design/out/
+
+# downloaded app builds (sent to phones for testing)
+builds/

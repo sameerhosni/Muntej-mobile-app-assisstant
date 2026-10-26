@@ -105,9 +105,19 @@ export default function VerifyScreen() {
           label={t('auth.pasteCode')}
           variant="outline"
           onPress={async () => {
-            const Clipboard = require('expo-clipboard') as typeof import('expo-clipboard');
-            const digits = ((await Clipboard.getStringAsync()) || '').match(/\d{6}/)?.[0];
-            if (!digits) return;
+            // it used to do nothing when the copied code had spaces, Arabic digits or nothing was copied: now it reads
+            // all of those, and says so when there's no code to paste
+            setServerError(null);
+            let text = '';
+            try {
+              const Clipboard = require('expo-clipboard') as typeof import('expo-clipboard');
+              text = (await Clipboard.getStringAsync()) || '';
+            } catch {
+              // no clipboard access: same as nothing copied
+            }
+            const western = text.replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0));
+            const digits = western.match(/\d(?:[\s-]?\d){5}/)?.[0].replace(/\D/g, '');
+            if (!digits) return void setServerError(t('auth.nothingToPaste'));
             setValue('code', digits);
             onSubmit();
           }}
