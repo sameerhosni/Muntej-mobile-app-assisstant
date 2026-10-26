@@ -22,7 +22,7 @@ import { AccessibilityInfo, Animated, Easing, PanResponder, Platform, Pressable,
 import { router, usePathname, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { CircleCheck, GraduationCap, History, Inbox, ListTodo, Plus, TriangleAlert, Users, X, type LucideProps } from 'lucide-react-native';
+import { CircleCheck, GraduationCap, History, Inbox, ListTodo, MessageCircleQuestion, Plus, TriangleAlert, Users, X, type LucideProps } from 'lucide-react-native';
 import type { ComponentType } from 'react';
 import { AppText, Gradient } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
@@ -46,6 +46,8 @@ import { useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { wallet } from '@/features/rewards/wallet';
 import { supabase } from '@/lib/supabase';
 import { JOBS_NS } from '@/features/saree3/strings';
+import { openSupport } from '@/features/support/intercom';
+import { SUPPORT_NS } from '@/features/support/strings';
 
 /** "I need more time" on a task someone gave you: a decision for them (checkin_reply need_time) */
 async function askMoreTime(taskId: string) {
@@ -125,6 +127,7 @@ export function HelperButton() {
   const { t } = useScreenT(MUNTI_NS);
   const { t: tj } = useScreenT(JOBS_NS);
   const { t: tw } = useScreenT(WALK_NS);
+  const { t: ts } = useScreenT(SUPPORT_NS);
   const { t: tg } = useTranslation();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -580,6 +583,18 @@ export function HelperButton() {
       ? { key: 'next', label: t('q_next'), Icon: ListTodo, bg: 'greenTint' as const, fg: colors.green, run: () => ask(t('q_next_msg')) }
       : { key: 'team', label: t('q_team'), Icon: Users, bg: 'greenTint' as const, fg: colors.green, run: () => ask(t('q_team_msg')) },
     { key: 'add', label: t('q_add'), Icon: Plus, bg: 'primaryTint' as const, fg: colors.primary, run: () => go({ pathname: '/02-capture', params: { mode: 'text' } }) },
+    // the Muntej team (owner, 26 Oct: back in Saree3's menu now that the chat opens inside the app)
+    {
+      key: 'support',
+      label: ts('talk'),
+      Icon: MessageCircleQuestion,
+      bg: 'greenTint' as const,
+      fg: colors.green,
+      run: () => {
+        setOpen(false);
+        openSupport().then((err) => err && munti.say(`⚠️ ${err}`));
+      },
+    },
     // replay this screen's walkthrough (Saree3 lights up what matters here again)
     ...(walkthrough.canReplay()
       ? [
