@@ -85,7 +85,41 @@ export const waTemplate = (phone: string, name: string, lang: 'ar' | 'en', param
 export const waTyping = (messageId: string) =>
   send('', { status: 'read', message_id: messageId, typing_indicator: { type: 'text' } });
 
-export const REPORT_TEMPLATE =() => Deno.env.get('WHATSAPP_REPORT_TEMPLATE') ?? 'muntej_report';
+/** an approved template with body parameters and any buttons (a link button with its URL ending, a code button…) */
+export const waTemplateWith = (
+  phone: string,
+  name: string,
+  lang: 'ar' | 'en',
+  params: string[],
+  buttons: { sub_type: 'url' | 'quick_reply' | 'copy_code'; index: number; param: string }[] = [],
+) =>
+  send(phone, {
+    type: 'template',
+    template: {
+      name,
+      language: { code: lang },
+      components: [
+        { type: 'body', parameters: params.map((p) => ({ type: 'text', text: p.replace(/[\n\t]+/g, ' · ').replace(/ {4,}/g, ' ').slice(0, 900) })) },
+        ...buttons.map((b) => ({
+          type: 'button',
+          sub_type: b.sub_type,
+          index: String(b.index),
+          parameters: [
+            b.sub_type === 'quick_reply'
+              ? { type: 'payload', payload: b.param }
+              : b.sub_type === 'copy_code'
+                ? { type: 'coupon_code', coupon_code: b.param }
+                : { type: 'text', text: b.param },
+          ],
+        })),
+      ],
+    },
+  });
+
+export const INVITE_TEMPLATE = () => Deno.env.get('WHATSAPP_INVITE_TEMPLATE') ?? 'muntej_join';
+export const CODE_TEMPLATE = () => Deno.env.get('WHATSAPP_CODE_TEMPLATE') ?? 'muntej_code';
+
+export const REPORT_TEMPLATE = () => Deno.env.get('WHATSAPP_REPORT_TEMPLATE') ?? 'muntej_report';
 export const ACTION_TEMPLATE = () => Deno.env.get('WHATSAPP_ACTION_TEMPLATE') ?? 'muntej_action';
 
 /** may we write freely (the person wrote to Muntej in the last 24 h)? */

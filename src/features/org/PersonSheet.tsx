@@ -22,6 +22,7 @@ import {
 } from './model';
 import { ROLE_TONE, STATUS_DOT } from './PersonRow';
 import { NS } from './strings';
+import { InviteStatus } from '@/features/invite/InviteStatus';
 
 type Props = {
   person: Person;
@@ -169,6 +170,9 @@ export function PersonSheet({ person, me, people, index, tasks, onEdit, onAddUnd
           </View>
         </View>
       </Card>
+
+      {/* their invitation: status and Invite / Send again (people who manage them) */}
+      {person.id !== me?.id && <InviteStatus person={person} />}
 
       <Card>
         <AppText variant="cardTitle">{t('skills')}</AppText>

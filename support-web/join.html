@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- Muntej team invite (WhatsApp template muntej_join's button: join.html?t=<one-time token>). Greets the person, marks the
+     invite opened (phone-auth "opened"), and opens the app at muntej://join?t=… which signs them in once. No app yet:
+     the download link, then they come back and tap again. Hosted with the support page (eas deploy --export-dir support-web). -->
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>منتج · انضم لفريقك</title>
+  <style>
+    :root { --bg: #F3F6FB; --surface: #FFFFFF; --text: #0B1A33; --muted: #66728A; --primary: #1F6FEB; --red: #E5484D; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+      font-family: "Tajawal", "Segoe UI", system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .card { background: var(--surface); border-radius: 22px; padding: 28px 22px; max-width: 420px; width: 100%; text-align: center;
+      box-shadow: 0 8px 24px rgba(31, 111, 235, 0.10); }
+    h1 { font-size: 22px; margin: 12px 0 6px; }
+    p { color: var(--muted); margin: 0 0 18px; line-height: 1.6; }
+    .dot { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto; background: linear-gradient(135deg, #5B3BFF, #1F6FEB, #2EC4D6);
+      display: flex; align-items: center; justify-content: center; color: #fff; font-size: 30px; }
+    a.btn { display: flex; align-items: center; justify-content: center; min-height: 50px; width: 100%; border-radius: 999px; text-decoration: none;
+      font-size: 17px; font-weight: 700; margin-top: 10px; }
+    .primary { background: var(--primary); color: #fff; }
+    .ghost { background: #E9F0FD; color: var(--primary); }
+    .small { font-size: 13px; color: var(--muted); margin-top: 16px; }
+    .err { color: var(--red); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="dot">👋</div>
+    <h1 id="title">هلا! فريقك ينتظرك في منتج</h1>
+    <p id="sub">منتج يوصلك مهامك ويتابعها معك، وأنت بس تشتغل.</p>
+    <a id="open" class="btn primary" href="#">افتح منتج وادخل</a>
+    <a id="get" class="btn ghost" href="https://expo.dev/artifacts/eas/JN0xZDH2yPQAbxn2OlUd9JnmF7iwirMK2fFT-SIRRCU.apk">ما عندي التطبيق: حمّله</a>
+    <div class="small" id="hint">بعد ما تحمّله، ارجع هنا واضغط «افتح منتج». الرابط لك أنت بس، ويشتغل مرة وحدة.</div>
+  </div>
+  <script>
+    const FN = 'https://katwiedukkvssuxbjbqf.supabase.co/functions/v1/phone-auth';
+    const $ = (id) => document.getElementById(id);
+    const token = new URLSearchParams(location.search).get('t') || '';
+    $('open').href = 'muntej://join?t=' + encodeURIComponent(token);
+    if (!token) {
+      $('title').textContent = 'الرابط ناقص';
+      $('sub').textContent = 'افتح الرابط من رسالة الواتساب مرة ثانية، أو ادخل برقم جوالك من التطبيق.';
+      $('sub').className = 'err';
+    } else {
+      fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'opened', token }) })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d) return;
+          $('title').textContent = 'هلا ' + d.first_name + '! فريق ' + (d.company || 'شركتك') + ' ينتظرك 👋';
+        })
+        .catch(() => {});
+    }
+  </script>
+</body>
+</html>

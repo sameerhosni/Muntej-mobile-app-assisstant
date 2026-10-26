@@ -12,6 +12,15 @@ export async function emailInvite(personId: string): Promise<string> {
   return data?.result ?? 'failed';
 }
 
+export type InviteResult = { id: string; whatsapp?: string; email?: string };
+
+/** invite people with no login yet: WhatsApp (one-time join link) when they have a mobile, email otherwise / too */
+export async function sendInvites(personIds: string[], channel: 'auto' | 'whatsapp' | 'email' = 'auto'): Promise<InviteResult[]> {
+  const { data, error } = await supabase.functions.invoke<{ results: InviteResult[] }>('invite', { body: { send: { person_ids: personIds, channel } } });
+  if (error) throw error;
+  return data?.results ?? [];
+}
+
 /** the WhatsApp / any-app message for someone invited by email: download, then sign in with that email */
 export function emailInviteMessage(t: (k: string, o?: Record<string, unknown>) => string, o: { company: string; inviter: string; email: string }) {
   return t('messageEmail', { ...o, link: DOWNLOAD_URL });

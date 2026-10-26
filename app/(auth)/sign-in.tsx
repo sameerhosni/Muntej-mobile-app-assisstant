@@ -1,7 +1,7 @@
 // Screen · Sign in (email code; optional authenticator step after) — no mockup; v2 light style per design/TOKENS.md
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,8 @@ export default function SignInScreen() {
   return (
     <AuthShell title={t('auth.emailTitle')} hint={t('auth.emailHint')}>
       <EmailSignIn />
+      {/* no email? the mobile your manager added, with a code on WhatsApp */}
+      <Button label={t('auth.usePhone')} variant="outline" onPress={() => router.push('/phone' as Href)} />
       {__DEV__ && <DemoPersonas />}
     </AuthShell>
   );

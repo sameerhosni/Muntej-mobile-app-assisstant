@@ -31,6 +31,26 @@ import '@/features/prototype/strings';
 
 // non-tab numbered screens, e.g. "14-task-detail"
 const STACK_SCREENS = SCREENS.filter((s) => !s.tab).map((s) => s.route.slice(1));
+// screens added after the 43 of the registry: signed-in only too (listing them is what keeps them behind sign-in)
+const MORE_SCREENS = [
+  '44-more',
+  '46-growth',
+  '47-welcome',
+  '48-invite',
+  '49-backlog',
+  '50-whats-new',
+  '52-design',
+  '53-profile',
+  '54-saree3',
+  '55-tool',
+  '56-overview',
+  '57-support',
+  '58-home-sections',
+  '59-ideas',
+  '60-wishlist',
+  '61-build-team',
+  '62-team-review',
+];
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 SystemUI.setBackgroundColorAsync(colors.bg).catch(() => {});
@@ -114,7 +134,12 @@ function RootNavigator() {
               options={name === '02-capture' ? { presentation: 'modal', animation: 'slide_from_bottom' } : undefined}
             />
           ))}
+          {MORE_SCREENS.map((name) => (
+            <Stack.Screen key={name} name={name} />
+          ))}
         </Stack.Protected>
+        {/* the WhatsApp invite's link: signs the person in (works signed out) */}
+        <Stack.Screen name="join" />
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="(auth)" />
         </Stack.Protected>

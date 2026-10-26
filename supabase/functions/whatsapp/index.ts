@@ -15,6 +15,8 @@ import { adminClient } from '../_shared/push.ts';
 import { createFromSuggestion, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 import {
   ACTION_TEMPLATE,
+  CODE_TEMPLATE,
+  INVITE_TEMPLATE,
   callAs,
   capture,
   pend,
@@ -31,6 +33,7 @@ import {
   type WaRow,
 } from '../_shared/wa.ts';
 import { needsYouCards, sendCards, whenText } from '../_shared/wa-actions.ts';
+import { newPin, sha256 } from '../_shared/phone-session.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -112,8 +115,52 @@ const TEMPLATES = [
   },
 ];
 
+// the team invite (a personal PIN + a one-time join link) and the sign-in code (Meta's authentication format)
+const JOIN_URL = 'https://nizamy-muntej.expo.app/join.html?t={{1}}';
+const MORE_TEMPLATES = (lang: 'ar' | 'en') => [
+  {
+    name: INVITE_TEMPLATE(),
+    category: 'UTILITY',
+    components: [
+      {
+        type: 'BODY',
+        text:
+          lang === 'ar'
+            ? 'هلا {{1}} 👋\n{{2}} أضافك لفريق {{3}} على منتج، عشان توصلك مهامك وتتابعها بسهولة.\nاضغط «ادخل منتج» وتبدأ على طول.'
+            : 'Hi {{1}} 👋\n{{2}} added you to the {{3}} team on Muntej, so your tasks reach you and are easy to follow.\nTap "Join Muntej" to start.',
+        example: { body_text: [lang === 'ar' ? ['فيصل', 'أحمد', 'نظامي'] : ['Faisal', 'Ahmed', 'Nizamy']] },
+      },
+      { type: 'BUTTONS', buttons: [{ type: 'URL', text: lang === 'ar' ? 'ادخل منتج' : 'Join Muntej', url: JOIN_URL, example: ['https://nizamy-muntej.expo.app/join.html?t=abc123'] }] },
+    ],
+  },
+  {
+    name: CODE_TEMPLATE(),
+    category: 'AUTHENTICATION',
+    components: [
+      { type: 'BODY', add_security_recommendation: true },
+      { type: 'FOOTER', code_expiration_minutes: 10 },
+      { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] },
+    ],
+  },
+];
+
 /** register the number (2-step PIN), subscribe the app to its WhatsApp account, templates, profile, status */
-async function setup(o: { pin?: string; about?: string; description?: string; business?: string; waba?: string; test_to?: string; templates?: boolean }) {
+async function setup(o: {
+  pin?: string;
+  about?: string;
+  description?: string;
+  business?: string;
+  waba?: string;
+  test_to?: string;
+  /** create the templates (existing ones just report their status) */
+  templates?: boolean;
+  /** only the invite / code templates */
+  more_only?: boolean;
+  /** also the sign-in code template (Meta must allow authentication templates for this account) */
+  code_template?: boolean;
+  /** just list the templates and why Meta rejected any */
+  template_status?: boolean;
+}) {
   const token = Deno.env.get('WHATSAPP_TOKEN') ?? '';
   const phone = Deno.env.get('WHATSAPP_PHONE_ID') ?? '';
   const call = async (path: string, init?: RequestInit) => {
@@ -145,7 +192,7 @@ async function setup(o: { pin?: string; about?: string; description?: string; bu
   out.subscribed = await Promise.all(wabas.map((w) => call(`${w}/subscribed_apps`, { method: 'POST' }).then((r) => ({ waba: w, ...r }))));
   // register the number on the Cloud API (it shows "connected" after this)
   o.pin ??= Deno.env.get('WHATSAPP_PIN') ?? undefined;
-  if (o.pin && !o.templates) out.register = await call(`${phone}/register`, { method: 'POST', body: JSON.stringify({ messaging_product: 'whatsapp', pin: o.pin }) });
+  if (o.pin && !o.templates && !o.template_status) out.register = await call(`${phone}/register`, { method: 'POST', body: JSON.stringify({ messaging_product: 'whatsapp', pin: o.pin }) });
   if (o.about || o.description)
     out.profile = await call(`${phone}/whatsapp_business_profile`, {
       method: 'POST',
@@ -155,7 +202,7 @@ async function setup(o: { pin?: string; about?: string; description?: string; bu
   if (o.templates)
     for (const w of wabas.slice(0, 1)) {
       const made: unknown[] = [];
-      for (const t of TEMPLATES)
+      for (const t of o.more_only ? [] : TEMPLATES)
         for (const lang of ['ar', 'en'] as const)
           made.push({
             name: t.name,
@@ -173,8 +220,14 @@ async function setup(o: { pin?: string; about?: string; description?: string; bu
               }),
             })),
           });
+      for (const lang of ['ar', 'en'] as const)
+        for (const t of MORE_TEMPLATES(lang).filter((x) => o.code_template || x.category !== 'AUTHENTICATION'))
+          made.push({ name: t.name, lang, ...(await call(`${w}/message_templates`, { method: 'POST', body: JSON.stringify({ ...t, language: lang }) })) });
       out.templates = made;
-      out.template_status = (await call(`${w}/message_templates?fields=name,language,status,category&limit=50`)).body;
+    }
+  if (o.templates || o.template_status)
+    for (const w of wabas.slice(0, 1)) {
+      out.template_status = (await call(`${w}/message_templates?fields=name,language,status,category,rejected_reason&limit=50`)).body;
     }
   out.number = await call(`${phone}?fields=display_phone_number,verified_name,name_status,code_verification_status,quality_rating,platform_type,status`);
   // Meta's ready-made "hello_world" template: works before the person has written to the number
@@ -201,11 +254,31 @@ type ChatMsg = { id: string; content: string; action: string; payload: Record<st
 // the few words that skip the chat (Saudi and English ways of saying them)
 const SAYS_REPORT = /^(ملخص|الملخص|تقرير|التقرير|تقريري|report|my report|summary|brief)[\s؟?!.]*$/i;
 const SAYS_NEEDS = /^(وش يحتاجني|ايش يحتاجني|إيش يحتاجني|وش علي|وش عندي|what needs me|needs me|what's waiting|whats waiting)[\s؟?!.]*$/i;
+// asking for a sign-in code (the app opens WhatsApp with this text ready to send)
+const SAYS_CODE = /^(رمز الدخول|رمز دخول|الرمز|رمز|دخول|ادخل|sign[- ]?in code|login code|code|login)[\s؟?!.]*$/i;
 const SAYS_HELP = /^(مساعدة|ساعدني|help|\?|؟|وش تقدر تسوي|what can you do)[\s؟?!.]*$/i;
 
 async function handle(m: WaMessage, dry = false) {
   const admin = adminClient();
   const from = m.from.replace(/\D/g, '');
+  // a sign-in code: anyone Muntej knows by this number, invited (no login yet) or not
+  if (m.type === 'text' && SAYS_CODE.test((m.text?.body ?? '').trim())) {
+    const { data: known } = await admin.from('profiles').select('id, locale').eq('phone', from).neq('status', 'deleted').eq('hidden', false).limit(1);
+    const who = (known ?? [])[0];
+    if (!who)
+      return void (await waText(
+        from,
+        'رقمك مو مسجّل في منتج 🤔 اطلب من مديرك يضيفك برقم جوالك، أو ادخل بإيميلك.\n\nThis number isn’t in Muntej yet. Ask your manager to add you with it, or sign in with your email.',
+      ));
+    const code = newPin();
+    if (!dry)
+      await admin.from('phone_codes').upsert({ phone: from, code_hash: await sha256(`${from}:${code}`), tries: 0, expires_at: new Date(Date.now() + 10 * 60_000).toISOString() });
+    const ar = who.locale !== 'en';
+    return void (await waText(
+      from,
+      ar ? `رمز دخولك لمنتج: *${code}*\nصالح ١٠ دقايق. لا تعطيه أحد 🔒` : `Your Muntej sign-in code: *${code}*\nValid for 10 minutes. Don’t share it 🔒`,
+    ));
+  }
   // who sent it: their WhatsApp number on their profile; with several accounts, the one they work in now
   const { data: people } = await admin
     .from('profiles')

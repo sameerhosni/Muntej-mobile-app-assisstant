@@ -13,7 +13,7 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { useOrg, displayName } from '@/features/org/model';
-import { emailInvite } from '@/features/invite/api';
+import { sendInvites } from '@/features/invite/api';
 import { applyDraft, saveDraft, useDraft, type ApplyResult, type DraftPerson } from '@/features/teamImport/api';
 import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
 
@@ -104,14 +104,10 @@ export default function TeamReviewScreen() {
   const inviteAll = async () => {
     if (!result) return;
     setBusy(true);
-    let count = 0;
-    for (const p of list) {
-      const pid = result.ids[p.ref];
-      if (!pid || p.existing_id || !p.email || p.skip) continue;
-      const r = await emailInvite(pid).catch(() => 'failed');
-      if (r === 'invited') count++;
-    }
-    setInvited(count);
+    // WhatsApp (a one-time join link) when there's a mobile, email otherwise
+    const ids = list.filter((p) => result.ids[p.ref] && !p.existing_id && !p.skip && (p.phone || p.email)).map((p) => result.ids[p.ref]);
+    const res = await sendInvites(ids, 'auto').catch(() => []);
+    setInvited(res.filter((r) => r.whatsapp === 'sent' || r.email === 'invited').length);
     setBusy(false);
   };
 
@@ -143,7 +139,7 @@ export default function TeamReviewScreen() {
               </View>
             )}
             {invited === null ? (
-              list.some((p) => !p.existing_id && p.email && !p.skip) && <Button label={t('inviteEmail')} onPress={inviteAll} loading={busy} />
+              list.some((p) => !p.existing_id && (p.phone || p.email) && !p.skip) && <Button label={t('inviteEmail')} onPress={inviteAll} loading={busy} />
             ) : (
               <AppText color="greenText" weight="semibold">
                 {t('invited', { n: n(invited), count: invited })}
