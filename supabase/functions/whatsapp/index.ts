@@ -261,6 +261,26 @@ const SAYS_HELP = /^(مساعدة|ساعدني|help|\?|؟|وش تقدر تسوي
 async function handle(m: WaMessage, dry = false) {
   const admin = adminClient();
   const from = m.from.replace(/\D/g, '');
+  // signing in from the app ("دخول منتج #K7F3QX", sent with one tap): approve that key for whoever this number is
+  const login = m.type === 'text' ? (m.text?.body ?? '').match(/#([A-Z0-9]{6})\b/i) : null;
+  if (login) {
+    const { data: known } = await admin.from('profiles').select('id, locale').eq('phone', from).neq('status', 'deleted').eq('hidden', false).order('created_at').limit(1);
+    const who = (known ?? [])[0];
+    const ar = who?.locale !== 'en';
+    if (!who)
+      return void (await waText(
+        from,
+        'رقم الواتساب هذا مو مسجّل في منتج 🤔 اطلب من مديرك يضيفك بنفس الرقم، أو ادخل بإيميلك.\n\nThis WhatsApp number isn’t in Muntej. Ask your manager to add you with it, or sign in with your email.',
+      ));
+    if (!dry)
+      await admin
+        .from('wa_logins')
+        .update({ profile_id: who.id, phone: from, approved_at: new Date().toISOString() })
+        .eq('nonce', login[1].toUpperCase())
+        .is('approved_at', null);
+    await admin.from('profiles').update({ wa_last_inbound_at: new Date().toISOString() }).eq('phone', from);
+    return void (await waText(from, ar ? 'تم ✅ ارجع لمنتج، دخّلتك 👋' : 'Done ✅ Go back to Muntej, you’re in 👋'));
+  }
   // a sign-in code: anyone Muntej knows by this number, invited (no login yet) or not
   if (m.type === 'text' && SAYS_CODE.test((m.text?.body ?? '').trim())) {
     const { data: known } = await admin.from('profiles').select('id, locale').eq('phone', from).neq('status', 'deleted').eq('hidden', false).limit(1);

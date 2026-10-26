@@ -38,6 +38,24 @@ serve(async (req) => {
   // ── Muntej's WhatsApp number (the app opens a chat to it with "رمز الدخول": the reply is the code) ──
   if (body.action === 'wa_number') return json({ number: (Deno.env.get('WHATSAPP_NUMBER') ?? '966115209855').replace(/\D/g, '') });
 
+  // ── sign in with WhatsApp, nothing to type: a one-time key the person sends from WhatsApp ──
+  if (body.action === 'wa_start') {
+    const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => abc[b % abc.length]).join('');
+    await admin.from('wa_logins').insert({ nonce });
+    return json({ nonce, number: (Deno.env.get('WHATSAPP_NUMBER') ?? '966115209855').replace(/\D/g, '') });
+  }
+  if (body.action === 'wa_poll') {
+    const { data: row } = await admin.from('wa_logins').select('nonce, profile_id, approved_at, used_at, created_at').eq('nonce', String(body.token ?? '')).maybeSingle();
+    if (!row || Date.now() - Date.parse(row.created_at) > 15 * 60_000) throw new HttpError(410, 'This sign-in expired, start again');
+    if (!row.approved_at || !row.profile_id) return json({ waiting: true });
+    if (row.used_at) throw new HttpError(410, 'Already used, start again');
+    await admin.from('wa_logins').update({ used_at: new Date().toISOString() }).eq('nonce', row.nonce);
+    const { data: person } = await admin.from('profiles').select(PERSON).eq('id', row.profile_id).maybeSingle();
+    if (!person) throw new HttpError(404, 'No Muntej account for this WhatsApp number');
+    return json({ token_hash: await signIn(person as Person, 'whatsapp_message') });
+  }
+
   // ── fingerprint / face: a device key (made here, kept on the phone behind its biometrics) ──
   if (body.action === 'device_enroll') {
     // signed in: Authorization carries their session
@@ -142,7 +160,7 @@ serve(async (req) => {
       subject_id: p.id,
       action: 'phone_sign_in',
       summary: `Signed in with ${how.replace('_', ' ')}`,
-      summary_ar: how === 'whatsapp_code' ? 'دخل برمز الواتساب' : how === 'fingerprint' ? 'دخل ببصمته' : how === 'invite_pin' ? 'دخل برمز الدعوة' : 'دخل من رابط الدعوة',
+      summary_ar: how === 'whatsapp_code' ? 'دخل برمز الواتساب' : how === 'whatsapp_message' ? 'دخل برسالة واتساب' : how === 'fingerprint' ? 'دخل ببصمته' : how === 'invite_pin' ? 'دخل برمز الدعوة' : 'دخل من رابط الدعوة',
       reason: 'Mobile sign-in',
       undoable: false,
     });
