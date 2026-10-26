@@ -45,6 +45,7 @@ import { enablePush, sendTestPush, usePushStatus } from '@/features/notification
 import { markOnboarding, setAccountName, setMyName } from '@/features/onboarding/api';
 import { useSetup, type SetupKey } from '@/features/onboarding/setup';
 import { TOUR_NS } from '@/features/onboarding/tourStrings';
+import { BuildTeamCard } from '@/features/teamImport/BuildTeamCard';
 
 type T = (k: string, o?: Record<string, unknown>) => string;
 const ICON: Record<SetupKey, ComponentType<LucideProps>> = {
@@ -319,6 +320,8 @@ function TeamStep({ t, setup, onDone }: { t: T; setup: Setup; onDone: () => Prom
   return (
     <View style={{ gap: spacing.sm }}>
       <Said text={t('p_team')} />
+      {/* the smart way: the whole team from a photo, a file or a sentence (screen 61) */}
+      <BuildTeamCard />
       <TextInput
         value={text}
         onChangeText={setText}

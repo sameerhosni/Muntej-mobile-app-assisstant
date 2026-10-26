@@ -2,7 +2,7 @@
 // Demo data: parsed staff list + contacts (src/features/addTeam/demo.ts). Group link uses the native Share sheet.
 import { useMemo, useState, type ComponentType } from 'react';
 import { Pressable, ScrollView, Share, View } from 'react-native';
-import { Redirect, router } from 'expo-router';
+import { Redirect, router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Rect } from 'react-native-svg';
 import {
@@ -408,7 +408,7 @@ function PersonRow({ name, sub, warn, gradient, checked, last, label, onToggle }
   );
 }
 
-/** Adding people happens on the real Team screen (opens the add form). */
+/** Adding people happens on Build your team (screen 61: photo, file, a sentence, or one by hand). */
 export default function AddTeamScreen() {
-  return <Redirect href="/39-team?add=1" />;
+  return <Redirect href={"/61-build-team" as Href} />;
 }

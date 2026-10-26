@@ -8,6 +8,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, Share2, UserPlus, X } from 'lucide-react-native';
 import { AppText, Button, Card, FilterChips, IconButton, SearchField } from '@/components/ui';
+import { BuildTeamCard } from '@/features/teamImport/BuildTeamCard';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -222,6 +223,9 @@ export default function TeamScreen() {
         </View>
 
         <SetupBar />
+
+        {/* the smart way in: photo of the org chart, Excel or a sentence → the whole team (screen 61) */}
+        {lead && <BuildTeamCard />}
 
         <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
 
