@@ -69,6 +69,8 @@ export const EXCEPTION_KINDS = new Set<AlertKind>([
 /** these go out at once too when the task is high or urgent priority */
 export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk', 'no_reply']);
 export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
+  // what a connected tool synced: the tasks it found already wait in Your tools / Needs you; no push of its own
+  'tool_sync',
   'task_done_on_time',
   'task_done_early',
   'five_star',
@@ -321,19 +323,30 @@ export async function deliverPending(
     toSend.set(a.profile_id, [...(toSend.get(a.profile_id) ?? []), a]);
   }
 
-  for (const [profileId, list] of toSend) {
+  for (const [profileId, all] of toSend) {
+    // claim them first: a run that overlaps this one (the every-minute job while the morning backlog goes out) finds
+    // them taken and sends nothing, so a notification never arrives twice (owner, 26 Oct: 5 pushes for 2 alerts)
+    const { data: claimed } = await admin
+      .from('alerts')
+      .update({ delivered_at: now.toISOString() })
+      .in('id', all.map((a) => a.id))
+      .is('delivered_at', null)
+      .select('id');
+    const mine = new Set((claimed ?? []).map((c) => c.id as string));
+    const list = all.filter((a) => mine.has(a.id));
+    if (!list.length) continue;
     const p = prefs.get(profileId);
     const person = people.get(profileId);
     const ar = person?.locale === 'ar';
     const tTitle = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
     const tBody = (a: PendingAlert) => (ar ? a.body_ar : null) ?? a.body;
-    // 3+ at once (a bulk change, a busy minute): one notification that opens the Alerts screen
-    const grouped = list.length >= 3;
+    // 2+ at once (the morning backlog, a busy minute): one notification that opens the Alerts screen
+    const grouped = list.length >= 2;
     const messages = grouped
       ? [
           {
             alerts: list,
-            title: ar ? `${list.length} تحديثات من منتج` : `${list.length} updates from Muntej`,
+            title: ar ? (list.length === 2 ? 'تحديثين من منتج' : `${list.length} تحديثات من منتج`) : `${list.length} updates from Muntej`,
             // one update per line (joined with " · " the directions got mixed)
             body: list.slice(0, 3).map(tTitle).join('\n') + (list.length > 3 ? '\n…' : ''),
             data: { screen: 'alerts', count: list.length } as Record<string, unknown>,

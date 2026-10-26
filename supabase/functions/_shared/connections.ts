@@ -397,7 +397,8 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
     const parts = { en: [] as string[], ar: [] as string[] };
     if (out.tasks) {
       parts.en.push(`${out.tasks} task${out.tasks === 1 ? '' : 's'} came in`);
-      parts.ar.push(`وصلت ${out.tasks} مهام`);
+      const n = out.tasks;
+      parts.ar.push(n === 1 ? 'وصلت مهمة' : n === 2 ? 'وصلت مهمتين' : n <= 10 ? `وصلت ${n} مهام` : `وصلت ${n} مهمة`);
     }
     if (out.sent) {
       parts.en.push(`${out.sent} sent`);
