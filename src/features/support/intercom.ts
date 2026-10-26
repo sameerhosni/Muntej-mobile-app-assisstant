@@ -54,11 +54,12 @@ async function loginWeb() {
   signedIn = true;
 }
 
-/** the hosted support page with a one-time link that signs this person in (valid 15 minutes, used once) */
-export async function supportLink(): Promise<string> {
+/** the hosted support page with a one-time link that signs this person in (valid 15 minutes, used once); with a
+ *  conversation id it opens that conversation (a reply notification) */
+export async function supportLink(conversation?: string | null): Promise<string> {
   const { data, error } = await supabase.functions.invoke<{ url: string }>('support-identity', { body: { action: 'link' } });
   if (error || !data?.url) throw new Error(error?.message ?? 'no link');
-  return data.url;
+  return conversation ? `${data.url}&c=${encodeURIComponent(conversation)}` : data.url;
 }
 
 /** open the conversation with the Muntej team. Returns the reason when it can't open (Saree3 shows it). */

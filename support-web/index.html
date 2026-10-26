@@ -63,12 +63,14 @@
           company: me.company ? { company_id: me.company.id, name: me.company.name } : undefined, role: me.role,
         } : {}
       ));
-      window.Intercom('showNewMessage');
+      // a reply notification names its conversation (?c=): open it; otherwise the person's conversations
+      const conv = new URLSearchParams(location.search).get('c');
+      if (conv) window.Intercom('showConversation', conv); else window.Intercom('show');
       if (me) say(en ? 'Talk to the Muntej team' : 'كلّم فريق منتج', en ? 'A real person answers here. You can close this page any time.' : 'يرد عليك شخص من الفريق هنا. تقدر تقفل الصفحة متى ما تبي.');
       $('open').hidden = false;
       $('open').textContent = en ? 'Open the chat' : 'افتح المحادثة';
     }
-    $('open').onclick = () => window.Intercom('showNewMessage');
+    $('open').onclick = () => window.Intercom('show');
     start();
   </script>
 </body>

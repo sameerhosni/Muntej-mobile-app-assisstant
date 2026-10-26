@@ -4,7 +4,7 @@
 // Links to other sites open in the browser.
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, View } from 'react-native';
-import { router, type Href } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { ChevronLeft } from 'lucide-react-native';
@@ -12,6 +12,7 @@ import { AppText, Button, IconButton } from '@/components/ui';
 import { colors, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
+import { supabase } from '@/lib/supabase';
 import { supportLink } from '@/features/support/intercom';
 import { SUPPORT_NS } from '@/features/support/strings';
 
@@ -23,13 +24,24 @@ export default function SupportScreen() {
   const { isRTL } = useDirection();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-  const back = () => (router.canGoBack() ? router.back() : router.replace('/44-more' as Href));
+  // opened from a reply notification: its alert names the conversation (dedupe_key support:<conversation>:…)
+  const { alert } = useLocalSearchParams<{ alert?: string }>();
+  // opened from a notification there may be nothing behind it: back goes Home
+  const back = () => (router.canGoBack() ? router.back() : router.replace('/' as Href));
 
   const load = useCallback(() => {
     setFailed(false);
     setUrl(null);
-    supportLink().then(setUrl, () => setFailed(true));
-  }, []);
+    (async () => {
+      let conversation: string | null = null;
+      if (alert) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any).from('alerts').select('dedupe_key').eq('id', alert).maybeSingle();
+        conversation = (data?.dedupe_key as string | undefined)?.split(':')[1] || null;
+      }
+      return supportLink(conversation);
+    })().then(setUrl, () => setFailed(true));
+  }, [alert]);
   useEffect(load, [load]);
 
   return (

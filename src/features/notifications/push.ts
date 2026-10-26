@@ -143,7 +143,7 @@ function openFrom(data: unknown) {
   if (d.taskId) router.push({ pathname: '/14-task-detail', params: { id: d.taskId } } as Href);
   else if (d.kind === 'decision_waiting') router.push('/04-decisions' as Href);
   // the Muntej team replied in the support chat
-  else if (d.kind === 'support_reply') router.push('/57-support' as Href);
+  else if (d.kind === 'support_reply') router.push(`/57-support?alert=${d.alertId ?? ''}` as Href);
   // the daily summary opens Home
   else if (d.screen) {
     // the morning brief opened from its push (value ladder M5)

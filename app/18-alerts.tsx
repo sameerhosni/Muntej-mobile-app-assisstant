@@ -110,7 +110,7 @@ function RecentAlerts() {
     if (!a.read_at) markRead(a.id);
     if (a.task_id) router.push({ pathname: '/14-task-detail', params: { id: a.task_id } });
     else if (a.kind === 'decision_waiting') router.push('/04-decisions');
-    else if (a.kind === 'support_reply') router.push('/57-support' as Href);
+    else if (a.kind === 'support_reply') router.push(`/57-support?alert=${a.id}` as Href);
   };
 
   return (
