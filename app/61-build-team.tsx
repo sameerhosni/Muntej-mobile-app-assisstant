@@ -3,11 +3,11 @@
 // sentences too), connect a system (Microsoft / Google / Jisr, coming), or one person by hand. Every way ends on
 // Review your team (screen 62).
 import { useState, type ComponentType, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Camera, ChevronLeft, ClipboardPaste, FileSpreadsheet, Image as ImageIcon, PlugZap, UserPlus, type LucideProps } from 'lucide-react-native';
-import { AppText, Button, Card, Chip, IconBadge, IconButton, TextField } from '@/components/ui';
+import { AppText, Button, Card, Chip, IconBadge, IconButton, TextField, TimedProgress } from '@/components/ui';
 import { colors, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -19,14 +19,17 @@ export default function BuildTeamScreen() {
   const { t } = useScreenT(TEAM_IMPORT_NS);
   const { isRTL } = useDirection();
   const [busy, setBusy] = useState(false);
+  // how long this reading usually takes: a photo ~70 s (careful reading), a file ~40 s, a list ~12 s
+  const [expected, setExpected] = useState(12_000);
   const [error, setError] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [text, setText] = useState('');
   const [jisr, setJisr] = useState(false);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/39-team' as Href));
 
-  const run = async (read: () => Promise<Draft | null>) => {
+  const run = async (read: () => Promise<Draft | null>, ms = 12_000) => {
     setError(null);
+    setExpected(ms);
     setBusy(true);
     try {
       const draft = await read();
@@ -56,7 +59,7 @@ export default function BuildTeamScreen() {
             {busy ? t('reading') : t('sub')}
           </AppText>
         </View>
-        {busy && <ActivityIndicator color={colors.primary} />}
+        <TimedProgress active={busy} expectedMs={expected} stages={[t('p_send'), t('p_names'), t('p_lines'), t('p_tree'), t('p_check')]} />
         {!!error && (
           <AppText variant="small" color="red">
             {error}
@@ -64,12 +67,12 @@ export default function BuildTeamScreen() {
         )}
 
         {canPhoto && (
-          <Way Icon={Camera} bg="primaryTint" fg={colors.primary} title={t('photo')} sub={t('photoSub')} disabled={busy} onPress={() => run(() => readPhoto('camera'))}>
-            <Chip label={t('gallery')} onPress={() => run(() => readPhoto('library'))} />
+          <Way Icon={Camera} bg="primaryTint" fg={colors.primary} title={t('photo')} sub={t('photoSub')} disabled={busy} onPress={() => run(() => readPhoto('camera'), 70_000)}>
+            <Chip label={t('gallery')} onPress={() => run(() => readPhoto('library'), 70_000)} />
           </Way>
         )}
         {canFile && (
-          <Way Icon={FileSpreadsheet} bg="greenTint" fg={colors.green} title={t('file')} sub={t('fileSub')} disabled={busy} onPress={() => run(readFile)} />
+          <Way Icon={FileSpreadsheet} bg="greenTint" fg={colors.green} title={t('file')} sub={t('fileSub')} disabled={busy} onPress={() => run(readFile, 40_000)} />
         )}
         <Way Icon={ClipboardPaste} bg="purpleTint" fg={colors.purple} title={t('paste')} sub={t('pasteSub')} disabled={busy} onPress={() => setPasteOpen((o) => !o)}>
           {pasteOpen && (
@@ -82,7 +85,7 @@ export default function BuildTeamScreen() {
         <Way Icon={PlugZap} bg="amberTint" fg={colors.amberText} title={t('connect')} sub={t('connectSub')} disabled={busy} onPress={() => setJisr((j) => !j)}>
           <Chip label={t('ms')} onPress={() => run(async () => (await readDirectory('microsoft_directory'), null))} />
           <Chip label={t('google')} onPress={() => run(async () => (await readDirectory('google_directory'), null))} />
-          <Chip label={t('jisr')} onPress={() => setJisr(true)} />
+          <Chip label={t('jisrLabel')} onPress={() => setJisr(true)} />
           {jisr && (
             <AppText variant="caption" color="textSoft" style={{ width: '100%' }}>
               {t('jisrHow')}

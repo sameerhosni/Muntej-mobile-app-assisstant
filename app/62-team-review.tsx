@@ -7,7 +7,7 @@ import { Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, CircleAlert, CircleCheck } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Chip, IconButton, TextField, Toggle } from '@/components/ui';
+import { AppText, Avatar, Button, Card, Chip, IconButton, TextField, TimedProgress, Toggle } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -30,6 +30,7 @@ export default function TeamReviewScreen() {
   const [result, setResult] = useState<ApplyResult | null>(null);
   const [invited, setInvited] = useState<number | null>(null);
   const [bigPhoto, setBigPhoto] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const photo = draftPhoto(id);
   const n = (x: number) => formatNumber(x, lang);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/61-build-team' as Href));
@@ -117,9 +118,11 @@ export default function TeamReviewScreen() {
     if (!result) return;
     setBusy(true);
     // WhatsApp (a one-time join link) when there's a mobile, email otherwise
+    setInviting(true);
     const ids = list.filter((p) => result.ids[p.ref] && !p.existing_id && !p.skip && (p.phone || p.email)).map((p) => result.ids[p.ref]);
     const res = await sendInvites(ids, 'auto').catch(() => []);
     setInvited(res.filter((r) => r.whatsapp === 'sent' || r.email === 'invited').length);
+    setInviting(false);
     setBusy(false);
   };
 
@@ -150,6 +153,7 @@ export default function TeamReviewScreen() {
                 ))}
               </View>
             )}
+            <TimedProgress active={inviting} expectedMs={Math.max(4000, list.length * 1500)} stages={[t('p_invite'), t('p_almost')]} />
             {invited === null ? (
               list.some((p) => !p.existing_id && (p.phone || p.email) && !p.skip) && <Button label={t('inviteEmail')} onPress={inviteAll} loading={busy} />
             ) : (
@@ -227,7 +231,8 @@ export default function TeamReviewScreen() {
       </ScrollView>
 
       {!result && !!kept.length && (
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.screen, backgroundColor: colors.bg }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.screen, gap: spacing.sm, backgroundColor: colors.bg }}>
+          <TimedProgress active={busy} expectedMs={Math.max(4000, kept.length * 1200)} stages={[t('p_add'), t('p_link'), t('p_almost')]} />
           <Button label={busy ? t('saving') : t('confirmN', { n: n(kept.length), count: kept.length })} onPress={confirm} loading={busy} />
         </View>
       )}

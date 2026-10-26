@@ -41,7 +41,7 @@ import {
   UserPen,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Button, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, Toggle } from '@/components/ui';
+import { AppText, Button, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, TimedProgress, Toggle } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
@@ -212,6 +212,7 @@ function SummaryTest() {
   return (
     <View style={{ gap: spacing.sm }}>
       <Button label={t('summaryTest')} variant="outline" size="md" loading={busy} onPress={run} />
+      <TimedProgress active={busy} expectedMs={8000} stages={[t('p_build'), t('p_send')]} />
       {note && (
         <AppText variant="small" color="textMuted" align="center">
           {note}

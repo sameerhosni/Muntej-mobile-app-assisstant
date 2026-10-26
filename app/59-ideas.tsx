@@ -6,7 +6,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'rea
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Mic, Square, X } from 'lucide-react-native';
-import { AppText, Button, Card, Chip, IconButton, TextField } from '@/components/ui';
+import { AppText, Button, Card, Chip, IconButton, TextField, TimedProgress } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -156,6 +156,12 @@ export default function IdeasScreen() {
                 ))}
               </View>
             )}
+            <TimedProgress active={listening === 'writing'} expectedMs={6000} stages={[t('p_listening')]} />
+            <TimedProgress
+              active={send.isPending}
+              expectedMs={2500 + files.length * 4000}
+              stages={files.length ? [t('p_files'), t('p_sending')] : [t('p_sending')]}
+            />
             <Button label={t('send')} onPress={submit} loading={send.isPending} disabled={body.trim().length < 3 || listening !== 'off'} />
             {!!note && (
               <AppText variant="caption" color={send.isError ? 'red' : 'greenText'}>

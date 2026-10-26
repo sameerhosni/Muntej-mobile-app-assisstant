@@ -18,3 +18,4 @@ export { IconButton } from './IconButton';
 export { FilterChips, type FilterOption } from './FilterChips';
 export { SearchField } from './SearchField';
 export { BrandChip, BrandSymbol, BrandWordmark } from './Logo';
+export { TimedProgress } from './TimedProgress';
