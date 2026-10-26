@@ -29,7 +29,8 @@ export type AlertKind =
   | 'new_feature'
   | 'request_answered'
   | 'ladder_nudge'
-  | 'support_reply';
+  | 'support_reply'
+  | 'idea_update';
 
 export type AlertItem = {
   id: string;

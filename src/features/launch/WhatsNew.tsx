@@ -16,6 +16,7 @@ import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useAppPrefs } from '@/features/prefs/appPrefs';
+import { track } from '@/lib/analytics';
 import { canSwitchView } from '@/features/view-as/store';
 import { homeRouteFor } from '@/features/screens/registry';
 import { walkthrough } from '@/features/walkthrough/store';
@@ -194,7 +195,10 @@ export function WhatsNewStrip() {
       <Chevron color={colors.purple} size={20} />
       {/* close: hidden until a newer feature comes out (owner, 26 Oct) */}
       <Pressable
-        onPress={() => markWhatsNewOpened()}
+        onPress={() => {
+          track('whats_new_closed', { count });
+          markWhatsNewOpened();
+        }}
         accessibilityRole="button"
         accessibilityLabel={t('close')}
         hitSlop={8}

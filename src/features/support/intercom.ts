@@ -7,6 +7,7 @@ import { Platform } from 'react-native';
 import { router, type Href } from 'expo-router';
 import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
+import { track } from '@/lib/analytics';
 
 type Identity = { userId: string; email: string | null; name: string; role: string; company: { id: string; name: string } | null; hash: string | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,6 +65,7 @@ export async function supportLink(conversation?: string | null): Promise<string>
 
 /** open the conversation with the Muntej team. Returns the reason when it can't open (Saree3 shows it). */
 export async function openSupport(): Promise<string | null> {
+  track('support_opened');
   try {
     if (Platform.OS === 'web') {
       await loginWeb();

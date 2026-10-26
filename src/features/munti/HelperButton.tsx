@@ -22,7 +22,7 @@ import { AccessibilityInfo, Animated, Easing, PanResponder, Platform, Pressable,
 import { router, usePathname, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { CircleCheck, GraduationCap, History, Inbox, ListTodo, MessageCircleQuestion, Plus, TriangleAlert, Users, X, type LucideProps } from 'lucide-react-native';
+import { CircleCheck, GraduationCap, History, Inbox, ListTodo, Lightbulb, MessageCircleQuestion, Plus, TriangleAlert, Users, X, type LucideProps } from 'lucide-react-native';
 import type { ComponentType } from 'react';
 import { AppText, Gradient } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
@@ -49,6 +49,7 @@ import { supabase } from '@/lib/supabase';
 import { JOBS_NS } from '@/features/saree3/strings';
 import { openSupport } from '@/features/support/intercom';
 import { SUPPORT_NS } from '@/features/support/strings';
+import { IDEAS_NS } from '@/features/ideas/strings';
 
 /** "I need more time" on a task someone gave you: a decision for them (checkin_reply need_time) */
 async function askMoreTime(taskId: string) {
@@ -129,6 +130,7 @@ export function HelperButton() {
   const { t: tj } = useScreenT(JOBS_NS);
   const { t: tw } = useScreenT(WALK_NS);
   const { t: ts } = useScreenT(SUPPORT_NS);
+  const { t: ti } = useScreenT(IDEAS_NS);
   const { t: tg } = useTranslation();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -588,6 +590,15 @@ export function HelperButton() {
       ? { key: 'next', label: t('q_next'), Icon: ListTodo, bg: 'greenTint' as const, fg: colors.green, run: () => ask(t('q_next_msg')) }
       : { key: 'team', label: t('q_team'), Icon: Users, bg: 'greenTint' as const, fg: colors.green, run: () => ask(t('q_team_msg')) },
     { key: 'add', label: t('q_add'), Icon: Plus, bg: 'primaryTint' as const, fg: colors.primary, run: () => go({ pathname: '/02-capture', params: { mode: 'text' } }) },
+    // an idea or a note about the screen you're on (owner, 26 Oct: feedback and wish list)
+    {
+      key: 'idea',
+      label: ti('row'),
+      Icon: Lightbulb,
+      bg: 'amberTint' as const,
+      fg: colors.amberText,
+      run: () => go(`/59-ideas?from=${encodeURIComponent(pathname.replace(/^\/+/, '') || 'home')}` as Href),
+    },
     // the Muntej team (owner, 26 Oct: back in Saree3's menu now that the chat opens inside the app)
     {
       key: 'support',

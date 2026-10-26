@@ -6,6 +6,7 @@ import { useAuth } from '@/features/auth/AuthProvider';
 import { useViewAs, withView } from '@/features/view-as/store';
 import { qk, type TaskFilter } from './keys';
 import { logoutSupport } from '@/features/support/intercom';
+import { resetAnalytics } from '@/lib/analytics';
 import {
   ACTIVE_STATUSES,
   type ActivityEntry,
@@ -174,6 +175,7 @@ export function useSignOut() {
     mutationFn: async () => {
       // support chat: the next person on this phone starts fresh
       await logoutSupport().catch(() => {});
+      resetAnalytics();
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     },

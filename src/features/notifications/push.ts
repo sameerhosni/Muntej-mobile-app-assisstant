@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/tokens';
 import { markBriefOpen } from '@/features/ladder/api';
 import i18n from '@/lib/i18n';
+import { track } from '@/lib/analytics';
 
 export type PushStatus = 'unsupported' | 'checking' | 'denied' | 'on' | 'error';
 
@@ -136,6 +137,7 @@ function handleResponse(r: import('expo-notifications').NotificationResponse) {
  *  The alert it came from is marked read. */
 function openFrom(data: unknown) {
   const d = (data ?? {}) as { taskId?: string; alertId?: string; kind?: string; screen?: string };
+  track('notification_opened', { kind: d.kind ?? (d.screen ? 'summary' : 'other') });
   if (d.alertId) {
     const loose = supabase as unknown as { from: (t: string) => { update: (v: object) => { eq: (c: string, v: string) => PromiseLike<unknown> } } };
     Promise.resolve(loose.from('alerts').update({ read_at: new Date().toISOString() }).eq('id', d.alertId)).catch(() => {});
@@ -143,6 +145,7 @@ function openFrom(data: unknown) {
   if (d.taskId) router.push({ pathname: '/14-task-detail', params: { id: d.taskId } } as Href);
   else if (d.kind === 'decision_waiting') router.push('/04-decisions' as Href);
   // the Muntej team replied in the support chat
+  else if (d.kind === 'idea_update') router.push('/59-ideas' as Href);
   else if (d.kind === 'support_reply') router.push(`/57-support?alert=${d.alertId ?? ''}` as Href);
   // the daily summary opens Home
   else if (d.screen) {

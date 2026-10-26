@@ -7,6 +7,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { sendPush } from './push.ts';
 import { ACTION_TEMPLATE, inWindow, waButtons, waTemplate } from './wa.ts';
 import { needsYouCards } from './wa-actions.ts';
+import { phCapture } from './posthog.ts';
 
 export type AlertKind =
   | 'task_late'
@@ -30,7 +31,9 @@ export type AlertKind =
   // the value ladder: one gentle nudge when someone is stuck before a step (an everyday push, within the budget)
   | 'ladder_nudge'
   // the Muntej team replied in the support chat (Intercom webhook): always pushed
-  | 'support_reply';
+  | 'support_reply'
+  // news about an idea the person sent (status or the team's reply)
+  | 'idea_update';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -57,6 +60,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   request_answered: null,
   ladder_nudge: null,
   support_reply: null,
+  idea_update: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
@@ -71,6 +75,7 @@ export const EXCEPTION_KINDS = new Set<AlertKind>([
   'no_reply',
   'objective_missed',
   'support_reply',
+  'idea_update',
 ]);
 /** these go out at once too when the task is high or urgent priority */
 export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk', 'no_reply']);
@@ -396,6 +401,9 @@ export async function deliverPending(
           'id',
           m.alerts.map((a) => a.id),
         );
+      await phCapture(
+        m.alerts.map((a) => ({ distinctId: profileId, event: 'alert_delivered', properties: { kind: a.kind, push: sentPush, whatsapp: waStatus, grouped } })),
+      );
       await admin.from('activity_log').insert(
         m.alerts.map((a) => ({
           actor_type: 'muntej',

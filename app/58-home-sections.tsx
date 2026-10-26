@@ -28,6 +28,7 @@ import { FeaturePreview, useMyFeatures, type FeatureKey } from '@/features/prefs
 import { CorePreview } from '@/features/prefs/CorePreview';
 import { PREFS_NS } from '@/features/prefs/strings';
 import { MORE_NS } from '@/features/more/strings';
+import { track } from '@/lib/analytics';
 
 type Item = {
   key: string;
@@ -60,7 +61,10 @@ export default function HomeSectionsScreen() {
   const [preview, setPreview] = useState<Item | null>(null);
   const home = prefs.data?.home ?? {};
   const on = (key: string) => isOn(home, key);
-  const set = (key: string, value: boolean) => save.mutate({ home: { ...home, [key]: value } });
+  const set = (key: string, value: boolean) => {
+    track('home_section', { section: key, on: value });
+    save.mutate({ home: { ...home, [key]: value } });
+  };
   const back = () => (router.canGoBack() ? router.back() : router.replace('/' as Href));
 
   const items: Item[] = [
@@ -77,7 +81,10 @@ export default function HomeSectionsScreen() {
     >
       {/* tap the item: see how it looks first */}
       <Pressable
-        onPress={() => setPreview(i)}
+        onPress={() => {
+          track('home_section_preview', { section: i.key });
+          setPreview(i);
+        }}
         accessibilityRole="button"
         accessibilityLabel={i.title}
         style={({ pressed }) => ({ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, opacity: pressed ? 0.7 : 1 })}

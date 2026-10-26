@@ -4,6 +4,7 @@
 // still grows when something needs you (support mode).
 import { useCallback } from 'react';
 import { useAppPrefs, useSaveAppPrefs } from '@/features/prefs/appPrefs';
+import { track } from '@/lib/analytics';
 
 /** how big he's drawn: normal → medium → small */
 export const FAMILIAR_SCALE = { normal: 1, medium: 0.82, small: 0.66 } as const;
@@ -25,6 +26,7 @@ export function useFamiliar() {
   /** one of his options was used (a quick ask, talking to him…): saved only when it adds a new day or option */
   const note = useCallback(
     (key: string) => {
+      track('saree3_option', { option: key, size: scale === 1 ? 'normal' : scale === FAMILIAR_SCALE.medium ? 'medium' : 'small' });
       if (!prefs.data) return;
       const d = today();
       const newDay = !days.includes(d);
@@ -32,7 +34,7 @@ export function useFamiliar() {
       if (!newDay && !newKey) return;
       save.mutate({ saree3: { days: newDay ? [...days, d].slice(-14) : days, used: newKey ? [...used, key] : used } });
     },
-    [prefs.data, days, used, save],
+    [prefs.data, days, used, save, scale],
   );
   return { scale, note };
 }

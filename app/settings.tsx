@@ -43,6 +43,7 @@ import { munti, useMunti } from '@/features/munti/store';
 import { MUNTI_NS } from '@/features/munti/tips';
 import { SupportRow } from '@/features/support/SupportRow';
 import { HomeSectionsRow } from '@/features/prefs/HomeSectionsRow';
+import { IdeasRow } from '@/features/ideas/IdeasRow';
 import { NS as ALERTS_NS } from '@/features/alerts/strings';
 
 export default function SettingsScreen() {
@@ -431,6 +432,7 @@ export default function SettingsScreen() {
       </View>
       {/* a real person: support chat with the Muntej team */}
       <SupportRow />
+      <IdeasRow />
     </Screen>
   );
 }

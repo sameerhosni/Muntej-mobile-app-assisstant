@@ -31,6 +31,7 @@ import {
   type WaRow,
 } from '../_shared/wa.ts';
 import { needsYouCards, sendCards, whenText } from '../_shared/wa-actions.ts';
+import { phCapture } from '../_shared/posthog.ts';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
@@ -237,6 +238,19 @@ async function handle(m: WaMessage, dry = false) {
   const rtl = (s: string) => rtlOf(ar, s);
   const say = (s: string) => waText(from, rtl(s));
   if (!dry) await waTyping(m.id).catch(() => false);
+  // PostHog: how people use WhatsApp (what kind of message, never its words)
+  if (!dry)
+    await phCapture([
+      {
+        distinctId: me.id,
+        event: 'whatsapp_message',
+        properties: {
+          type: m.type,
+          tap: (m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? m.button?.payload ?? '').split(':')[0] || null,
+          forwarded: !!m.context?.forwarded,
+        },
+      },
+    ]);
 
   // ── taps ──
   const tapped = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? (m.type === 'button' ? m.button?.payload : undefined);

@@ -23,6 +23,7 @@ import { ProtoBar } from '@/features/prototype/ProtoBar';
 import { HelperButton } from '@/features/munti/HelperButton';
 import { usePushNotifications } from '@/features/notifications/push';
 import { useLiveSync } from '@/lib/realtime';
+import { useAnalytics } from '@/lib/analytics';
 import { ShareIntentProvider } from 'expo-share-intent';
 import { ShareIntake } from '@/features/incoming/ShareIntake';
 import { LaunchCard } from '@/features/launch/LaunchCard';
@@ -64,6 +65,8 @@ function RootNavigator() {
   usePushNotifications(!!session && !needsMfa);
   // live updates: any change to data this person can see refreshes the screen by itself
   useLiveSync(!!session && !needsMfa, session?.user.id);
+  // PostHog: who it is, every screen and the time on it (src/lib/analytics.ts)
+  useAnalytics(!!session && !needsMfa);
   // the app's language is the language of everything Muntej sends (notifications, WhatsApp, emails): tell the server
   useEffect(() => {
     if (session && !needsMfa) Promise.resolve(supabase.rpc('set_my_locale' as never, { p_locale: lang } as never)).catch(() => {});

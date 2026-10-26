@@ -3,4 +3,11 @@
 // app), so no Intercom keys are needed at build time. The workspace app id is kept for the web.
 const INTERCOM_APP_ID = 'lrn5nc6m';
 
-module.exports = ({ config }) => ({ ...config, extra: { ...config.extra, intercomAppId: INTERCOM_APP_ID } });
+// PostHog (product analytics, src/lib/analytics.ts): the project's public client key, US cloud
+const POSTHOG_KEY = 'phc_qhy99hF49RqU5ZD5fSMVEokUzLpayhmKCjYbCQn8wVhS';
+const POSTHOG_HOST = 'https://us.i.posthog.com';
+
+module.exports = ({ config }) => ({
+  ...config,
+  extra: { ...config.extra, intercomAppId: INTERCOM_APP_ID, posthogKey: POSTHOG_KEY, posthogHost: POSTHOG_HOST },
+});

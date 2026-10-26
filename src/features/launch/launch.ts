@@ -5,6 +5,7 @@ import { useSyncExternalStore } from 'react';
 import type { Href } from 'expo-router';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { track } from '@/lib/analytics';
 
 export type FeatureState = 'seen' | 'tried' | 'adopted' | 'later' | 'not_interested';
 export type Feature = {
@@ -31,6 +32,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   saree3_jobs: { href: '/01-home', spot: 'home.jobs' },
   whatsapp_approve: { href: '/55-tool?tool=whatsapp' as Href, spot: 'sources.whatsapp' },
   whatsapp_control: { href: '/55-tool?tool=whatsapp' as Href, spot: 'sources.whatsapp' },
+  ideas: { href: '/59-ideas?from=whats-new' as Href },
   tool_pages: { href: '/42-incoming', spot: 'tools.tiles' },
   journey_ladder: { href: '/01-home', spot: 'home.journey' },
   support_chat: { href: '/44-more' as Href },
@@ -94,6 +96,7 @@ export function useLaunchClient() {
 
 /** move my state for a feature (server keeps the order: seen < tried < adopted) */
 export async function markFeature(key: string, state: FeatureState) {
+  track('feature_state', { feature: key, state });
   const { error } = await untyped.rpc('mark_feature', { p_key: key, p_state: state });
   if (!error) qcRef?.invalidateQueries({ queryKey: ['featureStates'] });
 }

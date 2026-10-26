@@ -16,6 +16,7 @@ import { adminClient, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
 import { inWindow, REPORT_TEMPLATE, rtl, waConfigured, waTemplate, waText } from '../_shared/wa.ts';
 import { needsYouCards, sendCards } from '../_shared/wa-actions.ts';
+import { phCapture } from '../_shared/posthog.ts';
 
 type Lang = 'en' | 'ar';
 type Kind = 'daily' | 'midday' | 'evening';
@@ -623,6 +624,8 @@ async function sendOne(
     sent.push('whatsapp');
 
   if (!opts.test) await admin.from('daily_summaries').upsert({ profile_id: me.id, day: riyadhDay(now), kind, channels: sent });
+  if (!opts.dry && sent.length)
+    await phCapture([{ distinctId: me.id, event: 'report_sent', properties: { kind, channels: sent.join(','), manager: mgr, asked: opts.test } }]);
   if (sent.length) {
     const via = sent.join(', ');
     await admin.from('activity_log').insert({

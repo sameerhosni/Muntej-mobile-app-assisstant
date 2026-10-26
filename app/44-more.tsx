@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Award,
   Bot,
+  ClipboardList,
+  Lightbulb,
   ChevronLeft,
   CircleGauge,
   Eye,
@@ -81,6 +83,9 @@ export default function MoreScreen() {
         { key: 'incoming', href: '/42-incoming', Icon: Inbox, bg: 'primaryTint', fg: colors.primary, who: 'all', count: incoming.count },
         // every new feature with Saree3's "Show me how"
         { key: 'whatsNew', href: '/50-whats-new' as Href, Icon: Sparkles, bg: 'purpleTint', fg: colors.purple, who: 'all', count: whatsNew.count },
+        // ideas, problems and likes (screen 59); the super admin's wish list of everyone's (screen 60)
+        { key: 'ideas', href: '/59-ideas?from=more' as Href, Icon: Lightbulb, bg: 'amberTint', fg: colors.amberText, who: 'all' },
+        { key: 'wishlist', href: '/60-wishlist' as Href, Icon: ClipboardList, bg: 'purpleTint', fg: colors.purple, who: 'super' },
         // a real person: support chat with the Muntej team (Intercom), opens over this screen
         {
           key: 'support',
