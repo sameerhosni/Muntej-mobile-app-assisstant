@@ -66,6 +66,7 @@ import {
   type TaskSnapshot,
 } from '@/features/chat/api';
 import { OrgProposalCard, type OrgProposalState } from '@/features/chat/OrgProposalCard';
+import { TeamDraftCard, type TeamDraftPayload } from '@/features/teamImport/TeamDraftCard';
 import { ObjectiveProposalCard, type ObjectiveProposalState } from '@/features/chat/ObjectiveProposalCard';
 import { MuntejAvatar, MuntejBubble, MuntejText, NoticeBubble, TypingBubble, UserBubble } from '@/features/chat/Bubbles';
 import { ProposalCard, TaskCard, type CardState, type ProposalState } from '@/features/chat/TaskCard';
@@ -595,6 +596,8 @@ export default function MuntejChatScreen() {
           if (m.role === 'user') return <UserBubble key={m.id} text={m.content} time={timeFmt(m.created_at)} />;
           const snap = taskSnapshot(m.payload);
           const org = orgProposal(m.payload);
+          // a whole team drawn from the message (chat action "team")
+          const teamDraft = ((m.payload as Record<string, unknown> | null)?.team_draft ?? null) as TeamDraftPayload | null;
           const obj = objectiveProposal(m.payload);
           const bulk = payloadPart(m.payload, 'bulk_proposal');
           const bulkDone = payloadPart(m.payload, 'bulk_done');
@@ -670,6 +673,8 @@ export default function MuntejChatScreen() {
             );
           } else if (createdList) {
             card = <CreatedListCard key={`cl-${m.id}`} items={createdList} />;
+          } else if (teamDraft) {
+            card = <TeamDraftCard key={`td-${m.id}`} draft={teamDraft} />;
           } else if (org) {
             card = (
               <OrgProposalCard

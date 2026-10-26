@@ -22,6 +22,7 @@
 // When the owner's Muntej engine API is ready, this function is the one place to swap it in.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve, type Caller } from '../_shared/http.ts';
+import { readTeam } from '../_shared/team-reader.ts';
 import { adminClient } from '../_shared/push.ts';
 import { inviteByEmail, inviterInfo } from '../_shared/invite.ts';
 import { deliverPending } from '../_shared/notify.ts';
@@ -209,7 +210,7 @@ const Brief = z.object({
 const ChatOutput = z.object({
   language: z.enum(['en', 'ar']),
   reply: z.string(),
-  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'recurring', 'cancel', 'delete', 'org', 'objective', 'account']),
+  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'recurring', 'cancel', 'delete', 'org', 'team', 'objective', 'account']),
   task: NewTask.nullable().describe('Only when action = create'),
   update: TaskUpdate.nullable().describe('Only when action = update; null fields mean "unchanged"'),
   target_task_id: z.string().nullable().describe('Only when action = cancel or delete'),
@@ -240,6 +241,7 @@ Each turn, choose ONE action:
   WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team (never former_team) using, in order: skill level and years in the skills the work needs, title, recent_tasks similar to this one, then the lower load (stats.open / open_estimate_hours vs weekly_hours; avoid people marked overloaded or with late tasks when someone similar is free). Put the data-based reason in owner_reason (one short clause, user's language, e.g. "Selenium 4/5, 3 years, only 2 open tasks"). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
 - "org": the user wants to change the team itself (people, not tasks): add someone ("add Reem as QA engineer under Khalid, 5 years, Selenium and API testing" → op "add", person_id null, fields full_name, full_name_ar when you can write it, title + title_ar, manager_id, years_experience, skills_detail), move someone ("move Saad under Maha" → op "move", fields.manager_id), change details ("Faisal is now an admin" → role; "Khalid works 35 hours a week" → weekly_capacity_hours; "Noura knows Docker now" → skills_detail with just that skill; op "update"), or someone left / came back ("Noura left the company" → op "status", status "deleted"). Fill ONLY the fields that change, all others null. person_id must come from team or former_team. Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short.
   OBJECTIVE LINK: objectives lists the company objectives the user can see (each task can belong to one). On create, set task.objective_id to the active objective the task clearly belongs to (same topic, client, project or deliverable; owner in that objective's team is a hint, never enough on its own); if none clearly fits, null — never force a link. When you link it, say so in the reply ("added to objective «X»" / "وحطيتها تحت هدف «X»").
+- "team": the user describes SEVERAL people at once or a whole structure to add ("I have 3 managers: Faisal over sales with Abdullah and Saad, Noura over QA…", "عندنا سعد مدير التسويق وتحته خالد وريم", or pastes a staff list). The server reads it into a team draft the user reviews as a tree and confirms once; keep your reply to one short line. One single person to add or change is still "org".
 - "account": ACCOUNTS (companies using Muntej). "Create an account for Al-Rajhi Trading, admin Ali ali@rajhi.com" → op "create" with name (+ name_ar when you can), admin_full_name (+ _ar), admin_email (only when user.is_super_admin; otherwise action none and say only the super admin opens accounts). "Switch to / open / work in Al-Rajhi" → op "switch" with account_id from accounts. "Show my accounts" / "which accounts" → op "list". The server writes the reply. Adding PEOPLE to the current account is still "org" (op add, with their email so they get an invite). "Invite Faisal on WhatsApp 0555…" / "send Noura an invite on WhatsApp" / "ادعُ فيصل على الواتساب" → op "invite" with invitee_name, invitee_email and invitee_phone when said (the server asks for the email when it's missing: the email decides the team, there are no codes). Just an email and no WhatsApp / phone → "org" add instead.
 - "objective": the user wants to create, change, cancel or spread out an OBJECTIVE (a bigger goal with a start and end date that tasks roll up to): "new objective: launch the Riyadh branch by end of March" → op "create" with fields.title (+ title_ar when you can), due_at, start_at (null = from now), owner_id (null = the user), description; "move objective X to April" / "make Khalid accountable for X" / "rename X" → op "update" with only the changing fields; "cancel objective X" → op "cancel"; "spread / distribute X's tasks over its time" → op "distribute". objective_id must come from objectives (null only for create). Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short. Changing an objective's dates also moves its open tasks inside the new window.
 - OBJECTIVE QUESTIONS ("how are our objectives?", "which objectives are at risk?", "what's blocking objective X?", "كيف أهدافنا؟"): action "none", answer in 1-3 short sentences from objectives[] only: progress_pct (tasks done) vs time_used_pct (time passed), tasks.late, tasks.unassigned, at_risk, and issues (late, unassigned, blocked, outside_window = tasks due after the objective ends or before it starts). Name the real tasks/people in issues; never invent numbers. An objective with no tasks yet is a risk when time is passing. Suggest a fix when obvious (assign the unassigned task, move a date, distribute).
@@ -1397,6 +1399,25 @@ ${message}`
     parsed.suggestions = [];
   }
 
+  // ── a whole team described at once: read into a draft (the same reader as Build your team), reviewed in the app ──
+  let teamDraft: Record<string, unknown> | null = null;
+  if (parsed.action === 'team') {
+    const ar = parsed.language === 'ar';
+    try {
+      const d = await readTeam(db, profileId, { text: message, source: 'chat' });
+      const n = d.people.length;
+      const m = d.people.filter((p) => p.role === 'manager').length;
+      teamDraft = { id: d.id, count: n, managers: m, names: d.people.slice(0, 8).map((p) => (ar && p.full_name_ar) || p.full_name) };
+      parsed.reply = ar
+        ? `رسمت فريقك: ${n} ${n === 1 ? 'شخص' : 'أشخاص'}، منهم ${m} ${m === 1 ? 'مدير' : 'مدراء'}. راجعه وأكّد بضغطة 👇`
+        : `I drew your team: ${n} ${n === 1 ? 'person' : 'people'}, ${m} leading. Review it and confirm with one tap 👇`;
+    } catch (e) {
+      console.error('chat team', String(e));
+      parsed.reply = ar ? 'ما قدرت أقرا الفريق 😕 جرّب تكتبه بشكل ثاني، أو من «ابنِ فريقك»' : 'I couldn’t read the team 😕 Try saying it another way, or use Build your team';
+    }
+    parsed.suggestions = [];
+  }
+
   // ── objective change: never applied from a message, only proposed (the user confirms on a card → apply_objective) ──
   let objectiveProposal: ObjectiveProposal | null = null;
   if (parsed.action === 'objective') {
@@ -1461,6 +1482,8 @@ ${message}`
     payload = { duplicate };
   } else if (createdList.length > 1) {
     payload = { created_list: createdList };
+  } else if (teamDraft) {
+    payload = { team_draft: teamDraft };
   } else if (orgProposal) {
     payload = { org_proposal: orgProposal };
   } else if (objectiveProposal) {

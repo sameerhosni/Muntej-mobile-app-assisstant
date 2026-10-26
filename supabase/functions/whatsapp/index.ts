@@ -363,6 +363,12 @@ async function handle(m: WaMessage, dry = false) {
       await act(ar ? '✏️ حدّث الموجودة' : '✏️ Update that one', { chat: { apply: { task_id: d.existing.id, patch: d.patch } } });
       await act(ar ? '➕ سوّ جديدة' : '➕ Make a new one', { chat: { apply_create: { task: d.task, force: true } } });
       no();
+    } else if (p.team_draft) {
+      const d = p.team_draft;
+      lines.push('', ...(d.names as string[]).map((x) => `• ${x}`), ...(d.count > d.names.length ? [ar ? `+${d.count - d.names.length} غيرهم` : `+${d.count - d.names.length} more`] : []));
+      lines.push('', ar ? 'تبي تعدّل؟ افتح منتج ← فريقك ← ابنِ فريقك' : 'Want to fix something first? Open Muntej → Team → Build your team');
+      await act(ar ? '✅ أكّد الفريق' : '✅ Confirm the team', { team_apply: d.id });
+      no();
     } else if (p.org_proposal || p.objective_proposal || p.recurring_proposal) {
       const o = p.org_proposal ?? p.objective_proposal ?? p.recurring_proposal;
       if (o.summary_lines?.length) lines.push('', ...o.summary_lines.map((l: string) => `• ${l}`));
@@ -428,6 +434,26 @@ async function handle(m: WaMessage, dry = false) {
       if (!action) return void (await say(ar ? 'هالزر قديم شوي ⌛ قل لي وش تبي من جديد' : 'That button is a bit old ⌛ Tell me again what you need'));
       await admin.from('wa_pending').delete().eq('key', rest[0]);
       if (action.chat) return void (await chat(action.chat as Record<string, unknown>));
+      if (action.team_apply) {
+        // confirm a team drawn from the chat, as them (same as Confirm on Review your team)
+        const token = await userToken(admin, me.user_id);
+        const { data: draft } = await userDb(token).from('team_drafts').select('people').eq('id', action.team_apply).maybeSingle();
+        if (!draft) return void (await say(ar ? 'ما لقيت هالفريق 🤔' : 'I couldn’t find that team 🤔'));
+        try {
+          const r = await callAs<{ created: number; updated: number; failed: { name: string; error: string }[] }>(token, 'team-import', {
+            action: 'apply',
+            draft_id: action.team_apply,
+            people: draft.people,
+          });
+          return void (await say(
+            (ar ? `تم ✅ فريقك جاهز: ${r.created} انضافوا، ${r.updated} تحدّثوا` : `Done ✅ Your team is in: ${r.created} added, ${r.updated} updated`) +
+              (r.failed.length ? `\n${ar ? 'يحتاجون نظرة' : 'Need a look'}: ${r.failed.map((f) => f.name).join('، ')}` : '') +
+              `\n${ar ? 'ادعهم من منتج ← فريقك 💌' : 'Invite them from Muntej → Team 💌'}`,
+          ));
+        } catch (e) {
+          return void (await say(ar ? `ما قدرت أبني الفريق 😕 ${(e as Error).message}` : `I couldn’t build the team 😕 ${(e as Error).message}`));
+        }
+      }
       if (action.rpc) {
         const db = userDb(await userToken(admin, me.user_id));
         const { error } = await db.rpc(action.rpc as string, action.args as Record<string, unknown>);
