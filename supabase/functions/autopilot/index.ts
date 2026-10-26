@@ -149,10 +149,10 @@ async function run(admin: SupabaseClient, dry: boolean) {
   const prefsOf = new Map(
     ((prefsRes.data ?? []) as { profile_id: string; rules: Prefs['rules']; chase_reminders: number; auto_approve_days: number }[]).map((r) => [
       r.profile_id,
-      { rules: r.rules ?? {}, chase_reminders: r.chase_reminders ?? 3, auto_approve_days: r.auto_approve_days ?? 2 },
+      { rules: r.rules ?? {}, chase_reminders: r.chase_reminders ?? 2, auto_approve_days: r.auto_approve_days ?? 2 },
     ]),
   );
-  const prefs = (managerId: string | undefined): Prefs => (managerId && prefsOf.get(managerId)) || { rules: {}, chase_reminders: 3, auto_approve_days: 2 };
+  const prefs = (managerId: string | undefined): Prefs => (managerId && prefsOf.get(managerId)) || { rules: {}, chase_reminders: 2, auto_approve_days: 2 };
   const on = (managerId: string | undefined, rule: Rule) => prefs(managerId).rules[rule] !== false;
 
   const marks = new Map<string, number>();
@@ -241,9 +241,37 @@ async function run(admin: SupabaseClient, dry: boolean) {
     if (!owner || !ACTIVE.includes(t.status) || !t.due_at) continue;
     const due = Date.parse(t.due_at);
     if (due > now) continue;
+    // your own task (you gave it to yourself): nobody to chase. Saree3 moves it to the next working day by himself and
+    // says so in the morning brief; only high / urgent work gets one push (owner, 26 Oct: "Muntej should do it, and
+    // only notify for critical / high risks")
+    if (!t.assigner_id || t.assigner_id === owner.id) {
+      const skey = `selfmove:${t.id}:${t.due_at}`;
+      if (marks.has(skey)) continue;
+      const newDue = workingDaysAhead(now, 1);
+      const high = t.priority === 'high' || t.priority === 'urgent';
+      if (!dry) await admin.from('tasks').update({ due_at: new Date(newDue).toISOString() }).eq('id', t.id);
+      await mark(skey, t.id, owner.id);
+      await log({
+        subject: owner.id,
+        task: t.id,
+        action: 'due_moved',
+        en: `Moved "${t.title}" to ${whenText(newDue, false)}: it was due ${whenText(due, false)}`,
+        ar: `أجّلت «${t.title}» لـ${whenText(newDue, true)}: كان موعدها ${whenText(due, true)}`,
+        why: `Your own task passed its date; moved instead of chasing you (was ${t.due_at})`,
+      });
+      if (high)
+        await followup(t.id, owner.id, {
+          message: `⏰ This was due ${whenText(due, false)}: I moved it to ${whenText(newDue, false)}. Tap to change it.`,
+          message_ar: `⏰ كان موعدها ${whenText(due, true)}، وأجّلتها لـ${whenText(newDue, true)}. اضغط لو تبي تغيّر.`,
+        });
+      actions.push({ kind: 'self_move', key: skey, detail: `${first(owner)} · ${t.title}${high ? ' (pushed)' : ''}` });
+      continue;
+    }
     const manager = managerOf(owner.id, t.assigner_id);
     if (!on(manager?.id, 'chase_late')) continue;
-    const limit = prefs(manager?.id).chase_reminders;
+    // at most 2 reminders, then the manager decides (quiet Saree3); the first one only right away for high / urgent work
+    const limit = Math.min(2, prefs(manager?.id).chase_reminders);
+    if (!(t.priority === 'high' || t.priority === 'urgent') && now < nextWorkingMorning(due)) continue;
     const base = `chase:${t.id}:${t.due_at}`;
     const sent = [...Array(limit).keys()].map((i) => marks.get(`${base}:${i + 1}`)).filter((x): x is number => x !== undefined);
     const last = sent.length ? Math.max(...sent) : null;

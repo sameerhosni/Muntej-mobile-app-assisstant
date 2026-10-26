@@ -207,6 +207,7 @@ export async function createFromSuggestion(admin: SupabaseClient, profileId: str
         ownerFirstName: owner ? ((ar && owner.full_name_ar) || owner.full_name).split(' ')[0] : null,
         ownerArabic: ar,
         self: s.owner_id === profileId,
+        priority: s.priority,
         assignerFirstName: me ? ((ar && me.full_name_ar) || me.full_name).split(' ')[0] : null,
       })
     : [];

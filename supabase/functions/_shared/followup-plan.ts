@@ -44,6 +44,8 @@ export function buildPlan(opts: {
   helperFirstName?: string | null;
   /** who gave the task, named in the hand-off message */
   assignerFirstName?: string | null;
+  /** high / urgent work keeps its in-between checks; the rest gets only what someone must act on */
+  priority?: string | null;
   now?: Date;
 }): PlanStep[] {
   const { title, ownerArabic: ar, self } = opts;
@@ -172,8 +174,13 @@ export function buildPlan(opts: {
   const once = (steps: PlanStep[]) =>
     steps.filter((s, i) => !!s.at && (s.kind !== 'check' || steps.findIndex((o) => o.kind === 'check' && o.at === s.at) === i));
 
-  // no due date: brief + one check in ~2 working days
-  if (Number.isNaN(due) || due <= now) return once([brief, ...receipt, check(now + 48 * H)]);
+  // quiet Saree3 (owner, 26 Oct: "Muntej should do it and only notify for critical / high risks"): your own task gets
+  // no reminders at all unless it's high / urgent (then one, when it's due); someone else's gets the hand-off, one
+  // receipt reminder and the due-time collect; the in-between checks only for high / urgent work
+  const high = opts.priority === 'high' || opts.priority === 'urgent';
+
+  // no due date: the hand-off (+ one check in ~2 working days for high work)
+  if (Number.isNaN(due) || due <= now) return self ? [] : once([brief, ...receipt, ...(high ? [check(now + 48 * H)] : [])]);
 
   const span = due - now;
   const collect: PlanStep = {
@@ -194,12 +201,13 @@ export function buildPlan(opts: {
       message: self ? line('selfLastCall') : line('lastCall'),
     };
     const dueNow: PlanStep = { ...collect, message: self ? line('selfDueNow') : line('dueNow') };
-    const mid = span >= 3 * H ? [check(now + span / 2)] : [];
     // a receipt check within half an hour of "one hour left" is one message too many (unconfirmed, the last call is
     // worded as the receipt chase anyway)
     const close = (a: string, b: string) => !!a && !!b && Math.abs(Date.parse(a) - Date.parse(b)) < 30 * 60_000;
     const rec = receipt.filter((r) => !close(r.at, lastCall.at));
-    return once([brief, ...rec, ...mid, lastCall, dueNow].filter((s) => s === brief || s === dueNow || !s.at || Date.parse(s.at) < due));
+    if (self) return high ? once([dueNow]) : [];
+    // same day: the hand-off, the receipt, and for high work one "one hour left"; the due time collects
+    return once([brief, ...rec, ...(high ? [lastCall] : []), dueNow].filter((s) => s === brief || s === dueNow || !s.at || Date.parse(s.at) < due));
   }
 
   const risk: PlanStep = {
@@ -209,7 +217,8 @@ export function buildPlan(opts: {
     summary: ar ? 'لو التقدم أقل من ٥٠٪ أنبهك ومعي حل' : 'If progress is under 50%, flag it with a fix',
     message: self ? line('selfRisk') : line('risk'),
   };
-  const steps = [brief, ...receipt, check(now + span * 0.35), risk, collect];
+  if (self) return high ? once([collect]) : [];
+  const steps = high ? [brief, ...receipt, check(now + span * 0.35), risk, collect] : [brief, ...receipt, collect];
   // drop any middle step that working-hours rounding pushed past the due date
   return once(steps.filter((s) => s.kind === 'collect' || s.kind === 'brief' || !s.at || Date.parse(s.at) < due));
 }

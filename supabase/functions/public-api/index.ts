@@ -179,6 +179,7 @@ async function createTask(admin: SupabaseClient, key: Key, raw: unknown) {
         ownerArabic: ar,
         self: ownerId === key.actor_id,
         assignerFirstName: first(actor),
+        priority,
       })
     : [];
   const { data: id, error } = await admin.rpc('create_task_as', {

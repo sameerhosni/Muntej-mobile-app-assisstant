@@ -58,6 +58,9 @@ const W = {
     pulse: '{working} in progress · {late} late · {done} done yesterday',
     empHead: '{today} due today · {late} late · {back} sent back',
     needsYou: 'Needs you',
+    handled: 'I handled it for you',
+    handledMoved: 'moved {n} of your late tasks to the next working day',
+    handledNudged: 'sent {n} follow-ups to your team',
     decision: 'Decision: {title}',
     review: '{name} finished "{title}" · waiting for your review',
     late: '"{title}" · {name} · was due {when}',
@@ -94,6 +97,9 @@ const W = {
     pulse: '{working} شغالين عليها · {late} متأخرة · {done} خلصت أمس',
     empHead: '{today} مطلوبة اليوم · {late} متأخرة · {back} راجعة للتعديل',
     needsYou: 'يحتاجك',
+    handled: 'تكفّلت فيها عنك',
+    handledMoved: 'أجّلت {n} من مهامك المتأخرة ليوم العمل الجاي',
+    handledNudged: 'تابعت فريقك {n} مرات',
     decision: 'قرار: {title}',
     review: '{name} خلّص «{title}» · تنتظر مراجعتك',
     late: '«{title}» · {name} · كانت {when}',
@@ -151,6 +157,8 @@ type World = {
   tasks: Task[];
   decisions: { manager_id: string; title: string; title_ar: string | null }[];
   reviews: { task_id: string; reviewer_id: string | null }[];
+  /** what Saree3 did quietly in the last day (quiet Saree3: it shows here instead of as pushes) */
+  quiet: { movedFor: Map<string, number>; nudgedFor: Map<string, number> };
 };
 
 const top = (items: string[], lang: Lang, max = 3) =>
@@ -204,6 +212,13 @@ function managerSummary(me: Person, w: World, now: Date, lang: Lang): Summary | 
     .map((s) => s.line);
 
   const mine = ownWork(me, w, now, lang);
+  // what Saree3 handled quietly since yesterday (no pushes for it)
+  const moved = w.quiet.movedFor.get(me.id) ?? 0;
+  const nudged = w.quiet.nudgedFor.get(me.id) ?? 0;
+  const handled = [
+    moved && say(lang, 'handledMoved', { n: num(moved, lang) }),
+    nudged && say(lang, 'handledNudged', { n: num(nudged, lang) }),
+  ].filter(Boolean) as string[];
   if (!needs.length && !support.length && !mine.length && !working.length) return null;
 
   const date = when(now.toISOString(), lang);
@@ -212,7 +227,7 @@ function managerSummary(me: Person, w: World, now: Date, lang: Lang): Summary | 
     return {
       subject: say(lang, 'subjectMgr', { date }),
       headline: say(lang, 'allClear', { n: num(working.length, lang) }),
-      sections: [],
+      sections: handled.length ? [{ title: say(lang, 'handled'), items: handled }] : [],
       short: say(lang, 'allClearPush'),
     };
   return {
@@ -222,6 +237,7 @@ function managerSummary(me: Person, w: World, now: Date, lang: Lang): Summary | 
       { title: say(lang, 'needsYou'), items: top(needs, lang) },
       { title: say(lang, 'support'), items: top(support, lang) },
       { title: say(lang, 'yours'), items: top(mine, lang) },
+      { title: say(lang, 'handled'), items: handled },
     ].filter((s) => s.items.length),
     short: say(lang, 'pushMgr', { late: num(late.length, lang), reviews: num(reviews.length, lang), decisions: num(decisions.length, lang) }),
   };
@@ -353,7 +369,8 @@ async function sendWhatsAppSummary(phone: string, lang: Lang, s: Summary): Promi
 
 async function loadWorld(admin: SupabaseClient): Promise<World> {
   const since = new Date(Date.now() - 14 * DAY).toISOString();
-  const [peopleRes, tasksRes, decRes, revRes] = await Promise.all([
+  const dayAgo = new Date(Date.now() - DAY).toISOString();
+  const [peopleRes, tasksRes, decRes, revRes, movedRes, nudgedRes] = await Promise.all([
     // hidden = the super admin's viewing seat in an account: never part of the work
     admin.from('profiles').select(PERSON_COLS).neq('status', 'deleted').eq('hidden', false),
     admin
@@ -362,6 +379,8 @@ async function loadWorld(admin: SupabaseClient): Promise<World> {
       .or(`status.in.(${[...OPEN, 'submitted'].join(',')}),closed_at.gte.${since}`),
     admin.from('decisions').select('manager_id, title, title_ar').eq('status', 'pending'),
     admin.from('reviews').select('task_id, reviewer_id').is('decision', null),
+    admin.from('activity_log').select('subject_id').eq('action', 'due_moved').gte('created_at', dayAgo),
+    admin.from('followups').select('task:tasks(assigner_id, owner_id)').in('status', ['sent', 'replied']).gte('sent_at', dayAgo),
   ]);
   for (const r of [peopleRes, tasksRes, decRes, revRes]) if (r.error) throw r.error;
   return {
@@ -369,7 +388,22 @@ async function loadWorld(admin: SupabaseClient): Promise<World> {
     tasks: ((tasksRes.data ?? []) as Task[]).filter((x) => x.status !== 'cancelled'),
     decisions: decRes.data ?? [],
     reviews: revRes.data ?? [],
+    quiet: {
+      movedFor: count(((movedRes.data ?? []) as { subject_id: string | null }[]).map((r) => r.subject_id)),
+      // reminders Saree3 sent on a manager's behalf (to the people they gave work to)
+      nudgedFor: count(
+        ((nudgedRes.data ?? []) as unknown as { task: { assigner_id: string | null; owner_id: string | null } | null }[])
+          .filter((r) => r.task && r.task.assigner_id && r.task.assigner_id !== r.task.owner_id)
+          .map((r) => r.task!.assigner_id),
+      ),
+    },
   };
+}
+
+function count(ids: (string | null)[]) {
+  const m = new Map<string, number>();
+  for (const id of ids) if (id) m.set(id, (m.get(id) ?? 0) + 1);
+  return m;
 }
 
 function ruleOf(p: Prefs | undefined): Required<Rule> {

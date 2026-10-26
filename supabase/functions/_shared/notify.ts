@@ -71,6 +71,8 @@ export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk',
 export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
   // what a connected tool synced: the tasks it found already wait in Your tools / Needs you; no push of its own
   'tool_sync',
+  // quiet Saree3 (owner, 26 Oct: only act-now, high risks and wins push): a stuck step on the journey waits for the brief
+  'ladder_nudge',
   'task_done_on_time',
   'task_done_early',
   'five_star',
@@ -80,7 +82,7 @@ export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
   'overload',
   'new_feature',
 ]);
-export const DAILY_PUSHES = 3;
+export const DAILY_PUSHES = 1;
 
 export type QuietHours = { enabled?: boolean; prayer_times?: boolean; after?: string; friday?: boolean; ramadan?: boolean };
 export type Prefs = {

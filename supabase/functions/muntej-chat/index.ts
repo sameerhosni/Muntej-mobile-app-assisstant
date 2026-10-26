@@ -1033,6 +1033,7 @@ ${message}`
       self: t.owner_id === profileId,
       helperFirstName: first(helper),
       assignerFirstName: first(everyone.find((p) => p.id === profileId)),
+      priority: t.priority,
     });
     const { data, error } = await db.rpc('create_task_with_plan', { p: { ...t, followup_plan, source, transcript: message || null } });
     if (error) throw new HttpError(400, error.message);
@@ -1207,6 +1208,7 @@ ${message}`
             ownerFirstName: owner ? ((ownerArabic ? owner.full_name_ar : null) ?? owner.full_name).split(' ')[0] : null,
             ownerArabic,
             self: patch.owner_id === profileId,
+            priority: ((patch.priority as string) ?? before.priority) || null,
             assignerFirstName: (() => {
               const me = everyone.find((p) => p.id === profileId);
               return me ? ((ownerArabic ? me.full_name_ar : null) ?? me.full_name).split(' ')[0] : null;

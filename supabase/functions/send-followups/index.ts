@@ -39,7 +39,7 @@ serve(async (req) => {
   const { data: due, error } = await admin
     .from('followups')
     .select(
-      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, status, owner_id, assigner_id, created_at, due_at), recipient:profiles!followups_recipient_id_fkey(locale, full_name, full_name_ar, manager_id)',
+      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, status, owner_id, assigner_id, created_at, due_at, priority), recipient:profiles!followups_recipient_id_fkey(locale, full_name, full_name_ar, manager_id)',
     )
     .eq('status', 'scheduled')
     .gte('scheduled_at', from.toISOString())
@@ -135,6 +135,12 @@ serve(async (req) => {
         .select('id', { count: 'exact', head: true })
         .eq('task_id', f.task_id)
         .eq('action', 'receipt_chased');
+      // quiet Saree3: one receipt reminder, then no more pushes (if it's late, the autopilot escalates as a decision)
+      if ((chased ?? 0) >= 1) {
+        await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
+        skipped++;
+        continue;
+      }
       const delivered = await sendPush([f.recipient_id], { title: task.title, body: chase, data: { taskId: f.task_id }, categoryId: 'handoff' }, admin);
       await admin.from('followups').update(delivered ? { status: 'sent', sent_at: now.toISOString() } : { status: 'skipped' }).eq('id', f.id);
       if (!delivered) {
@@ -155,16 +161,17 @@ serve(async (req) => {
       });
       // asked twice and still silent: now (and only now) the person above hears about it, with what Saree3 already did
       const boss = who?.manager_id ?? task.assigner_id;
-      if ((chased ?? 0) >= 1 && boss) {
+      const highWork = (task as { priority?: string }).priority === 'high' || (task as { priority?: string }).priority === 'urgent';
+      if (highWork && boss) {
         await admin.from('alerts').insert({
           profile_id: boss,
           kind: 'escalated',
           subject_id: f.recipient_id,
           task_id: f.task_id,
           title: `${(who?.full_name ?? '').split(' ')[0]} hasn't confirmed "${task.title}"`,
-          body: 'I reminded them twice. I keep following up; call them if it is urgent.',
+          body: 'High priority and not confirmed yet: I reminded them. Call them if it is urgent.',
           title_ar: `${(who?.full_name_ar || who?.full_name || '').split(' ')[0]} ما أكد استلام «${task.title}»`,
-          body_ar: 'ذكّرته مرتين وأنا مكمّل أتابعه. لو مستعجلة كلّمه.',
+          body_ar: 'أولويتها عالية وما أكد استلامها: ذكّرته. لو مستعجلة كلّمه.',
           dedupe_key: `unconfirmed:${f.task_id}`,
         });
       }
