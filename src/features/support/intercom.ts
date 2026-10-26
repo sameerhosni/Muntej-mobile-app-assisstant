@@ -154,26 +154,31 @@ async function diagnoseNative(sdk: Any) {
   });
   await run('loggedIn after', () => sdk.default.isUserLoggedIn());
   await run('user', () => sdk.default.fetchLoggedInUserAttributes?.());
+  // the screen froze on 26 Oct before anything was written: report before opening, right after, and a bit later
+  const { data: me } = await supabase.rpc('current_profile_id');
+  const report = (stage: string) =>
+    supabase
+      .from('activity_log')
+      .insert({
+        actor_type: 'user',
+        actor_id: me as string,
+        action: 'support_debug',
+        summary: `In-app chat test: ${stage}`,
+        summary_ar: 'تجربة الدردشة داخل التطبيق',
+        reason: JSON.stringify({ os: Platform.OS, version: Platform.Version, steps }).slice(0, 4000),
+        undoable: false,
+      })
+      .then(
+        () => {},
+        () => {},
+      );
+  await report('before present');
   await run('present messages', () => sdk.default.presentSpace(sdk.Space.messages));
-  await new Promise((r) => setTimeout(r, 8000));
+  await report('after present');
+  await new Promise((r) => setTimeout(r, 4000));
   app.remove();
   for (const s of subs) s?.remove?.();
-  const { data: me } = await supabase.rpc('current_profile_id');
-  await supabase
-    .from('activity_log')
-    .insert({
-      actor_type: 'user',
-      actor_id: me as string,
-      action: 'support_debug',
-      summary: 'In-app chat test',
-      summary_ar: 'تجربة الدردشة داخل التطبيق',
-      reason: JSON.stringify({ os: Platform.OS, version: Platform.Version, steps }).slice(0, 4000),
-      undoable: false,
-    })
-    .then(
-      () => {},
-      () => {},
-    );
+  await report('4s later');
 }
 
 /** on sign-out */
