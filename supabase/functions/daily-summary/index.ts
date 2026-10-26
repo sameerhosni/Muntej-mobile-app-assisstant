@@ -198,7 +198,10 @@ type Key = keyof (typeof W)['en'];
 const fill = (s: string, v: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ''));
 const say = (lang: Lang, key: Key, v: Record<string, string | number> = {}) => fill(W[lang][key], v);
 
-const num = (n: number, lang: Lang) => n.toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US');
+/** the push's numbers on their own line, clearly apart: "10 done today  |  0 late  |  4 need you" */
+const pushLine = (short: string) => short.replace(/ · /g, '  |  ');
+// 0-9 in both languages (owner, 26 Oct: Arabic-Indic digits next to the · separators were unclear, ٠ looked like a dot)
+const num = (n: number, _lang: Lang) => n.toLocaleString('en-US');
 const firstName = (p: Person | undefined, lang: Lang) => ((lang === 'ar' && p?.full_name_ar) || p?.full_name || '').split(' ')[0];
 const when = (iso: string, lang: Lang) =>
   new Date(iso).toLocaleDateString(lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', day: 'numeric', month: 'short' });
@@ -612,8 +615,12 @@ async function sendOne(
     const pushed = await sendPush(
       [me.id],
       receipt
-        ? { title: s.subject, body: `${s.hello} · ${s.short} · ${lang === 'ar' ? '🧾 إيصال أسبوعك جاهز' : '🧾 Your week’s receipt is ready'}`, data: { screen: '/32-receipt' } }
-        : { title: s.subject, body: `${s.hello} · ${s.short}`, data: { screen: '/' } },
+        ? {
+            title: s.subject,
+            body: `${s.hello}\n${pushLine(s.short)}\n${lang === 'ar' ? '🧾 إيصال أسبوعك جاهز' : '🧾 Your week’s receipt is ready'}`,
+            data: { screen: '/32-receipt' },
+          }
+        : { title: s.subject, body: `${s.hello}\n${pushLine(s.short)}`, data: { screen: '/' } },
       admin,
     );
     if (pushed > 0) sent.push('push');

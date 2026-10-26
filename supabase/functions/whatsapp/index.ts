@@ -545,7 +545,7 @@ async function handle(m: WaMessage, dry = false) {
   async function needsYou(max: number) {
     const cards = await needsYouCards(admin, me.id, ar);
     if (!cards.length) return void (await say(ar ? 'ما فيه شي يحتاجك الحين 👌 أنا ماسك الباقي' : 'Nothing needs you right now 👌 I’ve got the rest'));
-    await say(ar ? (cards.length === 1 ? 'فيه شي واحد يحتاجك 👇' : `فيه ${cards.length.toLocaleString('ar-SA')} أشياء تحتاجك 👇`) : `${cards.length} thing${cards.length > 1 ? 's' : ''} need${cards.length > 1 ? '' : 's'} you 👇`);
+    await say(ar ? (cards.length === 1 ? 'فيه شي واحد يحتاجك 👇' : `فيه ${cards.length} أشياء تحتاجك 👇`) : `${cards.length} thing${cards.length > 1 ? 's' : ''} need${cards.length > 1 ? '' : 's'} you 👇`);
     await sendCards(from, ar, cards, max);
   }
 
