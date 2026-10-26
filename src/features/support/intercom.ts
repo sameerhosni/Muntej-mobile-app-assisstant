@@ -41,6 +41,9 @@ function webIntercom(): Any | null {
   return w.Intercom;
 }
 
+/** open Intercom's own Messenger inside the app (off until its mobile setup in Intercom shows real content) */
+const NATIVE_CHAT = false;
+
 /** support chat is offered everywhere; a build without Intercom says so when opened */
 export const supportAvailable = () => true;
 
@@ -90,9 +93,10 @@ export async function openSupport(): Promise<string | null> {
       webIntercom()?.('showNewMessage');
       return null;
     }
-    // the Messenger inside the app (Intercom's own window, not the composer screen that crashed on 25 Oct); if this
-    // build can't, the support page in the browser
-    const sdk = native();
+    // the Messenger inside the app (Intercom's own window, not the composer screen that crashed on 25 Oct) stays off
+    // for now: in the 26 Oct build it opened an empty white screen (Intercom's mobile Messenger isn't set up yet on
+    // the Intercom side). The support page in the browser works, so that's what opens until NATIVE_CHAT is turned on.
+    const sdk = NATIVE_CHAT ? native() : null;
     if (sdk) {
       try {
         await loginSupport();
