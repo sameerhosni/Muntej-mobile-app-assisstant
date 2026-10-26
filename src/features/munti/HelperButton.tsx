@@ -39,6 +39,7 @@ import { MUNTI_NS, ROUTE_TIPS } from './tips';
 import { walkthrough } from '@/features/walkthrough/store';
 import { WALK_NS } from '@/features/walkthrough/strings';
 import { munti, useMunti } from './store';
+import { useFamiliar } from './familiar';
 import { RANK, usePerformance, type Line, type PerfStatus } from './performance';
 import { timeLabel, useWeekValue, type WeekValue } from './value';
 import { formatNumber } from '@/features/home/value';
@@ -297,6 +298,9 @@ export function HelperButton() {
   const launchOn = useLaunchCardOn();
   const { toggle: completeTask } = useCompleteTask();
   const supportOn = support.count > 0;
+  // drawn smaller once they know him (2–3 days of use, most options tried); back to full size when something needs them
+  const familiar = useFamiliar();
+  const drawn = supportOn ? 1 : familiar.scale;
 
   // ── where he sits: dragged anywhere, snaps to the nearest side, remembered on the phone ──
   const { height: screenH } = useWindowDimensions();
@@ -383,6 +387,7 @@ export function HelperButton() {
   const startTalk = async () => {
     if (talking.current) return;
     talking.current = true;
+    familiar.note('talk');
     setOpen(false);
     munti.dismiss();
     setTalk('recording');
@@ -688,7 +693,10 @@ export function HelperButton() {
               {quick.map((q) => (
                 <Pressable
                   key={q.key}
-                  onPress={q.run}
+                  onPress={() => {
+                    familiar.note(q.key);
+                    q.run();
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel={q.label}
                   style={({ pressed }) => ({
@@ -762,11 +770,11 @@ export function HelperButton() {
             pointerEvents="none"
             style={{
               position: 'absolute',
-              left: -10,
-              top: -10,
-              width: FAB + 20,
-              height: FAB + 20,
-              borderRadius: (FAB + 20) / 2,
+              left: (FAB - (FAB * drawn + 20)) / 2,
+              top: (FAB - (FAB * drawn + 20)) / 2,
+              width: FAB * drawn + 20,
+              height: FAB * drawn + 20,
+              borderRadius: (FAB * drawn + 20) / 2,
               backgroundColor: supportOn ? colors.red : glow,
               opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: supportOn ? [0.12, 0.42] : [0.06, 0.2] }),
               transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.92, supportOn ? 1.18 : 1.06] }) }],
@@ -786,13 +794,15 @@ export function HelperButton() {
             style={{ width: FAB, height: FAB, borderRadius: FAB / 2 }}
           >
             {/* new key per screen/toast → hops in again */}
-            <Munti
-              key={toast?.id ?? pathname}
-              size="md"
-              tone={tone}
-              mood={fabMood}
-              settleAfter={fabMood === 'talk' && talk === 'idle' ? 2400 : undefined}
-            />
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', transform: [{ scale: drawn }] }}>
+              <Munti
+                key={toast?.id ?? pathname}
+                size="md"
+                tone={tone}
+                mood={fabMood}
+                settleAfter={fabMood === 'talk' && talk === 'idle' ? 2400 : undefined}
+              />
+            </View>
           </Pressable>
           {supportOn && talk === 'idle' && (
             <View

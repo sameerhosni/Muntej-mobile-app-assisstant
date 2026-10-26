@@ -8,12 +8,14 @@ import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Sparkles, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 import { AppText } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { useAppPrefs } from '@/features/prefs/appPrefs';
 import { canSwitchView } from '@/features/view-as/store';
 import { homeRouteFor } from '@/features/screens/registry';
 import { walkthrough } from '@/features/walkthrough/store';
@@ -32,6 +34,7 @@ const en = {
   none: 'You’ve seen everything new 🎉',
   back: 'Back',
   myDemo: 'Drag me anywhere, hold me to talk, and drop me on the ✕ to hide me. Try it now!',
+  close: 'Hide until something newer comes out',
 };
 const ar: typeof en & Record<string, string> = {
   title: 'الجديد في منتج',
@@ -48,6 +51,7 @@ const ar: typeof en & Record<string, string> = {
   none: 'شفت كل الجديد 🎉',
   back: 'رجوع',
   myDemo: 'اسحبني لأي مكان، اضغط علي مطوّل وتكلّم، وارمني على ✕ عشان أختفي. جرّب الحين!',
+  close: 'أخفها لين ينزل شي أجدد',
 };
 export const WHATS_NEW_NS = registerStrings('whatsNew', { en, ar });
 
@@ -61,7 +65,8 @@ const TOOLS_ENTRY = {
   benefit_ar: 'جيميل، قوقل شات، ميت، التقويم والواتساب: أقراها عنك، لكل أداة صفحتها، وتوافق على اللي ألقاه بضغطة.',
 };
 
-/** the What's new page is shown once: its strip comes back only for features released after you last opened it */
+/** the What's new page is shown once: its strip comes back only for features released after you last opened it (or
+ *  closed the strip). Kept on the phone and on the server (app_prefs), so a reinstall doesn't bring it back. */
 const SEEN_KEY = 'whatsNewOpenedAt';
 let openedAt: string | null | undefined;
 const openedListeners = new Set<() => void>();
@@ -69,6 +74,13 @@ export async function markWhatsNewOpened() {
   openedAt = new Date().toISOString();
   openedListeners.forEach((l) => l());
   await AsyncStorage.setItem(SEEN_KEY, openedAt).catch(() => {});
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: id } = await (supabase as any).rpc('current_profile_id');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (id) await (supabase as any).from('app_prefs').upsert({ profile_id: id, whats_new_seen_at: openedAt }).then(
+    () => {},
+    () => {},
+  );
 }
 function useOpenedAt() {
   const [v, setV] = useState<string | null | undefined>(openedAt);
@@ -107,7 +119,12 @@ export function useWhatsNew() {
   const isNew = (f: Feature) => (f.key === lead?.key ? group.some((g) => isNewFor(states.data, g.key)) : isNewFor(states.data, f.key));
   // still new first (in launch order), then the rest, newest released first
   const list = [...mine.filter(isNew), ...mine.filter((f) => !isNew(f)).sort((a, b) => b.released_at.localeCompare(a.released_at))];
-  const opened = useOpenedAt();
+  const local = useOpenedAt();
+  const prefs = useAppPrefs();
+  const server = prefs.data?.whats_new_seen_at ?? null;
+  const prefsDone = !!prefs.data || prefs.isError;
+  // the later of the phone's and the server's mark
+  const opened = local === undefined || !prefsDone ? undefined : [local, server].filter(Boolean).sort().pop() ?? null;
   // the strip: only what came out after you last opened the page
   const unseen = opened === undefined ? 0 : mine.filter((f) => isNew(f) && (!opened || f.released_at > opened)).length;
   return { list, isNew, role, states: states.data, count: mine.filter(isNew).length, unseen, ready: !!features.data && !!states.data && opened !== undefined };
@@ -175,6 +192,16 @@ export function WhatsNewStrip() {
         </AppText>
       </View>
       <Chevron color={colors.purple} size={20} />
+      {/* close: hidden until a newer feature comes out (owner, 26 Oct) */}
+      <Pressable
+        onPress={() => markWhatsNewOpened()}
+        accessibilityRole="button"
+        accessibilityLabel={t('close')}
+        hitSlop={8}
+        style={({ pressed }) => ({ width: sizes.touch, height: sizes.touch, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+      >
+        <X color={colors.textMuted} size={18} strokeWidth={2.4} />
+      </Pressable>
     </Pressable>
   );
 }

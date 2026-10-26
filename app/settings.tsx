@@ -42,6 +42,7 @@ import { Munti } from '@/features/munti/Munti';
 import { munti, useMunti } from '@/features/munti/store';
 import { MUNTI_NS } from '@/features/munti/tips';
 import { SupportRow } from '@/features/support/SupportRow';
+import { HomeSectionsRow } from '@/features/prefs/HomeSectionsRow';
 import { NS as ALERTS_NS } from '@/features/alerts/strings';
 
 export default function SettingsScreen() {
@@ -291,6 +292,8 @@ export default function SettingsScreen() {
         </View>
         <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
       </Card>
+
+      <HomeSectionsRow />
 
       <Card
         onPress={() => router.push('/18-alerts')}

@@ -28,7 +28,8 @@ export type AlertKind =
   | 'tool_sync'
   | 'new_feature'
   | 'request_answered'
-  | 'ladder_nudge';
+  | 'ladder_nudge'
+  | 'support_reply';
 
 export type AlertItem = {
   id: string;

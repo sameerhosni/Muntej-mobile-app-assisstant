@@ -28,7 +28,9 @@ export type AlertKind =
   | 'new_feature'
   | 'request_answered'
   // the value ladder: one gentle nudge when someone is stuck before a step (an everyday push, within the budget)
-  | 'ladder_nudge';
+  | 'ladder_nudge'
+  // the Muntej team replied in the support chat (Intercom webhook): always pushed
+  | 'support_reply';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -54,6 +56,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   // your manager answered what you asked (more time, which first, help)
   request_answered: null,
   ladder_nudge: null,
+  support_reply: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
@@ -67,6 +70,7 @@ export const EXCEPTION_KINDS = new Set<AlertKind>([
   'escalated',
   'no_reply',
   'objective_missed',
+  'support_reply',
 ]);
 /** these go out at once too when the task is high or urgent priority */
 export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk', 'no_reply']);
