@@ -11,7 +11,7 @@ import { colors, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
-import { IDEA_KINDS, IDEA_STATUSES, useAllIdeas, useUpdateIdea, type Idea, type IdeaKind, type IdeaStatus } from '@/features/ideas/api';
+import { IDEA_KINDS, IDEA_STATUSES, openIdeaFile, useAllIdeas, useUpdateIdea, type Idea, type IdeaKind, type IdeaStatus } from '@/features/ideas/api';
 import { IDEAS_NS } from '@/features/ideas/strings';
 import { STATUS_TONE } from '@/features/ideas/look';
 
@@ -78,6 +78,13 @@ function WishRow({ idea: i, lang }: { idea: Idea; lang: string }) {
         </AppText>
       </View>
       <AppText>{i.body}</AppText>
+      {!!i.attachments?.length && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          {i.attachments.map((a) => (
+            <Chip key={a.path} label={`${a.mime.startsWith('image/') ? '🖼️' : '📄'} ${a.name}`} onPress={() => openIdeaFile(a)} />
+          ))}
+        </View>
+      )}
       {!!i.screen && (
         <AppText variant="caption" color="textMuted">
           {t('from', { screen: i.screen })}
