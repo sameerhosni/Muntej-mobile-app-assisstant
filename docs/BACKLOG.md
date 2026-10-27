@@ -3,7 +3,9 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-10-23
+Last updated: 2026-10-27
+
+**Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
 ---
 
@@ -21,7 +23,7 @@ Last updated: 2026-10-23
 | 1.5 | **Shared sign-in code 123456** | On for every existing person until **6 Nov 2026** (`QUICK_LOGIN_ALL`). Turn off once 1.4 works: `scripts/enable-quick-login.ps1 -Off`. | Temporary |
 | 1.6 | **Microsoft 365 / Outlook / Teams** | Azure app registration, run `scripts/set-microsoft-keys.ps1`. Card shows "needs setup" until then. | Built |
 | 1.7 | **Download page on muntej.app** | Host `website/index.html` on muntej.app; then replace the Expo build link (`DOWNLOAD_URL` in `src/features/invite/api.ts`, `supabase/functions/muntej-chat`, `supabase/templates/invite.html`). | Page built |
-| 1.8 | **Exposed secrets** | Delete the Expo tokens pasted in chat (two) in Expo → Access tokens; rotate the SMTP app password that was pasted earlier; **change the Intercom password** (sales@muntej.app) that was pasted on 25 Oct. | — |
+| 1.8 | **Exposed secrets** | Delete the Expo tokens pasted in chat (three, the newest on 27 Oct is in the EXPO_TOKEN env var: make a new one and tell Claude) in Expo → Access tokens; rotate the SMTP app password that was pasted earlier; **change the Intercom password** (sales@muntej.app) that was pasted on 25 Oct. | — |
 | 1.9 | **Intercom support chat** (Saree3 → "Talk to the Muntej team") | In Intercom: Settings → Installation → copy the **Android** (and iOS) API key; Settings → Security → turn on identity verification and copy its **secret**. Run `scripts/set-intercom-keys.ps1` (hidden prompts). Then a new build (2.5). Optional: Messenger colors + greeting. After it's installed, apply `docs/support-chat-announcement.sql` as a migration so Saree3 announces it. | Built (app + `support-identity` deployed); waits for keys + build |
 | 1.10 | **WhatsApp report templates** (muntej_report, muntej_action; ar + en, Utility) | Submitted to Meta on 26 Oct, waiting for approval. Until approved, people who haven't written to Muntej's WhatsApp in the last 24 h get the reports by push only. Check: whatsapp setup with {"templates": true, "waba": "1359354379602818"} (lists their status). | Waiting for Meta |
 | 1.11 | **Intercom chat inside the app** | Done differently (26 Oct): Intercom's Android SDK froze on an empty screen, so it was removed; the chat is Intercom's web Messenger inside the app (screen 57, web view, from version 1.2.0). Unread badge on the phone is not available this way. Optional: Messenger → Install → secure the messenger (identity verification). | Built, test in 1.2.0 |
@@ -59,6 +61,9 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 3.9 | Notification background is drawn by Android (dark in dark mode): only the icon and name color are ours (Muntej purple, in the new build) |
 | 3.10 | Muntej from WhatsApp: chat as you (questions, new task, move / give a task with Confirm), "وش يحتاجني" cards (approve a decision, approve / send back a review with a note, Done / Need time / Need help), forwarded message → Approve / Ignore, "تقرير". Tested as dry runs only (nothing sent). |
 | 3.11 | Three reports a day on WhatsApp (08:00 / 13:00 / 17:30): full report + buttons inside the 24 h window, the template outside it |
+| 3.12 | Fingerprint on version 1.3.0: Home offer «تبي تفتح منتج ببصمتك؟», then sign out → «ادخل ببصمتي» goes straight in with no authenticator code (email sign-in still asks) |
+| 3.13 | Team → «تحديد»: pick several people and delete; deleting a manager deletes their team after the confirm; Restore brings the whole group back (Select bar on Android) |
+| 3.14 | Proof optional by default + «اطلب إثبات» on a task; late tile shows only unfinished tasks; «خلصت متأخرة» / «انرسلت متأخرة» labels |
 
 ## 4. Later ideas (not started)
 
@@ -82,3 +87,8 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 ## Done
 
 (move finished items here with the date)
+
+- 2026-10-27 · Fingerprint-only sign-in, Home fingerprint offer, "Sign-in & security" row
+- 2026-10-27 · `npm run ship` one-step release; Android builds on GitHub (1.3.0 APK built)
+- 2026-10-27 · Delete several people / a whole team with restore; proof optional; late vs finished late
+- 2026-10-26 · QA robot (`npm run qa`)

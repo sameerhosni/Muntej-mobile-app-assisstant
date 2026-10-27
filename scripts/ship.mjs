@@ -8,11 +8,12 @@
 //   4. edge functions whose code changed are type-checked and deployed (a change in _shared deploys every function
 //      that imports it)
 //   5. app code changed → over-the-air update to preview + production
-//   6. push to GitHub; --build also tags android-preview-<version>-<n>, which starts the GitHub build
-//   7. moves the `shipped` tag here
+//   6. logs the release under Done in docs/BACKLOG.md (its own commit)
+//   7. push to GitHub; --build also tags android-preview-<version>-<n>, which starts the GitHub build
+//   8. moves the `shipped` tag here
 // Needs: SUPABASE_ACCESS_TOKEN and EXPO_TOKEN (user env vars), GitHub sign-in already saved on this PC.
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -109,18 +110,34 @@ if (appChanged) {
   }
 }
 
-// ─── 6. GitHub (+ build) ──────────────────────────────────────────────────────
+// ─── 6. backlog ───────────────────────────────────────────────────────────────
+// owner, 27 Oct: "auto update the backlog": every release is logged under Done with the date, and the page's date moves
+const version = JSON.parse(readFileSync(join(ROOT, 'app.json'), 'utf8')).expo.version;
+const tag = build ? `android-preview-${version}-${Date.now().toString(36)}` : '';
+const BACKLOG = join(ROOT, 'docs', 'BACKLOG.md');
+if (existsSync(BACKLOG)) {
+  const today = new Date().toISOString().slice(0, 10);
+  const parts = [toDeploy.length && `server: ${toDeploy.join(', ')}`, appChanged && `app update ${version}`, build && `new build ${tag}`].filter(Boolean);
+  const line = `- ${today} · ${message}${parts.length ? ` (${parts.join(' · ')})` : ''}`;
+  const page = readFileSync(BACKLOG, 'utf8')
+    .replace(/^Last updated: .*$/m, `Last updated: ${today}`)
+    .replace(/(## Done\n\n(?:\(move finished items here with the date\)\n\n?)?)/, `$1${line}\n`);
+  writeFileSync(BACKLOG, page);
+  git('add', 'docs/BACKLOG.md');
+  git('commit', '-q', '-m', JSON.stringify(`Backlog: released ${message}`));
+  console.log(`\n▶ Backlog\n  ✓ ${line}`);
+}
+
+// ─── 7. GitHub (+ build) ──────────────────────────────────────────────────────
 say('GitHub');
 if (run('git', ['push', '-q', 'origin', 'HEAD']).code !== 0) fail('Push to GitHub failed');
 if (build) {
-  const version = JSON.parse(readFileSync(join(ROOT, 'app.json'), 'utf8')).expo.version;
-  const tag = `android-preview-${version}-${Date.now().toString(36)}`;
   git('tag', tag);
   if (run('git', ['push', '-q', 'origin', tag]).code !== 0) fail('Starting the GitHub build failed');
   console.log(`  ✓ build started (${tag}): https://github.com/sameerhosni/Muntej-mobile-app-assisstant/actions`);
 }
 
-// ─── 7. done ──────────────────────────────────────────────────────────────────
+// ─── 8. done ──────────────────────────────────────────────────────────────────
 git('tag', '-f', 'shipped');
 run('git', ['push', '-q', '-f', 'origin', 'shipped']);
 console.log(
