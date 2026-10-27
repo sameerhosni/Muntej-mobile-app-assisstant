@@ -88,6 +88,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-10-27 · Backlog updates itself on every release
 - 2026-10-27 · Fingerprint-only sign-in, Home fingerprint offer, "Sign-in & security" row
 - 2026-10-27 · `npm run ship` one-step release; Android builds on GitHub (1.3.0 APK built)
 - 2026-10-27 · Delete several people / a whole team with restore; proof optional; late vs finished late
