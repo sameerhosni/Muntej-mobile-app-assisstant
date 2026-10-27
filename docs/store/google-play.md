@@ -58,10 +58,14 @@ Muntej is not a project-management tool: no boards, no columns. You're the brain
 
 **Ads:** No ads.
 
-**App access:** Restricted. Reviewers need a test login:
-- Create a reviewer account (e.g. `review@muntej.app`) in a demo company with sample data.
-- Sign-in is by email code: give the reviewer the code path that works for them (the temporary shared code, or a fixed
-  code for that one address). Put the steps in "Instructions".
+**App access:** "All or some functionality is restricted" → add instructions (set up 27 Oct):
+- Username `play-review@muntej.app`; password: the 6-digit code in the Supabase secret `REVIEW_LOGIN_CODE` (works only
+  for that address, permanent, 10 tries per 15 min; supabase/functions/quick-login).
+- Instructions: "Enter the email, tap Send code, then type the 6-digit code on the next screen (no email needed). You
+  sign in as the manager of a demo company, Horizon Trading, with sample team and tasks."
+- The demo company (account c0000000-…-0001) is made by `scripts/store/review-seed.sql`; re-run it to refresh the
+  dates or undo what reviewers changed. Each reviewer sign-in also sends a code email to that address, which bounces
+  to the sender until a mailbox or alias exists for play-review@muntej.app.
 
 **Content rating questionnaire (IARC):** Category "Utility, Productivity, Communication or Other". Answer **No** to
 violence, sexuality, language, drugs, gambling. **Yes** to "users can interact / exchange content" (team chat, comments)
