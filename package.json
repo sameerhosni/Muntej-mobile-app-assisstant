@@ -63,7 +63,8 @@
     "db:apply": "powershell -ExecutionPolicy Bypass -File scripts/db-apply.ps1",
     "db:seed": "powershell -ExecutionPolicy Bypass -File scripts/db-apply.ps1 -Seed",
     "db:types": "supabase gen types typescript --project-id katwiedukkvssuxbjbqf --schema public > src/lib/api/database.types.ts",
-    "qa": "node scripts/qa/run.mjs"
+    "qa": "node scripts/qa/run.mjs",
+    "ship": "node scripts/ship.mjs"
   },
   "private": true
 }
