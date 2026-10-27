@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { isBioSession } from './bioSession';
 
 type AuthState = {
   session: Session | null;
@@ -13,9 +14,11 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState>({ session: null, ready: false, needsMfa: false });
 
-/** aal1 → aal2 pending means the user has a verified authenticator factor but hasn't entered its code yet. */
+/** aal1 → aal2 pending means the user has a verified authenticator factor but hasn't entered its code yet.
+ *  A fingerprint sign-in already is the second step, so its session never asks (bioSession.ts). */
 async function mfaPending(session: Session | null) {
   if (!session) return false;
+  if (await isBioSession(session)) return false;
   const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   return data?.nextLevel === 'aal2' && data.currentLevel !== 'aal2';
 }

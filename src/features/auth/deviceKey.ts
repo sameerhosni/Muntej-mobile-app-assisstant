@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import { requireOptionalNativeModule } from 'expo';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { expectBioSession } from './bioSession';
 
 const KEY = 'muntej_device_key';
 const USER = 'muntej_device_user';
@@ -75,6 +76,8 @@ export async function signInWithBiometric(prompt: string) {
     await disableBiometric();
     throw new Error('device');
   }
+  // the session this opens counts as two-step verified: no authenticator code after a fingerprint
+  expectBioSession();
   const { error: e2 } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' });
   if (e2) throw new Error('session');
   track('signed_in_biometric');
