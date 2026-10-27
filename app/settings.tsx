@@ -35,7 +35,6 @@ import { canSwitchView, useViewAs, viewAs, type ViewAs } from '@/features/view-a
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { LAUNCH_NS } from '@/features/launch/strings';
-import { useTotpFactor } from '@/features/auth/useTotpFactor';
 import { sendTestPush, usePushStatus } from '@/features/notifications/push';
 import { NS as TEAM_NS } from '@/features/org/strings';
 import { Munti } from '@/features/munti/Munti';
@@ -70,7 +69,6 @@ export default function SettingsScreen() {
     featureUsed('view_as');
     router.replace(homeRouteFor(v === 'employee' ? 'employee' : realRole));
   };
-  const twoStep = useTotpFactor();
   const push = usePushStatus();
   const [testing, setTesting] = useState(false);
   const [testNote, setTestNote] = useState<string | null>(null);
@@ -282,13 +280,13 @@ export default function SettingsScreen() {
       </Card>
 
       <Card onPress={() => router.push('/security')} accessibilityLabel={t('security.row')} style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <IconBadge size={44} bg={twoStep.data ? 'greenTint' : 'primaryTint'}>
-          <ShieldCheck color={twoStep.data ? colors.green : colors.primary} size={20} strokeWidth={2} />
+        <IconBadge size={44} bg="primaryTint">
+          <ShieldCheck color={colors.primary} size={20} strokeWidth={2} />
         </IconBadge>
         <View style={{ flex: 1, gap: 2 }}>
           <AppText variant="cardTitle">{t('security.row')}</AppText>
-          <AppText variant="caption" color={twoStep.data ? 'greenText' : 'textMuted'}>
-            {t(twoStep.data ? 'security.rowOn' : 'security.rowOff')}
+          <AppText variant="caption" color="textMuted">
+            {t('security.rowSub')}
           </AppText>
         </View>
         <ChevronRight color={colors.textFaint} size={18} strokeWidth={2} style={flip} />
