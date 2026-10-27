@@ -14,7 +14,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTeam, type TaskWithPeople } from '@/lib/api';
 import { formatDue } from '@/features/capture/format';
 import { contentDirection } from '@/features/chat/Bubbles';
-import { isLate } from './model';
+import { finishedLate, isLate } from './model';
 import { isFinished, useCompleteTask } from './useCompleteTask';
 import { NS } from './strings';
 
@@ -30,6 +30,8 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
   const finished = isFinished(task.status);
   const cancelled = task.status === 'cancelled';
   const late = isLate(task);
+  // finished, but after the due date: shown apart from late (still open) and on time (owner, 27 Oct)
+  const lateFinish = finishedLate(task) ? ` · ${t(task.status === 'done' ? 'doneLate' : 'sentLate')}` : '';
   const ownerName = task.owner ? ((lang === 'ar' && task.owner.full_name_ar) || task.owner.full_name).split(' ')[0] : null;
   // your own finished task waiting for the manager: for you it's done — the review isn't your status
   const mineWaiting = task.status === 'submitted' && !!me.data && task.owner_id === me.data.id;
@@ -55,14 +57,14 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
   let lineColor: ColorToken = 'textMuted';
   if (cancelled) line = t('s_cancelled');
   else if (mineWaiting) {
-    line = reviewerName ? t('lookingMine', { name: reviewerName }) : t('lookingMineNoName');
-    lineColor = 'greenText';
+    line = (reviewerName ? t('lookingMine', { name: reviewerName }) : t('lookingMineNoName')) + lateFinish;
+    lineColor = lateFinish ? 'amberText' : 'greenText';
   } else if (task.status === 'submitted') {
-    line = `${ownerName ?? t('unassigned')} · ${t('s_submitted')}`;
-    lineColor = 'purpleText';
+    line = `${ownerName ?? t('unassigned')} · ${t('s_submitted')}${lateFinish}`;
+    lineColor = lateFinish ? 'amberText' : 'purpleText';
   } else if (task.status === 'done') {
-    line = `${ownerName ? `${ownerName} · ` : ''}${t('doneMine')}`;
-    lineColor = 'greenText';
+    line = `${ownerName ? `${ownerName} · ` : ''}${t('doneMine')}${lateFinish}`;
+    lineColor = lateFinish ? 'amberText' : 'greenText';
   } else if (late) {
     line = `${ownerName ? `${ownerName} · ` : ''}${t('lateLine', { when: due })}`;
     lineColor = 'red';

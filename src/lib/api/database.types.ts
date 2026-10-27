@@ -1199,6 +1199,7 @@ export type Database = {
           account_id: string
           avatar_color: string | null
           created_at: string
+          deleted_batch: string | null
           email: string | null
           full_name: string
           full_name_ar: string | null
@@ -1225,6 +1226,7 @@ export type Database = {
           account_id: string
           avatar_color?: string | null
           created_at?: string
+          deleted_batch?: string | null
           email?: string | null
           full_name: string
           full_name_ar?: string | null
@@ -1251,6 +1253,7 @@ export type Database = {
           account_id?: string
           avatar_color?: string | null
           created_at?: string
+          deleted_batch?: string | null
           email?: string | null
           full_name?: string
           full_name_ar?: string | null

@@ -33,8 +33,10 @@ export function isOpen(t: TaskWithPeople) {
   return ACTIVE_STATUSES.includes(t.status);
 }
 
+/** Late = past due and not finished. Work already sent in for review is finished for its owner, so it isn't late
+ *  (owner, 27 Oct: the Late tile opened a task that was already done); it counts as "finished late" instead. */
 export function isLateOpen(t: TaskWithPeople, now = Date.now()) {
-  return isOpen(t) && !!t.due_at && new Date(t.due_at).getTime() < now;
+  return isOpen(t) && t.status !== 'submitted' && !!t.due_at && new Date(t.due_at).getTime() < now;
 }
 
 export function closedAt(t: TaskWithPeople): number | null {

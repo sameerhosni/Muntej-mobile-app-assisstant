@@ -72,6 +72,12 @@ export async function addLink(taskId: string, meId: string, url: string) {
   if (error) throw new Error(error.message);
 }
 
+/** whoever gave the task switches proof on ('any') or back to optional ('none'); the RPC checks who may */
+export async function setProofRequired(taskId: string, kind: ProofKind) {
+  const { error } = await supabase.rpc('set_proof_required' as never, { task: taskId, kind } as never);
+  if (error) throw new Error((error as { message: string }).message);
+}
+
 /** open an attached item: links directly, stored files through a short-lived signed link */
 export async function openProof(e: Evidence) {
   if (e.type === 'link' && e.url) return Linking.openURL(e.url);

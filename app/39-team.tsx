@@ -1,12 +1,13 @@
 // Screen 39 · Team (org structure) — no mockup; v2 light style per design/TOKENS.md
 // Live: everyone in profiles as a collapsible tree (top level = no manager). Search flattens to "name + path".
 // Tap a person → sheet with details, skills and task numbers; Edit / Add under / Mark deleted per permission (RPC re-checks).
+// Select (owner, 27 Oct): tick several people and delete them at once; a ticked manager takes everyone under them.
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Share2, UserPlus, X } from 'lucide-react-native';
+import { ChevronLeft, Share2, Trash2, UserPlus, X } from 'lucide-react-native';
 import { AppText, Button, Card, FilterChips, IconButton, SearchField } from '@/components/ui';
 import { BuildTeamCard } from '@/features/teamImport/BuildTeamCard';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -15,13 +16,16 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTasks } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
 import {
+  branchBelow,
   canLead,
   displayName,
   editLevel,
   indexOrg,
   isAdminRole,
   managerChain,
+  serverErrorKey,
   skillsOf,
+  useDeletePeople,
   useOpenCounts,
   useOrg,
   type OrgIndex,
@@ -61,6 +65,11 @@ export default function TeamScreen() {
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormMode | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [notice, setNotice] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
+  const del = useDeletePeople();
 
   const people = useMemo(() => org.data ?? [], [org.data]);
   const index = useMemo(() => indexOrg(people), [people]);
@@ -93,6 +102,47 @@ export default function TeamScreen() {
 
   // a visible person whose manager is hidden (deleted, filtered out) starts its own branch
   const roots = useMemo(() => visible.filter((p) => !p.manager_id || !visibleIds.has(p.manager_id)), [visible, visibleIds]);
+
+  // select mode: who may be ticked, and who goes along with a ticked manager
+  const pickable = (p: Person) => p.status !== 'deleted' && p.id !== me?.id && editLevel(me, p, index.byId) === 'full';
+  const implied = useMemo(() => new Set(branchBelow([...picked], index).map((p) => p.id)), [picked, index]);
+  const pickState = (p: Person): 'yes' | 'no' | 'implied' | 'locked' | undefined =>
+    !selecting ? undefined : picked.has(p.id) ? 'yes' : implied.has(p.id) ? 'implied' : pickable(p) ? 'no' : 'locked';
+  const tap = (p: Person) => {
+    if (!selecting) return setSelectedId(p.id);
+    if (implied.has(p.id) || !pickable(p)) return;
+    setConfirming(false);
+    setPicked((s) => {
+      const next = new Set(s);
+      if (next.has(p.id)) next.delete(p.id);
+      else next.add(p.id);
+      return next;
+    });
+  };
+  const stopSelecting = () => {
+    setSelecting(false);
+    setPicked(new Set());
+    setConfirming(false);
+  };
+  const startSelecting = () => {
+    setNotice(null);
+    setSelecting(true);
+  };
+  // ticking a manager and someone under them counts that person once
+  const pickedTop = [...picked].filter((id) => !implied.has(id));
+  const total = pickedTop.length + implied.size;
+  const deleteNow = () =>
+    del.mutate(pickedTop, {
+      onSuccess: (n) => {
+        stopSelecting();
+        setNotice({ tone: 'green', text: t('deletedN', { n: formatNumber(n, lang) }) });
+      },
+      onError: (e) => {
+        const key = serverErrorKey(e.message);
+        setConfirming(false);
+        setNotice({ tone: 'red', text: key ? t(key) : t('err_generic', { msg: e.message }) });
+      },
+    });
 
   const pathOf = (p: Person) => {
     const chain = managerChain(p.id, index.byId);
@@ -142,8 +192,9 @@ export default function TeamScreen() {
           openTasks={openCounts.get(p.id) ?? 0}
           expanded={kids.length ? open : undefined}
           onToggle={() => setToggled((s) => ({ ...s, [p.id]: !open }))}
-          onPress={() => setSelectedId(p.id)}
+          onPress={() => tap(p)}
           subtitle={isRoot && p.manager_id ? pathOf(p) : undefined}
+          picked={pickState(p)}
         />
         {kids.length > 0 && open && (
           <View
@@ -167,7 +218,7 @@ export default function TeamScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingTop: 20, paddingBottom: 40, gap: spacing.lg }}
+        contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingTop: 20, paddingBottom: selecting ? 180 : 40, gap: spacing.lg }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -207,20 +258,36 @@ export default function TeamScreen() {
             </View>
           )}
           <View style={{ flex: 1 }} />
+          {lead && counts.all > 1 && (
+            <Button
+              label={selecting ? t('selectDone') : t('select')}
+              variant={selecting ? 'primary' : 'outline'}
+              size="md"
+              onPress={selecting ? stopSelecting : startSelecting}
+            />
+          )}
           {/* invite with a code: WhatsApp, email or any app */}
-          {lead && (
+          {lead && !selecting && (
             <TourTarget id="team.invite">
               <IconButton label={t('inviteCode')} onPress={() => router.push('/48-invite')}>
                 <Share2 color={colors.primary} size={20} strokeWidth={2} />
               </IconButton>
             </TourTarget>
           )}
-          {lead && (
+          {lead && !selecting && (
             <IconButton label={t('addTop')} onPress={addTop}>
               <UserPlus color={colors.primary} size={20} strokeWidth={2} />
             </IconButton>
           )}
         </View>
+
+        {notice && (
+          <Card tone={notice.tone} padding={spacing.lg}>
+            <AppText variant="small" color={notice.tone}>
+              {notice.text}
+            </AppText>
+          </Card>
+        )}
 
         <SetupBar />
 
@@ -257,8 +324,9 @@ export default function TeamScreen() {
                   meId={me?.id}
                   reports={(index.children.get(p.id) ?? []).filter((c) => c.status !== 'deleted').length}
                   openTasks={openCounts.get(p.id) ?? 0}
-                  onPress={() => setSelectedId(p.id)}
+                  onPress={() => tap(p)}
                   subtitle={pathOf(p)}
+                  picked={pickState(p)}
                 />
               ))}
             </View>
@@ -279,6 +347,59 @@ export default function TeamScreen() {
           </View>
         )}
       </ScrollView>
+
+      {selecting && (
+        <View
+          style={{
+            position: 'absolute',
+            start: 0,
+            end: 0,
+            bottom: 0,
+            paddingHorizontal: spacing.screen,
+            paddingTop: spacing.lg,
+            paddingBottom: insets.bottom + spacing.lg,
+            backgroundColor: colors.surface,
+            borderTopStartRadius: radius.card,
+            borderTopEndRadius: radius.card,
+            boxShadow: '0 -6px 24px rgba(15, 23, 42, 0.10)',
+            gap: spacing.md,
+          }}
+        >
+          <AppText variant="small" weight="bold">
+            {implied.size
+              ? t('selectedPlus', { n: formatNumber(pickedTop.length, lang), m: formatNumber(implied.size, lang) })
+              : t('selectedN', { n: formatNumber(pickedTop.length, lang) })}
+          </AppText>
+          {confirming ? (
+            <>
+              <AppText variant="small" color="textMuted">
+                {t('confirmDeleteMany', { n: formatNumber(total, lang) })}
+              </AppText>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <Button label={t('cancel')} variant="outline" size="md" style={{ flex: 1 }} onPress={() => setConfirming(false)} />
+                <Button
+                  label={t('yesDeleteAll', { n: formatNumber(total, lang) })}
+                  variant="outline"
+                  tone="amber"
+                  size="md"
+                  style={{ flex: 1 }}
+                  loading={del.isPending}
+                  onPress={deleteNow}
+                />
+              </View>
+            </>
+          ) : (
+            <Button
+              label={t('deleteN', { n: formatNumber(total, lang) })}
+              variant="outline"
+              tone="amber"
+              disabled={!total}
+              icon={<Trash2 color={colors.amberText} size={17} strokeWidth={2} />}
+              onPress={() => setConfirming(true)}
+            />
+          )}
+        </View>
+      )}
 
       <Modal visible={modalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeTop}>
         {/* a Modal is its own root: set the language direction again */}

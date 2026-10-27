@@ -1,6 +1,7 @@
 // The task page's proof block: what "done" must show (Muntej set it from the task), what's attached (tap to open),
 // one-tap ways to add more (photo · camera · file · link) for the people working on it, and Muntej's check of the
 // proof once it's sent in (passed / missing), so the reviewer reads a verdict instead of opening every file.
+// Proof is optional unless whoever gave the task asks for it (owner, 27 Oct): they switch it on/off with the chip.
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,7 +12,7 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import type { Evidence, Profile, Review } from '@/lib/api';
 import { contentDirection } from '@/features/chat/Bubbles';
-import { addFile, addLink, addPhoto, canPickFile, canPickPhoto, latestCheck, openProof, proofMet, proofRequired, refreshTask } from './api';
+import { addFile, addLink, addPhoto, canPickFile, canPickPhoto, latestCheck, openProof, proofMet, proofRequired, refreshTask, setProofRequired } from './api';
 import { PROOF_NS } from './strings';
 
 type TaskLike = { id: string; owner_id: string | null; helper_id?: string | null; assigner_id: string | null; status: string; evidence?: Evidence[]; reviews?: Review[] };
@@ -36,6 +37,11 @@ export function ProofSection({ task, me }: { task: TaskLike; me: Profile | undef
   const met = proofMet(kind, items);
   const check = latestCheck(task.reviews);
   const working = !!me && [task.owner_id, task.helper_id, task.assigner_id].includes(me.id) && !['done', 'cancelled'].includes(task.status);
+  // whoever gave the task decides whether proof is needed (and it's never needed on your own to-dos)
+  const canRequire = !!me && task.assigner_id === me.id && task.owner_id !== me.id && !['done', 'cancelled'].includes(task.status);
+  // with proof optional, Muntej's "missing" reads as a hint, not a blocker
+  const hint = kind === 'none' && check?.verdict === 'missing';
+  const tone = hint ? VERDICT.unclear : VERDICT[check?.verdict ?? ''];
 
   const run = async (key: string, fn: () => Promise<unknown>) => {
     setBusy(key);
@@ -64,6 +70,32 @@ export function ProofSection({ task, me }: { task: TaskLike; me: Profile | undef
               {t(`need_${kind}`)}
             </AppText>
           </View>
+        )}
+        {kind === 'none' && !canRequire && (
+          <AppText variant="caption" color="textMuted">
+            {t('optional')}
+          </AppText>
+        )}
+        {canRequire && (
+          <Pressable
+            onPress={() => run('require', () => setProofRequired(task.id, kind === 'none' ? 'any' : 'none'))}
+            disabled={!!busy}
+            accessibilityRole="button"
+            hitSlop={8}
+            style={({ pressed }) => ({
+              minHeight: 32,
+              justifyContent: 'center',
+              paddingHorizontal: 12,
+              borderRadius: radius.pill,
+              borderWidth: 1,
+              borderColor: colors.borderBlue,
+              opacity: pressed || busy === 'require' ? 0.6 : 1,
+            })}
+          >
+            <AppText variant="caption" weight="bold" color="primary">
+              {kind === 'none' ? t('askProof') : t('dropProof')}
+            </AppText>
+          </Pressable>
         )}
       </View>
 
@@ -109,9 +141,9 @@ export function ProofSection({ task, me }: { task: TaskLike; me: Profile | undef
 
       {/* Muntej's check of the proof (after it was sent in) */}
       {!!check && (
-        <Card padding={spacing.md} style={{ gap: 6, backgroundColor: colors[VERDICT[check.verdict]?.bg ?? 'chip'] }}>
-          <AppText variant="caption" weight="extrabold" color={VERDICT[check.verdict]?.fg ?? 'textSoft'}>
-            {`${t('checked')} · ${t(`v_${check.verdict}`)}`}
+        <Card padding={spacing.md} style={{ gap: 6, backgroundColor: colors[tone?.bg ?? 'chip'] }}>
+          <AppText variant="caption" weight="extrabold" color={tone?.fg ?? 'textSoft'}>
+            {`${t('checked')} · ${hint ? t('v_hint') : t(`v_${check.verdict}`)}`}
           </AppText>
           {check.passed.map((p) => (
             <View key={`p-${p}`} style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
@@ -123,7 +155,7 @@ export function ProofSection({ task, me }: { task: TaskLike; me: Profile | undef
           ))}
           {check.missing.map((m) => (
             <View key={`m-${m}`} style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
-              <CircleX color={colors.red} size={14} strokeWidth={2.4} style={{ marginTop: 2 }} />
+              <CircleX color={hint ? colors.textMuted : colors.red} size={14} strokeWidth={2.4} style={{ marginTop: 2 }} />
               <AppText variant="small" style={{ flex: 1, writingDirection: contentDirection(m) }}>
                 {m}
               </AppText>

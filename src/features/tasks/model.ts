@@ -29,6 +29,13 @@ export function isLate(task: Pick<TaskWithPeople, 'due_at' | 'status'>, now = Da
   return new Date(task.due_at).getTime() < now;
 }
 
+/** Finished (done, or sent in for review) after its due date: not late any more, but not on time either. */
+export function finishedLate(task: Pick<TaskWithPeople, 'due_at' | 'status' | 'closed_at' | 'updated_at'>): boolean {
+  if (!task.due_at || (task.status !== 'done' && task.status !== 'submitted')) return false;
+  const at = task.status === 'done' ? (task.closed_at ?? task.updated_at) : task.updated_at;
+  return new Date(at).getTime() > new Date(task.due_at).getTime();
+}
+
 /** Does this task belong under the given filter? "Cancelled" shows only cancelled tasks; every other filter hides them. */
 export function inFilter(task: TaskWithPeople, filter: TaskListFilter, meId: string | undefined, now = Date.now()): boolean {
   if (filter === 'cancelled') return task.status === 'cancelled';

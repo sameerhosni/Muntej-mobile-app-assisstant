@@ -74,7 +74,8 @@ export function useReviewDeadlines(taskIds: string[]) {
 }
 
 /** What Saree3's proof check found missing on work waiting for review (task id → short items), so Home can say it
- *  without opening the task. Only checks that didn't pass. */
+ *  without opening the task. Only checks that didn't pass, on the latest round, and only where proof was asked for
+ *  (owner, 27 Oct: proof is optional unless the manager asks, so an optional one is never nagged about). */
 export function useProofGaps(taskIds: string[]) {
   const ids = [...taskIds].sort();
   return useQuery({
@@ -86,14 +87,18 @@ export function useProofGaps(taskIds: string[]) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('reviews')
-        .select('task_id, ai_check')
+        .select('task_id, ai_check, tasks!inner(proof_required)')
         .in('task_id', ids)
-        .is('decision', null);
+        .neq('tasks.proof_required', 'none')
+        .is('decision', null)
+        .order('created_at');
       if (error) throw new Error(error.message);
       const m = new Map<string, string[]>();
+      // oldest first, so a later round replaces (or clears) an earlier one
       for (const r of (data ?? []) as { task_id: string; ai_check: { verdict?: string; missing?: string[] } | null }[]) {
         const c = r.ai_check;
         if (c && c.verdict !== 'pass' && c.missing?.length) m.set(r.task_id, c.missing);
+        else m.delete(r.task_id);
       }
       return m;
     },

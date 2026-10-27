@@ -187,6 +187,63 @@ async function server() {
     return 'saved';
   });
 
+  // deleting people (owner, 27 Oct): a manager takes their team, someone under a deleted manager can still be
+  // changed, and Restore brings everyone back
+  const QA_FAISAL = 'a0000000-0000-4000-b000-000000000011';
+  const QA_ABDULLAH = 'a0000000-0000-4000-b000-000000000012';
+  const rpc = async (name, body) => {
+    const r = await fetch(`${URL_}/rest/v1/rpc/${name}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${JWT}`, apikey: ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const text = await r.text();
+    if (!r.ok) throw new Error(`${name} ${r.status}: ${text.slice(0, 300)}`);
+    return text ? JSON.parse(text) : null;
+  };
+  const statusOf = async (id) => (await sql(`select status from public.profiles where id = '${id}'`))[0]?.status;
+  await check('server', 'Delete a manager with their team', async () => {
+    const r = await rpc('delete_people', { ids: [QA_FAISAL], with_branch: true });
+    expect(r.deleted >= 2, `deleted ${r.deleted}`);
+    expect((await statusOf(QA_ABDULLAH)) === 'deleted', 'the person under the manager was not deleted');
+    return `${r.deleted} deleted in one step`;
+  });
+  await check('server', 'Change someone whose manager was deleted', async () => {
+    // this failed with "Manager not found" before the fix
+    await sql(`update public.profiles set status = 'active' where id = '${QA_ABDULLAH}'`);
+    await rpc('upsert_person', { p: { id: QA_ABDULLAH, title: 'Sales Rep (QA)' } });
+    await rpc('upsert_person', { p: { id: QA_ABDULLAH, status: 'deleted' } });
+    return 'edited and deleted';
+  });
+  await check('server', 'Restore brings the team back', async () => {
+    await sql(`update public.profiles set deleted_batch = (select deleted_batch from public.profiles where id = '${QA_FAISAL}') where id = '${QA_ABDULLAH}'`);
+    const n = await rpc('restore_person', { person: QA_FAISAL, with_batch: true });
+    expect(n >= 2, `restored ${n}`);
+    expect((await statusOf(QA_ABDULLAH)) !== 'deleted', 'the person under the manager stayed deleted');
+    return `${n} back`;
+  });
+  await check('server', 'Proof: adding it re-checks the work', async () => {
+    const [task] = await sql("select t.id, r.ai_check->>'at' as at from public.tasks t join public.reviews r on r.task_id = t.id where t.title = 'Send the signed contract' and t.assigner_id = '" + QA_BOSS + "' order by r.created_at desc limit 1");
+    expect(task, 'seeded task missing');
+    const r = await fetch(`${URL_}/rest/v1/evidence`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${JWT}`, apikey: ANON, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ task_id: task.id, type: 'link', url: 'https://example.com/signed-contract.pdf', title: 'signed-contract.pdf', uploaded_by: QA_BOSS }),
+    });
+    expect(r.ok, `${r.status} ${await r.text()}`);
+    for (let i = 0; i < 30; i++) {
+      await new Promise((ok) => setTimeout(ok, 2000));
+      const [now] = await sql(`select ai_check->>'at' as at, ai_check->>'verdict' as v from public.reviews where task_id = '${task.id}' order by created_at desc limit 1`);
+      if (now?.at && now.at !== task.at) return `checked again: ${now.v}`;
+    }
+    throw new Error('the check did not run again after adding proof (60 s)');
+  });
+  await check('server', 'Proof is optional by default', async () => {
+    const [x] = await sql(`select count(*)::int as n from public.tasks where proof_required <> 'none' and assigner_id = '${QA_BOSS}'`);
+    expect(x.n === 0, `${x.n} QA tasks require proof`);
+    return 'none required';
+  });
+
   // WhatsApp, dry (the server answers into the test, nothing is sent)
   const secret = (await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'"))[0]?.s;
   await sql(`update public.profiles set phone = '${QA_PHONE}' where id = '${QA_BOSS}'`);

@@ -14,6 +14,7 @@ declare
   khalid constant uuid := 'a0000000-0000-4000-b000-000000000014';
   saad constant uuid := 'a0000000-0000-4000-b000-000000000015';
   late_task uuid;
+  sent_late uuid;
 begin
   insert into public.accounts (id, name, name_ar) values (qa, 'Muntej QA (test)', 'منتج للاختبار')
   on conflict (id) do nothing;
@@ -40,7 +41,7 @@ begin
     (saad, qa, 'Saad QA', 'سعد', 'Designer', 'qa-saad@qa.muntej.test', 'employee', boss, 'active', 'ar')
   on conflict (id) do update set
     full_name = excluded.full_name, full_name_ar = excluded.full_name_ar, title = excluded.title, role = excluded.role,
-    manager_id = excluded.manager_id, status = 'active', phone = null, locale = 'ar';
+    manager_id = excluded.manager_id, status = 'active', deleted_batch = null, phone = null, locale = 'ar';
 
   -- nothing goes out from the test company
   insert into public.notification_prefs (profile_id, channels)
@@ -60,6 +61,12 @@ begin
     ('Design the new brochure', saad, boss, now() + interval '2 days', 'low', 'blocked', null, 30),
     ('حجز قاعة الاجتماعات', boss, boss, now() - interval '1 day', 'medium', 'assigned', null, 0),
     ('Update the price list', faisal, boss, null, 'medium', 'assigned', null, 0);
+
+  -- sent in a day after its due date, waiting for the boss: "sent in late", not late (owner, 27 Oct)
+  insert into public.tasks (title, owner_id, assigner_id, due_at, priority, status, progress)
+  values ('Send the signed contract', saad, boss, now() - interval '1 day', 'medium', 'submitted', 100)
+  returning id into sent_late;
+  insert into public.reviews (task_id, round, submitted_by, reviewer_id) values (sent_late, 1, saad, boss);
 
   insert into public.decisions (task_id, manager_id, requested_by, type, title, title_ar, details, recommendation, recommendation_ar)
   values (late_task, boss, faisal, 'extension_request', 'Faisal asks for more time on "Send the Q4 sales forecast"',

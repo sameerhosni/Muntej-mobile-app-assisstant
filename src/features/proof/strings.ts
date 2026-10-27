@@ -23,6 +23,10 @@ const en = {
   v_missing: 'Something is missing',
   v_unclear: 'Hard to tell from what’s attached',
   updateApp: 'Photos and files come in the next update. Links work now',
+  optional: 'Optional',
+  askProof: 'Ask for proof',
+  dropProof: 'Make it optional',
+  v_hint: 'Optional · this would make it clearer',
 };
 
 const ar: typeof en = {
@@ -47,6 +51,10 @@ const ar: typeof en = {
   v_missing: 'فيه شي ناقص',
   v_unclear: 'ما يبان من المرفق',
   updateApp: 'الصور والملفات جاية في التحديث الجاي، والروابط شغالة الحين',
+  optional: 'اختياري',
+  askProof: 'اطلب إثبات',
+  dropProof: 'خلّه اختياري',
+  v_hint: 'اختياري · هذي تخلّيه أوضح',
 };
 
 export const PROOF_NS = registerStrings('proof', { en, ar });

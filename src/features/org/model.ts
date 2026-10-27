@@ -11,7 +11,7 @@ export type PersonStatus = Profile['status'];
 export type Skill = { name: string; level: number; years?: number | null; notes?: string | null };
 
 const ORG_COLUMNS =
-  'id, user_id, full_name, full_name_ar, title, title_ar, phone, email, role, manager_id, weekly_capacity_hours, years_experience, skills_detail, skills, status, whatsapp_connected, telegram_connected, telegram_handle, avatar_color';
+  'id, user_id, full_name, full_name_ar, title, title_ar, phone, email, role, manager_id, weekly_capacity_hours, years_experience, skills_detail, skills, status, whatsapp_connected, telegram_connected, telegram_handle, avatar_color, deleted_batch';
 
 export type Person = Pick<
   Profile,
@@ -34,6 +34,7 @@ export type Person = Pick<
   | 'telegram_connected'
   | 'telegram_handle'
   | 'avatar_color'
+  | 'deleted_batch'
 >;
 
 /** Key sits under ['team'] so invalidating the team also refreshes this list. */
@@ -202,10 +203,65 @@ const SERVER_ERRORS: [string, string][] = [
   ['Name is required', 'err_name'],
   ['already used by someone else', 'err_duplicate'],
   ['Only managers and admins', 'err_lead'],
+  ['cannot delete yourself', 'err_deleteSelf'],
 ];
 
 export function serverErrorKey(message: string): string | null {
   return SERVER_ERRORS.find(([needle]) => message.includes(needle))?.[1] ?? null;
+}
+
+/** Everyone under these people (not counting them), skipping anyone already deleted. */
+export function branchBelow(ids: string[], index: OrgIndex): Person[] {
+  const out = new Map<string, Person>();
+  const seen = new Set(ids);
+  const walk = (id: string) => {
+    for (const c of index.children.get(id) ?? []) {
+      if (seen.has(c.id) || c.status === 'deleted') continue;
+      seen.add(c.id);
+      out.set(c.id, c);
+      walk(c.id);
+    }
+  };
+  ids.forEach(walk);
+  return [...out.values()];
+}
+
+/** Deleted in the same step as this person (their branch or the same multi-select), not counting them. */
+export function sameBatch(person: Person, people: Person[]): Person[] {
+  if (!person.deleted_batch) return [];
+  return people.filter((p) => p.id !== person.id && p.status === 'deleted' && p.deleted_batch === person.deleted_batch);
+}
+
+/** Marks people deleted, with everyone under them (one step, one Restore). The RPC re-checks every permission. */
+export function useDeletePeople() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]): Promise<number> => {
+      const { data, error } = await supabase.rpc('delete_people' as never, { ids, with_branch: true } as never);
+      if (error) throw new Error((error as { message: string }).message);
+      return Number((data as { deleted?: number } | null)?.deleted ?? 0);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.team });
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+/** Brings someone back, plus everyone deleted in the same step as them. */
+export function useRestorePerson() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<number> => {
+      const { data, error } = await supabase.rpc('restore_person' as never, { person: id, with_batch: true } as never);
+      if (error) throw new Error((error as { message: string }).message);
+      return Number(data ?? 0);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.team });
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
 }
 
 export function useUpsertPerson() {

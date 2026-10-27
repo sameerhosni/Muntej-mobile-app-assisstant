@@ -9,14 +9,17 @@ import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import type { TaskWithPeople } from '@/lib/api';
 import {
+  branchBelow,
   canAddUnder,
   displayName,
   displayTitle,
   editLevel,
   serverErrorKey,
+  sameBatch,
   skillsOf,
   statsFor,
-  useUpsertPerson,
+  useDeletePeople,
+  useRestorePerson,
   type OrgIndex,
   type Person,
 } from './model';
@@ -37,7 +40,8 @@ type Props = {
 export function PersonSheet({ person, me, people, index, tasks, onEdit, onAddUnder }: Props) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
-  const upsert = useUpsertPerson();
+  const del = useDeletePeople();
+  const restore = useRestorePerson();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,18 +56,20 @@ export function PersonSheet({ person, me, people, index, tasks, onEdit, onAddUnd
   const canDelete = level === 'full' && person.id !== me?.id;
   const n = (v: number) => formatNumber(v, lang);
 
-  const setStatus = (status: 'deleted' | 'active') => {
+  // a manager goes with everyone under them (one step, one Restore brings them all back)
+  const below = branchBelow([person.id], index);
+  const withThem = sameBatch(person, people);
+  const onError = (e: Error) => {
+    const key = serverErrorKey(e.message);
+    setError(key ? t(key) : t('err_generic', { msg: e.message }));
+  };
+  const doDelete = () => {
     setError(null);
-    upsert.mutate(
-      { id: person.id, status },
-      {
-        onSuccess: () => setConfirmDelete(false),
-        onError: (e) => {
-          const key = serverErrorKey(e.message);
-          setError(key ? t(key) : t('err_generic', { msg: e.message }));
-        },
-      },
-    );
+    del.mutate([person.id], { onSuccess: () => setConfirmDelete(false), onError });
+  };
+  const doRestore = () => {
+    setError(null);
+    restore.mutate(person.id, { onError });
   };
 
   return (
@@ -231,11 +237,11 @@ export function PersonSheet({ person, me, people, index, tasks, onEdit, onAddUnd
       )}
       {canDelete && person.status === 'deleted' && (
         <Button
-          label={t('restore')}
+          label={withThem.length ? t('restoreWith', { n: n(withThem.length) }) : t('restore')}
           variant="outline"
           icon={<RotateCcw color={colors.primary} size={17} strokeWidth={2} />}
-          loading={upsert.isPending}
-          onPress={() => setStatus('active')}
+          loading={restore.isPending}
+          onPress={doRestore}
         />
       )}
       {canDelete && person.status !== 'deleted' && !confirmDelete && (
@@ -248,7 +254,9 @@ export function PersonSheet({ person, me, people, index, tasks, onEdit, onAddUnd
       )}
       {canDelete && person.status !== 'deleted' && confirmDelete && (
         <Card tone="red">
-          <AppText variant="small">{t('confirmDelete', { name })}</AppText>
+          <AppText variant="small">
+            {below.length ? t('confirmDeleteBranch', { name, n: n(below.length) }) : t('confirmDelete', { name })}
+          </AppText>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Button
               label={t('cancel')}
@@ -258,13 +266,13 @@ export function PersonSheet({ person, me, people, index, tasks, onEdit, onAddUnd
               onPress={() => setConfirmDelete(false)}
             />
             <Button
-              label={t('yesDelete')}
+              label={below.length ? t('yesDeleteAll', { n: n(below.length + 1) }) : t('yesDelete')}
               variant="outline"
               tone="amber"
               size="md"
               style={{ flex: 1 }}
-              loading={upsert.isPending}
-              onPress={() => setStatus('deleted')}
+              loading={del.isPending}
+              onPress={doDelete}
             />
           </View>
         </Card>

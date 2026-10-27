@@ -1,6 +1,6 @@
 // One person in the Team tree / search list: avatar, name, title, role chip, status dot, reports, open tasks, channels.
 import { Pressable, View } from 'react-native';
-import { ChevronDown, ChevronRight, MessageCircle, Send } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronRight, MessageCircle, Send } from 'lucide-react-native';
 import { AppText, Avatar, Chip } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -33,9 +33,11 @@ type Props = {
   onPress: () => void;
   /** Extra line under the title, e.g. the manager path in search results. */
   subtitle?: string;
+  /** Select mode on the Team screen (undefined = not selecting); 'implied' = goes along with a ticked manager */
+  picked?: 'yes' | 'no' | 'implied' | 'locked';
 };
 
-export function PersonRow({ person, meId, reports, openTasks, expanded, onToggle, onPress, subtitle }: Props) {
+export function PersonRow({ person, meId, reports, openTasks, expanded, onToggle, onPress, subtitle, picked }: Props) {
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
   const name = displayName(person, lang);
@@ -76,8 +78,9 @@ export function PersonRow({ person, meId, reports, openTasks, expanded, onToggle
       )}
       <Pressable
         onPress={onPress}
-        accessibilityRole="button"
-        accessibilityLabel={t('nodeA11y', { name, title: title || t(`role_${person.role}`) })}
+        accessibilityRole={picked ? 'checkbox' : 'button'}
+        accessibilityState={picked ? { checked: picked === 'yes' || picked === 'implied', disabled: picked === 'locked' } : undefined}
+        accessibilityLabel={picked ? t('selectA11y', { name }) : t('nodeA11y', { name, title: title || t(`role_${person.role}`) })}
         style={({ pressed }) => ({
           flex: 1,
           flexDirection: 'row',
@@ -154,6 +157,22 @@ export function PersonRow({ person, meId, reports, openTasks, expanded, onToggle
             )}
           </View>
         </View>
+        {picked && picked !== 'locked' && (
+          <View
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: picked === 'no' ? colors.border : colors.red,
+              backgroundColor: picked === 'yes' ? colors.red : picked === 'implied' ? colors.redTint : colors.surface,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {picked !== 'no' && <Check color={picked === 'yes' ? colors.onDark : colors.red} size={14} strokeWidth={3} />}
+          </View>
+        )}
       </Pressable>
     </View>
   );

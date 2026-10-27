@@ -1,6 +1,7 @@
 // verify-proof — Muntej checks the proof the moment work is sent for review (BRD v1.2 FR-EVD-05), so the reviewer
 // reads a verdict instead of opening every file. Called by the reviews insert trigger (x-cron-secret) with
-// { review_id }. Looks at what "done" means (definition_of_done, title, steps) and what was attached: photos are
+// { review_id }, and again by the evidence trigger with { review_id, recheck: true } when proof is added or removed
+// while the work waits for review (owner, 27 Oct: the verdict used to stay "missing" after he added it). Looks at what "done" means (definition_of_done, title, steps) and what was attached: photos are
 // shown to the model, links and file names are listed, plus the owner's note. Writes reviews.ai_check:
 //   { verdict: 'pass' | 'missing' | 'unclear', passed: string[], missing: string[], summary: string, lang, at }
 // Never blocks anything: a failed check just leaves ai_check empty. Model via PROOF_MODEL (default gpt-5-mini).
@@ -29,7 +30,8 @@ serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
   const secret = Deno.env.get('CRON_SECRET');
   if (!secret || req.headers.get('x-cron-secret') !== secret) throw new HttpError(401, 'Not allowed');
-  const { review_id } = (await req.json().catch(() => ({}))) as { review_id?: string };
+  // recheck: proof was added or removed after the work was sent in (evidence trigger), so the verdict is refreshed
+  const { review_id, recheck } = (await req.json().catch(() => ({}))) as { review_id?: string; recheck?: boolean };
   if (!review_id) throw new HttpError(400, 'review_id needed');
 
   const admin = adminClient();
@@ -47,7 +49,11 @@ serve(async (req) => {
   const lang = reviewer?.locale === 'ar' || /[؀-ۿ]/.test(task.title) ? 'ar' : 'en';
 
   // nothing attached and nothing required: no check to make
-  if (!evidence?.length && !review.submission_note && task.proof_required === 'none') return json({ skipped: 'no proof' });
+  if (!evidence?.length && !review.submission_note && task.proof_required === 'none') {
+    // everything was removed again: drop the old verdict instead of leaving it on screen
+    if (recheck) await admin.from('reviews').update({ ai_check: null }).eq('id', review.id);
+    return json({ skipped: 'no proof' });
+  }
 
   // photos go to the model as images (short-lived signed links); the rest as text
   const images: string[] = [];
@@ -108,8 +114,16 @@ serve(async (req) => {
     undoable: false,
   });
   // something's missing: Saree3 tells the owner right away what to add (the reviewer sees the same on Home), so it
-  // gets fixed before anyone has to open the task
-  if (check.verdict !== 'pass' && check.missing.length && task.owner_id && task.owner_id !== review.reviewer_id) {
+  // gets fixed before anyone has to open the task. Only when proof was asked for: optional proof is never nagged
+  // about (owner, 27 Oct), and a re-check after new proof (recheck) doesn't repeat the same push.
+  if (
+    check.verdict !== 'pass' &&
+    check.missing.length &&
+    task.proof_required !== 'none' &&
+    !recheck &&
+    task.owner_id &&
+    task.owner_id !== review.reviewer_id
+  ) {
     const { data: owner } = await admin.from('profiles').select('full_name, full_name_ar, locale').eq('id', task.owner_id).maybeSingle();
     const ar = owner?.locale === 'ar' || lang === 'ar';
     const items = check.missing.slice(0, 3).join(ar ? '، ' : ', ');
