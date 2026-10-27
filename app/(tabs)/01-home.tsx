@@ -28,6 +28,7 @@ import { JourneyCard } from '@/features/ladder/Journey';
 import { useTasks } from '@/lib/api';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { WhatsNewStrip } from '@/features/launch/WhatsNew';
+import { BiometricOffer } from '@/features/auth/BiometricOffer';
 import { JobsStrip } from '@/features/saree3/JobsStrip';
 import { MyRequests } from '@/features/home/MyRequests';
 import { Spotlight } from '@/features/launch/Spotlight';
@@ -148,6 +149,7 @@ export default function ManagerHome() {
                 </TourTarget>
               )}
               {show('whatsnew') && <WhatsNewStrip />}
+              <BiometricOffer />
             </FromSaree3>
           </TourTarget>
           )}

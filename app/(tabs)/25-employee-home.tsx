@@ -33,6 +33,7 @@ import { MORE_NS } from '@/features/more/strings';
 import { MySteps } from '@/features/steps/MySteps';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { WhatsNewStrip } from '@/features/launch/WhatsNew';
+import { BiometricOffer } from '@/features/auth/BiometricOffer';
 import { JobsStrip } from '@/features/saree3/JobsStrip';
 import { MyRequests } from '@/features/home/MyRequests';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
@@ -131,6 +132,7 @@ export default function EmployeeHome() {
           <EmployeeJourneyCard />
           {/* everything new in Muntej, while some of it is still new to you */}
           <WhatsNewStrip />
+          <BiometricOffer />
           {/* everything Saree3 is handling for you right now (tap: each one and its state) */}
           <TourTarget id="home.jobs">
             <JobsStrip />
