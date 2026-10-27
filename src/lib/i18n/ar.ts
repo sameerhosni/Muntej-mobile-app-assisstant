@@ -200,6 +200,7 @@ const ar: Translations = {
     changeEmail: 'غيّر الإيميل',
     mfaTitle: 'رمز تطبيق المصادقة',
     mfaHint: 'افتح Google Authenticator (أو تطبيق المصادقة حقك) واكتب رمز منتج من ٦ أرقام.',
+    mfaUseBio: 'ادخل ببصمتي بدال الرمز',
     mfaWrong: 'الرمز ما زبط. الرموز تتغير كل ٣٠ ثانية، جرّب الرمز الحالي.',
     signOut: 'تسجيل خروج',
     invalidEmail: 'اكتب إيميل صحيح',

@@ -62,7 +62,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 3.9 | Notification background is drawn by Android (dark in dark mode): only the icon and name color are ours (Muntej purple, in the new build) |
 | 3.10 | Muntej from WhatsApp: chat as you (questions, new task, move / give a task with Confirm), "وش يحتاجني" cards (approve a decision, approve / send back a review with a note, Done / Need time / Need help), forwarded message → Approve / Ignore, "تقرير". Tested as dry runs only (nothing sent). |
 | 3.11 | Three reports a day on WhatsApp (08:00 / 13:00 / 17:30): full report + buttons inside the 24 h window, the template outside it |
-| 3.12 | Fingerprint on version 1.3.0: Home offer «تبي تفتح منتج ببصمتك؟», then sign out → «ادخل ببصمتي» goes straight in with no authenticator code (email sign-in still asks) |
+| 3.12 | Fingerprint on version 1.3.0: Home offer «تبي تفتح منتج ببصمتك؟»; sign-in «ادخل ببصمتي» goes straight in; after an email sign-in, the code screen asks for the fingerprint by itself (no authenticator code) |
 | 3.13 | Team → «تحديد»: pick several people and delete; deleting a manager deletes their team after the confirm; Restore brings the whole group back (Select bar on Android) |
 | 3.14 | Proof optional by default + «اطلب إثبات» on a task; late tile shows only unfinished tasks; «خلصت متأخرة» / «انرسلت متأخرة» labels |
 

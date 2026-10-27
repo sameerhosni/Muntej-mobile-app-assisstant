@@ -197,6 +197,7 @@ const en = {
     changeEmail: 'Change email',
     mfaTitle: 'Authenticator code',
     mfaHint: 'Open Google Authenticator (or your authenticator app) and enter the 6-digit code for Muntej.',
+    mfaUseBio: 'Use my fingerprint instead',
     mfaWrong: "That code didn't work. Codes change every 30 seconds, so try the current one.",
     signOut: 'Sign out',
     invalidEmail: 'Enter a valid email address',
