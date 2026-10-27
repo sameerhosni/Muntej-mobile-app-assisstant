@@ -121,7 +121,7 @@ if (existsSync(BACKLOG)) {
   const line = `- ${today} · ${message}${parts.length ? ` (${parts.join(' · ')})` : ''}`;
   const page = readFileSync(BACKLOG, 'utf8')
     .replace(/^Last updated: .*$/m, `Last updated: ${today}`)
-    .replace(/(## Done\n\n(?:\(move finished items here with the date\)\n\n?)?)/, `$1${line}\n`);
+    .replace(/(## Done\r?\n\r?\n(?:\(move finished items here with the date\)\r?\n(?:\r?\n)?)?)/, `$1${line}\n`);
   writeFileSync(BACKLOG, page);
   git('add', 'docs/BACKLOG.md');
   git('commit', '-q', '-m', JSON.stringify(`Backlog: released ${message}`));
