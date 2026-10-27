@@ -1,6 +1,7 @@
 // Muntej release in one step (owner, 27 Oct: "a lot of updates… waste of time to do all these actions every time").
 //   npm run ship -- "what changed"            QA → database → server → app update → GitHub
 //   npm run ship -- "what changed" --build    … and a new installable app (only for phone-hardware / native changes)
+//   npm run ship -- "what changed" --store    … and a Google Play bundle (.aab) from the same GitHub build
 // Stops at the first failure. Everything since the last release (git tag `shipped`) is what gets released:
 //   1. the work must be committed (nothing half-done goes out)
 //   2. QA robot (scripts/qa/run.mjs) must be all green
@@ -19,7 +20,8 @@ import { join } from 'node:path';
 const ROOT = join(import.meta.dirname, '..');
 const REF = 'katwiedukkvssuxbjbqf';
 const args = process.argv.slice(2);
-const build = args.includes('--build');
+const store = args.includes('--store');
+const build = store || args.includes('--build');
 const message = args.filter((a) => !a.startsWith('--')).join(' ').trim();
 
 // the company network re-signs HTTPS: every child (supabase, eas, node) needs the system certificates
@@ -113,7 +115,7 @@ if (appChanged) {
 // ─── 6. backlog ───────────────────────────────────────────────────────────────
 // owner, 27 Oct: "auto update the backlog": every release is logged under Done with the date, and the page's date moves
 const version = JSON.parse(readFileSync(join(ROOT, 'app.json'), 'utf8')).expo.version;
-const tag = build ? `android-preview-${version}-${Date.now().toString(36)}` : '';
+const tag = build ? `android-${store ? 'production' : 'preview'}-${version}-${Date.now().toString(36)}` : '';
 const BACKLOG = join(ROOT, 'docs', 'BACKLOG.md');
 if (existsSync(BACKLOG)) {
   const today = new Date().toISOString().slice(0, 10);

@@ -99,14 +99,25 @@ email provider) act for us, which Google does not count as sharing.
 - Notifications (POST_NOTIFICATIONS): reminders, decisions, the morning brief.
 - Photos / files: attaching proof of done work.
 
-## Release path
-1. Build the Android App Bundle (.aab): `eas build --platform android --profile production` (signing managed by EAS,
-   Play App Signing on).
-2. Play Console → Testing → **Internal testing** → create release → upload the .aab → add testers (emails) → roll out.
-3. Fill the listing + App content above; then **Production** (or Closed testing first if the account is a personal
-   one created after Nov 2023: 12 testers × 14 days).
-4. Later uploads can go automatically: a Play service-account JSON key → `eas submit --platform android`.
-5. Over-the-air updates for the store app go to the **production** channel (`publish-update.ps1 -Channel production`).
+## Release path (updated 27 Oct)
+**Ready:** the .aab is built on GitHub (`npm run ship -- "msg" --store`, or a tag `android-production-*`), signed with
+the Expo keystore, and attached to a GitHub release. Graphics are in `store/android/` (`node scripts/store/graphics.mjs`
+remakes them): icon-512.png, feature-graphic.png, 1-home … 5-team.png (1080×2160). Privacy + deletion pages are live.
+
+**Owner (account, payment and identity are yours to do):**
+1. https://play.google.com/console/signup: one-time 25 USD and identity check. Prefer an **Organization** account
+   (needs the company's D-U-N-S number): a **Personal** account must first run a closed test with 12 testers for
+   14 days before Production opens.
+2. Create app → name `منتج – مساعد المهام`, default language Arabic, App, Free; accept the declarations.
+3. Testing → **Internal testing** → Create release → upload the .aab from the GitHub release (accept Play App Signing)
+   → add your email as tester → Roll out. Install from the test link to check.
+4. Store listing (texts above, graphics from store/android/), App content and Data safety (answers above), then
+   **Production** → Create release → the same .aab → Send for review (a new app usually takes 1–7 days).
+5. Hands-free uploads later: Play Console → Setup → API access → a service account with "Release manager" → its JSON
+   key to Claude; `eas submit --platform android` then uploads each new .aab.
+
+After that, app changes reach the store app over the air on the **production** channel (`npm run ship`); a new store
+upload is only needed for native changes (`npm run ship -- "msg" --store`).
 
 ## Before public release (not blocking internal testing)
 - Google OAuth verification for the Gmail / Chat / Meet scopes (restricted scopes need a security assessment) — see
