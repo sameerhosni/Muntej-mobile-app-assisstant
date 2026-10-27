@@ -26,7 +26,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       PROFILE: ${{ inputs.profile || (startsWith(github.ref_name, 'android-production-') && 'production' || 'preview') }}
@@ -45,6 +45,14 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      # Gradle's default memory stalled the first build (OutOfMemoryError: Metaspace, then the 60-min timeout);
+      # the runner has 16 GB. The user-level gradle.properties wins over the generated project's.
+      - name: Gradle memory
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=2g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
+          echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
 
       - name: Build
         run: |
