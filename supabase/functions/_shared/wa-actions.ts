@@ -128,6 +128,52 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
   return cards;
 }
 
+/** The one profile a WhatsApp number speaks for when it's on several accounts: the account its person works in now
+ *  (account_sessions), else the oldest. The chat answers as this profile, and only it gets the WhatsApp reports. */
+export async function waProfileFor(admin: SupabaseClient, phone: string): Promise<string | null> {
+  const { data: people } = await admin
+    .from('profiles')
+    .select('id, user_id, account_id')
+    .eq('phone', phone)
+    .eq('status', 'active')
+    .eq('hidden', false)
+    .not('user_id', 'is', null)
+    .order('created_at');
+  if (!people?.length) return null;
+  if (people.length === 1) return people[0].id as string;
+  // each profile may have its own sign-in (two emails): the most recently used account session wins
+  const { data: sessions } = await admin
+    .from('account_sessions')
+    .select('user_id, account_id')
+    .in('user_id', [...new Set(people.map((p) => p.user_id as string))])
+    .order('updated_at', { ascending: false });
+  for (const s of sessions ?? []) {
+    const hit = people.find((p) => p.user_id === s.user_id && p.account_id === s.account_id);
+    if (hit) return hit.id as string;
+  }
+  return people[0].id as string;
+}
+
+/** the team's late tasks (people under me, or work I gave out): Saree3 chases these, the manager only needs to know */
+export async function lateTeamLines(admin: SupabaseClient, meId: string, ar: boolean, max = 3): Promise<{ count: number; lines: string[] }> {
+  const { data: reports } = await admin.from('profiles').select('id').eq('manager_id', meId).eq('status', 'active');
+  const ids = (reports ?? []).map((p) => p.id as string);
+  const { data: late } = await admin
+    .from('tasks')
+    .select('title, due_at, owner:profiles!tasks_owner_id_fkey(full_name, full_name_ar)')
+    .in('status', OPEN)
+    .lt('due_at', new Date().toISOString())
+    .neq('owner_id', meId)
+    .or(`assigner_id.eq.${meId}${ids.length ? `,owner_id.in.(${ids.join(',')})` : ''}`)
+    .order('due_at')
+    .limit(20);
+  const rows = (late ?? []) as unknown as { title: string; due_at: string; owner: P | null }[];
+  return {
+    count: rows.length,
+    lines: rows.slice(0, max).map((t) => `🔴 *${t.title.length > 50 ? `${t.title.slice(0, 49)}…` : t.title}* · ${first(t.owner ?? undefined, ar) || '…'} · ${whenText(t.due_at, ar)}`),
+  };
+}
+
 /** sends up to `max` cards, then one line for the rest */
 export async function sendCards(phone: string, ar: boolean, cards: WaCard[], max = 3) {
   for (const c of cards.slice(0, max)) await waButtons(phone, c.body, c.buttons);

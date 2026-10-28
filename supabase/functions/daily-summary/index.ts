@@ -15,6 +15,7 @@ import { HttpError, getCaller, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
 import { inWindow, REPORT_TEMPLATE, rtl, waButtons, waConfigured, waTemplate } from '../_shared/wa.ts';
+import { waProfileFor } from '../_shared/wa-actions.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
 type Lang = 'en' | 'ar';
@@ -634,7 +635,15 @@ async function sendOne(
   }
   if (channels.includes('email') && me.email && (await sendEmail(me.email, s.subject, emailHtml(s, s.hello, lang), plainText(s, s.hello, lang))))
     sent.push('email');
-  if (channels.includes('whatsapp') && waConfigured() && me.phone && (await sendWhatsAppReport(me, lang, s, kind)))
+  // a number on several accounts gets one WhatsApp report: the account they work in now, the one the chat answers as
+  // (owner, 28 Oct: two reports came, and "What needs me" answered for the other account)
+  if (
+    channels.includes('whatsapp') &&
+    waConfigured() &&
+    me.phone &&
+    (opts.only === 'whatsapp' || (await waProfileFor(admin, me.phone)) === me.id) &&
+    (await sendWhatsAppReport(me, lang, s, kind))
+  )
     sent.push('whatsapp');
 
   if (!opts.test) await admin.from('daily_summaries').upsert({ profile_id: me.id, day: riyadhDay(now), kind, channels: sent });

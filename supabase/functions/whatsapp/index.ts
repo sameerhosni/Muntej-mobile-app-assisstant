@@ -32,7 +32,7 @@ import {
   type WaButton,
   type WaRow,
 } from '../_shared/wa.ts';
-import { needsYouCards, sendCards, whenText } from '../_shared/wa-actions.ts';
+import { lateTeamLines, needsYouCards, sendCards, waProfileFor, whenText } from '../_shared/wa-actions.ts';
 import { newPin, sha256 } from '../_shared/phone-session.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
@@ -332,11 +332,9 @@ async function handle(m: WaMessage, dry = false) {
       .from('profiles')
       .update({ wa_last_inbound_at: new Date().toISOString(), whatsapp_connected: true })
       .in('id', people.map((p) => p.id));
-  let me = people[0] as Me;
-  if (people.length > 1) {
-    const { data: s } = await admin.from('account_sessions').select('account_id').eq('user_id', me.user_id).maybeSingle();
-    me = (people.find((p) => p.account_id === s?.account_id) ?? me) as Me;
-  }
+  // the same pick as the reports (waProfileFor), so a report and its buttons talk about the same account
+  const pick = people.length > 1 ? await waProfileFor(admin, from) : people[0].id;
+  const me = (people.find((p) => p.id === pick) ?? people[0]) as Me;
   const ar = me.locale !== 'en';
   const lang = ar ? 'ar' : 'en';
   const rtl = (s: string) => rtlOf(ar, s);
@@ -576,10 +574,23 @@ async function handle(m: WaMessage, dry = false) {
   }
 
   async function needsYou(max: number) {
-    const cards = await needsYouCards(admin, me.id, ar);
-    if (!cards.length) return void (await say(ar ? 'ما فيه شي يحتاجك الحين 👌 أنا ماسك الباقي' : 'Nothing needs you right now 👌 I’ve got the rest'));
+    const [cards, late] = await Promise.all([needsYouCards(admin, me.id, ar), lateTeamLines(admin, me.id, ar)]);
+    // the team's late work: not a decision for them (Saree3 chases it), but never hidden behind "nothing needs you"
+    const lateText = () =>
+      [
+        ar
+          ? late.count === 1 ? 'فيه مهمة متأخرة عند فريقك، وأنا أتابعها:' : `فيه ${late.count} مهام متأخرة عند فريقك، وأنا أتابعهم:`
+          : `${late.count} task${late.count > 1 ? 's are' : ' is'} late with your team. I’m following up:`,
+        ...late.lines,
+        ...(late.count > late.lines.length ? [ar ? `و${late.count - late.lines.length} غيرها في منتج` : `+${late.count - late.lines.length} more in Muntej`] : []),
+      ].join('\n');
+    if (!cards.length) {
+      if (!late.count) return void (await say(ar ? 'ما فيه شي يحتاجك الحين 👌 أنا ماسك الباقي' : 'Nothing needs you right now 👌 I’ve got the rest'));
+      return void (await say(`${ar ? 'ما فيه قرار ينتظرك 👌' : 'No decision needs you 👌'}\n\n${lateText()}`));
+    }
     await say(ar ? (cards.length === 1 ? 'فيه شي واحد يحتاجك 👇' : cards.length === 2 ? 'فيه شيئين يحتاجونك 👇' : cards.length <= 10 ? `فيه ${cards.length} أشياء تحتاجك 👇` : `فيه ${cards.length} شي يحتاجك 👇`) : `${cards.length} thing${cards.length > 1 ? 's' : ''} need${cards.length > 1 ? '' : 's'} you 👇`);
     await sendCards(from, ar, cards, max);
+    if (late.count) await say(lateText());
   }
 
   /** their report now, on WhatsApp only (the right one for the time of day, or the one the template button names) */
