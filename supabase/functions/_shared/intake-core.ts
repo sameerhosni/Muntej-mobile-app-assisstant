@@ -72,6 +72,8 @@ Rules:
 - user_is_manager = true: the user runs a team, and a request reaching their inbox / chat / meeting is not automatically theirs. This holds even when the message says "you" / "can you…" / "تقدر" to the user: a manager hands such work on. Work someone on the team can do (prepare, check, test, review a file, fill in a form, write a report, data entry, follow up with a client, design, build) → owner_id = the teammate whose title, then skills, fit it best (a test / QA job → the tester; marketing work → the marketer). The user is the owner ONLY for what needs them personally: approve, decide, sign, attend a meeting they're invited to, reply as themselves, or when the message says they will do it. No teammate fits → null, not the user.
 - Group chats, channels and meetings (is_group = true): the user sees every line but only some of it is theirs. Keep a task only when it is asked of the user (by name, @mention, or "you" in a reply to them), or of a named team member, or of everyone ("@all", "team", "يا شباب") AND the user's title / role fits the work. Work for named people or teams that are not in team ("Anas", "the dev team", "OP team", "Nabulsi to follow up") → outside = true.
 - Messages the user wrote themself (sender = user_name) asking someone else ("send me the Trello card", "ابعتلي") are that person's work, not the user's: owner = that person; not in team → outside = true.
+- Chats (google_chat, slack, teams, whatsapp) are conversations, not to-do lists (owner: "it's only chats, not tasks"). Default to NO task. A chat line is a task only when someone clearly asks a specific person (the user, or a teammate by name) for a concrete piece of work that is still open at the end of the conversation. NOT tasks in a chat: asking for, arranging or agreeing on a call / meeting, even before it's agreed ("can we have a call?", "إذا يناسبكم مكالمة", "4 pm ok?", "shall I put it in the calendar?": the calendar holds it); greetings and small talk; a question or ask the user already answered or handled in the same chat ("let me check", "check now", "done", "sent", "اى اكيد", "تمام"); someone posting their own list of work, plans or status ("X — done", "planned for tomorrow", a bare list of items with no one asked): that is the poster's own work, so owner = the poster (not in team → outside = true), never a teammate; links and files shared.
+- Never give work to a teammate only because they are the only one, or because nobody else is in team: role / skill matching needs a title or skills that really fit; a teammate with no title and no skills matches only by name.
 - Sharing an article, a link or news with no ask ("FYI", "check this out") is not a task.
 - Information is not a task: news about someone else's plan or status ("Noura is on leave today so she starts tomorrow", "the release moved to Sunday", "X is done") has no task unless it asks someone to do something.
 - user_is_delegating = true: the user is talking to you (their assistant) by voice or text, as a manager handing out work. "I need someone to…", "احتاج حد يسوي", "خل أحد", "أحد من الفريق", a role or a team ("QE", "QA", "المبيعات", "the designer") → owner_id = the team member whose title, then skills, fit the work best (a test / QA / QE job → the tester; a report → whoever owns that area). NEVER the user for these. The user is the owner only when they say so ("remind me", "I'll", "ذكرني", "أنا بسويها", "لي أنا") or nobody else exists. This overrides rule 3 above.
@@ -137,14 +139,16 @@ export async function sha256(s: string) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function extract(text: string, context: unknown) {
+async function extract(text: string, context: { source?: string } & Record<string, unknown>) {
   const model = Deno.env.get('INTAKE_MODEL') ?? Deno.env.get('PARSE_MODEL') ?? 'gpt-5-mini';
+  // a chat needs the whole conversation weighed (who asked, what's already answered): think a bit longer
+  const chat = ['google_chat', 'slack', 'teams'].includes(context.source ?? '');
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${requireEnv('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model,
-      ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: Deno.env.get('PARSE_REASONING') ?? 'low' } : {}),
+      ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: chat ? 'medium' : (Deno.env.get('PARSE_REASONING') ?? 'low') } : {}),
       messages: [
         { role: 'system', content: SYSTEM },
         { role: 'user', content: `Context:\n${JSON.stringify(context)}\n\nMessage:\n"""${text}"""` },
@@ -350,7 +354,17 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   // work for people outside Muntej is theirs, not yours or your team's (owner: "not mine, other teams"), from any tool
   // work for someone outside Muntej: kept when the user handed it out themself (they'll see the name and can add the
   // person to the team); dropped when it's other people's business between themselves
-  const relevant = confident.filter((t) => !(t.outside && !t.owner_id && !t.asked_by_user));
+  // a chat line nobody in the team owns is someone else's conversation (owner: "it's only chats, not tasks")
+  const isChat = ['google_chat', 'slack', 'teams'].includes(input.source);
+  // and in a chat a teammate gets work only when the chat names them (not as the only one in the team)
+  const lower = body.toLowerCase();
+  const named = (id: string) => {
+    const p = input.team.find((x) => x.id === id);
+    return !!p && [p.full_name, p.full_name_ar].some((n) => n && n.split(' ')[0].length > 1 && lower.includes(n.split(' ')[0].toLowerCase()));
+  };
+  const relevant = confident
+    .map((t) => (isChat && t.owner_id && t.owner_id !== input.profileId && !named(t.owner_id) ? { ...t, owner_id: null } : t))
+    .filter((t) => !(t.outside && !t.owner_id && !t.asked_by_user) && !(isChat && !t.owner_id && !t.asked_by_user));
   const kept = onlyMine ? relevant.filter((t) => t.owner_id === input.profileId) : relevant;
   const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;

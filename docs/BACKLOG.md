@@ -90,6 +90,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-10-28 · Chats aren't tasks: call / meeting set-ups, answered asks and someone's own work list are no longer tasks; in a chat a teammate gets work only when named (server only, live)
 - 2026-10-28 · "Your steps in Muntej" moves for everyone: recorded for admins too, and your own tasks count (opened, moved, finished) (server only, live)
 - 2026-10-28 · WhatsApp: one report per number (the account you work in, same as the chat); "What needs me" also lists the team's late tasks (server only, live)
 - 2026-10-28 · Sign-in is fingerprint, email code or WhatsApp only; code screen offers the fingerprint; shorter WhatsApp report (server: daily-summary, quick-login · app update 1.3.0)
