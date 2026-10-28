@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -90,6 +90,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-10-28 · Short WhatsApp report: one message (counts + up to 3 things that need you + buttons); full report stays in email (server only, live)
 - 2026-10-27 · Backlog updates itself on every release
 - 2026-10-27 · Fingerprint-only sign-in, Home fingerprint offer, "Sign-in & security" row
 - 2026-10-27 · `npm run ship` one-step release; Android builds on GitHub (1.3.0 APK built)

@@ -4,8 +4,8 @@
 //   🌙 end of day (17:30) today's wins, what's still open or late, what still needs you before tomorrow
 // Each has its own rule in Alerts (daily_summary / midday_report / evening_report: on/off, time, channels). No report
 // on Friday/Saturday (Saudi weekend), and midday / end of day are skipped when there's nothing worth saying.
-// WhatsApp: inside the 24 h window the whole report, then each decision / review with its buttons; outside it the
-// approved "report" template (counts + a "Show me" button that brings the full report).
+// WhatsApp: inside the 24 h window one short message (counts + up to 3 things that need you, with a "What needs me"
+// button for the cards); outside it the approved "report" template (counts + a "Show me" button). Email has it all.
 //
 // Called every 15 minutes by pg_cron (x-cron-secret), or by a signed-in user with {"test": true, kind?, only?} to get
 // theirs now ("Send me today's summary", or "report" on WhatsApp with only: 'whatsapp').
@@ -14,8 +14,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { HttpError, getCaller, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
-import { inWindow, REPORT_TEMPLATE, rtl, waButtons, waConfigured, waTemplate, waText } from '../_shared/wa.ts';
-import { needsYouCards, sendCards } from '../_shared/wa-actions.ts';
+import { inWindow, REPORT_TEMPLATE, rtl, waButtons, waConfigured, waTemplate } from '../_shared/wa.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
 type Lang = 'en' | 'ar';
@@ -466,36 +465,33 @@ async function sendEmail(to: string, subject: string, html: string, text: string
   return res.ok;
 }
 
-/** WhatsApp, bold section titles and one item per line (the whole report fits one message) */
+const clip = (s: string, n = 60) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** WhatsApp, short on purpose (owner, 28 Oct: "very big, needs to be smaller"): hello, the counts line, and at most
+ *  3 things that need them, one short line each. The full report stays in the email and the app. */
 function whatsappText(s: Summary, lang: Lang) {
-  return rtl(
-    lang === 'ar',
-    [`*${s.hello}*`, s.headline, ...s.sections.flatMap((sec) => ['', `*${sec.title}*`, ...sec.items.map((i) => `• ${i}`)])].join('\n'),
-  );
+  const needs = s.sections.find((sec) => sec.key === 'needs') ?? s.sections.find((sec) => sec.key === 'yours');
+  const items = (needs?.items ?? []).filter((i) => !i.startsWith('+'));
+  const lines = [`*${s.hello}*`, s.headline];
+  if (items.length) {
+    lines.push('', `*${needs!.title}*`, ...items.slice(0, 3).map((i) => `• ${clip(i)}`));
+    if (items.length > 3) lines.push(say(lang, 'more', { n: num(items.length - 3, lang) }));
+  }
+  return rtl(lang === 'ar', lines.join('\n'));
 }
 
-/** inside the 24 h window: the report, then what needs them as cards with buttons; outside it: the approved template */
-async function sendWhatsAppReport(admin: SupabaseClient, me: Person, lang: Lang, s: Summary, kind: Kind): Promise<boolean> {
+/** inside the 24 h window: one short message with two buttons ("What needs me" brings the cards on demand);
+ *  outside it: the approved template */
+async function sendWhatsAppReport(me: Person, lang: Lang, s: Summary, kind: Kind): Promise<boolean> {
   if (!me.phone) return false;
   if (!inWindow(me.wa_last_inbound_at))
     return await waTemplate(me.phone, REPORT_TEMPLATE(), lang, [firstName(me, lang), s.counts], `rep:${kind}`);
-  if (!(await waText(me.phone, whatsappText(s, lang)))) return false;
-  const cards = await needsYouCards(admin, me.id, lang === 'ar');
-  if (cards.length) {
-    await waText(me.phone, rtl(lang === 'ar', say(lang, 'below')));
-    await sendCards(me.phone, lang === 'ar', cards, 3);
-  }
-  // one tap keeps WhatsApp's 24 h window open, so the next report comes in full (until Meta approves the template)
+  // a tap on either button also keeps WhatsApp's 24 h window open for the next report
   const ar = lang === 'ar';
-  await waButtons(
-    me.phone,
-    rtl(ar, ar ? 'وصلك؟ اضغط «تمام» وأرسل لك التقرير الجاي هنا كامل 👇\nوتقدر تسألني أي شي عن شغلك.' : 'Got it? Tap “OK” and the next report comes here in full 👇\nYou can also ask me anything about your work.'),
-    [
-      { id: 'ack:', title: ar ? '✅ تمام' : '✅ OK' },
-      { id: 'act:', title: ar ? '📌 وش يحتاجني' : '📌 What needs me' },
-    ],
-  );
-  return true;
+  return await waButtons(me.phone, whatsappText(s, lang), [
+    { id: 'act:', title: ar ? '📌 وش يحتاجني' : '📌 What needs me' },
+    { id: 'ack:', title: ar ? '✅ تمام' : '✅ OK' },
+  ]);
 }
 
 // ─── run ──────────────────────────────────────────────────────────────────────
@@ -638,7 +634,7 @@ async function sendOne(
   }
   if (channels.includes('email') && me.email && (await sendEmail(me.email, s.subject, emailHtml(s, s.hello, lang), plainText(s, s.hello, lang))))
     sent.push('email');
-  if (channels.includes('whatsapp') && waConfigured() && me.phone && (await sendWhatsAppReport(admin, me, lang, s, kind)))
+  if (channels.includes('whatsapp') && waConfigured() && me.phone && (await sendWhatsAppReport(me, lang, s, kind)))
     sent.push('whatsapp');
 
   if (!opts.test) await admin.from('daily_summaries').upsert({ profile_id: me.id, day: riyadhDay(now), kind, channels: sent });
