@@ -90,6 +90,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-10-28 · Sign-in is fingerprint, email code or WhatsApp only; code screen offers the fingerprint; shorter WhatsApp report (server: daily-summary, quick-login · app update 1.3.0)
 - 2026-10-28 · Short WhatsApp report: one message (counts + up to 3 things that need you + buttons); full report stays in email (server only, live)
 - 2026-10-27 · Backlog updates itself on every release
 - 2026-10-27 · Fingerprint-only sign-in, Home fingerprint offer, "Sign-in & security" row
