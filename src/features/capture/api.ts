@@ -35,8 +35,10 @@ export type ParsedTask = {
 export async function toError(error: unknown): Promise<Error> {
   if (error instanceof FunctionsHttpError) {
     try {
-      const body = (await error.context.json()) as { error?: string };
+      // ours: { error }; the gateway's own (expired sign-in, function down): { message } / { msg }
+      const body = (await error.context.json()) as { error?: string; message?: string; msg?: string };
       if (body?.error) return new Error(body.error);
+      if (body?.message || body?.msg) console.warn('[functions] gateway said', error.context.status, body.message ?? body.msg);
     } catch {
       // fall through
     }

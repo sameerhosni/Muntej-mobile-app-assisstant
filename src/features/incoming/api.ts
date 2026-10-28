@@ -1,7 +1,10 @@
 // Incoming: messages from other tools that Muntej read and turned into task suggestions (table incoming_items,
 // written only by the intake Edge Function). The person accepts, edits or ignores each suggestion.
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import i18n from '@/lib/i18n';
+import { NS } from './strings';
 import { toError } from '@/features/capture/api';
 import { invalidateTaskData } from '@/features/chat/api';
 
@@ -103,9 +106,21 @@ export function useIncomingCount() {
 }
 
 async function call<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke<T>('intake', { body });
-  if (error) throw await toError(error);
-  return data as T;
+  let res = await supabase.functions.invoke<T>('intake', { body });
+  // the app sat in the background and its sign-in token ran out: refresh it and try once more (the gateway's 401
+  // carries no message of ours, so the person only saw "non-2xx status code")
+  if (res.error instanceof FunctionsHttpError && res.error.context?.status === 401) {
+    await supabase.auth.refreshSession();
+    res = await supabase.functions.invoke<T>('intake', { body });
+  }
+  if (res.error) {
+    const status = res.error instanceof FunctionsHttpError ? (res.error.context?.status as number | undefined) : undefined;
+    const err = await toError(res.error);
+    if (status === 401) throw new Error(i18n.t(`${NS}.errSession`));
+    if (/non-2xx/i.test(err.message)) throw new Error(i18n.t(`${NS}.errServer`));
+    throw err;
+  }
+  return res.data as T;
 }
 
 /** The incoming actions; each refreshes the list (and tasks when one was created). */
