@@ -32,7 +32,7 @@ import {
   type WaButton,
   type WaRow,
 } from '../_shared/wa.ts';
-import { lateTeamLines, needsYouCards, sendCards, waProfileFor, whenText } from '../_shared/wa-actions.ts';
+import { lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolListButtons, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
 import { newPin, sha256 } from '../_shared/phone-session.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
@@ -387,6 +387,10 @@ async function handle(m: WaMessage, dry = false) {
     ));
   }
 
+  // numbers after the list of tasks found in tools ("1 3 5", "تجاهل 2 6", "الكل"): approve / ignore in one go
+  const chosen = parsePick(text);
+  if (chosen && (await toolList())) return void (await applyPick(chosen));
+
   if (SAYS_HELP.test(text)) return void (await say(helpText(ar)));
   if (SAYS_NEEDS.test(text)) return void (await needsYou(10));
   if (SAYS_REPORT.test(text)) return void (await report('auto'));
@@ -571,6 +575,90 @@ async function handle(m: WaMessage, dry = false) {
     if (verb === 'r') return void (await review(rest[0] as 'ok' | 'back', rest[1]));
     if (verb === 'h') return void (await checkin(rest[0], rest[1]));
     if (verb === 'ok' || verb === 'no') return void (await suggestion(verb, rest[0], Number(rest[1])));
+    // under the numbered list: all, none, or "type the numbers"
+    if (verb === 'ta' || verb === 'ti') {
+      if (!(await toolList())) return void (await say(ar ? 'هالقائمة قديمة شوي ⌛ قل «وش يحتاجني» وأرسلها لك من جديد' : 'That list is a bit old ⌛ Say "what needs me" and I’ll send it again'));
+      return void (await applyPick({ all: verb === 'ta' ? 'approve' : 'ignore' }));
+    }
+    if (verb === 'tp')
+      return void (await say(
+        ar
+          ? 'اكتب أرقام اللي تبي أعتمدها، مثل: 1 3 5 أو 1-4 ✍️\nوالباقي أتجاهله.\nأو اكتب «تجاهل 2 6» وأعتمد الباقي.'
+          : 'Type the numbers to approve, e.g. 1 3 5 or 1-4 ✍️\nI’ll ignore the rest.\nOr type "ignore 2 6" and I’ll approve the rest.',
+      ));
+  }
+
+  /** the numbered list I sent last (within a day): which suggestion each number is */
+  async function toolList(): Promise<{ item: string; index: number }[] | null> {
+    const { data } = await admin
+      .from('wa_pending')
+      .select('body')
+      .eq('key', `tools:${me.id}`)
+      .gte('created_at', new Date(Date.now() - 24 * 3_600_000).toISOString())
+      .maybeSingle();
+    const refs = (data?.body as { refs?: { item: string; index: number }[] } | undefined)?.refs;
+    return refs?.length ? refs : null;
+  }
+
+  /** approve / ignore the numbered tasks in one go, then one line back (same as Approve / Ignore on each card) */
+  async function applyPick(p: Pick) {
+    const refs = (await toolList()) ?? [];
+    const chosen = new Set('nums' in p ? p.nums : []);
+    const wrong = [...chosen].filter((n) => n < 1 || n > refs.length);
+    const { data: rows } = await admin.from('incoming_items').select('*').eq('owner_id', me.id).in('id', [...new Set(refs.map((r) => r.item))]);
+    const items = new Map(((rows ?? []) as Item[]).map((it) => [it.id, it]));
+    const touched = new Set<string>();
+    let added = 0;
+    let ignored = 0;
+    let before = 0;
+    let noOwner = 0;
+    const failed: string[] = [];
+    for (const [n, r] of refs.entries()) {
+      const item = items.get(r.item);
+      const s = item?.suggestions[r.index];
+      if (!item || !s) continue;
+      if (s.state !== 'new') {
+        before++;
+        continue;
+      }
+      const listed = chosen.has(n + 1);
+      // "approve all" and "the rest" leave out what is already a task
+      const approve = 'all' in p ? p.all === 'approve' && !s.duplicate_of : p.approve ? listed : !listed && !s.duplicate_of;
+      touched.add(item.id);
+      if (!approve) {
+        s.state = 'ignored';
+        ignored++;
+        continue;
+      }
+      try {
+        s.task_id = await createFromSuggestion(admin, me.id, item, s, creator());
+        s.state = 'accepted';
+        added++;
+        if (!s.owner_id) noOwner++;
+      } catch (e) {
+        console.warn('pick add failed', (e as Error).message);
+        failed.push(s.title);
+      }
+    }
+    for (const id of touched) await saveItem(admin, items.get(id)!);
+    await admin.from('wa_pending').delete().eq('key', `tools:${me.id}`);
+    const lines = [
+      ar ? `تم ✅ اعتمدت ${added} وتجاهلت ${ignored}` : `Done ✅ Approved ${added}, ignored ${ignored}`,
+      ...(noOwner ? [ar ? `👤 ${noOwner} منها ما لها أحد للحين، اختر لها شخص من منتج` : `👤 ${noOwner} have nobody yet, pick someone in Muntej`] : []),
+      ...(before ? [ar ? `✓ ${before} كانت محسومة قبل` : `✓ ${before} were already handled`] : []),
+      ...(wrong.length ? [ar ? `🤔 ما فيه رقم ${wrong.join('، ')} في القائمة` : `🤔 No number ${wrong.join(', ')} in the list`] : []),
+      ...(failed.length ? [ar ? `😕 ما قدرت أضيف: ${failed.join('، ')}` : `😕 Couldn’t add: ${failed.join(', ')}`] : []),
+    ];
+    await say(lines.join('\n'));
+  }
+
+  /** tasks found in tools: one numbered message + all / none / choose (the numbers are kept for the reply) */
+  async function sendToolList(tools: WaCard[]) {
+    const refs = tools.slice(0, MAX_LIST).map((c) => c.ref!).filter(Boolean);
+    await admin.from('wa_pending').upsert({ key: `tools:${me.id}`, profile_id: me.id, body: { refs }, created_at: new Date().toISOString() });
+    await waText(from, toolListText(tools, ar));
+    const b = toolListButtons(ar);
+    await waButtons(from, b.body, b.buttons);
   }
 
   async function needsYou(max: number) {
@@ -589,7 +677,12 @@ async function handle(m: WaMessage, dry = false) {
       return void (await say(`${ar ? 'ما فيه قرار ينتظرك 👌' : 'No decision needs you 👌'}\n\n${lateText()}`));
     }
     await say(ar ? (cards.length === 1 ? 'فيه شي واحد يحتاجك 👇' : cards.length === 2 ? 'فيه شيئين يحتاجونك 👇' : cards.length <= 10 ? `فيه ${cards.length} أشياء تحتاجك 👇` : `فيه ${cards.length} شي يحتاجك 👇`) : `${cards.length} thing${cards.length > 1 ? 's' : ''} need${cards.length > 1 ? '' : 's'} you 👇`);
-    await sendCards(from, ar, cards, max);
+    // decisions, reviews and your own work stay one card each (each needs its own answer); tasks found in tools
+    // come as one numbered list
+    const tools = cards.filter((c) => c.kind === 'tool' && c.ref);
+    const others = cards.filter((c) => !(c.kind === 'tool' && c.ref));
+    if (others.length) await sendCards(from, ar, others, max);
+    if (tools.length) await sendToolList(tools);
     if (late.count) await say(lateText());
   }
 

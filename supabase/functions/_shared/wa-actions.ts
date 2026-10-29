@@ -6,7 +6,16 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { rtl, waButtons, waText, type WaButton } from './wa.ts';
 
-export type WaCard = { kind: 'decision' | 'review' | 'tool' | 'mine'; body: string; buttons: WaButton[]; /** the task it's about */ taskId?: string | null };
+export type WaCard = {
+  kind: 'decision' | 'review' | 'tool' | 'mine';
+  body: string;
+  buttons: WaButton[];
+  /** the task it's about */
+  taskId?: string | null;
+  /** a task found in a tool: which message and which suggestion, and its one line in the numbered list */
+  ref?: { item: string; index: number };
+  line?: string;
+};
 
 const OPEN = ['assigned', 'in_progress', 'blocked', 'returned'];
 const DAY = 86_400_000;
@@ -104,8 +113,12 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
   for (const it of items ?? [])
     for (const [i, s] of ((it.suggestions ?? []) as { state: string; title: string; due_at: string | null }[]).entries()) {
       if (s.state !== 'new') continue;
+      const tool = (SOURCE[it.source as string] ?? [it.source, it.source])[ar ? 0 : 1];
+      const dup = !!(s as { duplicate_of?: unknown }).duplicate_of;
       cards.push({
         kind: 'tool',
+        ref: { item: it.id as string, index: i },
+        line: `*${s.title.length > 70 ? `${s.title.slice(0, 69)}…` : s.title}*\n   ${[tool, s.due_at ? whenText(s.due_at, ar) : null, dup ? (ar ? '♻️ موجودة قبل' : '♻️ already a task') : null].filter(Boolean).join(' · ')}`,
         body: rtl(ar, `🔌 ${ar ? 'لقيتها في' : 'Found in'} ${(SOURCE[it.source as string] ?? [it.source, it.source])[ar ? 0 : 1]}:\n📝 *${s.title}*${s.due_at ? `\n⏰ ${whenText(s.due_at, ar)}` : ''}`),
         buttons: [
           { id: `ok:${it.id}:${i}`, title: ar ? '✅ اعتمد' : '✅ Approve' },
@@ -172,6 +185,69 @@ export async function lateTeamLines(admin: SupabaseClient, meId: string, ar: boo
     count: rows.length,
     lines: rows.slice(0, max).map((t) => `🔴 *${t.title.length > 50 ? `${t.title.slice(0, 49)}…` : t.title}* · ${first(t.owner ?? undefined, ar) || '…'} · ${whenText(t.due_at, ar)}`),
   };
+}
+
+/** tasks found in tools as ONE numbered message (owner, 28 Oct: one card each took ages to answer, and every tap
+ *  jumped to the bottom of the chat). The numbers map to the cards in this order. */
+export const MAX_LIST = 30;
+export function toolListText(cards: WaCard[], ar: boolean) {
+  const shown = cards.slice(0, MAX_LIST);
+  return rtl(
+    ar,
+    [
+      ar ? `🔌 لقيت ${cards.length === 1 ? 'مهمة وحدة' : cards.length === 2 ? 'مهمتين' : `${cards.length} ${cards.length <= 10 ? 'مهام' : 'مهمة'}`} في أدواتك:` : `🔌 I found ${cards.length} task${cards.length > 1 ? 's' : ''} in your tools:`,
+      '',
+      ...shown.map((c, n) => `${n + 1}. ${c.line ?? ''}`),
+      ...(cards.length > shown.length ? ['', ar ? `و${cards.length - shown.length} غيرها في منتج ← أدواتك` : `+${cards.length - shown.length} more in Muntej → Your tools`] : []),
+    ].join('\n'),
+  );
+}
+export function toolListButtons(ar: boolean): { body: string; buttons: WaButton[] } {
+  return {
+    body: rtl(
+      ar,
+      ar
+        ? 'تعتمدها كلها؟ أو اكتب أرقام اللي تبيها (مثل: 1 3 5 أو 1-4) وأتجاهل الباقي.\nأو «تجاهل 2 6» وأعتمد الباقي.'
+        : 'Approve them all? Or type the numbers you want (e.g. 1 3 5 or 1-4) and I’ll ignore the rest.\nOr "ignore 2 6" and I’ll approve the rest.',
+    ),
+    buttons: [
+      { id: 'ta:', title: ar ? '✅ اعتمد الكل' : '✅ Approve all' },
+      { id: 'ti:', title: ar ? '✖️ تجاهل الكل' : '✖️ Ignore all' },
+      { id: 'tp:', title: ar ? '✍️ أختار' : '✍️ I’ll choose' },
+    ],
+  };
+}
+
+export type Pick = { all: 'approve' | 'ignore' } | { approve: boolean; nums: number[] };
+/** "1 3 5", "1-4, 7", "١ و ٣", "اعتمد 2 4", "تجاهل 2 6", "كلها إلا 3", "all except 3", "الكل": null when it isn't a pick */
+export function parsePick(raw: string): Pick | null {
+  const s = raw
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0))
+    .replace(/[،؛]/g, ',')
+    .trim()
+    .toLowerCase()
+    .replace(/^[✅✖️❌\s]+/u, '');
+  if (/^(اعتمد|اعتمدها|approve|ok|okay)?\s*(الكل|كلها|كله|all)\s*$/.test(s)) return { all: 'approve' };
+  if (/^(تجاهل|تجاهلها|ignore)\s*(الكل|كلها|كله|all)\s*$/.test(s)) return { all: 'ignore' };
+  let approve = true;
+  let rest = s;
+  const neg = rest.match(/^(كلها|الكل|all)?\s*(الا|إلا|ماعدا|ما عدا|except|but)\s*/) ?? rest.match(/^(تجاهل|تجاهلها|ignore|skip)\s*/);
+  const pos = rest.match(/^(اعتمد|اعتمدها|approve|ok|add|اضف|أضف)\s*/);
+  if (neg) {
+    approve = false;
+    rest = rest.slice(neg[0].length);
+  } else if (pos) rest = rest.slice(pos[0].length);
+  rest = rest.replace(/(\d)\s*و\s*(?=\d)/g, '$1 ').replace(/\b(and|to)\b|الى|إلى|لين/g, (w) => (w === 'and' ? ' ' : '-')).replace(/\s*[-–]\s*/g, '-');
+  if (!/^[\d\s,\-–]+$/.test(rest) || !/\d/.test(rest)) return null;
+  const nums = new Set<number>();
+  for (const part of rest.split(/[\s,]+/).filter(Boolean)) {
+    const r = part.match(/^(\d+)[-–](\d+)$/);
+    if (r) for (let n = Math.min(+r[1], +r[2]); n <= Math.max(+r[1], +r[2]) && nums.size < 200; n++) nums.add(n);
+    else if (/^\d+$/.test(part)) nums.add(+part);
+    else return null;
+  }
+  return { approve, nums: [...nums] };
 }
 
 /** sends up to `max` cards, then one line for the rest */

@@ -91,6 +91,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 (move finished items here with the date)
 
 - 2026-10-28 · Add on a found task: expired sign-in is refreshed and retried; plain error otherwise (server: autopilot, connect, daily-summary, intake, intercom-webhook, muntej-chat, public-api, send-followups, sync-sources, team-alerts, whatsapp · app update 1.3.0)
+- 2026-10-29 · Arabic by default with an English / العربية button before sign-in; "How should I reach you?" (App / WhatsApp / Both) in Settings; WhatsApp: tasks found in tools as one numbered list, approve / ignore all or by numbers (app update + server)
 - 2026-10-28 · Add on a found task no longer fails with "non-2xx status code": an expired sign-in is refreshed and retried once; other failures say so plainly (app update)
 - 2026-10-28 · Chats aren't tasks: call / meeting set-ups, answered asks and someone's own work list are no longer tasks; in a chat a teammate gets work only when named (server only, live)
 - 2026-10-28 · "Your steps in Muntej" moves for everyone: recorded for admins too, and your own tasks count (opened, moved, finished) (server only, live)

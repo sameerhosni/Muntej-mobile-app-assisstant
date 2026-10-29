@@ -44,6 +44,7 @@ import { SupportRow } from '@/features/support/SupportRow';
 import { HomeSectionsRow } from '@/features/prefs/HomeSectionsRow';
 import { IdeasRow } from '@/features/ideas/IdeasRow';
 import { NS as ALERTS_NS } from '@/features/alerts/strings';
+import { ReachMe } from '@/features/alerts/ReachMe';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -293,6 +294,9 @@ export default function SettingsScreen() {
       </Card>
 
       <HomeSectionsRow />
+
+      {/* push, WhatsApp or both: the quick choice; Alerts below has the detail */}
+      <ReachMe />
 
       <Card
         onPress={() => router.push('/18-alerts')}

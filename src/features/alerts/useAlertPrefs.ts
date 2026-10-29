@@ -160,6 +160,11 @@ export function useAlertPrefs() {
     const p = current();
     mutation.mutate({ channels: { ...p.channels, [c]: !p.channels[c] } });
   };
+  /** several channel switches at once ("How should I reach you?") */
+  const setChannels = (patch: Partial<Record<Channel, boolean>>) => {
+    const p = current();
+    mutation.mutate({ channels: { ...p.channels, ...patch } });
+  };
   const toggleRule = (r: RuleKey) => {
     const p = current();
     mutation.mutate({ rules: { ...p.rules, [r]: { ...p.rules[r], enabled: !p.rules[r].enabled } } });
@@ -180,6 +185,7 @@ export function useAlertPrefs() {
     },
     saveError: mutation.isError,
     toggleChannel,
+    setChannels,
     toggleRule,
     toggleQuietHours,
   };

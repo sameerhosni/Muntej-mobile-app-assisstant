@@ -2,7 +2,6 @@ import i18n from 'i18next';
 import { initReactI18next, useTranslation } from 'react-i18next';
 import { I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocales } from 'expo-localization';
 import en from './en';
 import ar from './ar';
 
@@ -10,25 +9,24 @@ export type Language = 'en' | 'ar';
 
 const STORAGE_KEY = 'muntej.language';
 
-function deviceLanguage(): Language {
-  return getLocales()[0]?.languageCode === 'ar' ? 'ar' : 'en';
-}
+/** Arabic unless the person picks English (owner, 28 Oct: "keep Arabic as the default"); the phone's language no longer decides */
+const DEFAULT_LANGUAGE: Language = 'ar';
 
 i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, ar: { translation: ar } },
-  lng: deviceLanguage(),
+  lng: DEFAULT_LANGUAGE,
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
   returnNull: false,
 });
 
-/** Restore the language the user picked last time (falls back to device language). */
+/** Restore the language the user picked last time (falls back to Arabic). */
 export async function loadSavedLanguage(): Promise<void> {
   try {
     const saved = await AsyncStorage.getItem(STORAGE_KEY);
     if (saved === 'en' || saved === 'ar') await i18n.changeLanguage(saved);
   } catch {
-    // keep device language
+    // keep the default
   }
 }
 

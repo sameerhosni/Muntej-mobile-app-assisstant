@@ -45,6 +45,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   saree3: {},
   daily_summary: { href: '/18-alerts', spot: 'alerts.summary' },
   view_as: { href: '/settings', spot: 'settings.viewAs' },
+  reach_me: { href: '/settings', spot: 'settings.reachMe' },
   // opens one of your own open tasks (LaunchCard picks it) with its steps lit up
   steps: { href: '/38-tasks', spot: 'task.steps' },
   // 23 Oct: each one's place is a TourTarget, so "Show me" runs Saree3's walkthrough right on it
