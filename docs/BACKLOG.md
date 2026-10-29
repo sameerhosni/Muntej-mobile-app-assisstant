@@ -94,6 +94,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-10-29 · Onboarding release 1: admin setup chat with Saree3 (app update 1.3.0)
 - 2026-10-29 · Arabic by default + language button; How should I reach you?; WhatsApp numbered list (server: autopilot, daily-summary, intercom-webhook, muntej-chat, send-followups, sync-sources, team-alerts, whatsapp · app update 1.3.0)
 - 2026-10-28 · Add on a found task: expired sign-in is refreshed and retried; plain error otherwise (server: autopilot, connect, daily-summary, intake, intercom-webhook, muntej-chat, public-api, send-followups, sync-sources, team-alerts, whatsapp · app update 1.3.0)
 - 2026-10-29 · Arabic by default with an English / العربية button before sign-in; "How should I reach you?" (App / WhatsApp / Both) in Settings; WhatsApp: tasks found in tools as one numbered list, approve / ignore all or by numbers (app update + server)
