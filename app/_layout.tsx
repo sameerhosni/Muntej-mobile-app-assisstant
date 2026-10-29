@@ -50,6 +50,7 @@ const MORE_SCREENS = [
   '60-wishlist',
   '61-build-team',
   '62-team-review',
+  '63-setup-chat',
 ];
 
 SplashScreen.preventAutoHideAsync().catch(() => {});

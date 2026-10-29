@@ -66,6 +66,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 3.12 | Fingerprint on version 1.3.0 (Play install): Home offer «تبي تفتح منتج ببصمتك؟», then sign out → «ادخل ببصمتي» goes straight in. Sign-in is now fingerprint, email code or WhatsApp only (authenticator step removed 27 Oct) |
 | 3.13 | Team → «تحديد»: pick several people and delete; deleting a manager deletes their team after the confirm; Restore brings the whole group back (Select bar on Android) |
 | 3.14 | Proof optional by default + «اطلب إثبات» on a task; late tile shows only unfinished tasks; «خلصت متأخرة» / «انرسلت متأخرة» labels |
+| 3.15 | Admin setup chat with Saree3 (screen 63): sign up with a new email → company card → team by voice / photo / file → first task → Home; leave halfway → Home card resumes. Tested on web with a test company (Najm, khalid@najm-logistics.test) |
 
 ## 4. Later ideas (not started)
 
@@ -76,6 +77,9 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 4.3 | Connect your tools: show every linked account of the same tool (today the card status shows the first one) |
 | 4.4 | Follow-ups scheduled before 23 Oct keep the old text; only new tasks get Saree3's new voice |
 | 4.5 | Clear "you deleted your account" message on sign-in (today a generic error) and let a manager re-add someone who left |
+| 4.6 | Chat onboarding release 2: manager and employee setup as a Saree3 chat (prefilled confirm, how to reach you, fingerprint, team status / first task in the chat) |
+| 4.7 | Chat onboarding release 3: the same setup inside WhatsApp («كمّل هنا في الواتساب»), reminders after 1 and 3 days for unfinished setups, "Faisal joined" to the admin, set-up status on the Team list |
+| 4.8 | Better company name from the email domain ("najm-logistics" → "Najm Logistics"; today the dash stays) in the sign-up trigger |
 
 ## 5. Cleanup
 

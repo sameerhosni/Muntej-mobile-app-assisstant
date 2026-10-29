@@ -2,7 +2,7 @@
 // so a setup left halfway can be continued from anywhere: tap → Saree3's setup guide at the next missing item.
 // Home has the bigger strip (GettingStarted). Gone once everything is set up.
 import { Pressable, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Sparkles } from 'lucide-react-native';
 import { AppText } from '@/components/ui';
@@ -18,16 +18,19 @@ export function SetupBar() {
   const { isRTL } = useDirection();
   const qc = useQueryClient();
   const setup = useSetup();
-  if (!setup.ready || !setup.row || setup.done >= setup.total) return null;
+  // an admin counts the setup chat's three steps (company, team, first task) and goes back to that chat
+  const items = setup.member ? setup.items : setup.chat.items;
+  const done = items.filter((i) => i.done).length;
+  if (!setup.ready || !setup.row || done >= items.length) return null;
   const go = async () => {
     if (setup.row?.dismissed) await markOnboarding(qc, { dismissed: false }).catch(() => {});
-    router.push('/47-welcome');
+    router.push((setup.member ? '/47-welcome' : '/63-setup-chat') as Href);
   };
   return (
     <Pressable
       onPress={go}
       accessibilityRole="button"
-      accessibilityLabel={`${t('stripTitle')} ${setup.done}/${setup.total}`}
+      accessibilityLabel={`${t('stripTitle')} ${done}/${items.length}`}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
@@ -45,12 +48,12 @@ export function SetupBar() {
       </AppText>
       {/* a mini progress: filled dots for what's done */}
       <View style={{ flexDirection: 'row', gap: 3 }}>
-        {setup.items.map((i) => (
+        {items.map((i) => (
           <View key={i.key} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: i.done ? colors.green : colors.borderBlue }} />
         ))}
       </View>
       <AppText variant="small" weight="extrabold" color="primary" style={{ writingDirection: 'ltr' }}>
-        {`${setup.done}/${setup.total}`}
+        {`${done}/${items.length}`}
       </AppText>
       <ChevronRight color={colors.primary} size={16} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
     </Pressable>

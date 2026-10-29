@@ -51,12 +51,15 @@ export function useSetup() {
       ];
   const done = items.filter((i) => i.done).length;
   const active = (accounts.data ?? []).find((a) => a.active);
+  // an admin's setup chat (screen 63) has just three steps: company, team, first task; the rest no longer blocks
+  const chatItems = items.filter((i) => i.key === 'profile' || i.key === 'team' || i.key === 'task');
   return {
     ready,
     member,
     items,
     done,
     total: items.length,
+    chat: { items: chatItems, done: chatItems.filter((i) => i.done).length, total: chatItems.length },
     next: items.find((i) => !i.done)?.key ?? null,
     me: me.data,
     row: row.data,
