@@ -33,7 +33,7 @@ import {
   type WaRow,
 } from '../_shared/wa.ts';
 import { lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolListButtons, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
-import { newPin, sha256 } from '../_shared/phone-session.ts';
+import { newPin, sessionFor, sha256 } from '../_shared/phone-session.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -300,17 +300,29 @@ async function handle(m: WaMessage, dry = false) {
     ));
   }
   // who sent it: their WhatsApp number on their profile; with several accounts, the one they work in now
-  const { data: people } = await admin
-    .from('profiles')
-    .select('id, user_id, account_id, locale, full_name')
-    .eq('phone', from)
-    .eq('status', 'active')
-    .eq('hidden', false)
-    .not('user_id', 'is', null);
+  const findPeople = () =>
+    admin.from('profiles').select('id, user_id, account_id, locale, full_name').eq('phone', from).eq('status', 'active').eq('hidden', false).not('user_id', 'is', null);
+  let { data: people } = await findPeople();
   if (!people?.length) {
-    // in the team already (their manager added this mobile) but never signed in: say how to get in, not "not linked"
-    const { data: invited } = await admin.from('profiles').select('id, locale').eq('phone', from).neq('status', 'deleted').eq('hidden', false).limit(1);
+    // in the team already (their manager added this mobile) but never signed in: writing from that number proves it's
+    // theirs, so this is their first sign-in, and the setup happens right here (onboarding release 3)
+    const { data: invited } = await admin
+      .from('profiles')
+      .select('id, user_id, email, locale')
+      .eq('phone', from)
+      .neq('status', 'deleted')
+      .eq('hidden', false)
+      .order('created_at')
+      .limit(1);
     if (invited?.length) {
+      try {
+        await sessionFor(admin, { ...invited[0], phone: from });
+        ({ data: people } = await findPeople());
+      } catch (e) {
+        console.warn('whatsapp first sign-in', String(e));
+      }
+    }
+    if (!people?.length && invited?.length) {
       await admin.from('profiles').update({ wa_last_inbound_at: new Date().toISOString() }).eq('id', invited[0].id);
       return void (await waText(
         from,
@@ -319,11 +331,13 @@ async function handle(m: WaMessage, dry = false) {
           : 'هلا! 👋 فريقك موجود في منتج. نزّل التطبيق، اختر «ادخل برقم جوالي»، وأرسل لي هنا «رمز الدخول» وأرد عليك بالرمز. وبعدها كلّمني هنا عن مهامك أي وقت.',
       ));
     }
-    await waText(
-      from,
-      'هلا! 👋 رقمك مو مربوط بمنتج للحين. افتح منتج ← اربط أدواتك ← واتساب، وأضف رقمك. وبعدها كلّمني هنا مثل التطبيق بالضبط.\n\nHi! Your number isn’t linked to Muntej yet. Open Muntej → Connect your tools → WhatsApp and add it.',
-    );
-    return;
+    if (!people?.length) {
+      await waText(
+        from,
+        'هلا! 👋 رقمك مو مربوط بمنتج للحين. افتح منتج ← اربط أدواتك ← واتساب، وأضف رقمك. وبعدها كلّمني هنا مثل التطبيق بالضبط.\n\nHi! Your number isn’t linked to Muntej yet. Open Muntej → Connect your tools → WhatsApp and add it.',
+      );
+      return;
+    }
   }
   // the 24 h window opens (or stays open) with every message they send
   // (writing to Muntej's number proves the number is theirs: WhatsApp counts as connected for alerts and reports)
@@ -354,9 +368,15 @@ async function handle(m: WaMessage, dry = false) {
       },
     ]);
 
+  // an invited manager / employee who hasn't set up yet: the same short setup as the app's chat, right here
+  const { data: ob } = await admin.from('onboarding').select('kind, account_named, finished_at').eq('profile_id', me.id).maybeSingle();
+  const setupOpen = ob?.kind === 'member' && !ob.finished_at && !ob.account_named;
+
   // ── taps ──
   const tapped = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? (m.type === 'button' ? m.button?.payload : undefined);
   if (tapped) return void (await onTap(tapped));
+  // the first message they send before setting up: Saree3 says hello and confirms what's filled in (once)
+  if (setupOpen && !(await pendingKey(`obw:${me.id}`, 7 * 24 * 60))) return void (await obWelcome());
 
   // ── what they said: a text, or a voice note written down ──
   let text = '';
@@ -385,6 +405,14 @@ async function handle(m: WaMessage, dry = false) {
           ? 'تم ↩️ رجّعتها له مع ملاحظتك، وأتابع معه لين يعدّلها 💪'
           : 'Done ↩️ Sent back with your note. I’ll follow up until it’s fixed 💪',
     ));
+  }
+
+  // "something's wrong" in their setup: this message says what, and goes to their manager as a task to fix it
+  if (await pendingKey(`obfix:${me.id}`, 30)) {
+    await admin.from('wa_pending').delete().eq('key', `obfix:${me.id}`);
+    const f = await setupFacts();
+    await chat({ message: ar ? `اطلب من ${f.boss ?? 'مديري'} يصحّح بياناتي في منتج: ${text}` : `Ask ${f.boss ?? 'my manager'} to fix my details in Muntej: ${text}`, source: 'text' });
+    return void (await obOk());
   }
 
   // numbers after the list of tasks found in tools ("1 3 5", "تجاهل 2 6", "الكل"): approve / ignore in one go
@@ -575,6 +603,18 @@ async function handle(m: WaMessage, dry = false) {
     if (verb === 'r') return void (await review(rest[0] as 'ok' | 'back', rest[1]));
     if (verb === 'h') return void (await checkin(rest[0], rest[1]));
     if (verb === 'ok' || verb === 'no') return void (await suggestion(verb, rest[0], Number(rest[1])));
+    // the setup on WhatsApp: right / something's wrong / remind my team
+    if (verb === 'ob') {
+      if (rest[0] === 'ok') return void (await obOk());
+      if (rest[0] === 'remind') return void (await obRemind());
+      if (rest[0] === 'fix') {
+        await admin.from('wa_pending').upsert({ key: `obfix:${me.id}`, profile_id: me.id, body: {}, created_at: new Date().toISOString() });
+        const f = await setupFacts();
+        return void (await say(
+          ar ? `وش الغلط؟ اكتبه وأوصله لـ${f.boss ?? 'مديرك'} يعدّله ✍️` : `What’s wrong? Type it and I’ll pass it to ${f.boss ?? 'your manager'} to fix ✍️`,
+        ));
+      }
+    }
     // under the numbered list: all, none, or "type the numbers"
     if (verb === 'ta' || verb === 'ti') {
       if (!(await toolList())) return void (await say(ar ? 'هالقائمة قديمة شوي ⌛ قل «وش يحتاجني» وأرسلها لك من جديد' : 'That list is a bit old ⌛ Say "what needs me" and I’ll send it again'));
@@ -586,6 +626,120 @@ async function handle(m: WaMessage, dry = false) {
           ? 'اكتب أرقام اللي تبي أعتمدها، مثل: 1 3 5 أو 1-4 ✍️\nوالباقي أتجاهله.\nأو اكتب «تجاهل 2 6» وأعتمد الباقي.'
           : 'Type the numbers to approve, e.g. 1 3 5 or 1-4 ✍️\nI’ll ignore the rest.\nOr type "ignore 2 6" and I’ll approve the rest.',
       ));
+  }
+
+  /** a wa_pending row for this key, younger than `minutes` */
+  async function pendingKey(key: string, minutes: number) {
+    const { data } = await admin.from('wa_pending').select('key').eq('key', key).gte('created_at', new Date(Date.now() - minutes * 60_000).toISOString()).maybeSingle();
+    return !!data;
+  }
+
+  // ── the setup on WhatsApp (onboarding release 3): the same as the app's member chat ──
+  async function setupFacts() {
+    const first = (p: { full_name: string; full_name_ar: string | null } | null | undefined) => (p ? ((ar && p.full_name_ar) || p.full_name).split(' ')[0] : null);
+    const { data: p } = await admin.from('profiles').select('manager_id, title, role, full_name, full_name_ar').eq('id', me.id).maybeSingle();
+    const [{ data: boss }, { data: reports }, { data: acc }] = await Promise.all([
+      p?.manager_id ? admin.from('profiles').select('full_name, full_name_ar').eq('id', p.manager_id).maybeSingle() : Promise.resolve({ data: null }),
+      admin.from('profiles').select('id, full_name, full_name_ar, user_id, phone, email').eq('manager_id', me.id).neq('status', 'deleted').eq('hidden', false),
+      admin.from('accounts').select('name').eq('id', me.account_id).maybeSingle(),
+    ]);
+    const team = (reports ?? []) as { id: string; full_name: string; full_name_ar: string | null; user_id: string | null; phone: string | null; email: string | null }[];
+    return {
+      name: first(p as never) ?? '',
+      title: (p?.title as string | null) ?? null,
+      manager: p?.role !== 'employee' || team.length > 0,
+      boss: first(boss as never),
+      company: (acc?.name as string | undefined) ?? (ar ? 'شركتك' : 'your company'),
+      team,
+      first,
+    };
+  }
+  async function obWelcome() {
+    const f = await setupFacts();
+    await admin.from('wa_pending').upsert({ key: `obw:${me.id}`, profile_id: me.id, body: {}, created_at: new Date().toISOString() });
+    const names = f.team.map((x) => f.first(x)).join('، ');
+    const hello = f.manager
+      ? ar
+        ? `أهلاً ${f.name}! ${f.boss ? `${f.boss} ضافك في ${f.company}` : `انضميت لـ${f.company}`}، ودورك: ${f.title ?? 'مدير'}.${names ? `\nفريقك: ${names}.` : ''}`
+        : `Hi ${f.name}! ${f.boss ? `${f.boss} added you to ${f.company}` : `You joined ${f.company}`}. Your role: ${f.title ?? 'manager'}.${names ? `\nYour team: ${names}.` : ''}`
+      : ar
+        ? `أهلاً ${f.name}! أنت في ${f.company}${f.boss ? `، في فريق ${f.boss}` : ''}.`
+        : `Hi ${f.name}! You’re in ${f.company}${f.boss ? `, on ${f.boss}’s team` : ''}.`;
+    await phCapture([{ distinctId: me.id, event: 'setup_chat_open', properties: { role: f.manager ? 'manager' : 'employee', channel: 'whatsapp' } }]);
+    await waButtons(
+      from,
+      rtl(`${hello}\n\n${ar ? 'أنا سريع: أوصلك شغلك هنا، وأذكّرك، وأوصل ردودك، كلها بضغطة. صح؟' : 'I’m Saree3: I bring you your work here, remind you and pass on your answers, all with one tap. Right?'}`),
+      [
+        { id: 'ob:ok', title: ar ? '✅ صح' : '✅ Right' },
+        { id: 'ob:fix', title: ar ? '✏️ فيه غلط' : '✏️ Something’s wrong' },
+      ],
+    );
+  }
+  async function obOk() {
+    await admin.from('onboarding').update({ account_named: true, finished_at: new Date().toISOString() }).eq('profile_id', me.id);
+    // set up on WhatsApp: reached here (an existing choice of theirs is kept, only WhatsApp is switched on)
+    const { data: np } = await admin.from('notification_prefs').select('channels').eq('profile_id', me.id).maybeSingle();
+    if (np) await admin.from('notification_prefs').update({ channels: { ...((np.channels as Record<string, boolean>) ?? {}), whatsapp: true } }).eq('profile_id', me.id);
+    await admin.from('activity_log').insert({
+      actor_type: 'muntej',
+      subject_id: me.id,
+      action: 'setup_done_whatsapp',
+      summary: 'Set up on WhatsApp: details confirmed, reached on WhatsApp',
+      summary_ar: 'جهّز حسابه في الواتساب: أكّد بياناته، والتنبيهات توصله بالواتساب',
+      reason: 'setup chat on WhatsApp',
+      undoable: false,
+    });
+    await phCapture([{ distinctId: me.id, event: 'setup_chat_done', properties: { channel: 'whatsapp' } }]);
+    await say(ar ? 'تمام 👍 أوصلك كل شي هنا في الواتساب، وفي التطبيق لو نزّلته.' : 'Great 👍 I’ll bring you everything here on WhatsApp, and in the app if you install it.');
+    const f = await setupFacts();
+    // work already waiting for them, with its buttons (Got it / Need time / Need help)
+    const { data: t } = await admin
+      .from('tasks')
+      .select('id, title, due_at, assigner_id')
+      .eq('owner_id', me.id)
+      .eq('status', 'assigned')
+      .neq('assigner_id', me.id)
+      .order('created_at')
+      .limit(1)
+      .maybeSingle();
+    if (t) {
+      const giver = t.assigner_id ? await nameOf(t.assigner_id as string) : null;
+      await waButtons(
+        from,
+        rtl(`${ar ? 'وهذي أول مهمة' : 'Your first task'}${giver ? (ar ? ` من ${giver.split(' ')[0]}` : ` from ${giver.split(' ')[0]}`) : ''}:\n📝 *${t.title}*${t.due_at ? `\n⏰ ${whenText(t.due_at as string, ar)}` : ''}`),
+        [
+          { id: `h:got_it:${t.id}`, title: ar ? '✅ وصلت' : '✅ Got it' },
+          { id: `h:need_time:${t.id}`, title: ar ? '⏳ أحتاج وقت' : '⏳ Need time' },
+          { id: `h:blocked:${t.id}`, title: ar ? '🆘 مساعدة' : '🆘 Need help' },
+        ],
+      );
+    }
+    const waiting = f.team.filter((x) => !x.user_id);
+    if (f.manager && waiting.length)
+      return void (await waButtons(
+        from,
+        rtl(ar ? `فريقك: ${waiting.map((x) => f.first(x)).join('، ')} ما دخلوا للحين.` : `Your team: ${waiting.map((x) => f.first(x)).join(', ')} haven’t joined yet.`),
+        [{ id: 'ob:remind', title: ar ? '🔔 ذكّرهم الحين' : '🔔 Remind them now' }],
+      ));
+    if (!t) await say(ar ? 'أول ما يجيك شغل أوصله لك هنا. وكلّمني أي وقت: قل «وش يحتاجني» أو عطني مهمة بصوتك 🎤' : 'When work comes in, I’ll bring it here. Talk to me any time: say "what needs me" or give me a task by voice 🎤');
+  }
+  async function obRemind() {
+    const f = await setupFacts();
+    const ids = f.team.filter((x) => !x.user_id && (x.phone || x.email)).map((x) => x.id);
+    let sent = 0;
+    if (ids.length) {
+      try {
+        const out = await callAs<{ results: { whatsapp?: string; email?: string }[] }>(await userToken(admin, me.user_id), 'invite', { send: { person_ids: ids, channel: 'auto' } });
+        sent = (out.results ?? []).filter((r) => r.whatsapp === 'sent' || r.email === 'invited').length;
+      } catch (e) {
+        console.warn('whatsapp remind', String(e));
+      }
+    }
+    await say(
+      sent
+        ? ar ? `أرسلت لهم تذكير (${sent}) 🔔 وأبلّغك أول ما يدخلون.` : `Sent them a reminder (${sent}) 🔔 I’ll tell you when they join.`
+        : ar ? 'ما قدرت أذكّرهم: ما عندهم جوال ولا إيميل يوصلهم. أضفها لهم من منتج ← فريقك.' : 'I couldn’t remind them: no phone or email reaches them yet. Add one in Muntej → Team.',
+    );
   }
 
   /** the numbered list I sent last (within a day): which suggestion each number is */
@@ -770,6 +924,7 @@ async function handle(m: WaMessage, dry = false) {
       need_time: ['وصلت ⏳ طلبت لك يوم زيادة من مديرك، وأرجع لك بقراره', 'Got it ⏳ I asked your manager for one more day, I’ll tell you what they decide'],
       blocked: ['وصلت 🆘 بلّغت مديرك إنك تحتاج مساعدة', 'Got it 🆘 I told your manager you need help'],
       busy: ['وصلت ✓ قلت لمديرك إنك مضغوط', 'Got it ✓ I told your manager you’re swamped'],
+      got_it: ['وصلت 👍 عرفوا إنك شفتها. لما تخلص قل لي هنا.', 'Got it 👍 They know you’ve seen it. Tell me here when it’s done.'],
     };
     const s = said[String(data)] ?? said[reply] ?? ['تمام 👍', 'OK 👍'];
     await say(ar ? s[0] : s[1]);

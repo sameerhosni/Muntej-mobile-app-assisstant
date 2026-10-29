@@ -483,3 +483,7 @@ verify_jwt = false
 
 [functions.intercom-webhook]
 verify_jwt = false
+
+# daily setup reminders (pg_cron, x-cron-secret)
+[functions.onboarding-nudges]
+verify_jwt = false

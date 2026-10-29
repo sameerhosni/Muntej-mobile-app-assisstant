@@ -68,6 +68,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 3.14 | Proof optional by default + «اطلب إثبات» on a task; late tile shows only unfinished tasks; «خلصت متأخرة» / «انرسلت متأخرة» labels |
 | 3.15 | Admin setup chat with Saree3 (screen 63): sign up with a new email → company card → team by voice / photo / file → first task → Home; leave halfway → Home card resumes. Tested on web with a test company (Najm, khalid@najm-logistics.test) |
 | 3.16 | Manager / employee setup chat (screen 63): invited person signs in → confirm role, manager and team → how to reach you → fingerprint (phone) → first task with وصلت / أحتاج وقت / مساعدة → manager: who joined + remind → Home. Tested on web as test Faisal (manager) and Saad (employee) in the Najm test company; fingerprint only on a phone |
+| 3.17 | Onboarding on WhatsApp + reminders: an invited person who writes to Muntej's number is signed in by it and set up there (صح / فيه غلط → first task or team reminder); whoever invited them hears «X في منتج الحين 🎉»; the daily 09:30 job nudges setups left halfway (day 1 and 3, from 29 Oct on) and resends unopened invites (day 1 and 3). Tested in simulation with test Maha (fake mobile 966500000777) |
 
 ## 4. Later ideas (not started)
 
@@ -78,7 +79,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 4.3 | Connect your tools: show every linked account of the same tool (today the card status shows the first one) |
 | 4.4 | Follow-ups scheduled before 23 Oct keep the old text; only new tasks get Saree3's new voice |
 | 4.5 | Clear "you deleted your account" message on sign-in (today a generic error) and let a manager re-add someone who left |
-| 4.7 | Chat onboarding release 3: the same setup inside WhatsApp («كمّل هنا في الواتساب»), reminders after 1 and 3 days for unfinished setups, "Faisal joined" to the admin, set-up status on the Team list |
+| 4.7 | Onboarding: a «كمّل هنا في الواتساب» button on the WhatsApp invite itself (needs a new template version once muntej_join is approved), and set-up status (set up / not yet) next to invite status on the Team list |
 | 4.8 | Better company name from the email domain ("najm-logistics" → "Najm Logistics"; today the dash stays) in the sign-up trigger |
 
 ## 5. Cleanup

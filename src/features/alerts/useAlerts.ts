@@ -30,7 +30,8 @@ export type AlertKind =
   | 'request_answered'
   | 'ladder_nudge'
   | 'support_reply'
-  | 'idea_update';
+  | 'idea_update'
+  | 'member_joined';
 
 export type AlertItem = {
   id: string;

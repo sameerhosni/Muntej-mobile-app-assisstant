@@ -33,7 +33,9 @@ export type AlertKind =
   // the Muntej team replied in the support chat (Intercom webhook): always pushed
   | 'support_reply'
   // news about an idea the person sent (status or the team's reply)
-  | 'idea_update';
+  | 'idea_update'
+  // someone you invited signed in for the first time (trigger member_joined_notice): good news, sent right away
+  | 'member_joined';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -61,6 +63,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   ladder_nudge: null,
   support_reply: null,
   idea_update: null,
+  member_joined: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
@@ -91,7 +94,7 @@ export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
 ]);
 export const DAILY_PUSHES = 1;
 /** wins go out when they happen, push and WhatsApp (owner, 28 Oct: "risks or achievements anytime, notify him") */
-export const WIN_KINDS = new Set<AlertKind>(['task_done_on_time', 'task_done_early', 'five_star', 'objective_achieved']);
+export const WIN_KINDS = new Set<AlertKind>(['task_done_on_time', 'task_done_early', 'five_star', 'objective_achieved', 'member_joined']);
 
 export type QuietHours = { enabled?: boolean; prayer_times?: boolean; after?: string; friday?: boolean; ramadan?: boolean };
 export type Prefs = {

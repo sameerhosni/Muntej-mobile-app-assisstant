@@ -12,8 +12,7 @@
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 import { inviteByEmail, inviterInfo } from '../_shared/invite.ts';
-import { INVITE_TEMPLATE, waConfigured, waTemplateWith } from '../_shared/wa.ts';
-import { newToken, sha256 } from '../_shared/phone-session.ts';
+import { sendInvite, type InvitePerson, type InviteResult } from '../_shared/invite-send.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
 serve(async (req) => {
@@ -51,53 +50,8 @@ serve(async (req) => {
     const { data: people } = await db.from('profiles').select('id, full_name, full_name_ar, email, phone, user_id, locale, account_id').in('id', ids);
     const info = await inviterInfo(profileId);
     const admin = adminClient();
-    const results: { id: string; whatsapp?: string; email?: string }[] = [];
-    for (const p of people ?? []) {
-      const r: { id: string; whatsapp?: string; email?: string } = { id: p.id as string };
-      if (p.user_id) {
-        results.push({ ...r, whatsapp: 'has_login', email: 'has_login' });
-        continue;
-      }
-      if (p.phone && (channel === 'auto' || channel === 'whatsapp')) {
-        if (!waConfigured()) r.whatsapp = 'not_configured';
-        else {
-          const token = newToken();
-          const ar = p.locale !== 'en';
-          const first = (((ar && p.full_name_ar) || p.full_name) as string).split(' ')[0];
-          const ok = await waTemplateWith(
-            p.phone as string,
-            INVITE_TEMPLATE(),
-            ar ? 'ar' : 'en',
-            [first, info.inviter_name ?? (ar ? 'مديرك' : 'Your manager'), info.account_name ?? (ar ? 'شركتك' : 'your company')],
-            [{ sub_type: 'url', index: 0, param: token }],
-          );
-          await admin.from('invites').insert({
-            account_id: p.account_id,
-            profile_id: p.id,
-            invited_by: profileId,
-            channel: 'whatsapp',
-            phone: p.phone,
-            token_hash: await sha256(token),
-            status: ok ? 'sent' : 'failed',
-            error: ok ? null : 'whatsapp send failed (template not approved yet?)',
-          });
-          r.whatsapp = ok ? 'sent' : 'failed';
-        }
-      }
-      if (p.email && (channel === 'email' || (channel === 'auto' && r.whatsapp !== 'sent'))) {
-        const e = await inviteByEmail(p.email as string, p.full_name as string, info);
-        await admin.from('invites').insert({
-          account_id: p.account_id,
-          profile_id: p.id,
-          invited_by: profileId,
-          channel: 'email',
-          status: e === 'failed' ? 'failed' : 'sent',
-          error: e === 'failed' ? 'email failed' : null,
-        });
-        r.email = e;
-      }
-      results.push(r);
-    }
+    const results: InviteResult[] = [];
+    for (const p of (people ?? []) as InvitePerson[]) results.push(await sendInvite(admin, p, profileId, info, channel));
     await phCapture([
       {
         distinctId: profileId,

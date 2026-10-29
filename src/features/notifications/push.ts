@@ -136,7 +136,7 @@ function handleResponse(r: import('expo-notifications').NotificationResponse) {
 /** A tapped notification opens its task; anything else (grouped updates, decisions, overload, a test) opens Alerts.
  *  The alert it came from is marked read. */
 function openFrom(data: unknown) {
-  const d = (data ?? {}) as { taskId?: string; alertId?: string; kind?: string; screen?: string };
+  const d = (data ?? {}) as { taskId?: string; alertId?: string; kind?: string; screen?: string; url?: string };
   track('notification_opened', { kind: d.kind ?? (d.screen ? 'summary' : 'other') });
   if (d.alertId) {
     const loose = supabase as unknown as { from: (t: string) => { update: (v: object) => { eq: (c: string, v: string) => PromiseLike<unknown> } } };
@@ -146,6 +146,10 @@ function openFrom(data: unknown) {
   else if (d.kind === 'decision_waiting') router.push('/04-decisions' as Href);
   // the Muntej team replied in the support chat
   else if (d.kind === 'idea_update') router.push('/59-ideas' as Href);
+  // someone you invited joined: your team
+  else if (d.kind === 'member_joined') router.push('/39-team' as Href);
+  // a push that names its screen (the setup reminder opens the setup chat, a code join opens the team)
+  else if (d.url?.startsWith('/')) router.push(d.url as Href);
   else if (d.kind === 'support_reply') router.push(`/57-support?alert=${d.alertId ?? ''}` as Href);
   // the daily summary opens Home
   else if (d.screen) {

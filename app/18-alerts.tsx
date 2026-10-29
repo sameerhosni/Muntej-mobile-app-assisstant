@@ -99,6 +99,7 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   ladder_nudge: { Icon: Sparkles, bg: 'purple' },
   support_reply: { Icon: MessageCircle, bg: 'green' },
   idea_update: { Icon: Sparkles, bg: 'amberText' },
+  member_joined: { Icon: UserPlus, bg: 'green' },
 };
 
 function RecentAlerts() {
@@ -112,6 +113,7 @@ function RecentAlerts() {
     if (a.task_id) router.push({ pathname: '/14-task-detail', params: { id: a.task_id } });
     else if (a.kind === 'decision_waiting') router.push('/04-decisions');
     else if (a.kind === 'idea_update') router.push('/59-ideas' as Href);
+    else if (a.kind === 'member_joined') router.push('/39-team' as Href);
     else if (a.kind === 'support_reply') router.push(`/57-support?alert=${a.id}` as Href);
   };
 
