@@ -18,13 +18,14 @@ export function SetupBar() {
   const { isRTL } = useDirection();
   const qc = useQueryClient();
   const setup = useSetup();
-  // an admin counts the setup chat's three steps (company, team, first task) and goes back to that chat
-  const items = setup.member ? setup.items : setup.chat.items;
+  // an admin's three steps (company, team, first task) bring them back to the setup chat; a member's short chat is
+  // offered by Home's card alone
+  const items = setup.chat.items;
   const done = items.filter((i) => i.done).length;
-  if (!setup.ready || !setup.row || done >= items.length) return null;
+  if (!setup.ready || !setup.row || setup.member || done >= items.length) return null;
   const go = async () => {
     if (setup.row?.dismissed) await markOnboarding(qc, { dismissed: false }).catch(() => {});
-    router.push((setup.member ? '/47-welcome' : '/63-setup-chat') as Href);
+    router.push('/63-setup-chat' as Href);
   };
   return (
     <Pressable

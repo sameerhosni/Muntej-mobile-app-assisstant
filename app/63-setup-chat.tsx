@@ -1,25 +1,20 @@
-// Screen 63 · Saree3's setup chat for a new admin — see the onboarding mockup (claude.ai artifact "Muntej
-// auto-onboarding", row 1); v2 light style per design/TOKENS.md
-// One conversation instead of forms (owner, 29 Oct): company (guessed from the email: "right?") → the team (said,
-// typed, a photo, a file or the company directory; one tap confirms and invites) → the first task → Home by itself.
-// Every answer is saved at once and where it stands is read from real data (useSetup), so leaving halfway is fine:
-// Home's card comes back here at the same question. Members keep the setup guide (47) until release 2.
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+// Screen 63 · Saree3's setup chat — see the onboarding mockup (claude.ai artifact "Muntej auto-onboarding");
+// v2 light style per design/TOKENS.md
+// One conversation instead of forms (owner, 29 Oct). An admin: company (guessed from the email: "right?") → the team
+// (said, typed, a photo, a file or the company directory; one tap confirms and invites) → the first task → Home by
+// itself. An invited manager or employee: MemberSetupChat. Where it stands is read from real data (useSetup), so
+// leaving halfway is fine: Home's card comes back here at the same question.
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, Mic, Send, Square, X } from 'lucide-react-native';
 import { AppText, Button } from '@/components/ui';
-import { colors, radius, sizes, spacing } from '@/theme/tokens';
+import { colors, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { track } from '@/lib/analytics';
-import { Munti } from '@/features/munti/Munti';
 import { contentDirection, MuntejBubble, MuntejText, TypingBubble, UserBubble } from '@/features/chat/Bubbles';
 import { invalidateTaskData, sendChat, taskSnapshot, type TaskSnapshot } from '@/features/chat/api';
-import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
-import { transcribeAudio } from '@/features/capture/api';
 import { enablePush, usePushStatus } from '@/features/notifications/push';
 import { sendInvites } from '@/features/invite/api';
 import { SECTORS, useMySector, useSetSector, type Sector } from '@/features/sectors/sectors';
@@ -28,6 +23,8 @@ import { applyDraft, canFile, canPhoto, readDirectory, readFile, readPhoto, read
 import { markOnboarding, setAccountName, setMyName } from '@/features/onboarding/api';
 import { useSetup } from '@/features/onboarding/setup';
 import { SETUP_CHAT_NS } from '@/features/onboarding/setupChatStrings';
+import { ChatHeader, Chips, Done, InputBar, Mini, Tag, type Chip } from '@/features/onboarding/chatParts';
+import { MemberSetupChat } from '@/features/onboarding/MemberSetupChat';
 import { walkthrough } from '@/features/walkthrough/store';
 
 type Stage = 'company' | 'fixCompany' | 'fixName' | 'sector' | 'team' | 'draft' | 'task' | 'push' | 'done';
@@ -39,22 +36,29 @@ type Msg =
   | { id: number; kind: 'done' };
 type WithoutId<M> = M extends unknown ? Omit<M, 'id'> : never;
 type NewMsg = WithoutId<Msg>;
-type Chip = { label: string; onPress: () => void; primary?: boolean };
 
 const YES = /^(صح|صحيح|تمام|اي|ايوه|إيه|ايه|نعم|اوكي|أوكي|yes|yep|ok|okay|right|correct|sure)[.!\s]*$/i;
 const STEP: Record<Stage, number> = { company: 1, fixCompany: 1, fixName: 1, sector: 1, team: 2, draft: 2, task: 3, push: 3, done: 3 };
 
-export default function SetupChat() {
+export default function SetupChatScreen() {
+  const setup = useSetup();
+  // a Home tour that was already running doesn't sit on top of the chat (it comes back after setup)
+  useEffect(() => {
+    if (walkthrough.current()) walkthrough.end(false);
+  }, []);
+  if (!setup.ready) return <ActivityIndicator color={colors.primary} style={{ flex: 1 }} />;
+  return setup.member ? <MemberSetupChat /> : <AdminSetupChat />;
+}
+
+function AdminSetupChat() {
   const { t } = useScreenT(SETUP_CHAT_NS);
   const { t: ts } = useScreenT(SECTOR_NS);
-  const { lang, isRTL } = useDirection();
-  const insets = useSafeAreaInsets();
+  const { lang } = useDirection();
   const qc = useQueryClient();
   const setup = useSetup();
   const sector = useMySector();
   const setSector = useSetSector();
   const push = usePushStatus();
-  const rec = useVoiceRecorder();
   const scroll = useRef<ScrollView>(null);
   const nextId = useRef(1);
   const started = useRef(false);
@@ -64,32 +68,24 @@ export default function SetupChat() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [stage, setStage] = useState<Stage>('company');
   const [busy, setBusy] = useState<string | null>(null);
-  const [text, setText] = useState('');
-  const [recording, setRecording] = useState(false);
   const [summary, setSummary] = useState<{ invited: number | null; task: boolean }>({ invited: null, task: false });
 
-  const add = (...m: NewMsg[]) =>
-    setMsgs((old) => [...old, ...m.map((x) => ({ ...x, id: nextId.current++ }) as Msg)]);
+  const add = (...m: NewMsg[]) => setMsgs((old) => [...old, ...m.map((x) => ({ ...x, id: nextId.current++ }) as Msg)]);
   const bot = (s: string) => add({ kind: 'bot', text: s });
   const user = (s: string) => add({ kind: 'user', text: s });
   const name = setup.me ? ((lang === 'ar' && setup.me.full_name_ar) || setup.me.full_name).split(' ')[0] : '';
 
   // ── where to start: the first step not done yet (real data), so coming back resumes at the same question ──
-  // a Home tour that was already running doesn't sit on top of the chat (it comes back after setup)
   useEffect(() => {
-    if (walkthrough.current()) walkthrough.end(false);
-  }, []);
-
-  useEffect(() => {
-    if (!setup.ready || started.current) return;
+    if (started.current) return;
     started.current = true;
-    track('setup_chat_open', { resume: !!setup.row?.account_named });
+    track('setup_chat_open', { role: 'admin', resume: !!setup.row?.account_named });
     if (!setup.row?.account_named) {
       add({ kind: 'bot', text: t('hello', { name }) }, { kind: 'company' });
       setStage('company');
     } else goTeam(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setup.ready]);
+  }, []);
 
   const hasTask = () => setup.items.some((i) => i.key === 'task' && i.done);
   const goTeam = (first = false) => {
@@ -114,14 +110,14 @@ export default function SetupChat() {
   const finish = () => {
     setStage('done');
     add({ kind: 'done' });
-    track('setup_chat_done');
+    track('setup_chat_done', { role: 'admin' });
     markOnboarding(qc, { finished: true }).catch(() => {});
     // Home opens by itself; "Go to Home" for anyone quicker
     setTimeout(() => router.replace('/' as Href), 3000);
   };
   const leave = async () => {
     const all = setup.row?.account_named && (setup.others.length > 0 || summary.invited !== null) && (hasTask() || summary.task);
-    track('setup_chat_leave', { stage });
+    track('setup_chat_leave', { role: 'admin', stage });
     await markOnboarding(qc, all ? { finished: true } : { dismissed: true }).catch(() => {});
     router.replace('/' as Href);
   };
@@ -139,14 +135,14 @@ export default function SetupChat() {
   };
 
   // ── company ──
-  const confirmCompany = () =>
-    run(t('thinking'), async () => {
-      await markOnboarding(qc, { account_named: true });
-      if (!sector) {
-        setStage('sector');
-        bot(t('askSector'));
-      } else goTeam();
-    });
+  const afterCompany = async () => {
+    await markOnboarding(qc, { account_named: true });
+    if (!sector) {
+      setStage('sector');
+      bot(t('askSector'));
+    } else goTeam();
+  };
+  const confirmCompany = () => run(t('thinking'), afterCompany);
   const pickSector = (s: Sector) => {
     user(ts(`s_${s}`));
     run(t('thinking'), async () => {
@@ -197,7 +193,6 @@ export default function SetupChat() {
   const skipTeam = () => {
     user(t('laterTeam'));
     bot(t('teamSkipped'));
-    setSummary((s) => ({ ...s, invited: null }));
     goTask();
   };
 
@@ -221,10 +216,8 @@ export default function SetupChat() {
   };
 
   // ── what they typed or said, by stage ──
-  const say = (raw: string, source: 'text' | 'voice' = 'text') => {
-    const s = raw.trim();
-    if (!s || busy) return;
-    setText('');
+  const say = (s: string, source: 'text' | 'voice') => {
+    if (busy) return;
     user(s);
     switch (stage) {
       case 'company':
@@ -233,11 +226,7 @@ export default function SetupChat() {
         return run(t('thinking'), async () => {
           await setAccountName(qc, s);
           bot(t('fixedCompany', { name: s }));
-          await markOnboarding(qc, { account_named: true });
-          if (!sector) {
-            setStage('sector');
-            bot(t('askSector'));
-          } else goTeam();
+          await afterCompany();
         });
       case 'fixCompany':
         return run(t('thinking'), async () => {
@@ -262,30 +251,6 @@ export default function SetupChat() {
         return giveTask(s, source);
       default:
         return;
-    }
-  };
-
-  const talk = async () => {
-    if (!recording) {
-      try {
-        await rec.start();
-        setRecording(true);
-      } catch (e) {
-        bot(e instanceof MicDeniedError ? t('micDenied') : t('failed'));
-      }
-      return;
-    }
-    setRecording(false);
-    const uri = await rec.stop();
-    if (!uri) return;
-    setBusy(t('writing'));
-    try {
-      const said = await transcribeAudio(uri);
-      setBusy(null);
-      say(said, 'voice');
-    } catch {
-      setBusy(null);
-      bot(t('failed'));
     }
   };
 
@@ -325,43 +290,13 @@ export default function SetupChat() {
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: colors.bg }}>
-      {/* Saree3 + the step + close (= later: Home keeps a card that comes back here) */}
-      <View
-        style={{
-          paddingTop: insets.top + spacing.sm,
-          paddingBottom: spacing.md,
-          paddingHorizontal: spacing.screen,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: spacing.md,
-          backgroundColor: colors.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-        }}
-      >
-        <Munti size="sm" mood={stage === 'done' ? 'celebrate' : 'talk'} />
-        <View style={{ flex: 1 }}>
-          <AppText weight="extrabold" style={{ fontSize: 17 }}>
-            {t('title')}
-          </AppText>
-          <AppText variant="caption" color="textMuted">
-            {stage === 'done' ? t('subDone') : t('sub', { n: STEP[stage] })}
-          </AppText>
-        </View>
-        {stage !== 'done' && (
-          <Pressable onPress={leave} accessibilityRole="button" accessibilityLabel={t('close')} hitSlop={8} style={{ padding: 8 }}>
-            <X color={colors.textMuted} size={22} />
-          </Pressable>
-        )}
-      </View>
-
+      <ChatHeader sub={stage === 'done' ? t('subDone') : t('sub', { n: STEP[stage] })} done={stage === 'done'} onClose={leave} />
       <ScrollView
         ref={scroll}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: spacing.screen, gap: spacing.md, paddingBottom: spacing.xl }}
       >
-        {!setup.ready && <ActivityIndicator color={colors.primary} />}
         {msgs.map((m) => {
           switch (m.kind) {
             case 'user':
@@ -407,7 +342,11 @@ export default function SetupChat() {
                       </AppText>
                     )}
                   </Mini>
-                  {managers > 0 && <AppText variant="small" color="textMuted">{t('draftManagers', { n: managers })}</AppText>}
+                  {managers > 0 && (
+                    <AppText variant="small" color="textMuted">
+                      {t('draftManagers', { n: managers })}
+                    </AppText>
+                  )}
                   {unsure > 0 && <Tag text={t('draftUnsure', { n: unsure })} warn />}
                   {latest && stage === 'draft' && !busy && (
                     <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -458,128 +397,10 @@ export default function SetupChat() {
           }
         })}
         {!!busy && <TypingBubble label={busy} />}
-        {chips.length > 0 && (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingStart: 44 }}>
-            {chips.map((c) => (
-              <Pressable
-                key={c.label}
-                onPress={c.onPress}
-                accessibilityRole="button"
-                style={({ pressed }) => ({
-                  minHeight: sizes.touch,
-                  paddingHorizontal: spacing.lg,
-                  justifyContent: 'center',
-                  borderRadius: radius.pill,
-                  borderWidth: 1.5,
-                  borderColor: colors.primary,
-                  backgroundColor: c.primary ? colors.primary : colors.surface,
-                  opacity: pressed ? 0.85 : 1,
-                })}
-              >
-                <AppText variant="small" weight="bold" color={c.primary ? 'onDark' : 'primary'}>
-                  {c.label}
-                </AppText>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        <Chips chips={chips} />
       </ScrollView>
-
       {/* type or talk: Saree3 understands an answer at any step */}
-      {canType && (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.sm,
-            paddingHorizontal: spacing.md,
-            paddingTop: spacing.sm,
-            paddingBottom: insets.bottom + spacing.sm,
-            backgroundColor: colors.surface,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-          }}
-        >
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={recording ? t('stop') : t('placeholder')}
-            placeholderTextColor={colors.textFaint}
-            editable={!recording && !busy}
-            multiline
-            onSubmitEditing={() => say(text)}
-            style={{
-              flex: 1,
-              minHeight: sizes.touch,
-              maxHeight: 120,
-              borderRadius: 22,
-              backgroundColor: colors.bg,
-              paddingHorizontal: spacing.lg,
-              paddingVertical: spacing.sm,
-              color: colors.text,
-              fontSize: 16,
-              textAlign: isRTL ? 'right' : 'left',
-              writingDirection: contentDirection(text),
-            }}
-          />
-          {text.trim() ? (
-            <Round label={t('send')} bg={colors.primary} onPress={() => say(text)} disabled={!!busy}>
-              <Send color={colors.onDark} size={20} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
-            </Round>
-          ) : (
-            <Round label={recording ? t('stop') : t('talk')} bg={recording ? colors.red : colors.purple} onPress={talk} disabled={!!busy}>
-              {recording ? <Square color={colors.onDark} size={18} fill={colors.onDark} /> : <Mic color={colors.onDark} size={22} />}
-            </Round>
-          )}
-        </View>
-      )}
+      {canType && <InputBar onSay={say} busy={!!busy} onBusy={setBusy} onError={bot} />}
     </KeyboardAvoidingView>
-  );
-}
-
-function Mini({ children }: { children: ReactNode }) {
-  return <View style={{ backgroundColor: colors.surfaceMuted, borderRadius: radius.md, padding: spacing.md, gap: 4 }}>{children}</View>;
-}
-
-function Tag({ text, warn }: { text: string; warn?: boolean }) {
-  return (
-    <View style={{ alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2, backgroundColor: warn ? colors.amberTint : colors.greenTint }}>
-      <AppText variant="micro" weight="bold" color={warn ? 'amberText' : 'greenText'}>
-        {text}
-      </AppText>
-    </View>
-  );
-}
-
-function Done({ text, off }: { text: string; off?: boolean }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-      <Check color={off ? colors.textFaint : colors.green} size={16} strokeWidth={2.6} />
-      <AppText variant="small" color={off ? 'textMuted' : 'text'}>
-        {text}
-      </AppText>
-    </View>
-  );
-}
-
-function Round({ label, bg, onPress, disabled, children }: { label: string; bg: string; onPress: () => void; disabled?: boolean; children: ReactNode }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => ({
-        width: sizes.touch + 4,
-        height: sizes.touch + 4,
-        borderRadius: (sizes.touch + 4) / 2,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: bg,
-        opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
-      })}
-    >
-      {children}
-    </Pressable>
   );
 }
