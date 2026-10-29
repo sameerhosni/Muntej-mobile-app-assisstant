@@ -95,6 +95,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-10-29 · Onboarding release 3: setup on WhatsApp, joined notices, daily reminders (server: autopilot, daily-summary, intercom-webhook, invite, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts, whatsapp · app update 1.3.0)
 - 2026-10-29 · Onboarding release 2: manager and employee setup chat (app update 1.3.0)
 - 2026-10-29 · Onboarding release 1: admin setup chat with Saree3 (app update 1.3.0)
 - 2026-10-29 · Arabic by default + language button; How should I reach you?; WhatsApp numbered list (server: autopilot, daily-summary, intercom-webhook, muntej-chat, send-followups, sync-sources, team-alerts, whatsapp · app update 1.3.0)
