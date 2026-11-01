@@ -95,6 +95,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-01 · Team: no duplicate people, recording indicator, Team title and tags (server: connect, muntej-chat, team-import · app update 1.0.0)
 - 2026-11-01 · Store version 1.0.0 (app update 1.0.0)
 - 2026-10-29 · Onboarding release 3: setup on WhatsApp, joined notices, daily reminders (server: autopilot, daily-summary, intercom-webhook, invite, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts, whatsapp · app update 1.3.0)
 - 2026-10-29 · Onboarding release 2: manager and employee setup chat (app update 1.3.0)
