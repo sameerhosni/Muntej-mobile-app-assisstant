@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-10-29
+Last updated: 2026-11-01
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -95,6 +95,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-01 · Store version 1.0.0 (app update 1.0.0)
 - 2026-10-29 · Onboarding release 3: setup on WhatsApp, joined notices, daily reminders (server: autopilot, daily-summary, intercom-webhook, invite, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts, whatsapp · app update 1.3.0)
 - 2026-10-29 · Onboarding release 2: manager and employee setup chat (app update 1.3.0)
 - 2026-10-29 · Onboarding release 1: admin setup chat with Saree3 (app update 1.3.0)
