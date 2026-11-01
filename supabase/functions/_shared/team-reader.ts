@@ -27,7 +27,15 @@ export type DraftPerson = {
   confidence: number;
   unsure: string[];
   skip?: boolean;
+  /** people already in Muntej this might be (same first name, or the same name in the other script with more or less
+   *  of it): the person adding says "same person" (→ existing_id) or "new person" (→ is_new) before it's applied */
+  maybe?: { id: string; name: string }[];
+  /** the person adding said this is someone new, not one of `maybe` */
+  is_new?: boolean;
 };
+
+/** a "maybe" nobody answered yet: never created or linked until they say which */
+export const undecided = (p: Pick<DraftPerson, 'maybe' | 'existing_id' | 'is_new' | 'skip'>) => !p.skip && !p.existing_id && !p.is_new && !!p.maybe?.length;
 
 const MAX_BYTES = 6 * 1024 * 1024;
 
@@ -207,6 +215,36 @@ export function saudiPhone(p: string | null | undefined): string | null {
 
 type Existing = { id: string; full_name: string; full_name_ar: string | null; email: string | null; phone: string | null };
 
+// A name's sound in plain consonants, the same for Arabic and Latin spellings (owner, 1 Nov: «سمير» was added again
+// although "Sameer" is in the team): سمير / Sameer / Samir → "smr", فيصل / Faisal → "fsl", الحربي / Al-Harbi → "lhrb".
+// Vowels and long-vowel letters drop, close sounds share a letter, doubles collapse. Only used to find candidates.
+const AR: Record<string, string> = {
+  ب: 'b', ت: 't', ث: 't', ج: 'j', ح: 'h', خ: 'k', د: 'd', ذ: 'd', ر: 'r', ز: 'z', س: 's', ش: 'sh', ص: 's', ض: 'd', ط: 't', ظ: 'z',
+  ف: 'f', ق: 'k', ك: 'k', ل: 'l', م: 'm', ن: 'n', ه: 'h', پ: 'b', گ: 'j', ڤ: 'f',
+};
+function sound(word: string): string {
+  const w = word.toLowerCase().replace(/[ًٌٍَُِّْـ]/g, '');
+  const out = /[؀-ۿ]/.test(w)
+    ? [...w].map((c) => AR[c] ?? '').join('')
+    : w
+        .replace(/kh/g, 'k')
+        .replace(/gh/g, '')
+        .replace(/sh/g, '§')
+        .replace(/th|dh/g, (m) => (m === 'th' ? 't' : 'd'))
+        .replace(/ph/g, 'f')
+        .replace(/[qcg]/g, (m) => (m === 'g' ? 'j' : 'k'))
+        .replace(/[aeiouyw'`’-]/g, '')
+        .replace(/§/g, 'sh')
+        .replace(/[^a-z]/g, '');
+  return out.replace(/(.)\1+/g, '$1');
+}
+const sounds = (name: string | null | undefined) =>
+  norm(name)
+    .split(' ')
+    .filter((w) => w && !/^(bin|ibn|bint|بن|بنت)$/.test(w))
+    .map(sound)
+    .filter(Boolean);
+
 export function matchPeople(list: (Omit<DraftPerson, 'manager_id' | 'existing_id' | 'role'> & { manager_name: string | null })[], existing: Existing[]): DraftPerson[] {
   const refs = new Set(list.map((p) => p.ref));
   const byName = (name: string | null | undefined) => {
@@ -214,18 +252,41 @@ export function matchPeople(list: (Omit<DraftPerson, 'manager_id' | 'existing_id
     if (!n) return null;
     return existing.find((e) => norm(e.full_name) === n || norm(e.full_name_ar) === n) ?? null;
   };
+  // the same name in the other script ("سمير" = "Sameer", "سمير حسني" = "Samir Hosny"): one such person = them
+  const bySound = (...names: (string | null | undefined)[]) => {
+    // joined: "Al-Harbi" / "Al Harbi" / «الحربي» read the same
+    const keys = names.map((n) => sounds(n).join('')).filter(Boolean);
+    const hits = existing.filter((e) => [e.full_name, e.full_name_ar].some((n) => keys.includes(sounds(n).join(''))));
+    return hits.length === 1 ? hits[0] : null;
+  };
+  // only the first name is the same ("سمير" and "Samir Hosny"): ask, never guess
+  const maybeOf = (...names: (string | null | undefined)[]) => {
+    const firsts = new Set(names.map((n) => sounds(n)[0]).filter(Boolean));
+    return existing
+      .filter((e) => [e.full_name, e.full_name_ar].some((n) => firsts.has(sounds(n)[0])))
+      .slice(0, 3)
+      .map((e) => ({ id: e.id, name: e.full_name_ar ? `${e.full_name} · ${e.full_name_ar}` : e.full_name }));
+  };
   const people: DraftPerson[] = list.map((p) => {
     const email = p.email?.trim().toLowerCase() || null;
     const phone = saudiPhone(p.phone);
+    // someone with a different email or mobile is a different person, however the name reads
+    const fits = (e: Existing | null | undefined) =>
+      e && !(email && e.email && e.email.toLowerCase() !== email) && !(phone && e.phone && e.phone !== phone) ? e : null;
+    const candidates = maybeOf(p.full_name, p.full_name_ar).filter((m) => fits(existing.find((e) => e.id === m.id)));
+    // a sound match is them only when nobody else shares the first name (Sameer and Samir Hosny: ask which)
+    const sounded = fits(bySound(p.full_name, p.full_name_ar));
     const same =
       (email && existing.find((e) => e.email?.toLowerCase() === email)) ||
       (phone && existing.find((e) => e.phone === phone)) ||
-      byName(p.full_name) ||
-      byName(p.full_name_ar);
+      fits(byName(p.full_name)) ||
+      fits(byName(p.full_name_ar)) ||
+      (sounded && candidates.every((c) => c.id === sounded.id) ? sounded : null);
+    const maybe = same ? [] : candidates;
     // the manager named in the row: someone in this list, else someone already in Muntej
     let managerRef = p.manager_ref && refs.has(p.manager_ref) && p.manager_ref !== p.ref ? p.manager_ref : null;
     if (!managerRef && p.manager_name) managerRef = list.find((x) => x.ref !== p.ref && (norm(x.full_name) === norm(p.manager_name) || norm(x.full_name_ar) === norm(p.manager_name)))?.ref ?? null;
-    const managerId = !managerRef && p.manager_name ? (byName(p.manager_name)?.id ?? null) : null;
+    const managerId = !managerRef && p.manager_name ? ((byName(p.manager_name) ?? bySound(p.manager_name))?.id ?? null) : null;
     return {
       ref: p.ref,
       full_name: p.full_name.trim(),
@@ -237,6 +298,7 @@ export function matchPeople(list: (Omit<DraftPerson, 'manager_id' | 'existing_id
       manager_ref: managerRef,
       manager_id: managerId,
       existing_id: same ? same.id : null,
+      ...(maybe.length ? { maybe } : {}),
       role: 'employee',
       confidence: Math.max(0, Math.min(1, p.confidence ?? 0.7)),
       unsure: [...new Set([...(p.unsure ?? []), ...(p.manager_name && !managerRef && !managerId ? ['manager'] : [])])],

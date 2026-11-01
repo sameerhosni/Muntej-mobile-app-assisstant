@@ -13,6 +13,8 @@ import { useScreenT } from '@/lib/i18n/register';
 import { IDEA_KINDS, openIdeaFile, pickIdeaFile, pickIdeaPhoto, useMyIdeas, useSendIdea, type IdeaKind, type PickedFile } from '@/features/ideas/api';
 import { MicDeniedError, useVoiceRecorder } from '@/features/capture/useVoiceRecorder';
 import { transcribeAudio } from '@/features/capture/api';
+import { Waveform } from '@/features/capture/Waveform';
+import { formatClock } from '@/features/capture/points';
 import { canPickFile, canPickPhoto } from '@/features/proof/api';
 import { IDEAS_NS } from '@/features/ideas/strings';
 import { STATUS_TONE } from '@/features/ideas/look';
@@ -135,8 +137,20 @@ export default function IdeasScreen() {
                   {listening === 'on' ? t('stopSpeak') : listening === 'writing' ? t('writing') : t('speak')}
                 </AppText>
               </Pressable>
-              {canPickPhoto && <Chip label={`🖼️ ${t('photo')}`} onPress={() => attach(pickIdeaPhoto)} />}
-              {canPickFile && <Chip label={`📎 ${t('file')}`} onPress={() => attach(pickIdeaFile)} />}
+              {listening === 'off' && canPickPhoto && <Chip label={`🖼️ ${t('photo')}`} onPress={() => attach(pickIdeaPhoto)} />}
+              {listening === 'off' && canPickFile && <Chip label={`📎 ${t('file')}`} onPress={() => attach(pickIdeaFile)} />}
+              {/* owner, 1 Nov: "where is the recording indicator": live bars + the clock while the mic is on */}
+              {listening === 'on' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: sizes.touch }} accessibilityLiveRegion="polite">
+                  <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: colors.red }} />
+                  <View style={{ overflow: 'hidden', maxWidth: 120 }}>
+                    <Waveform level={voice.level} />
+                  </View>
+                  <AppText variant="small" weight="extrabold" color="textMuted" style={{ writingDirection: 'ltr' }}>
+                    {formatClock(voice.durationMillis)}
+                  </AppText>
+                </View>
+              )}
             </View>
             {!!files.length && (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>

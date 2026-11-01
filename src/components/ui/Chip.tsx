@@ -1,6 +1,8 @@
-import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { AppText } from './AppText';
+
+const ARABIC = /[؀-ۿ]/;
 
 export type ChipTone = 'neutral' | 'primary' | 'green' | 'amber' | 'red' | 'purple' | 'orange';
 
@@ -47,8 +49,10 @@ export function Chip({ label, tone = 'neutral', dot, selected, onPress, style }:
       ]}
     >
       {dot && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: colors[t.fg] }} />}
+      {/* one line always: Android measured bold Arabic a hair short and pushed the last letter down ("بالانتظا / ر");
+          the trailing space is counted in the measured width but hangs past the line, so the whole word fits */}
       <AppText variant={selectable ? 'small' : 'caption'} weight="bold" color={selectable && !selected ? 'text' : t.fg}>
-        {label}
+        {Platform.OS === 'android' && ARABIC.test(label) ? `${label} ` : label}
       </AppText>
     </View>
   );

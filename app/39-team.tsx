@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, Share2, Trash2, UserPlus, X } from 'lucide-react-native';
+import { ChevronLeft, ListChecks, Share2, Trash2, UserPlus, X } from 'lucide-react-native';
 import { AppText, Button, Card, FilterChips, IconButton, SearchField } from '@/components/ui';
 import { BuildTeamCard } from '@/features/teamImport/BuildTeamCard';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -236,7 +236,8 @@ export default function TeamScreen() {
           <IconButton label={t('back')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}>
             <ChevronLeft color={colors.text} size={22} strokeWidth={2} style={flip} />
           </IconButton>
-          <AppText variant="titleLg" style={{ flexShrink: 1 }}>
+          {/* never shrinks: on a narrow phone the buttons beside it squeezed "الفريق" into a column of letters */}
+          <AppText variant="titleLg" numberOfLines={1} style={{ flexShrink: 0 }}>
             {t('title')}
           </AppText>
           {!org.isLoading && (
@@ -258,13 +259,12 @@ export default function TeamScreen() {
             </View>
           )}
           <View style={{ flex: 1 }} />
-          {lead && counts.all > 1 && (
-            <Button
-              label={selecting ? t('selectDone') : t('select')}
-              variant={selecting ? 'primary' : 'outline'}
-              size="md"
-              onPress={selecting ? stopSelecting : startSelecting}
-            />
+          {/* an icon while browsing (room for the title); the Done button only while picking, when the others hide */}
+          {lead && counts.all > 1 && selecting && <Button label={t('selectDone')} variant="primary" size="md" onPress={stopSelecting} />}
+          {lead && counts.all > 1 && !selecting && (
+            <IconButton label={t('select')} onPress={startSelecting}>
+              <ListChecks color={colors.primary} size={20} strokeWidth={2} />
+            </IconButton>
           )}
           {/* invite with a code: WhatsApp, email or any app */}
           {lead && !selecting && (

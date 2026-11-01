@@ -8,7 +8,7 @@ import { AppText, Avatar, Button, Chip, TextField, Toggle } from '@/components/u
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import type { DraftPerson } from './api';
+import { undecided, type DraftPerson } from './api';
 import { TEAM_IMPORT_NS } from './strings';
 
 const STEP = 22; // width of one level of the tree
@@ -113,11 +113,16 @@ export function TeamTree({
                 </View>
                 {p.skip ? (
                   <Chip label={t('skipped')} />
-                ) : p.unsure.length ? (
-                  <CircleAlert color={colors.amberText} size={18} />
                 ) : p.existing_id ? (
-                  <CircleCheck color={colors.green} size={18} />
-                ) : null}
+                  <CircleCheck color={colors.green} size={18} accessibilityLabel={t('exists')} />
+                ) : undecided(p) ? (
+                  <CircleAlert color={colors.amberText} size={18} />
+                ) : (
+                  <>
+                    {!!p.unsure.length && <CircleAlert color={colors.amberText} size={18} />}
+                    <Chip label={t('isNew')} tone="primary" />
+                  </>
+                )}
                 {open ? <ChevronUp color={colors.textMuted} size={18} /> : <ChevronDown color={colors.textFaint} size={18} />}
               </Pressable>
               {/* + / − folds this person's team */}
@@ -150,6 +155,24 @@ export function TeamTree({
                 </Pressable>
               )}
             </View>
+            {/* maybe someone already in the team: same person (linked, nobody new) or someone new; asked before confirming */}
+            {undecided(p) && (
+              <View style={{ marginStart: depth * STEP, marginBottom: spacing.sm, padding: spacing.md, gap: spacing.sm, borderRadius: radius.md, backgroundColor: colors.amberTint }}>
+                {p.maybe!.map((m) => (
+                  <View key={m.id} style={{ gap: spacing.sm }}>
+                    <AppText weight="bold" color="amberText">
+                      {t('maybeQ', { name: m.name })}
+                    </AppText>
+                    <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                      <Button label={t('samePerson')} size="md" onPress={() => onChange(p.ref, { existing_id: m.id, maybe: [] })} style={{ flex: 1 }} />
+                      {m === p.maybe!.at(-1) && (
+                        <Button label={t('newPerson')} size="md" variant="outline" onPress={() => onChange(p.ref, { is_new: true })} style={{ flex: 1 }} />
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
             {/* fix this person right here */}
             {open && (
               <EditPerson

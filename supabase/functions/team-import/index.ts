@@ -9,7 +9,7 @@
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { phCapture } from '../_shared/posthog.ts';
 import { adminClient } from '../_shared/push.ts';
-import { readTeam, saudiPhone, type DraftPerson, type ReadInput } from '../_shared/team-reader.ts';
+import { readTeam, saudiPhone, undecided, type DraftPerson, type ReadInput } from '../_shared/team-reader.ts';
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
@@ -34,9 +34,24 @@ async function apply(db: Awaited<ReturnType<typeof getCaller>>['db'], profileId:
   const { data: draft } = await db.from('team_drafts').select('id, status').eq('id', draftId).maybeSingle();
   if (!draft) throw new HttpError(404, 'Draft not found');
   if (draft.status === 'applied') throw new HttpError(409, 'Already confirmed');
-  const keep = people.filter((p) => !p.skip && p.full_name?.trim());
   const ids: Record<string, string> = {};
   const failed: { ref: string; name: string; error: string }[] = [];
+  // "is this Sameer?" not answered: nobody is created or linked on a guess (owner, 1 Nov); the app asks first, and the
+  // WhatsApp confirm reports them back
+  for (const p of people.filter(undecided))
+    failed.push({ ref: p.ref, name: p.full_name, error: `same as ${p.maybe!.map((m) => m.name).join(' / ')}? decide in Review your team` });
+  // their team waits with them (else they'd land under the wrong manager)
+  const held = new Set(failed.map((f) => f.ref));
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const p of people)
+      if (!held.has(p.ref) && p.manager_ref && held.has(p.manager_ref)) {
+        held.add(p.ref);
+        failed.push({ ref: p.ref, name: p.full_name, error: 'waits for their manager above' });
+        grew = true;
+      }
+  }
+  const keep = people.filter((p) => !p.skip && p.full_name?.trim() && !held.has(p.ref));
   let created = 0;
   let updated = 0;
   // managers before their people (several passes; a missing / skipped manager falls back to the caller)

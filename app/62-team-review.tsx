@@ -15,7 +15,7 @@ import { formatNumber } from '@/features/home/value';
 import { useOrg, displayName } from '@/features/org/model';
 import { sendInvites } from '@/features/invite/api';
 import { TeamTree } from '@/features/teamImport/TeamTree';
-import { applyDraft, draftPhoto, saveDraft, useDraft, type ApplyResult, type DraftPerson } from '@/features/teamImport/api';
+import { applyDraft, draftPhoto, saveDraft, undecided, useDraft, type ApplyResult, type DraftPerson } from '@/features/teamImport/api';
 import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
 
 export default function TeamReviewScreen() {
@@ -77,6 +77,9 @@ export default function TeamReviewScreen() {
   const managers = kept.filter((p) => p.role === 'manager').length;
   const unsure = kept.filter((p) => p.unsure.length).length;
   const exists = kept.filter((p) => p.existing_id).length;
+  // owner, 1 Nov: look for the person first; someone new is added only when the manager says so
+  const asks = kept.filter(undecided).length;
+  const fresh = kept.filter((p) => !p.existing_id && !undecided(p)).length;
 
   const confirm = async () => {
     if (!id) return;
@@ -156,6 +159,7 @@ export default function TeamReviewScreen() {
               <Chip label={t('managers', { n: n(managers), count: managers })} tone="primary" />
               {!!unsure && <Chip label={t('unsureN', { n: n(unsure), count: unsure })} tone="amber" />}
               {!!exists && <Chip label={t('existsN', { n: n(exists), count: exists })} tone="green" />}
+              {!!fresh && <Chip label={t('newN', { n: n(fresh) })} tone="purple" />}
             </View>
             {!!error && (
               <AppText variant="small" color="red">
@@ -177,7 +181,12 @@ export default function TeamReviewScreen() {
       {!result && !!kept.length && (
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.screen, gap: spacing.sm, backgroundColor: colors.bg }}>
           <TimedProgress active={busy} expectedMs={Math.max(4000, kept.length * 1200)} stages={[t('p_add'), t('p_link'), t('p_almost')]} />
-          <Button label={busy ? t('saving') : t('confirmN', { n: n(kept.length), count: kept.length })} onPress={confirm} loading={busy} />
+          <Button
+            label={busy ? t('saving') : asks ? t('askFirst', { n: n(asks) }) : t('confirmN', { n: n(kept.length), count: kept.length })}
+            onPress={confirm}
+            loading={busy}
+            disabled={!!asks}
+          />
         </View>
       )}
 

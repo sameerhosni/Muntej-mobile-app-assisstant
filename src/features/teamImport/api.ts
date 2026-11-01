@@ -26,7 +26,13 @@ export type DraftPerson = {
   confidence: number;
   unsure: string[];
   skip?: boolean;
+  /** people already in Muntej this might be: ask "same person or new?" before confirming */
+  maybe?: { id: string; name: string }[];
+  /** they said: someone new */
+  is_new?: boolean;
 };
+/** a "maybe" nobody answered yet (the server won't add them either) */
+export const undecided = (p: DraftPerson) => !p.skip && !p.existing_id && !p.is_new && !!p.maybe?.length;
 export type Draft = { id: string; source: string; people: DraftPerson[]; company_name: string | null; status: string; result: ApplyResult | null };
 export type ApplyResult = { created: number; updated: number; failed: { ref: string; name: string; error: string }[]; ids: Record<string, string> };
 

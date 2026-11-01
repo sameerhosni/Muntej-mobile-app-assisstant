@@ -19,7 +19,7 @@ import { enablePush, usePushStatus } from '@/features/notifications/push';
 import { sendInvites } from '@/features/invite/api';
 import { SECTORS, useMySector, useSetSector, type Sector } from '@/features/sectors/sectors';
 import { SECTOR_NS } from '@/features/sectors/SectorPicker';
-import { applyDraft, canFile, canPhoto, readDirectory, readFile, readPhoto, readText, type Draft } from '@/features/teamImport/api';
+import { applyDraft, canFile, canPhoto, readDirectory, readFile, readPhoto, readText, undecided, type Draft, type DraftPerson } from '@/features/teamImport/api';
 import { markOnboarding, setAccountName, setMyName } from '@/features/onboarding/api';
 import { useSetup } from '@/features/onboarding/setup';
 import { SETUP_CHAT_NS } from '@/features/onboarding/setupChatStrings';
@@ -325,8 +325,19 @@ function AdminSetupChat() {
             case 'draft': {
               const people = m.draft.people.filter((p) => !p.skip);
               const managers = people.filter((p) => p.role === 'manager').length;
-              const unsure = people.filter((p) => !p.phone && !p.email).length;
+              const unsure = people.filter((p) => !p.phone && !p.email && !p.existing_id).length;
               const latest = msgs.filter((x) => x.kind === 'draft').at(-1)?.id === m.id;
+              // owner, 1 Nov: someone already in the team is linked, not added again; when unsure, ask one at a time
+              const ask = people.find(undecided);
+              const known = people.filter((p) => p.existing_id).length;
+              const answer = (ref: string, patch: Partial<DraftPerson>) =>
+                setMsgs((old) =>
+                  old.map((x) =>
+                    x.id === m.id && x.kind === 'draft'
+                      ? { ...x, draft: { ...x.draft, people: x.draft.people.map((p) => (p.ref === ref ? { ...p, ...patch } : p)) } }
+                      : x,
+                  ),
+                );
               return (
                 <MuntejBubble key={m.id}>
                   <AppText weight="extrabold">{t('draftTitle', { n: people.length })}</AppText>
@@ -348,7 +359,19 @@ function AdminSetupChat() {
                     </AppText>
                   )}
                   {unsure > 0 && <Tag text={t('draftUnsure', { n: unsure })} warn />}
-                  {latest && stage === 'draft' && !busy && (
+                  {known > 0 && <Tag text={t('draftKnown', { n: known })} />}
+                  {latest && stage === 'draft' && !busy && ask && (
+                    <View style={{ gap: spacing.sm }}>
+                      {ask.maybe!.map((x) => (
+                        <View key={x.id} style={{ gap: spacing.sm }}>
+                          <AppText weight="bold">{t('draftMaybe', { name: (lang === 'ar' && ask.full_name_ar) || ask.full_name, other: x.name })}</AppText>
+                          <Button label={t('draftSame')} size="md" onPress={() => answer(ask.ref, { existing_id: x.id, maybe: [] })} />
+                        </View>
+                      ))}
+                      <Button label={t('draftNew')} size="md" variant="outline" onPress={() => answer(ask.ref, { is_new: true })} />
+                    </View>
+                  )}
+                  {latest && stage === 'draft' && !busy && !ask && (
                     <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                       <Button label={t('confirmInvite')} size="md" onPress={() => confirmTeam(m.draft)} style={{ flex: 1.4 }} />
                       <Button
