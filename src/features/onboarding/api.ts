@@ -31,11 +31,10 @@ export async function markOnboarding(qc: QueryClient, p: { account_named?: boole
   await qc.invalidateQueries({ queryKey: ONBOARDING_KEY });
 }
 
-export async function setMyName(qc: QueryClient, meId: string, name: string) {
-  const arabic = /[؀-ۿ]/.test(name);
-  // the name they gave replaces the guess from their email (an Arabic one fills the Arabic name); profiles are
-  // changed through upsert_person (it checks who may change what)
-  const { error } = await rpc('upsert_person', { p: arabic ? { id: meId, full_name_ar: name.trim() } : { id: meId, full_name: name.trim() } });
+export async function setMyName(qc: QueryClient, name: string) {
+  // the name they gave replaces the guess from their email (an Arabic one fills the Arabic name). set_my_name, not
+  // upsert_person: that one is for managers, and an employee fixing their own name failed every time (owner, 1 Nov)
+  const { error } = await rpc('set_my_name', { p_name: name.trim() });
   if (error) throw new Error(error.message);
   await qc.invalidateQueries({ queryKey: ['me'] });
 }

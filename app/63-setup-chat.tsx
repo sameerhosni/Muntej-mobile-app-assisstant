@@ -237,7 +237,7 @@ function AdminSetupChat() {
         });
       case 'fixName':
         return run(t('thinking'), async () => {
-          if (setup.me) await setMyName(qc, setup.me.id, s);
+          if (setup.me) await setMyName(qc, s);
           bot(t('fixedName', { name: s.split(' ')[0] }));
           setStage('company');
           add({ kind: 'company' });

@@ -263,7 +263,7 @@ function ProfileStep({ t, setup, onDone }: { t: T; setup: Setup; onDone: () => P
   const save = async (changed: boolean) => {
     setBusy(true);
     try {
-      if (changed && setup.me && name.trim() && name.trim() !== setup.me.full_name) await setMyName(qc, setup.me.id, name);
+      if (changed && setup.me && name.trim() && name.trim() !== setup.me.full_name) await setMyName(qc, name);
       if (changed && !setup.member && company.trim() && company.trim() !== setup.company) await setAccountName(qc, company);
       await markOnboarding(qc, { account_named: true });
       await onDone();

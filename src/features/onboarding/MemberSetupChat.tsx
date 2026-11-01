@@ -3,8 +3,9 @@
 // reach them and offers the fingerprint. A manager then sees who in their team has joined (remind them now) and can
 // give a first task; an employee gets their first task right in the chat with Got it / Need time / Need help.
 // Leaving halfway: the defaults stay (reached on both, no fingerprint) and Home offers the rest once.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, ScrollView, View } from 'react-native';
+import { Briefcase, Building2, UserRound } from 'lucide-react-native';
 import { router, type Href } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -76,12 +77,8 @@ export function MemberSetupChat() {
     started.current = true;
     track('setup_chat_open', { role: isManager ? 'manager' : 'employee', resume: !!setup.row?.account_named });
     if (setup.row?.account_named) return askReach();
-    const hello = boss
-      ? isManager
-        ? t('m_helloMgr', { name: first(me), boss: bossName, company: setup.company, role: me.title || t('m_manager') })
-        : t('m_helloEmp', { name: first(me), boss: bossName, company: setup.company })
-      : t('m_helloSolo', { name: first(me), company: setup.company });
-    add({ kind: 'bot', text: hello }, { kind: 'who' }, { kind: 'bot', text: `${t('m_intro')} ${t('right')}` });
+    // one welcome message: hello, who they are here, what Saree3 does (owner, 1 Nov: three bubbles looked busy)
+    add({ kind: 'who' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [team.data, tasks.data]);
 
@@ -217,7 +214,7 @@ export function MemberSetupChat() {
         return fixOther(s);
       case 'fixName':
         return run(t('thinking'), async () => {
-          await setMyName(qc, me.id, s);
+          await setMyName(qc, s);
           bot(t('fixedName', { name: s.split(' ')[0] }));
           await markOnboarding(qc, { account_named: true });
           askReach();
@@ -289,28 +286,41 @@ export function MemberSetupChat() {
                   <MuntejText text={m.text} />
                 </MuntejBubble>
               );
-            case 'who':
-              // a manager sees their team; an employee their manager
+            case 'who': {
+              // hello · a card: company, role, manager (a manager: their team too) · what Saree3 does, right?
+              const full = (p: Profile) => (lang === 'ar' && p.full_name_ar) || p.full_name;
+              const rows: [ReactNode, string, string][] = [
+                [<Building2 key="c" color={colors.primary} size={16} />, t('m_rowCompany'), setup.company],
+                ...(me.title ? [[<Briefcase key="r" color={colors.primary} size={16} />, t('m_rowRole'), me.title] as [ReactNode, string, string]] : []),
+                ...(boss ? [[<UserRound key="m" color={colors.primary} size={16} />, t('yourManager'), full(boss)] as [ReactNode, string, string]] : []),
+              ];
               return (
                 <MuntejBubble key={m.id}>
+                  <AppText weight="extrabold" style={{ fontSize: 17 }}>
+                    {t('m_hi', { name: first(me) })}
+                  </AppText>
                   <Mini>
-                    {isManager && reports.length ? (
-                      reports.slice(0, 8).map((p) => (
-                        <AppText key={p.id} variant="small" style={{ writingDirection: contentDirection() }}>
-                          {`${(lang === 'ar' && p.full_name_ar) || p.full_name}${p.title ? ` · ${p.title}` : ''}`}
-                        </AppText>
-                      ))
-                    ) : (
-                      <>
-                        <AppText weight="extrabold">{setup.company}</AppText>
+                    {rows.map(([icon, label, value]) => (
+                      <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 28 }}>
+                        {icon}
                         <AppText variant="small" color="textMuted">
-                          {[me.title, boss ? `${t('yourManager')}: ${(lang === 'ar' && boss.full_name_ar) || boss.full_name}` : null].filter(Boolean).join(' · ')}
+                          {label}
                         </AppText>
-                      </>
+                        <AppText variant="small" weight="bold" numberOfLines={1} style={{ flexShrink: 1, writingDirection: contentDirection(value) }}>
+                          {value}
+                        </AppText>
+                      </View>
+                    ))}
+                    {isManager && reports.length > 0 && (
+                      <AppText variant="small" color="textMuted" style={{ writingDirection: contentDirection() }}>
+                        {`${t('m_rowTeam')}: ${reports.slice(0, 8).map(full).join('، ')}`}
+                      </AppText>
                     )}
                   </Mini>
+                  <MuntejText text={`${t('m_intro')} ${t('right')}`} />
                 </MuntejBubble>
               );
+            }
             case 'first':
               return (
                 <MuntejBubble key={m.id}>
