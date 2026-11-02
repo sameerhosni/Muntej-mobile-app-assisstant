@@ -152,7 +152,9 @@ function openFrom(data: unknown) {
   else if (d.url?.startsWith('/')) router.push(d.url as Href);
   else if (d.kind === 'support_reply') router.push(`/57-support?alert=${d.alertId ?? ''}` as Href);
   // the daily summary opens Home
-  else if (d.screen) {
+  // the grouped "N updates" push (older servers sent 'alerts', not a path: it opened "Page could not be found")
+  else if (d.screen === 'alerts') router.push('/18-alerts' as Href);
+  else if (d.screen?.startsWith('/')) {
     // the morning brief opened from its push (value ladder M5)
     markBriefOpen();
     router.push(d.screen as Href);

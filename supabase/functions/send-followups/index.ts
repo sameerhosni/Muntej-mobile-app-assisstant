@@ -24,7 +24,7 @@ serve(async (req) => {
       body: ar
         ? 'وصلتك؟ 😎 هذي أول رسالة مني. من الحين أنا اللي أذكّر وأتابع وأبلّغك بالمهم، وأنت ارتاح.'
         : 'Got it? 😎 My first message to you. From now on I remind, follow up and tell you what matters. You relax.',
-      data: { test: true, screen: 'alerts' },
+      data: { test: true, screen: '/18-alerts' },
     });
     return json({ sent });
   }
