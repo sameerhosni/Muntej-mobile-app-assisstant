@@ -10,6 +10,7 @@ const en = {
   on: 'On',
   off: 'Off',
   soon: 'Later',
+  needsPhone: 'Add your number',
   ch: {
     push: 'Push',
     email: 'Email',
@@ -94,6 +95,7 @@ const ar: typeof en = {
   on: 'شغّال',
   off: 'مطفي',
   soon: 'قريبًا',
+  needsPhone: 'أضف رقمك',
   ch: {
     push: 'إشعارات',
     email: 'إيميل',

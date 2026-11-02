@@ -43,6 +43,7 @@ import {
 } from 'lucide-react-native';
 import { AppText, Button, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, TimedProgress, Toggle } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { useMyProfile } from '@/lib/api/hooks';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
@@ -242,8 +243,14 @@ export default function AlertsScreen() {
     return t(h24 < 12 ? 'am' : h24 < 18 ? 'pm' : 'night', { h });
   };
 
+  // WhatsApp needs the person's mobile: without one it isn't on, whatever the setting says (owner, 2 Nov: it showed
+  // «شغّال» for someone with no number who never turned it on)
+  const me = useMyProfile();
+  const noPhone = !!me.data && !me.data.phone;
+  const live = (c: Channel) => !COMING_LATER.includes(c) && !!prefs?.channels[c] && !(c === 'whatsapp' && noPhone);
+
   const viaLine = (r: Rule) => {
-    const chans = r.channels.map((c) => t(`via.${c}`)).join(' + ');
+    const chans = r.channels.filter(live).map((c) => t(`via.${c}`)).join(' + ') || t('off');
     let when: string | null = null;
     if (r.day) when = `${t(`days.${r.day}`)} ${fmtTime(r.time)}`;
     else if (r.time) when = fmtTime(r.time);
@@ -307,13 +314,15 @@ export default function AlertsScreen() {
           <View accessibilityLabel={t('channelsLabel')} style={{ flexDirection: 'row', gap: spacing.sm }}>
             {CHANNELS.map((c) => {
               const later = COMING_LATER.includes(c);
-              const on = !later && !!prefs?.channels[c];
+              const on = live(c);
+              const needsPhone = c === 'whatsapp' && noPhone;
               const Icon = CHANNEL_ICON[c];
               const fg: ColorToken = on ? 'primary' : 'textFaint';
               return (
                 <Pressable
                   key={c}
-                  onPress={() => toggleChannel(c)}
+                  // no number yet: tapping opens their details to add it, instead of a switch that can't work
+                  onPress={() => (needsPhone ? router.push('/39-team?me=1' as Href) : toggleChannel(c))}
                   disabled={!prefs || later}
                   accessibilityRole="switch"
                   accessibilityLabel={t(`ch.${c}`)}
@@ -340,7 +349,7 @@ export default function AlertsScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors[fg] }} />
                     <AppText variant="micro" weight="bold" color={fg}>
-                      {later ? t('soon') : on ? t('on') : t('off')}
+                      {later ? t('soon') : needsPhone ? t('needsPhone') : on ? t('on') : t('off')}
                     </AppText>
                   </View>
                 </Pressable>
