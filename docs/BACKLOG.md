@@ -96,6 +96,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-02 · Support replies notify at once, chat stays on tasks (server: intercom-webhook, muntej-chat)
 - 2026-11-02 · Chat asks one sharp question for vague tasks, clear errors with auto retry, full month tab label, WhatsApp needs your number (server: muntej-chat · app update 1.0.0)
 - 2026-11-02 · Clearer scroll-down hint in Saree3's tour (app update 1.0.0)
 - 2026-11-02 · Setup chat understands a no instead of naming the company no (app update 1.0.0)
