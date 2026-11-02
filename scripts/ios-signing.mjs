@@ -51,14 +51,18 @@ if (!bundle) {
   bundle = (await api('POST', '/v1/bundleIds', { type: 'bundleIds', attributes: { identifier: BUNDLE, name: 'Muntej', platform: 'IOS' } })).data;
   console.log(`Registered bundle id ${BUNDLE}`);
 }
-try {
-  await api('POST', '/v1/bundleIdCapabilities', {
-    type: 'bundleIdCapabilities',
-    attributes: { capabilityType: 'PUSH_NOTIFICATIONS' },
-    relationships: { bundleId: { data: { type: 'bundleIds', id: bundle.id } } },
-  });
-} catch (e) {
-  if (e.status !== 409) throw e; // already on
+// Apple answers 403 to an API key asking for a capability that's already on, so look first
+const caps = await api('GET', `/v1/bundleIds/${bundle.id}/bundleIdCapabilities`);
+if (!caps.data.some((c) => c.attributes.capabilityType === 'PUSH_NOTIFICATIONS')) {
+  try {
+    await api('POST', '/v1/bundleIdCapabilities', {
+      type: 'bundleIdCapabilities',
+      attributes: { capabilityType: 'PUSH_NOTIFICATIONS' },
+      relationships: { bundleId: { data: { type: 'bundleIds', id: bundle.id } } },
+    });
+  } catch (e) {
+    if (e.status !== 409) throw e; // already on
+  }
 }
 
 // ---------- 2. distribution certificate ----------
