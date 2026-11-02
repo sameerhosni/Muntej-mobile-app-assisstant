@@ -148,7 +148,8 @@ serve(async (req) => {
   throw new HttpError(400, 'Unknown action');
 
   async function personByPhone(p: string): Promise<Person | null> {
-    const { data } = await admin.from('profiles').select(PERSON).eq('phone', p).neq('status', 'deleted').eq('hidden', false).order('created_at').limit(1);
+    // never the super admin: they sign in only with username + password + emailed code (admin-login)
+    const { data } = await admin.from('profiles').select(PERSON).eq('phone', p).neq('status', 'deleted').eq('hidden', false).neq('role', 'super_admin').order('created_at').limit(1);
     return ((data ?? [])[0] as Person) ?? null;
   }
 

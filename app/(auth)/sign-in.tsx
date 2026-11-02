@@ -12,6 +12,7 @@ import { emailRedirectTo, supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { DEMO_PERSONAS, type DemoPersona } from '@/features/auth/demoPersonas';
 import { setPendingLogin } from '@/features/auth/pending';
+import { isAdminUsername, startAdminLogin } from '@/features/auth/adminLogin';
 import { useBiometricSignIn } from '@/features/auth/BiometricCard';
 import { signInWithBiometric } from '@/features/auth/deviceKey';
 import { emailSchema, type EmailForm } from '@/features/auth/validation';
@@ -69,13 +70,25 @@ function errorText(t: (k: string) => string, status?: number) {
 function EmailSignIn() {
   const { t } = useTranslation();
   const [serverError, setServerError] = useState<string | null>(null);
-  const { control, handleSubmit, formState } = useForm<EmailForm>({
+  const [password, setPassword] = useState('');
+  const { control, handleSubmit, formState, watch } = useForm<EmailForm>({
     resolver: zodResolver(emailSchema),
     defaultValues: { email: '' },
   });
+  // the super admin types their username instead of an email: password next, then a code on their email
+  const admin = isAdminUsername(watch('email') ?? '');
 
   const onSubmit = handleSubmit(async ({ email }) => {
     setServerError(null);
+    if (isAdminUsername(email)) {
+      if (!password) return void setServerError(t('auth.passwordNeeded'));
+      const { data, status } = await startAdminLogin(email, password);
+      if (!data) return void setServerError(status === 401 ? t('auth.wrongPassword') : errorText(t, status));
+      setPassword('');
+      setPendingLogin({ admin: email, to: data.to });
+      router.push('/verify');
+      return;
+    }
     const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
     // the email may not be deliverable yet (no verified domain) or codes may be rate-limited: go on to the code
     // screen anyway — the temporary shared code works there
@@ -103,11 +116,27 @@ function EmailSignIn() {
             onChangeText={field.onChange}
             onBlur={field.onBlur}
             onSubmitEditing={() => onSubmit()}
-            error={formState.errors.email?.message ? t(formState.errors.email.message) : serverError ?? undefined}
+            error={formState.errors.email?.message ? t(formState.errors.email.message) : admin ? undefined : serverError ?? undefined}
           />
         )}
       />
-      <Button label={t('auth.continue')} onPress={onSubmit} loading={formState.isSubmitting} />
+      {admin && (
+        <TextField
+          label={t('auth.passwordLabel')}
+          secureTextEntry
+          textContentType="password"
+          autoComplete="current-password"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus
+          ltr
+          value={password}
+          onChangeText={setPassword}
+          onSubmitEditing={() => onSubmit()}
+          error={serverError ?? undefined}
+        />
+      )}
+      <Button label={admin ? t('auth.verify') : t('auth.continue')} onPress={onSubmit} loading={formState.isSubmitting} />
     </>
   );
 }

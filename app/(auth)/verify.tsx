@@ -13,6 +13,7 @@ import { AuthShell } from '@/features/auth/AuthShell';
 import { otpSchema, type OtpForm } from '@/features/auth/validation';
 import { DEMO_CODE, isDemoPhone } from '@/features/auth/demoPersonas';
 import { getPendingLogin } from '@/features/auth/pending';
+import { verifyAdminLogin } from '@/features/auth/adminLogin';
 
 // "Paste code" needs expo-clipboard (in builds after 1.1): hidden where the native part is missing
 const canPaste = Platform.OS === 'web' || !!requireOptionalNativeModule('ExpoClipboard');
@@ -22,12 +23,15 @@ export default function VerifyScreen() {
   const pending = getPendingLogin();
   const phone = pending?.phone ?? '';
   const email = pending?.email ?? '';
+  // super admin: the code from admin-login (sent to their email)
+  const adminUser = pending?.admin ?? '';
+  const adminTo = pending?.admin ? pending.to : '';
   const demo = __DEV__ && !!phone && isDemoPhone(phone);
 
   // opened without a pending sign-in (e.g. app reloaded on this screen) → start over
   useEffect(() => {
-    if (!phone && !email) router.replace('/sign-in');
-  }, [phone, email]);
+    if (!phone && !email && !adminUser) router.replace('/sign-in');
+  }, [phone, email, adminUser]);
   const [serverError, setServerError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { control, handleSubmit, formState, setValue } = useForm<OtpForm>({
@@ -37,6 +41,11 @@ export default function VerifyScreen() {
 
   const onSubmit = handleSubmit(async ({ code }) => {
     setServerError(null);
+    if (adminUser) {
+      const res = await verifyAdminLogin(adminUser, code);
+      if (!res.ok) setServerError(res.status === 429 ? t('auth.rateLimited') : t('auth.wrongCode'));
+      return;
+    }
     const { error } = phone
       ? await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' })
       : await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
@@ -63,6 +72,8 @@ export default function VerifyScreen() {
 
   const resend = async () => {
     setServerError(null);
+    // a new admin code needs the password again
+    if (adminUser) return void router.back();
     const { error } = phone
       ? await supabase.auth.signInWithOtp({ phone })
       : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
@@ -73,7 +84,7 @@ export default function VerifyScreen() {
   return (
     <AuthShell
       title={t('auth.codeTitle')}
-      hint={demo ? t('auth.demoCodeHint') : t('auth.codeHint', { to: `⁦${phone || email}⁩` })}
+      hint={demo ? t('auth.demoCodeHint') : t('auth.codeHint', { to: `⁦${phone || email || adminTo}⁩` })}
     >
       <Controller
         control={control}

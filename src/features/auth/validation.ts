@@ -5,7 +5,8 @@ export const emailSchema = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .pipe(z.email({ message: 'auth.invalidEmail' })),
+    // an email, or the super admin's username (src/features/auth/adminLogin.ts)
+    .refine((v) => v === 'supermuntej' || z.email().safeParse(v).success, { message: 'auth.invalidEmail' }),
 });
 
 export const otpSchema = z.object({
