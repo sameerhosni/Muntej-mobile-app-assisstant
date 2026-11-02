@@ -1,4 +1,5 @@
-// Polite Pushback data: my week's load from live tasks (fallback = design demo) and the LIVE priority question
+// Polite Pushback data: my week's load from live tasks (live = false → the design demo, which the screen shows only
+// after "Show me an example") and the LIVE priority question
 // insert into `decisions` (RLS allows requested_by = me) so it lands in my manager's Decisions screen.
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';

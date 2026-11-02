@@ -134,7 +134,7 @@ export function computeDashboard(p: Period, tasks: TaskWithPeople[], reviews: Re
   };
 }
 
-/** Engagement numbers (points / kudos / streaks) are still demo — no points tables yet. Values from the design. */
+/** Design engagement numbers (points / kudos / streaks), shown only as the tapped example — no points tables yet. */
 export const ENGAGEMENT_DEMO: Record<Period, { pts: number; kudos: number; streaks: number }> = {
   d: { pts: 410, kudos: 4, streaks: 3 },
   w: { pts: 2340, kudos: 18, streaks: 3 },

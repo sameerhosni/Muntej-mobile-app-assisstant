@@ -12,7 +12,7 @@ export type WorkspaceCardVM = {
   stuck: number;
   attention: boolean;
   hoursSaved: number;
-  /** Demo until the points tables exist. */
+  /** Estimate until the points tables exist: finished tasks only, so a new workspace starts at 0. */
   points: number;
 };
 
@@ -59,7 +59,7 @@ export function buildCards(
       stuck,
       attention: health(open.length, stuck),
       hoursSaved: (minutesByWs.get(ws.id) ?? 0) / 60,
-      points: done.length * 120 + ws.members.length * 30,
+      points: done.length * 120,
     };
   });
 }

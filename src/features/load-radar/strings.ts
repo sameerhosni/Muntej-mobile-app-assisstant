@@ -4,6 +4,7 @@ const en = {
   back: 'Back',
   eyebrow: 'Who should take it?',
   demoTitle: 'Competitor report',
+  newTitle: 'New task',
   hours: '~{{n}} hrs',
   loadWeek: 'LOAD · THIS WEEK',
   ok: 'OK',
@@ -11,6 +12,8 @@ const en = {
   over: 'Over',
   sample: 'Sample',
   empty: 'No teammates yet. Add your team and I’ll show you who has room.',
+  emptyTitle: 'No team yet',
+  showSample: 'Show me an example',
   pct: '{{n}}%',
   a11yPerson: '{{name}}, {{pct}} percent this week',
   note: {
@@ -87,6 +90,7 @@ const ar: typeof en = {
   back: 'رجوع',
   eyebrow: 'مين ياخذها؟',
   demoTitle: 'تقرير المنافسين',
+  newTitle: 'مهمة جديدة',
   hours: '{{n}} ساعات تقريباً',
   loadWeek: 'الضغط هالأسبوع',
   ok: 'مرتاح',
@@ -94,6 +98,8 @@ const ar: typeof en = {
   over: 'زايد',
   sample: 'مثال',
   empty: 'ما فيه أحد بالفريق للحين. أضف فريقك وأوريك مين فاضي.',
+  emptyTitle: 'ما عندك فريق للحين',
+  showSample: 'ورني مثال',
   pct: '{{n}}%',
   a11yPerson: '{{name}}، {{pct}} بالمية هالأسبوع',
   note: {

@@ -63,6 +63,9 @@ const en = {
   filter: { all: 'All', late: 'Late', atRisk: 'At risk', onTrack: 'On track' },
   nothingHere: 'Nothing here',
   showAll: 'Show all',
+  emptyTitle: 'No plan to draw yet',
+  emptyBody: 'Once your tasks have start and due dates, I’ll lay them out here and flag what’s likely to slip.',
+  showSample: 'Show me an example',
 };
 
 const ar: typeof en = {
@@ -128,6 +131,9 @@ const ar: typeof en = {
   filter: { all: 'الكل', late: 'متأخرة', atRisk: 'فيها خطر', onTrack: 'ماشية تمام' },
   nothingHere: 'ما فيه شي هنا',
   showAll: 'وريني الكل',
+  emptyTitle: 'ما فيه خطة أرسمها للحين',
+  emptyBody: 'أول ما يصير لمهامك تاريخ بداية وتسليم، أرتبها لك هنا وأنبهك على اللي ممكن يتأخر.',
+  showSample: 'ورني مثال',
 };
 
 export const NS = registerStrings('s24', { en, ar });

@@ -1,12 +1,13 @@
 // Screen 05 · Weekly brief — see design/v2/html/Brief.dc.html (Arabic: BriefAR.dc.html)
 // Live data: tasks (closed / on-time / team pulse / kudos suggestion), useHomeStats (hours saved, follow-ups),
-// activity_log (month value), pending decisions. Falls back to the design's demo week when there are no tasks.
+// activity_log (month value), pending decisions. While loading: spinner, no numbers. No tasks yet: real zeros +
+// an empty card; the design's demo week only after "Show me an example", marked with SampleTag.
 // The audio brief is read aloud by the speak Edge Function (useSpokenBrief). Accepting the kudos suggestion is local state.
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { Banknote, CalendarDays, ChevronRight, CircleCheck, Clock, Hand, Pause, Play, Send, Sparkles, TrendingUp } from 'lucide-react-native';
-import { AppText, Avatar, avatarGradientFor, Card, Gradient, Hero, IconBadge, PointsCoin, StatTile } from '@/components/ui';
+import { AppText, Avatar, avatarGradientFor, Card, EmptyCard, Gradient, Hero, IconBadge, LoadingCard, PointsCoin, SampleTag, StatTile } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken, type GradientToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -44,9 +45,13 @@ export default function BriefScreen() {
   const activity = useActivity(500);
   const calls = usePendingDecisionCount();
   const [accepted, setAccepted] = useState(false);
+  const [sample, setSample] = useState(false);
 
   const taskList = tasks.data ?? [];
   const live = taskList.length > 0;
+  // real data always wins over the example
+  const showDemo = sample && !live;
+  const loading = tasks.isLoading && !showDemo;
 
   const week = useMemo(() => {
     const from = startOfWeek().getTime();
@@ -119,7 +124,7 @@ export default function BriefScreen() {
     return { id: p.id, name: lang === 'ar' ? p.nameAr : p.name, kind: BRIEF_DEMO.suggestion.kind, n: BRIEF_DEMO.suggestion.n, gradient: p.gradient };
   };
 
-  const v = live
+  const v = !showDemo
     ? {
         hours: liveHours,
         sar: sarSaved(liveHours),
@@ -184,26 +189,26 @@ export default function BriefScreen() {
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <AppText color="onDarkMuted">{t('savedYou')}</AppText>
-              {!live && !tasks.isLoading && (
-                <View style={{ backgroundColor: colors.glass, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 }}>
-                  <AppText variant="micro" weight="bold" color="onDark">
-                    {t('sample')}
-                  </AppText>
-                </View>
-              )}
+              {showDemo && <SampleTag label={t('sample')} onDark />}
             </View>
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <StatTile variant="glass" iconBg="primaryLight" icon={<Clock color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={formatNumber(v.hours, lang, 1)} label={t('timeSaved')} />
+              value={loading ? t('none') : formatNumber(v.hours, lang, 1)} label={t('timeSaved')} />
             <StatTile variant="glass" iconBg="green" icon={<Banknote color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={formatNumber(v.sar, lang)} label={t('sarSaved')} />
+              value={loading ? t('none') : formatNumber(v.sar, lang)} label={t('sarSaved')} />
             <StatTile variant="glass" iconBg="orange" icon={<Hand color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={formatNumber(0, lang)} label={t('chases')} />
+              value={loading ? t('none') : formatNumber(0, lang)} label={t('chases')} />
           </View>
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -24, gap: spacing.lg }}>
+          {loading && <LoadingCard />}
+          {!loading && !live && !showDemo && (
+            <EmptyCard icon={CalendarDays} title={t('emptyTitle')} body={t('emptyBody')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
+          )}
+          {!loading && (
+          <>
           {/* 1-minute audio brief, read aloud by Muntej */}
           <Card elevation="raised" padding={spacing.lg} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingHorizontal: spacing.xl }}>
             <Pressable
@@ -264,7 +269,7 @@ export default function BriefScreen() {
                 {t('pulseHint')}
               </AppText>
             </View>
-            {v.pulse.length === 0 && !tasks.isLoading && (
+            {v.pulse.length === 0 && (
               <AppText variant="small" color="textMuted">
                 {t('pulseEmpty')}
               </AppText>
@@ -316,6 +321,8 @@ export default function BriefScreen() {
               </AppText>
             </View>
           </View>
+          </>
+          )}
         </View>
       </ScrollView>
     </View>

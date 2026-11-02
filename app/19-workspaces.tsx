@@ -1,6 +1,7 @@
 // Screen 19 · Workspaces — see design/v2/html/Workspaces.dc.html (Arabic: WorkspacesAR.dc.html)
 // Live data: workspaces + workspace_members (RLS: owner or member), tasks (health, task count, wins this week),
-// activity_log (hours / SAR saved this week). Points per workspace are demo until the points tables exist.
+// activity_log (hours / SAR saved this week). Loading → spinner (hero numbers blank); none → empty card.
+// Points per workspace (finished tasks only) show only while rewards are on (SHOW_REWARDS).
 // Tap a workspace → /21-achievements?workspace=<id> (prototype tip t19).
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
@@ -13,11 +14,13 @@ import {
   BOTTOM_CTA_SPACE,
   Card,
   Chip,
+  EmptyCard,
   FilterChips,
   Gradient,
   Hero,
   IconBadge,
   IconButton,
+  LoadingCard,
   PointsPill,
   SearchField,
   StatTile,
@@ -40,6 +43,7 @@ import {
   type WorkspaceFilter,
 } from '@/features/workspaces/model';
 import { wsTone } from '@/features/workspaces/color';
+import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { NS } from '@/features/workspaces/strings';
 
 const MAX_AVATARS = 3;
@@ -78,6 +82,9 @@ export default function WorkspacesScreen() {
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const refreshing = workspaces.isRefetching || tasks.isRefetching || activity.isRefetching;
+  const loading = workspaces.isLoading || tasks.isLoading;
+  /** hero numbers stay blank until the activity log is in */
+  const heroValue = (v: string) => (activity.isLoading ? '–' : v);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -108,9 +115,9 @@ export default function WorkspacesScreen() {
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <StatTile variant="glass" iconBg="primaryLight" icon={<Clock color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={t('hours', { h: formatNumber(weekHours, lang, 1) })} label={t('savedWeek')} />
+              value={heroValue(t('hours', { h: formatNumber(weekHours, lang, 1) }))} label={t('savedWeek')} />
             <StatTile variant="glass" iconBg="green" icon={<Banknote color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={formatNumber(sarSaved(weekHours), lang)} label={t('sarWeek')} />
+              value={heroValue(formatNumber(sarSaved(weekHours), lang))} label={t('sarWeek')} />
             <StatTile variant="glass" iconBg="orange" icon={<Hand color={colors.onDark} size={14} strokeWidth={2.2} />}
               value={formatNumber(0, lang)} label={t('chases')} />
           </View>
@@ -122,10 +129,9 @@ export default function WorkspacesScreen() {
               <AppText variant="small" color="red">{t('error')}</AppText>
             </Card>
           )}
-          {!workspaces.isLoading && !workspaces.isError && cards.length === 0 && (
-            <Card elevation="raised">
-              <AppText color="textMuted">{t('empty')}</AppText>
-            </Card>
+          {loading && <LoadingCard />}
+          {!loading && !workspaces.isError && cards.length === 0 && (
+            <EmptyCard icon={ListChecks} title={t('emptyTitle')} body={t('emptyBody')} />
           )}
           {cards.length > 0 && (
             <View style={{ gap: spacing.md }}>
@@ -273,7 +279,7 @@ function WorkspaceCard({ c, index, first }: { c: WorkspaceCardVM; index: number;
             </View>
           )}
         </View>
-        <PointsPill size="sm" label={formatNumber(c.points, lang)} />
+        {SHOW_REWARDS && <PointsPill size="sm" label={formatNumber(c.points, lang)} />}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.primaryTint, borderRadius: radius.pill, paddingVertical: 3, paddingStart: 4, paddingEnd: 9 }}>
           <View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
             <Clock color={colors.onDark} size={11} strokeWidth={2.6} />

@@ -1,5 +1,6 @@
 // Screen 26 · Points & Rewards — see design/v2/html/Rewards.dc.html (Arabic: RewardsAR.dc.html)
-// Demo data: points, rewards and redemptions have no backend yet (shared demo wallet in src/features/rewards).
+// Points, rewards and redemptions have no backend yet (shared wallet in src/features/rewards). The balance starts at
+// zero for everyone and grows only with points earned in the app; the rewards catalog is the design's.
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { Pressable, ScrollView, View, type ViewStyle } from 'react-native';
 import { router } from 'expo-router';
@@ -10,7 +11,7 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { NS } from '@/features/rewards/strings';
-import { EARNED_EARLIER_THIS_WEEK, REWARDS, type Reward } from '@/features/rewards/demo';
+import { REWARDS, type Reward } from '@/features/rewards/demo';
 import { PTS_PER_SAR, useWallet, wallet } from '@/features/rewards/wallet';
 import { Confetti, HERO_CONFETTI } from '@/features/rewards/Confetti';
 
@@ -78,7 +79,7 @@ export default function RewardsScreen() {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                 <View style={{ backgroundColor: colors.glass, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
                   <AppText variant="caption" weight="bold" color="mint">
-                    {t('thisWeek', { n: n(EARNED_EARLIER_THIS_WEEK + w.earnedToday) })}
+                    {t('thisWeek', { n: n(w.earnedToday) })}
                   </AppText>
                 </View>
                 <View style={{ backgroundColor: colors.glass, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 3 }}>

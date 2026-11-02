@@ -35,6 +35,10 @@ const en = {
   lessReporting: 'less reporting/wk',
   hours: '{{n}} h',
   statusMeetings: 'status meetings',
+  sample: 'Sample',
+  showSample: 'Show me an example',
+  emptyTitle: 'No team quest yet',
+  emptyBody: 'When your team starts a quest, its progress and the league show up here.',
 };
 
 const ar: typeof en = {
@@ -72,6 +76,10 @@ const ar: typeof en = {
   lessReporting: 'تقارير أقل/أسبوع',
   hours: '{{n}} س',
   statusMeetings: 'اجتماع متابعة',
+  sample: 'مثال',
+  showSample: 'وريني مثال',
+  emptyTitle: 'ما فيه تحدي للفريق للحين',
+  emptyBody: 'لما يبدأ فريقك تحدي، بيطلع لك هنا تقدّمه والدوري.',
 };
 
 export const NS = registerStrings('s30', { en, ar });

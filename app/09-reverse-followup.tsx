@@ -1,12 +1,14 @@
 // Screen 09 · Reverse follow-up — see design/v2/html/ReverseFollowup.dc.html (Arabic: ReverseFollowupAR.dc.html)
 // Employee screen. Live data: pending decisions I requested (age) + blocked tasks I own or help on.
-// Nothing waiting → a calm empty note (the design's sample people confused real users). "Remind them for me" sends a real reminder (nudge_waiting) for live items.
+// While loading: a spinner and "–" tiles. Nothing waiting → a calm empty card with real zeros; its "Show me an example"
+// reveals the design's three sample items (local only, marked "Sample"). "Remind them for me" sends a real reminder
+// (nudge_waiting) for live items.
 import { useMemo, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronLeft, Clock, Hand, Lock, Mic, Send } from 'lucide-react-native';
-import { AppText, Avatar, Card, Chip, FilterChips, Gradient, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
+import { AppText, Avatar, Card, Chip, EmptyCard, FilterChips, Gradient, Hero, IconBadge, IconButton, LoadingCard, PointsCoin, SampleTag } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -15,7 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { formatNumber } from '@/features/home/value';
 import { LEVEL, useWallet } from '@/features/rewards/wallet';
 import { SHOW_REWARDS } from '@/features/rewards/visibility';
-import { liveItems, type WaitItem, type WaitKind } from '@/features/reverse-followup/model';
+import { demoItems, liveItems, type WaitItem, type WaitKind } from '@/features/reverse-followup/model';
 
 type WaitFilter = 'all' | 'decisions' | 'blocked';
 const WAIT_FILTERS: WaitFilter[] = ['all', 'decisions', 'blocked'];
@@ -40,6 +42,7 @@ export default function ReverseFollowupScreen() {
   const [nudged, setNudged] = useState<Record<string, boolean>>({});
   const [voiceHint, setVoiceHint] = useState(false);
   const [filter, setFilter] = useState<WaitFilter>('all');
+  const [sample, setSample] = useState(false);
 
   // "Remind them for me": live items → a real reminder from Muntej (nudge_waiting); the sample just flips
   const [nudgeError, setNudgeError] = useState<string | null>(null);
@@ -64,8 +67,9 @@ export default function ReverseFollowupScreen() {
   );
   const loading = (tasks.isLoading || decisions.isLoading || me.isLoading) && live.length === 0;
   const failed = tasks.isError && decisions.isError;
-  const items: WaitItem[] = live;
-  const isSample = false;
+  // real items always win over the sample
+  const isSample = !loading && live.length === 0 && sample;
+  const items: WaitItem[] = useMemo(() => (isSample ? demoItems(t) : live), [isSample, live, t]);
   const filterOptions = WAIT_FILTERS.map((key) => ({
     key,
     label: t(`filter.${key}`),
@@ -80,7 +84,8 @@ export default function ReverseFollowupScreen() {
   const myName = me.data ? ((lang === 'ar' && me.data.full_name_ar ? me.data.full_name_ar : me.data.full_name).split(' ')[0] ?? '') : '';
   const role = me.data?.role === 'employee' ? t('roleEmployee') : t('roleManager');
   const firstOpen = items.find((i) => !nudged[i.id]) ?? items[0];
-  const voiceText = isSample || !firstOpen ? t('voiceExample') : t('voiceExampleLive', { name: firstOpen.who, what: firstOpen.what });
+  const voiceText = isSample ? t('voiceExample') : firstOpen ? t('voiceExampleLive', { name: firstOpen.who, what: firstOpen.what }) : t('voiceExampleEmpty');
+  const tileVal = (v: string) => (loading ? '–' : v);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -149,11 +154,11 @@ export default function ReverseFollowupScreen() {
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -34, gap: spacing.lg }}>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Tile icon={<Clock color={colors.primary} size={15} strokeWidth={2} />} bg="primaryTint"
-              value={t('hours', { n: formatNumber(waitingCut, lang) })} label={t('waitingCut')} />
+              value={tileVal(t('hours', { n: formatNumber(waitingCut, lang) }))} label={t('waitingCut')} />
             <Tile icon={<Hand color={colors.orange} size={15} strokeWidth={2} />} bg="orangeTint"
-              value={formatNumber(0, lang)} label={t('chasesByYou')} />
+              value={tileVal(formatNumber(0, lang))} label={t('chasesByYou')} />
             <Tile icon={<Send color={colors.purple} size={15} strokeWidth={2} />} bg="purpleTint"
-              value={formatNumber(BASE_AUTO_NUDGES + nudgedCount, lang)} label={t('autoNudges')} />
+              value={tileVal(formatNumber(BASE_AUTO_NUDGES + nudgedCount, lang))} label={t('autoNudges')} />
           </View>
 
           {failed && (
@@ -163,15 +168,11 @@ export default function ReverseFollowupScreen() {
           )}
 
           {loading ? (
-            <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
-              <ActivityIndicator color={colors.purple} />
-            </Card>
+            <LoadingCard />
           ) : (
             <>
               {items.length === 0 ? (
-                <Card padding={spacing.lg}>
-                  <AppText color="textSoft">{t('emptyAll')}</AppText>
-                </Card>
+                <EmptyCard icon={Send} title={t('emptyTitle')} body={t('emptyAll')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
               ) : (
                 <FilterChips options={filterOptions} value={filter} onChange={setFilter} />
               )}
@@ -296,13 +297,7 @@ function WaitCard({ item, done, onNudge }: { item: WaitItem; done: boolean; onNu
                 {item.blocks}
               </AppText>
             </View>
-            {item.sample && (
-              <View style={{ backgroundColor: colors.chip, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 1 }}>
-                <AppText variant="micro" weight="bold" color="textMuted">
-                  {t('sample')}
-                </AppText>
-              </View>
-            )}
+            {item.sample && <SampleTag label={t('sample')} />}
           </View>
         </View>
         <View

@@ -2,7 +2,8 @@
 // Live data: workspaces (Project tab), all tasks (Product tab = the whole portfolio), team + tasks + reviews (Employee tab).
 // Summaries are built locally from tasks (done / in progress / late / next due) — no AI call yet.
 // Listen = demo player, PDF/Share = system share sheet with the text, feedback Send = demo sent state.
-// Tabs with nothing live fall back to the design's sample.
+// While a tab loads: spinner. A tab with nothing live: empty card + zeros in the hero; the design's sample only
+// after "Show me an example", marked with SampleTag.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Share, View } from 'react-native';
 import { router } from 'expo-router';
@@ -24,7 +25,7 @@ import {
   Upload,
   Volume2,
 } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Gradient, Hero, IconBadge, IconButton, PointsCoin, StatTile, TextField } from '@/components/ui';
+import { AppText, Avatar, Button, Card, EmptyCard, Gradient, Hero, IconBadge, IconButton, LoadingCard, PointsCoin, SampleTag, StatTile, TextField } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -67,6 +68,7 @@ export default function SummariesScreen() {
   const [generated, setGenerated] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [sent, setSent] = useState<Record<string, boolean>>({});
+  const [sample, setSample] = useState(false);
 
   const taskList = tasks.data ?? [];
   const teamList = team.data ?? [];
@@ -81,17 +83,24 @@ export default function SummariesScreen() {
   );
 
   const list = items[tab];
-  const demo = list.length === 0;
-  const item: Item = demo ? { id: DEMO_ID, name: '' } : list.find((x) => x.id === picked[tab]) ?? list[0];
+  const tabLoading = tab === 'p' ? workspaces.isLoading : tab === 'r' ? tasks.isLoading : team.isLoading;
+  const empty = !tabLoading && list.length === 0;
+  // real data always wins: the sample shows only on a tab with nothing live, after the tap
+  const demo = empty && sample;
+  const ready = !tabLoading && (!empty || demo);
+  /** Per-report estimate only once there is something to summarize; a new user sees 0. */
+  const reportHours = ready ? REPORT_HOURS : 0;
+  const item: Item = list.length === 0 ? { id: DEMO_ID, name: '' } : list.find((x) => x.id === picked[tab]) ?? list[0];
   const key = `${tab}:${item.id}`;
   const isGen = !!generated[key];
 
+  // the demo summary is built for an empty tab but only rendered once `demo` (after the tap)
   const summary = useMemo(
     () =>
-      demo
+      list.length === 0
         ? demoSummary(tab, t)
         : summarize(tab, item, { t, lang, tasks: taskList, reviews: reviews.data ?? [], team: teamList, workspaceCount: items.p.length }),
-    [demo, tab, item, t, lang, taskList, reviews.data, teamList, items.p.length],
+    [list.length, tab, item, t, lang, taskList, reviews.data, teamList, items.p.length],
   );
 
   const draft = drafts[key] ?? summary.draft ?? '';
@@ -121,9 +130,9 @@ export default function SummariesScreen() {
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <StatTile variant="glass" iconBg="primaryLight" icon={<Clock color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={t('hours', { n: formatNumber(REPORT_HOURS, lang) })} label={t('writingSaved')} />
+              value={tabLoading ? t('dash') : t('hours', { n: formatNumber(reportHours, lang) })} label={t('writingSaved')} />
             <StatTile variant="glass" iconBg="green" icon={<Banknote color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={formatNumber(REPORT_HOURS * HOURLY_COST_SAR, lang)} label={t('sarReport')} />
+              value={tabLoading ? t('dash') : formatNumber(reportHours * HOURLY_COST_SAR, lang)} label={t('sarReport')} />
             <StatTile variant="glass" iconBg="orange" icon={<Hand color={colors.onDark} size={14} strokeWidth={2.2} />}
               value={t('oneTap')} label={t('thatsAll')} />
           </View>
@@ -150,6 +159,13 @@ export default function SummariesScreen() {
             })}
           </View>
 
+          {tabLoading && <LoadingCard />}
+          {empty && !sample && (
+            <EmptyCard icon={FileText} title={t('noItems')} body={t('emptyBody')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
+          )}
+
+          {ready && (
+          <>
           {/* Subject picker */}
           <View style={{ gap: spacing.sm }}>
             <Card
@@ -166,6 +182,7 @@ export default function SummariesScreen() {
                 <AppText variant="caption" color="textMuted" numberOfLines={1}>
                   {summary.meta}
                 </AppText>
+                {demo && <SampleTag label={t('sample')} />}
               </View>
               {list.length > 1 && (
                 <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primaryTint, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: pickerOpen ? '180deg' : '0deg' }] }}>
@@ -308,6 +325,8 @@ export default function SummariesScreen() {
                 />
               </Card>
             )
+          )}
+          </>
           )}
         </View>
       </ScrollView>

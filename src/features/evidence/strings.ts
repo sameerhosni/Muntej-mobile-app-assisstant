@@ -52,7 +52,8 @@ const en = {
   sample: 'Sample',
   showSample: 'See an example',
   failed: "That didn't go through. Check your connection and try again?",
-  empty: 'Nothing running for me to check yet. Here’s an example.',
+  emptyTitle: 'Nothing to check yet',
+  emptyBody: 'Once tasks are running, I’ll compare what people say with the files and steps they actually deliver.',
   log: {
     summary: 'Offered help to {{name}} on "{{task}}"',
     reason: 'Reported {{reported}}%, evidence shows ~{{signal}}%',
@@ -122,7 +123,8 @@ const ar: typeof en = {
   sample: 'مثال',
   showSample: 'شوف مثال',
   failed: 'ما وصلت. شيّك على النت وجرّب مرة ثانية.',
-  empty: 'ما فيه مهام شغّالة أشيّك عليها للحين. خذ هذا مثال.',
+  emptyTitle: 'ما فيه شي أشيّك عليه للحين',
+  emptyBody: 'أول ما تشتغل المهام، بقارن كلام الفريق بالملفات والخطوات اللي فعلاً سلّموها.',
   log: {
     summary: 'عرضت المساعدة على {{name}} في "{{task}}"',
     reason: 'قال {{reported}}%، والأدلة تقول ~{{signal}}%',

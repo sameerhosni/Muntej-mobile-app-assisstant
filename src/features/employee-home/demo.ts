@@ -7,6 +7,7 @@ export const QUESTS: { id: QuestId; pts: number }[] = [
   { id: 'c', pts: 70 },
 ];
 
-export const STREAK_DAYS = 12;
+/** No streak backend yet: a real person starts at 0 (the design showed 12). */
+export const STREAK_DAYS = 0;
 export const BADGE_COUNT = 6;
 export const TEAM_QUEST = { done: 31, goal: 40 };

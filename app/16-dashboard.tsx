@@ -1,12 +1,13 @@
 // Screen 16 · Dashboard — see design/v2/html/Dashboard.dc.html (Arabic: DashboardAR.dc.html)
 // Live data: tasks (done / on-time / clarity / chart), reviews (avg rating), activity_log (hours & SAR saved),
 // each for the selected period vs the previous one. Empty periods show zeros / "—" honestly.
-// Engagement row (points, kudos, streaks) is demo until the points tables exist. Insight = template over the numbers.
+// Engagement row (points, kudos, streaks) shows 0 until the points tables exist; the design's numbers only after
+// "Show me an example" on an empty workspace, marked with SampleTag. While loading: spinner. Insight = template over the numbers.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { Banknote, ChevronLeft, Clock, Eye, Flame, Hand, Heart, Sparkles, SquareCheck, Star } from 'lucide-react-native';
-import { AppText, Card, Gradient, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
+import { AppText, Card, EmptyCard, Gradient, Hero, IconBadge, IconButton, LoadingCard, PointsCoin, SampleTag } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -27,6 +28,7 @@ export default function DashboardScreen() {
   const activity = useActivity(1000);
   const team = useTeam();
   const [p, setP] = useState<Period>('w');
+  const [sample, setSample] = useState(false);
 
   const data = useMemo(
     () => computeDashboard(p, tasks.data ?? [], reviews.data ?? [], activity.data ?? []),
@@ -78,7 +80,11 @@ export default function DashboardScreen() {
 
   const max = Math.max(1, ...cur.bars, ...prev.bars);
   const h = (v: number) => (v === 0 ? 2 : Math.max(4, Math.round((v / max) * BAR_MAX)));
-  const eng = ENGAGEMENT_DEMO[p];
+  const loading = tasks.isLoading || reviews.isLoading || activity.isLoading;
+  const noTasks = !loading && (tasks.data ?? []).length === 0;
+  // real data always wins: the example only on an empty workspace, after the tap
+  const showDemo = sample && noTasks;
+  const eng = showDemo ? ENGAGEMENT_DEMO[p] : { pts: 0, kudos: 0, streaks: 0 };
   const refreshing = tasks.isRefetching || reviews.isRefetching || activity.isRefetching;
 
   return (
@@ -144,6 +150,13 @@ export default function DashboardScreen() {
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -24, gap: spacing.lg }}>
+          {loading && <LoadingCard />}
+          {noTasks && !sample && (
+            <EmptyCard icon={SquareCheck} title={t('emptyTitle')} body={t('emptyBody')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
+          )}
+
+          {!loading && (
+          <>
           {/* KPI tiles */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
             {kpis.map((k) => (
@@ -227,8 +240,9 @@ export default function DashboardScreen() {
             </View>
           </Card>
 
-          {/* Engagement (demo) */}
+          {/* Engagement (0 until the points tables exist; demo only as the tapped example) */}
           <Card padding={spacing.md} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingHorizontal: spacing.lg }}>
+            {showDemo && <SampleTag label={t('sample')} />}
             <EngItem icon={<PointsCoin size={22} />} value={formatNumber(eng.pts, lang)} label={t('pts')} color="orangeText" />
             <EngItem
               icon={<IconBadge size={22} bg="purpleTint"><Heart color={colors.purple} size={13} strokeWidth={2.2} /></IconBadge>}
@@ -261,6 +275,8 @@ export default function DashboardScreen() {
               {insight}
             </AppText>
           </View>
+          </>
+          )}
         </View>
       </ScrollView>
     </View>

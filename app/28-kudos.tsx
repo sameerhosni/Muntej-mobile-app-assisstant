@@ -1,14 +1,15 @@
 // Screen 28 · Kudos — see design/v2/html/Kudos.dc.html (Arabic: KudosAR.dc.html)
-// Manager screen. People: live team employees (useTeam), demo team otherwise. Draft: built from the person's
-// latest done task (useTasks), else the design's drafts. No kudos table yet → the Team wall is demo + local sends.
-// Points go to the demo wallet only when the recipient is the signed-in user.
+// Manager screen. People: live team employees (useTeam); loading → spinner; none → empty card with "Show me an
+// example" (the design's team, drafts and wall, marked Sample). Draft: built from the person's latest done task
+// (useTasks), else a generic thank-you. No kudos table yet → the Team wall is this session's sends (+ the example's).
+// Points go to the wallet only when the recipient is the signed-in user.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { Banknote, Check, ChevronLeft, Clock, Hand, Sparkles, ThumbsUp } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
+import { AppText, Avatar, Button, Card, EmptyCard, Hero, IconBadge, IconButton, LoadingCard, PointsCoin, SampleTag } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -40,10 +41,12 @@ export default function KudosScreen() {
   const team = useTeam();
   const done = useTasks({ statuses: ['done'] });
 
+  const [sample, setSample] = useState(false);
   const people = useMemo(() => {
     const live = livePeople(team.data ?? [], lang);
-    return live.length > 0 ? live : demoPeople(lang);
-  }, [team.data, lang]);
+    return live.length > 0 ? live : sample ? demoPeople(lang) : [];
+  }, [team.data, lang, sample]);
+  const loading = team.isLoading && !sample;
   const latest = useMemo(() => latestDoneByOwner(done.data ?? []), [done.data]);
 
   const [who, setWho] = useState<string | null>(null);
@@ -74,7 +77,7 @@ export default function KudosScreen() {
 
   const wall = [
     ...sent.map((s) => ({ id: s.id, from: s.from, to: s.to, value: t(`values.${s.valueKey}`), msg: s.msg, pts: s.pts })),
-    ...demoWall(t),
+    ...(sample ? demoWall(t) : []),
   ].slice(0, 3);
 
   const sar = amt / PTS_PER_SAR;
@@ -107,11 +110,23 @@ export default function KudosScreen() {
                   {t('subtitle')}
                 </AppText>
               </View>
+              {sample && <SampleTag label={t('sample')} onDark />}
             </View>
           </View>
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -38, gap: spacing.lg }}>
+          {loading && <LoadingCard />}
+          {!loading && people.length === 0 && (
+            <EmptyCard
+              icon={ThumbsUp}
+              title={t('emptyTitle')}
+              body={t('emptyBody')}
+              sampleLabel={t('showSample')}
+              onSample={() => setSample(true)}
+            />
+          )}
+          {people.length > 0 && (
           <Card elevation="raised" padding={spacing.xxl} style={{ borderRadius: radius.cardLg, gap: spacing.lg }}>
             <ScrollView
               horizontal
@@ -233,9 +248,11 @@ export default function KudosScreen() {
               <Button label={t('send', { n: n(amt) })} onPress={send} disabled={!sel} />
             )}
           </Card>
+          )}
 
           <View style={{ gap: spacing.sm }}>
             <AppText variant="section">{t('wall')}</AppText>
+            {!loading && wall.length === 0 && <AppText color="textMuted">{t('wallEmpty')}</AppText>}
             {wall.map((f) => (
               <Card key={f.id} padding={0} style={{ borderRadius: radius.button, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
                 <IconBadge size={40} bg="orangeTint">

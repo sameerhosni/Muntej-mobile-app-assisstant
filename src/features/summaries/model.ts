@@ -162,7 +162,7 @@ export function summarize(tab: Tab, item: Item, ctx: Ctx): SummaryVM {
   };
 }
 
-/** Design sample (used when that tab has nothing live to summarize). */
+/** Design sample (shown only after "Show me an example" on a tab with nothing live to summarize). */
 export function demoSummary(tab: Tab, t: TFunction): SummaryVM {
   const k = `demo.${tab}`;
   const tones: Record<Tab, Tone[]> = {

@@ -1,4 +1,4 @@
-// Design demo values for screen 05 (used only when the workspace has no tasks yet).
+// Design demo values for screen 05 (only after "Show me an example" while the workspace has no tasks).
 export const BRIEF_DEMO = {
   hours: 6.2,
   sar: 1240,

@@ -2,20 +2,21 @@
 // One-page timeline of real wins. Live data: achievements (RLS: employee + direct manager) with the evidence count
 // of each win's task, workspaces (lane names/colors) and profiles (person lanes). Lanes show whatever RLS returns.
 // Optional ?workspace=<id> (from screen 19) highlights that lane and selects its latest win.
-// The design's sample timeline appears only when there are no achievements at all (labelled "Sample").
-// Value tiles (3 h / 600 SAR / 1 tap) and points per win (50 + 15 × proofs) are the design's estimates.
+// While loading: a spinner, never sample numbers. No achievements yet: real zeros + an empty card whose
+// "Show me an example" reveals the design's sample timeline (local state only, marked "Sample").
+// Value tiles (3 h / 600 SAR per report) and points per win (50 + 15 × proofs) are the design's estimates; 0 with no wins.
 // Prototype tip t21: switch to By person and tap the dots.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, Share, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Banknote, Check, ChevronLeft, ChevronRight, Clock, Hand, Sparkles, Upload, User } from 'lucide-react-native';
-import { AppText, Avatar, BOTTOM_CTA_SPACE, Button, Card, Hero, IconBadge, IconButton, PointsCoin } from '@/components/ui';
+import { Banknote, Check, ChevronLeft, ChevronRight, Clock, Hand, Sparkles, Trophy, Upload, User } from 'lucide-react-native';
+import { AppText, Avatar, BOTTOM_CTA_SPACE, Button, Card, EmptyCard, Hero, IconBadge, IconButton, LoadingCard, PointsCoin, SampleTag } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useTeam } from '@/lib/api';
-import { formatNumber } from '@/features/home/value';
+import { formatNumber, HOURLY_COST_SAR } from '@/features/home/value';
 import { startOfWeek } from '@/features/dashboard/metrics';
 import { useWorkspaces } from '@/features/workspaces/useWorkspaces';
 import { useAchievements } from '@/features/achievements/useAchievements';
@@ -26,6 +27,8 @@ const VIEWS: ViewBy[] = ['ws', 'emp'];
 const ZOOMS: Zoom[] = ['w', 'm', 'q'];
 const LANE_H = 46;
 const LABEL_W = 84;
+/** Design estimate: hours a leadership report takes by hand (SAR = hours × HOURLY_COST_SAR) */
+const REPORT_HOURS = 3;
 
 export default function AchievementsScreen() {
   const { t } = useScreenT(NS);
@@ -41,9 +44,13 @@ export default function AchievementsScreen() {
   const [view, setView] = useState<ViewBy>('ws');
   const [zoom, setZoom] = useState<Zoom>('m');
   const [sel, setSel] = useState<string | null>(null);
+  const [sample, setSample] = useState(false);
 
   const rows = achievements.data ?? [];
-  const isDemo = achievements.isSuccess && rows.length === 0;
+  const loading = achievements.isLoading;
+  const empty = achievements.isSuccess && rows.length === 0;
+  // real data always wins over the sample
+  const isDemo = empty && sample;
 
   const vm = useMemo(
     () =>
@@ -59,10 +66,12 @@ export default function AchievementsScreen() {
     (focusWs && !isDemo ? latest(vm.dots.filter((d) => d.laneWs === focusWs)) : null) ??
     latest(vm.dots);
 
-  const demoLegend = useMemo(() => buildDemo('m', { t, lang }).legend, [t, lang]);
   const lanes: Lane[] = view === 'ws' ? vm.wsLanes : vm.personLanes;
-  // Legend under the slider: one dot per workspace (source) in its lane colour; the design's three when nothing is live.
-  const legend = vm.legend.length > 0 ? vm.legend : demoLegend;
+  // Legend under the slider: one dot per workspace (source) in its lane colour.
+  const legend = vm.legend;
+  // nothing to draw yet: loading, or no wins and the example not asked for
+  const blank = loading || (empty && !sample);
+  const reportHours = rows.length > 0 || isDemo ? REPORT_HOURS : 0;
   // Delta chip: period-over-period when derivable, else wins logged this week (live), else the sample's.
   const weekFrom = startOfWeek().getTime();
   const thisWeek = rows.filter((r) => new Date(r.achieved_at).getTime() >= weekFrom).length;
@@ -104,18 +113,14 @@ export default function AchievementsScreen() {
               </AppText>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <AppText variant="caption" color="onDarkMuted">{t('subtitle')}</AppText>
-                {vm.sample && (
-                  <View style={{ backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.glassBorder, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 1 }}>
-                    <AppText variant="micro" weight="bold" color="onDark">{t('sample')}</AppText>
-                  </View>
-                )}
+                {vm.sample && <SampleTag label={t('sample')} onDark />}
               </View>
             </View>
             <View style={{ alignItems: 'flex-end', gap: 3 }}>
               <AppText weight="extrabold" color="onDark" style={{ fontSize: 32, lineHeight: 36 }}>
-                {formatNumber(vm.count, lang)}
+                {loading ? ' ' : formatNumber(vm.count, lang)}
               </AppText>
-              {delta && (
+              {delta && !loading && (
                 <View style={{ backgroundColor: colors.glass, borderWidth: 1, borderColor: colors.mint, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2 }}>
                   <AppText variant="micro" weight="bold" color="onDark" numberOfLines={1}>{delta}</AppText>
                 </View>
@@ -157,7 +162,13 @@ export default function AchievementsScreen() {
             </Card>
           )}
 
+          {loading && <LoadingCard />}
+          {empty && !sample && (
+            <EmptyCard icon={Trophy} title={t('emptyTitle')} body={t('emptyBody')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
+          )}
+
           {/* Lanes */}
+          {!blank && (
           <View style={{ backgroundColor: colors.surface, borderRadius: radius.card, padding: spacing.md, boxShadow: shadows.card }}>
             {lanes.length === 0 && !achievements.isLoading && (
               <AppText variant="small" color="textMuted" style={{ padding: spacing.sm }}>{t('emptyLanes')}</AppText>
@@ -228,9 +239,10 @@ export default function AchievementsScreen() {
               </View>
             )}
           </View>
+          )}
 
           {/* Detail card */}
-          {selected ? (
+          {blank ? null : selected ? (
             <View
               accessibilityLiveRegion="polite"
               style={{
@@ -282,8 +294,8 @@ export default function AchievementsScreen() {
 
           {/* Value tiles */}
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <ValueTile bg="primaryTint" icon={<Clock color={colors.primary} size={16} strokeWidth={2} />} value={t('savedVal')} label={t('savedReport')} />
-            <ValueTile bg="greenTint" icon={<Banknote color={colors.green} size={16} strokeWidth={2} />} value={t('sarVal')} label={t('sarReport')} />
+            <ValueTile bg="primaryTint" icon={<Clock color={colors.primary} size={16} strokeWidth={2} />} value={t('savedVal', { n: formatNumber(reportHours, lang) })} label={t('savedReport')} />
+            <ValueTile bg="greenTint" icon={<Banknote color={colors.green} size={16} strokeWidth={2} />} value={formatNumber(reportHours * HOURLY_COST_SAR, lang)} label={t('sarReport')} />
             <ValueTile bg="orangeTint" icon={<Hand color={colors.orange} size={16} strokeWidth={2} />} value={t('tapVal')} label={t('toBuild')} />
           </View>
         </View>

@@ -1,7 +1,9 @@
 // Screen 08 · Polite Pushback — see design/v2/html/Pushback.dc.html (Arabic: PushbackAR.dc.html)
 // Employee screen. Live data: my active tasks (useTasks, owner = me) → week load + newest task as "the new task"
-// (falls back to the design demo when I have none). Send = LIVE insert into decisions (type priority_question,
-// requested_by me, manager_id = my manager) via src/features/pushback/usePushback. Points pill = demo wallet.
+// While loading: a spinner. No active tasks: an empty card ("nothing new to push back on") whose "Show me an example"
+// reveals the design demo (local only, marked "Sample"; Send there doesn't write anything). Send = LIVE insert into
+// decisions (type priority_question, requested_by me, manager_id = my manager) via src/features/pushback/usePushback.
+// Points pill = demo wallet.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -18,7 +20,21 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Gradient, Hero, IconBadge, IconButton, PointsCoin, StatTile } from '@/components/ui';
+import {
+  AppText,
+  Avatar,
+  Button,
+  Card,
+  EmptyCard,
+  Gradient,
+  Hero,
+  IconBadge,
+  IconButton,
+  LoadingCard,
+  PointsCoin,
+  SampleTag,
+  StatTile,
+} from '@/components/ui';
 import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
 import i18n, { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -42,9 +58,15 @@ export default function PushbackScreen() {
   const me = useMyProfile();
   // ?task=<id> from the task page's "Too busy?": talk about that task
   const { task: taskParam } = useLocalSearchParams<{ task?: string }>();
-  const { model, profileId, askedId } = usePushbackModel(lang, taskParam);
+  const { model, profileId, askedId, isLoading } = usePushbackModel(lang, taskParam);
   const send = useSendPushback();
   const [step, setStep] = useState<Step>('ask');
+  const [sample, setSample] = useState(false);
+  // real tasks always win over the sample
+  const isSample = !model.live && sample;
+  const loading = isLoading && !model.live;
+  const empty = !loading && !model.live && !sample;
+  const showTask = model.live || isSample;
   const [decisionId, setDecisionId] = useState<string | null>(null);
   const status = useDecisionStatus(decisionId);
   // already asked about this task: show where that request stands instead of asking again
@@ -58,11 +80,11 @@ export default function PushbackScreen() {
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const BackIcon = isRTL ? ChevronRight : ChevronLeft;
 
-  const meName = model.meName ?? t('demo.me');
-  const managerName = model.managerName ?? t('demo.manager');
+  const meName = model.meName ?? (isSample ? t('demo.me') : null);
+  const managerName = model.managerName ?? (isSample ? t('demo.manager') : null);
   const taskTitle = model.newTask.title ?? t('demo.task');
-  const topTitle = model.live ? model.topTitle ?? t('otherWork') : t('demo.top');
-  const over = model.total > model.capacity;
+  const topTitle = isSample ? t('demo.top') : model.topTitle ?? t('otherWork');
+  const over = showTask && model.total > model.capacity;
   const n = (v: number) => formatNumber(v, lang);
   const days = (d: number) => (d === 1 ? t('oneDay') : d === 2 ? t('twoDays') : t('nDays', { n: n(d) }));
 
@@ -111,6 +133,11 @@ export default function PushbackScreen() {
   const preview = message(lang === 'ar' ? 'ar' : 'en');
 
   const onSend = () => {
+    // the example never writes a real request
+    if (isSample) {
+      setStep('sent');
+      return;
+    }
     const en = message('en');
     const ar = message('ar');
     send.mutate(
@@ -189,7 +216,7 @@ export default function PushbackScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md }}>
             <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
               <AppText variant="small" color="onDarkMuted" numberOfLines={1}>
-                {t('role', { name: meName })}
+                {meName ? t('role', { name: meName }) : ' '}
               </AppText>
               <AppText variant="titleLg" color="onDark" numberOfLines={1}>
                 {t('title')}
@@ -199,8 +226,10 @@ export default function PushbackScreen() {
                 <AppText variant="caption" color="onDark" numberOfLines={1} style={{ flexShrink: 1 }}>
                   {t('subtitle')}
                 </AppText>
+                {isSample && <SampleTag label={t('sample')} onDark />}
               </View>
             </View>
+            {showTask && !!managerName && (
             <View
               style={{
                 flexDirection: 'row',
@@ -220,10 +249,18 @@ export default function PushbackScreen() {
                 {t('from', { name: managerName })}
               </AppText>
             </View>
+            )}
           </View>
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -40, gap: spacing.lg }}>
+          {loading && <LoadingCard />}
+          {empty && (
+            <EmptyCard icon={Hand} title={t('emptyTitle')} body={t('emptyBody')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
+          )}
+
+          {showTask && (
+          <>
           {/* The new task */}
           <Card
             elevation="raised"
@@ -377,10 +414,10 @@ export default function PushbackScreen() {
           {step === 'sent' && (
             <View style={{ gap: spacing.md, marginTop: 4 }}>
               <Card padding={spacing.xl} style={{ flexDirection: 'row', gap: spacing.md }}>
-                <Avatar name={managerName} size={32} gradient="heroManager" />
+                <Avatar name={managerName ?? ''} size={32} gradient="heroManager" />
                 <View style={{ flex: 1, gap: 4 }}>
                   <AppText variant="small" weight="bold" color="primary">
-                    {resolved ? t('replied', { name: managerName }) : t('sentTo', { name: managerName })}
+                    {resolved ? t('replied', { name: managerName ?? '' }) : t('sentTo', { name: managerName ?? '' })}
                   </AppText>
                   <AppText variant="cardTitle" weight="regular" style={{ lineHeight: 22 }}>
                     {resolved === 'approved'
@@ -388,7 +425,7 @@ export default function PushbackScreen() {
                       : resolved === 'declined'
                         ? t('declined')
                         : resolved
-                          ? t('answered', { name: managerName })
+                          ? t('answered', { name: managerName ?? '' })
                           : t('waiting')}
                   </AppText>
                 </View>
@@ -440,6 +477,8 @@ export default function PushbackScreen() {
               </View>
               <Button label={t('done')} variant="outline" size="md" onPress={goBack} />
             </View>
+          )}
+          </>
           )}
 
           {/* Value tiles (design figures; "protected" uses the live slip estimate) */}

@@ -32,6 +32,12 @@ const en = {
   shared: 'Shared ✓',
   shareMessage:
     'I stopped chasing my team for updates. Muntej follows up and gets the proof for me. Saved me ~{{h}} hours (≈ SAR {{sar}}) last month. Try it and we both get a free month.',
+  shareMessagePlain:
+    'I stopped chasing my team for updates. Muntej follows up and gets the proof for me. Try it and we both get a free month.',
+  sample: 'Sample',
+  showSample: 'Show me an example',
+  emptyTitle: 'Nothing spotted yet',
+  emptyBody: 'When I see work for a team or branch that isn’t on Muntej yet, I’ll tell you here.',
 };
 
 const ar: typeof en = {
@@ -66,6 +72,11 @@ const ar: typeof en = {
   shared: 'انرسل ✓',
   shareMessage:
     'ارتحت من ملاحقة الفريق على التحديثات. منتج يتابع عني ويجيب لي الإثباتات، ووفّر لي تقريباً {{h}} ساعة (≈ {{sar}} ريال) الشهر اللي فات. جرّبه ولنا الثنين شهر مجاني.',
+  shareMessagePlain: 'ارتحت من ملاحقة الفريق على التحديثات. منتج يتابع عني ويجيب لي الإثباتات. جرّبه ولنا الثنين شهر مجاني.',
+  sample: 'مثال',
+  showSample: 'وريني مثال',
+  emptyTitle: 'ما لاحظت شي للحين',
+  emptyBody: 'لما أشوف شغل لفريق أو فرع مو على منتج، بقولك هنا.',
 };
 
 export const NS = registerStrings('s37', { en, ar });

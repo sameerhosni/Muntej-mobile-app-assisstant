@@ -5,7 +5,8 @@
 //   2. Today's tasks: the real ones (max 3), one tap marks them done / sends them for review
 //   3. shortcuts: Your week (value receipt), Rewards, Team quest, Objectives
 // Rewards entry points (progress pill, Rewards shortcut) are hidden for now — see SHOW_REWARDS.
-// Demo: level, streak and points come from the shared demo wallet — no gamification backend yet.
+// Level, streak and points come from the shared wallet (starts at zero, no gamification backend yet).
+// While the profile loads the name stays blank — never the design's sample person.
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { FromSaree3 } from '@/features/home/TeamRadar';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
@@ -19,7 +20,6 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
-import { person, personLabel } from '@/features/demo/team';
 import { LEVEL, useWallet } from '@/features/rewards/wallet';
 import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { STREAK_DAYS } from '@/features/employee-home/demo';
@@ -56,7 +56,7 @@ export default function EmployeeHome() {
   const w = useWallet();
 
   const n = (v: number) => formatNumber(v, lang);
-  const fullName = me.data ? (lang === 'ar' && me.data.full_name_ar ? me.data.full_name_ar : me.data.full_name) : personLabel(person('faisal'), lang);
+  const fullName = me.data ? (lang === 'ar' && me.data.full_name_ar ? me.data.full_name_ar : me.data.full_name) : '';
   const firstName = fullName.split(' ')[0];
 
   const shortcuts: Shortcut[] = [
@@ -86,7 +86,7 @@ export default function EmployeeHome() {
                 <View style={{ gap: 2, flexShrink: 1 }}>
                   <AppText color="onDarkMuted">{t('morning')}</AppText>
                   <AppText variant="titleLg" color="onDark" numberOfLines={1}>
-                    {firstName}
+                    {firstName || ' '}
                   </AppText>
                 </View>
               </View>

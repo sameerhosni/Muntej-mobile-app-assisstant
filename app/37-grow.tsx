@@ -1,24 +1,30 @@
 // Screen 37 · Grow — see design/v2/html/Grow.dc.html (Arabic: GrowAR.dc.html)
-// Demo data: growth stats, the AI-spotted branch, invites and referrals have no backend yet (local state only).
+// Hero stats: teams (managers) and people from the live team; "self-joined" has no data yet (–). The AI-spotted
+// branch, invites and referrals have no backend yet: a real manager sees an empty card; the design's stats and
+// Jeddah branch show only after "Show me an example", marked Sample. The shared message quotes the real hours / SAR
+// saved in the last 30 days (activity_log), or no numbers at all.
 // Tip t37: invite the Jeddah manager (→ invited state), then share the receipt (React Native Share sheet / Receipt screen).
-import { useState, type ComponentType } from 'react';
+import { useMemo, useState, type ComponentType } from 'react';
 import { Pressable, ScrollView, Share, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { G, Path } from 'react-native-svg';
 import { ChevronLeft, Banknote, Building2, Check, Clock, Gift, MapPin, Plus, Receipt, Sparkles, UserPlus, Users, type LucideProps } from 'lucide-react-native';
-import { AppText, Button, Card, Gradient, Hero, IconBadge, IconButton, StatTile } from '@/components/ui';
+import { AppText, Button, Card, EmptyCard, Gradient, Hero, IconBadge, IconButton, SampleTag, StatTile } from '@/components/ui';
 import { colors, radius, shadows, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { formatNumber } from '@/features/home/value';
-import { GROW_ACTIONS, GROW_STATS, RECEIPT_SUMMARY, SPOTTED_BRANCH, type GrowAction } from '@/features/grow/demo';
+import { useActivity, useTeam } from '@/lib/api';
+import { formatNumber, sarSaved } from '@/features/home/value';
+import { activityMinutes } from '@/features/workspaces/model';
+import { GROW_ACTIONS, GROW_STATS, SPOTTED_BRANCH, type GrowAction } from '@/features/grow/demo';
 import { NS } from '@/features/grow/strings';
 
 type Branch = 'ask' | 'sent' | 'hidden';
 
 const ACTION_ICONS: Record<GrowAction['icon'], ComponentType<LucideProps>> = { plus: Plus, userPlus: UserPlus, receipt: Receipt };
 const OVERLAP = 22;
+const MONTH_MS = 30 * 86_400_000;
 
 export default function GrowScreen() {
   const { t } = useScreenT(NS);
@@ -26,13 +32,31 @@ export default function GrowScreen() {
   const insets = useSafeAreaInsets();
   const [branch, setBranch] = useState<Branch>('ask');
   const [referred, setReferred] = useState(false);
+  const [sample, setSample] = useState(false);
+  const team = useTeam();
+  const activity = useActivity(1000);
 
   const n = (v: number) => formatNumber(v, lang);
   const city = t(SPOTTED_BRANCH.cityKey);
 
+  // hero numbers: the example's, or the live team's (blank while it loads)
+  const people = team.data ?? [];
+  const stat = (v: number) => (team.isLoading ? '–' : n(v));
+  const teamsLive = sample ? n(GROW_STATS.teamsLive + (branch === 'sent' ? 1 : 0)) : stat(people.filter((p) => p.role === 'manager').length);
+  const peopleActive = sample ? n(GROW_STATS.peopleActive) : stat(people.length);
+  const selfJoined = sample ? `${n(GROW_STATS.selfJoinedPct)}%` : '–';
+
+  // what the shared message quotes: real time saved in the last 30 days
+  const monthHours = useMemo(() => {
+    const from = Date.now() - MONTH_MS;
+    return (activity.data ?? []).reduce((m, a) => (new Date(a.created_at).getTime() >= from ? m + activityMinutes(a) : m), 0) / 60;
+  }, [activity.data]);
+
   const shareReceipt = async () => {
     try {
-      const res = await Share.share({ message: t('shareMessage', { h: n(RECEIPT_SUMMARY.hours), sar: n(RECEIPT_SUMMARY.sar) }) });
+      const h = Math.round(monthHours);
+      const message = h > 0 ? t('shareMessage', { h: n(h), sar: n(sarSaved(monthHours)) }) : t('shareMessagePlain');
+      const res = await Share.share({ message });
       if (res.action === Share.sharedAction) setReferred(true);
     } catch {
       // share sheet unavailable (e.g. web without navigator.share) — leave the button as is
@@ -54,6 +78,7 @@ export default function GrowScreen() {
               <AppText variant="small" color="onDarkMuted">
                 {t('subtitle')}
               </AppText>
+              {sample && <SampleTag label={t('sample')} onDark />}
             </View>
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs }}>
@@ -61,17 +86,28 @@ export default function GrowScreen() {
               variant="glass"
               iconBg="primaryLight"
               icon={<Building2 color={colors.onDark} size={14} strokeWidth={2.2} />}
-              value={n(GROW_STATS.teamsLive + (branch === 'sent' ? 1 : 0))}
+              value={teamsLive}
               label={t('teamsLive')}
             />
-            <StatTile variant="glass" iconBg="purple" icon={<Users color={colors.onDark} size={14} strokeWidth={2.2} />} value={n(GROW_STATS.peopleActive)} label={t('peopleActive')} />
-            <StatTile variant="glass" iconBg="green" icon={<Check color={colors.onDark} size={14} strokeWidth={2.2} />} value={`${n(GROW_STATS.selfJoinedPct)}%`} label={t('selfJoined')} />
+            <StatTile variant="glass" iconBg="purple" icon={<Users color={colors.onDark} size={14} strokeWidth={2.2} />} value={peopleActive} label={t('peopleActive')} />
+            <StatTile variant="glass" iconBg="green" icon={<Check color={colors.onDark} size={14} strokeWidth={2.2} />} value={selfJoined} label={t('selfJoined')} />
           </View>
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -OVERLAP, gap: spacing.xl }}>
-          {/* AI-spotted branch */}
-          {branch === 'ask' && (
+          {/* nothing spotted yet (no backend for it): say so, and offer the design's example */}
+          {!sample && (
+            <EmptyCard
+              icon={Sparkles}
+              title={t('emptyTitle')}
+              body={t('emptyBody')}
+              sampleLabel={t('showSample')}
+              onSample={() => setSample(true)}
+            />
+          )}
+
+          {/* AI-spotted branch (example only) */}
+          {sample && branch === 'ask' && (
             <Card elevation="raised" padding={spacing.xl} style={{ gap: spacing.md, paddingHorizontal: spacing.xxl, overflow: 'hidden' }}>
               <View style={{ position: 'absolute', start: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.primary }} />
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -112,7 +148,7 @@ export default function GrowScreen() {
               </View>
             </Card>
           )}
-          {branch === 'sent' && (
+          {sample && branch === 'sent' && (
             <View
               accessibilityLiveRegion="polite"
               style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.greenTint, borderRadius: radius.card, paddingVertical: spacing.xl, paddingHorizontal: spacing.xxl, boxShadow: shadows.raised }}

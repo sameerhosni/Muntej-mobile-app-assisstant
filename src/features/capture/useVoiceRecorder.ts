@@ -6,6 +6,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
+import { holdUpdates } from '@/lib/useLiveUpdates';
 
 // speech, not music: 16 kHz mono AAC is what speech-to-text uses anyway, and uploads ~5x smaller than HIGH_QUALITY
 const OPTIONS = {
@@ -46,7 +47,12 @@ export function useVoiceRecorder() {
   useEffect(() => {
     if (!active) return;
     const id = setInterval(() => setNow(Date.now()), 200);
-    return () => clearInterval(id);
+    // no restart into a new app version mid-recording
+    const release = holdUpdates();
+    return () => {
+      clearInterval(id);
+      release();
+    };
   }, [active]);
 
   const start = useCallback(async () => {

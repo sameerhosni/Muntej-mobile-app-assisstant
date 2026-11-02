@@ -1,14 +1,15 @@
-// Demo points wallet shared by the employee screens (06 chat, 25 home, 26 rewards).
+// Points wallet shared by the employee screens (06 chat, 25 home, 26 rewards).
 // Points, levels and rewards have no backend yet — this module-level store keeps the numbers
-// consistent while you walk the prototype. 10 pts = SAR 1.
+// consistent across screens. Everyone starts at zero; points come only from what happens in the app
+// (finished tasks, kudos, approvals). 10 pts = SAR 1.
 import { useSyncExternalStore } from 'react';
 
 export const PTS_PER_SAR = 10;
-/** Balance before anything happens today (Faisal, from the designs). */
-export const BASE_BALANCE = 3480;
-/** XP towards the next level before today's quests. */
-export const BASE_XP = 1240;
-export const LEVEL = 7;
+/** Balance before anything happens (a new person starts with nothing). */
+export const BASE_BALANCE = 0;
+/** XP towards the next level before today's work. */
+export const BASE_XP = 0;
+export const LEVEL = 1;
 export const NEXT_LEVEL_XP = 1500;
 
 type State = {
@@ -19,8 +20,7 @@ type State = {
   requested: Record<string, boolean>;
 };
 
-// Quest "Reply within 1 h" is already done when the day starts (design: done 09:12).
-let state: State = { earned: { 'quest:a': 5 }, spent: 0, requested: {} };
+let state: State = { earned: {}, spent: 0, requested: {} };
 const listeners = new Set<() => void>();
 
 function set(next: State) {

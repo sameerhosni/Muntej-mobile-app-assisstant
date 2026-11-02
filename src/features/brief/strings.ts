@@ -31,6 +31,9 @@ const en = {
   accepted: 'Kudos sent to {{name}} · +25 pts',
   openKudos: 'Open',
   month: 'Month: {{h}} h · SAR {{sar}}',
+  emptyTitle: 'Your first brief is on its way',
+  emptyBody: 'Once your team has tasks, I’ll sum up the week for you here.',
+  showSample: 'Show me an example',
 };
 
 const ar: typeof en = {
@@ -64,6 +67,9 @@ const ar: typeof en = {
   accepted: 'أرسلت الشكر لـ{{name}} · +25 نقطة',
   openKudos: 'افتح',
   month: 'هالشهر: {{h}} ساعة · {{sar}} ريال',
+  emptyTitle: 'أول ملخص لك على الطريق',
+  emptyBody: 'أول ما يصير عند فريقك مهام، بلخّص لك الأسبوع هنا.',
+  showSample: 'وريني مثال',
 };
 
 export const NS = registerStrings('s05', { en, ar });

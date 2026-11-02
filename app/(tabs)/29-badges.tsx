@@ -1,19 +1,32 @@
 // Screen 29 · Levels & badges — see design/v2/html/Badges.dc.html (Arabic: BadgesAR.dc.html)
-// Demo data: levels, badges and reliability stats have no backend yet. Level + XP come from the shared demo wallet
-// (src/features/rewards/wallet.ts) so this screen matches Employee Home. Tap a badge to see how to earn it (tip t29).
+// Levels, badges and reliability stats have no backend yet. Level + XP come from the shared wallet
+// (src/features/rewards/wallet.ts) so this screen matches Employee Home. A real person sees nothing earned and zero
+// stats, plus an empty card; the design's badges show only after "Show me an example", marked Sample.
+// Tap a badge to see how to earn it (tip t29).
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, CircleCheck, Clock, Hand, ShieldCheck, Target } from 'lucide-react-native';
-import { AppText, Card, Gradient, Hero, IconButton, PointsCoin, ProgressBar, StatTile } from '@/components/ui';
+import { AppText, Card, EmptyCard, Gradient, Hero, IconButton, PointsCoin, ProgressBar, SampleTag, StatTile } from '@/components/ui';
 import { colors, radius, shadows, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { LEVEL, NEXT_LEVEL_XP, PTS_PER_SAR, useWallet } from '@/features/rewards/wallet';
 import { Confetti } from '@/features/rewards/Confetti';
-import { BADGES, bandState, DEFAULT_BADGE, LEVEL_BANDS, RELIABILITY, TONES, type BadgeId } from '@/features/badges/demo';
+import {
+  BADGES,
+  bandState,
+  DEFAULT_BADGE,
+  LEVEL_BANDS,
+  NO_BADGES,
+  RELIABILITY,
+  SAMPLE_LEVEL,
+  SAMPLE_XP,
+  TONES,
+  type BadgeId,
+} from '@/features/badges/demo';
 import { Hexagon } from '@/features/badges/Hexagon';
 import { NS } from '@/features/badges/strings';
 
@@ -26,20 +39,25 @@ export default function BadgesScreen() {
   const w = useWallet();
   const [sel, setSel] = useState<BadgeId>(DEFAULT_BADGE);
   const [rowW, setRowW] = useState(0);
+  const [sample, setSample] = useState(false);
 
   const n = (v: number) => formatNumber(v, lang);
-  const got = BADGES.filter((b) => b.got).length;
-  const xpLeft = Math.max(NEXT_LEVEL_XP - w.xp, 0);
-  const nowIdx = LEVEL_BANDS.findIndex((b) => bandState(b, LEVEL) === 'now');
+  const badges = sample ? BADGES : NO_BADGES;
+  const level = sample ? SAMPLE_LEVEL : LEVEL;
+  const xp = sample ? SAMPLE_XP : w.xp;
+  const got = badges.filter((b) => b.got).length;
+  const xpLeft = Math.max(NEXT_LEVEL_XP - xp, 0);
+  const nowIdx = LEVEL_BANDS.findIndex((b) => bandState(b, level) === 'now');
   const nowBand = LEVEL_BANDS[nowIdx];
 
   // progress line: from the first circle to the current level, then part-way to the next by XP
   const center = (i: number) => ((i + 0.5) * rowW) / LEVEL_BANDS.length;
   const nextIdx = Math.min(nowIdx + 1, LEVEL_BANDS.length - 1);
-  const fillEnd = center(nowIdx) + (center(nextIdx) - center(nowIdx)) * Math.min(w.xp / NEXT_LEVEL_XP, 1);
+  const fillEnd = center(nowIdx) + (center(nextIdx) - center(nowIdx)) * Math.min(xp / NEXT_LEVEL_XP, 1);
   const fillW = rowW > 0 ? Math.max(fillEnd - TRACK_INSET, 0) : 0;
 
-  const badge = BADGES.find((b) => b.id === sel) ?? BADGES[0];
+  const badge = badges.find((b) => b.id === sel) ?? badges[0];
+  const howKey = sample && badge.id === 'zc' ? 'b_zc_how_sample' : `b_${badge.id}_how`;
   const tone = TONES[badge.tone];
 
   return (
@@ -70,9 +88,10 @@ export default function BadgesScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                 <ShieldCheck color={colors.onDark} size={14} strokeWidth={2.2} />
                 <AppText variant="small" color="onDarkMuted">
-                  {t('subtitle', { got: n(got), total: n(BADGES.length) })}
+                  {t('subtitle', { got: n(got), total: n(badges.length) })}
                 </AppText>
               </View>
+              {sample && <SampleTag label={t('sample')} onDark />}
             </View>
           </View>
         </Hero>
@@ -86,7 +105,7 @@ export default function BadgesScreen() {
           >
             <View
               accessible
-              accessibilityLabel={t('levelsA11y', { level: LEVEL, name: t(nowBand.key), n: n(xpLeft) })}
+              accessibilityLabel={t('levelsA11y', { level, name: t(nowBand.key), n: n(xpLeft) })}
               onLayout={(e) => setRowW(e.nativeEvent.layout.width)}
               style={{ flexDirection: 'row', justifyContent: 'space-between' }}
             >
@@ -96,7 +115,7 @@ export default function BadgesScreen() {
                 <Gradient name="avatarPurple" direction="horizontal" style={{ flex: 1, transform: [{ scaleX: isRTL ? 1 : -1 }] }} />
               </View>
               {LEVEL_BANDS.map((b) => {
-                const st = bandState(b, LEVEL);
+                const st = bandState(b, level);
                 const now = st === 'now';
                 const size = now ? 40 : 32;
                 const circle = {
@@ -155,9 +174,20 @@ export default function BadgesScreen() {
             </View>
           </Card>
 
+          {/* nothing earned yet: say so, and offer the design's example */}
+          {!sample && got === 0 && (
+            <EmptyCard
+              icon={ShieldCheck}
+              title={t('emptyTitle')}
+              body={t('emptyBody')}
+              sampleLabel={t('showSample')}
+              onSample={() => setSample(true)}
+            />
+          )}
+
           {/* Badge grid */}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
-            {BADGES.map((b) => {
+            {badges.map((b) => {
               const on = b.id === sel;
               const tn = TONES[b.tone];
               const name = t(`b_${b.id}`);
@@ -226,7 +256,7 @@ export default function BadgesScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Target color={colors.purple} size={14} strokeWidth={2.2} />
               <AppText variant="small" color="textSoft" style={{ flex: 1, lineHeight: 18 }}>
-                {t(`b_${badge.id}_how`)}
+                {t(howKey)}
               </AppText>
             </View>
             <ProgressBar value={badge.progress} gradient="purple" />
@@ -248,19 +278,19 @@ export default function BadgesScreen() {
             <StatTile
               iconBg="primaryTint"
               icon={<Clock color={colors.primary} size={15} strokeWidth={2} />}
-              value={t('overtimeValue', { n: n(RELIABILITY.overtimeHours) })}
+              value={t('overtimeValue', { n: n(sample ? RELIABILITY.overtimeHours : 0) })}
               label={t('overtime')}
             />
             <StatTile
               iconBg="greenTint"
               icon={<CircleCheck color={colors.green} size={15} strokeWidth={2} />}
-              value={`${n(RELIABILITY.onTimePct)}%`}
+              value={sample ? `${n(RELIABILITY.onTimePct)}%` : '–'}
               label={t('onTime')}
             />
             <StatTile
               iconBg="orangeTint"
               icon={<Hand color={colors.orange} size={15} strokeWidth={2} />}
-              value={n(RELIABILITY.reminders)}
+              value={n(sample ? RELIABILITY.reminders : 0)}
               label={t('reminders')}
             />
           </View>

@@ -1,13 +1,14 @@
 // Screen 15 · Review loop — see design/v2/html/Review.dc.html (Arabic: ReviewAR.dc.html)
 // With ?id= → live review rounds (useTask(id).reviews); the decision writes reviews + tasks + activity_log.
-// Without → the design's demo rounds; rating, Approve & close and Send back are local state.
+// Without → an empty card; the design's demo rounds only after "Show me an example" (marked with SampleTag),
+// where rating, Approve & close and Send back are local state. While loading: spinner.
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { Check, ChevronLeft, Clock, FileText, Hand, Heart, MessageCircle, Play, RotateCcw, Star } from 'lucide-react-native';
-import { AppText, Avatar, Button, Gradient, IconBadge, IconButton, PointsCoin, TextField } from '@/components/ui';
+import { AppText, Avatar, Button, EmptyCard, Gradient, IconBadge, IconButton, LoadingCard, PointsCoin, SampleTag, TextField } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -62,6 +63,7 @@ export default function ReviewScreen() {
   const [note, setNote] = useState('');
   const [failed, setFailed] = useState(false);
   const [panelH, setPanelH] = useState(260);
+  const [sample, setSample] = useState(false);
 
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -73,7 +75,19 @@ export default function ReviewScreen() {
         <IconButton label={t('back')} onPress={leave}>
           <ChevronLeft color={colors.text} size={20} strokeWidth={1.9} style={flip} />
         </IconButton>
-        {task.isLoading ? <ActivityIndicator color={colors.primary} /> : <AppText color="textMuted">{t('notFound')}</AppText>}
+        {task.isLoading ? <LoadingCard /> : <AppText color="textMuted">{t('notFound')}</AppText>}
+      </View>
+    );
+  }
+
+  // no review picked: nothing real to show, the demo rounds only after the tap
+  if (!live && !sample) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top + spacing.sm, paddingHorizontal: spacing.screen, gap: spacing.xl }}>
+        <IconButton label={t('back')} onPress={leave}>
+          <ChevronLeft color={colors.text} size={20} strokeWidth={1.9} style={flip} />
+        </IconButton>
+        <EmptyCard icon={Star} title={t('waiting')} body={t('emptyBody')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
       </View>
     );
   }
@@ -175,9 +189,12 @@ export default function ReviewScreen() {
             <ChevronLeft color={colors.text} size={20} strokeWidth={1.9} style={flip} />
           </IconButton>
           <View style={{ flex: 1, gap: 2 }}>
-            <AppText variant="title" style={{ fontSize: 22, lineHeight: 28 }}>
-              {t('title')}
-            </AppText>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <AppText variant="title" style={{ fontSize: 22, lineHeight: 28 }}>
+                {t('title')}
+              </AppText>
+              {!live && <SampleTag label={t('sample')} />}
+            </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               {!!ownerName && <Avatar name={ownerName} size={18} gradient="avatarBlue" />}
               <AppText variant="small" color="textMuted" numberOfLines={1} style={{ flexShrink: 1 }}>
@@ -195,7 +212,7 @@ export default function ReviewScreen() {
         {/* stats */}
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <MiniStat flex={1} bg="purpleTint" icon={<RotateCcw color={colors.purple} size={15} strokeWidth={2.1} />} value={formatNumber(live ? Math.max(1, reviews.length) : 2, lang)} label={t('rounds')} />
-          <MiniStat flex={1.4} bg="primaryTint" icon={<Clock color={colors.primary} size={15} strokeWidth={2.1} />} value={t('faster')} label={t('fasterLabel')} />
+          <MiniStat flex={1.4} bg="primaryTint" icon={<Clock color={colors.primary} size={15} strokeWidth={2.1} />} value={live ? t('none') : t('faster')} label={t('fasterLabel')} />
           <MiniStat flex={1} bg="orangeTint" icon={<Hand color={colors.orange} size={15} strokeWidth={2.1} />} value={formatNumber(0, lang)} label={t('chases')} />
         </View>
 

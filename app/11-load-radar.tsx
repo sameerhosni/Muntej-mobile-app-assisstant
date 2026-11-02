@@ -3,9 +3,10 @@
 // booked hours; done tasks → "did one like it"). The task being assigned comes from search params:
 //   ?task=<id>  → live task (title, estimate, due) and "Send to X" really reassigns it + writes activity_log
 //   ?title=&hours=&due=  → a new task (e.g. from Capture); "Send to X" shows a confirmation only
-// No params → the design's demo task ("Competitor report", ~8 hrs). No team yet → the design's sample people.
+// No params → a neutral "New task" (~8 hrs, preview only). While loading: a spinner. No team yet → an empty card whose
+// "Show me an example" reveals the design's sample people + demo task (local only, marked "Sample").
 import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -24,7 +25,7 @@ import {
   UserRound,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Avatar, BottomCTA, BOTTOM_CTA_SPACE, Card, IconBadge, IconButton } from '@/components/ui';
+import { AppText, Avatar, BottomCTA, BOTTOM_CTA_SPACE, Card, EmptyCard, IconBadge, IconButton, LoadingCard, SampleTag } from '@/components/ui';
 import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -63,6 +64,13 @@ export default function LoadRadarScreen() {
 
   const [pick, setPick] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [sample, setSample] = useState(false);
+
+  // ── people ──
+  const employees = (team.data ?? []).filter((p) => p.role === 'employee');
+  const noTeam = !team.isLoading && employees.length === 0;
+  // real people always win over the sample
+  const isSample = noTeam && sample;
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -70,22 +78,20 @@ export default function LoadRadarScreen() {
   const live = task.data;
   const paramHours = Number(params.hours);
   const hours = live?.estimate_hours ?? (Number.isFinite(paramHours) && paramHours > 0 ? paramHours : DEFAULT_HOURS);
-  const title = live?.title ?? (typeof params.title === 'string' && params.title ? params.title : t('demoTitle'));
+  const paramTitle = typeof params.title === 'string' && params.title ? params.title : null;
+  const title = live?.title ?? paramTitle ?? (taskId && task.isLoading ? ' ' : isSample ? t('demoTitle') : t('newTitle'));
   const due = useMemo(() => {
     const iso = live?.due_at ?? (typeof params.due === 'string' ? params.due : undefined);
     const d = iso ? new Date(iso) : null;
     return d && !Number.isNaN(d.getTime()) ? d : new Date(startOfWeek().getTime() + 7 * DAY_MS);
   }, [live?.due_at, params.due]);
 
-  // ── people ──
-  const employees = (team.data ?? []).filter((p) => p.role === 'employee');
-  const sample = !team.isLoading && employees.length === 0;
   const rows: RadarRow[] = useMemo(() => {
-    const people = sample
+    const people = isSample
       ? samplePeople({ spl: t('demo.spl'), q3: t('demo.q3') })
       : livePeople(team.data ?? [], tasks.data ?? [], title, { excludeTaskId: taskId, currentOwnerId: live?.owner_id });
     return rank(people, hours);
-  }, [sample, team.data, tasks.data, title, taskId, live?.owner_id, hours, t]);
+  }, [isSample, team.data, tasks.data, title, taskId, live?.owner_id, hours, t]);
 
   const sel = rows.find((r) => r.id === pick) ?? rows[0];
   const nameOf = (r: RadarRow) => first(lang === 'ar' ? r.nameAr : r.name);
@@ -136,7 +142,7 @@ export default function LoadRadarScreen() {
 
   const send = () => {
     if (!sel) return;
-    if (taskId && live && !sample && me.data) {
+    if (taskId && live && !isSample && me.data) {
       assign.mutate(
         {
           taskId,
@@ -153,7 +159,7 @@ export default function LoadRadarScreen() {
     }
   };
 
-  const loading = team.isLoading || (!!taskId && task.isLoading);
+  const loading = team.isLoading || tasks.isLoading || (!!taskId && task.isLoading);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -175,7 +181,7 @@ export default function LoadRadarScreen() {
                 {t('eyebrow')}
               </AppText>
             </View>
-            {sample && <SampleTag label={t('sample')} />}
+            {isSample && <SampleTag label={t('sample')} />}
           </View>
           <AppText variant="titleLg" style={{ lineHeight: 32 }} numberOfLines={2}>
             {title}
@@ -205,8 +211,11 @@ export default function LoadRadarScreen() {
 
         {/* people */}
         <View style={{ marginHorizontal: spacing.screen, gap: spacing.sm }}>
-          {loading && <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.xxl }} />}
-          {!loading && rows.length === 0 && <AppText color="textMuted">{t('empty')}</AppText>}
+          {loading && <LoadingCard />}
+          {!loading && noTeam && !sample && (
+            <EmptyCard icon={UserRound} title={t('emptyTitle')} body={t('empty')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
+          )}
+          {!loading && !noTeam && rows.length === 0 && <AppText color="textMuted">{t('empty')}</AppText>}
           {!loading &&
             rows.map((r) => {
               const isSel = r.id === sel?.id;
@@ -274,7 +283,7 @@ export default function LoadRadarScreen() {
                 <View style={{ flex: 1, gap: 2 }}>
                   <AppText weight="bold" color="greenText">{t('sent', { name: sentTo })}</AppText>
                   <AppText variant="small" color="textSoft" style={{ lineHeight: 18 }}>
-                    {taskId && !sample ? t('sentBody', { name: sentTo }) : t('previewBody')}
+                    {taskId && !isSample ? t('sentBody', { name: sentTo }) : t('previewBody')}
                   </AppText>
                 </View>
               </View>
@@ -354,15 +363,5 @@ function MiniStat({ bg, icon, value, label }: { bg: ColorToken; icon: ReactNode;
         {label}
       </AppText>
     </Card>
-  );
-}
-
-function SampleTag({ label }: { label: string }) {
-  return (
-    <View style={{ backgroundColor: colors.chip, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 }}>
-      <AppText variant="micro" weight="bold" color="textMuted">
-        {label}
-      </AppText>
-    </View>
   );
 }

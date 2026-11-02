@@ -48,7 +48,12 @@ const en = {
     f2: { from: 'Saad', to: 'Faisal', value: 'Teamwork', msg: 'Covered the client call!' },
     f3: { from: 'Ahmed', to: 'Maha', value: 'Ownership', msg: 'First paying customer!' },
   },
-  me: 'Ahmed',
+  me: 'You',
+  sample: 'Sample',
+  showSample: 'Show me an example',
+  emptyTitle: 'No one to thank yet',
+  emptyBody: 'Add your team and you can thank anyone here in 5 seconds.',
+  wallEmpty: 'No kudos yet. Send the first one!',
 };
 
 const ar: typeof en = {
@@ -97,7 +102,12 @@ const ar: typeof en = {
     f2: { from: 'سعد', to: 'فيصل', value: 'التعاون', msg: 'غطّى مكالمة العميل!' },
     f3: { from: 'أحمد', to: 'مها', value: 'المسؤولية', msg: 'أول عميل يدفع!' },
   },
-  me: 'أحمد',
+  me: 'أنت',
+  sample: 'مثال',
+  showSample: 'وريني مثال',
+  emptyTitle: 'ما فيه أحد تشكره للحين',
+  emptyBody: 'ضيف فريقك وتقدر تشكر أي واحد منهم هنا بـ5 ثواني.',
+  wallEmpty: 'ما فيه شكر للحين. كن أول واحد!',
 };
 
 export const NS = registerStrings('s28', { en, ar });

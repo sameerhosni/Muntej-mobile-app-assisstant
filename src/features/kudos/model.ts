@@ -53,7 +53,8 @@ export function latestDoneByOwner(tasks: TaskWithPeople[]): Record<string, strin
 
 export function draftFor(p: KudosPerson, value: KudosValue, latestTask: string | undefined, t: T): string {
   if (latestTask) return t(`draftFrom.${value}`, { name: p.name, task: latestTask });
-  if (DRAFT_KEYS.includes(p.key)) return t(`drafts.${p.key}`);
+  // the design's drafts quote made-up work: only for the example people, never a real teammate with the same name
+  if (p.id.startsWith('demo-') && DRAFT_KEYS.includes(p.key)) return t(`drafts.${p.key}`);
   return t('draftGeneric', { name: p.name });
 }
 

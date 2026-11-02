@@ -1,5 +1,6 @@
 // Screen 30 · Team quests & league — see design/v2/html/TeamQuests.dc.html (Arabic: TeamQuestsAR.dc.html)
-// Demo data: team quests, the department league and "you vs. last week" have no backend yet.
+// Team quests, the department league and "you vs. last week" have no backend yet: a real person sees an empty card
+// and zero stats; the design's quest, league and "Me" view show only after "Show me an example", marked Sample.
 // Teams / Me switch (tip t30): "Me" compares you only with your own past; your rank stays private.
 import { useState, type ComponentType } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
@@ -7,7 +8,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, Banknote, Bell, Check, ChartNoAxesColumn, Clock, Eye, Hand, Lock, Sparkles, Star, Trophy, Users, type LucideProps } from 'lucide-react-native';
-import { AppText, Avatar, Card, Gradient, Hero, IconBadge, IconButton, PointsCoin, ProgressBar, StatTile } from '@/components/ui';
+import { AppText, Avatar, Card, EmptyCard, Gradient, Hero, IconBadge, IconButton, PointsCoin, ProgressBar, SampleTag, StatTile } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -36,6 +37,7 @@ export default function TeamQuestsScreen() {
   const { lang, isRTL } = useDirection();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('teams');
+  const [sample, setSample] = useState(false);
 
   const n = (v: number) => formatNumber(v, lang);
   const trendLabel = (v: number) => `${v >= 0 ? '▲' : '▼'} ${n(Math.abs(v))}%`;
@@ -59,12 +61,24 @@ export default function TeamQuestsScreen() {
               <AppText variant="small" color="onDarkMuted">
                 {t('subtitle')}
               </AppText>
+              {sample && <SampleTag label={t('sample')} onDark />}
             </View>
           </View>
         </Hero>
 
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -30, gap: spacing.xl }}>
+          {!sample && (
+            <EmptyCard
+              icon={Trophy}
+              title={t('emptyTitle')}
+              body={t('emptyBody')}
+              sampleLabel={t('showSample')}
+              onSample={() => setSample(true)}
+            />
+          )}
+
           {/* Teams / Me switch */}
+          {sample && (
           <View
             accessibilityRole="tablist"
             style={{ flexDirection: 'row', gap: 4, padding: 5, backgroundColor: colors.surface, borderRadius: radius.pill, boxShadow: shadows.raised }}
@@ -96,8 +110,9 @@ export default function TeamQuestsScreen() {
               );
             })}
           </View>
+          )}
 
-          {tab === 'teams' ? (
+          {!sample ? null : tab === 'teams' ? (
             <>
               {/* Team quest */}
               <Card padding={0} style={{ gap: 0, overflow: 'hidden' }}>
@@ -300,14 +315,15 @@ export default function TeamQuestsScreen() {
 
           {/* Stats */}
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <StatTile iconBg="greenTint" icon={<Banknote color={colors.green} size={15} strokeWidth={2} />} value={n(QUEST_REWARD_SAR)} label={t('teamReward')} />
+            {/* design estimates only in the example; a real team with no quest yet starts at zero */}
+            <StatTile iconBg="greenTint" icon={<Banknote color={colors.green} size={15} strokeWidth={2} />} value={n(sample ? QUEST_REWARD_SAR : 0)} label={t('teamReward')} />
             <StatTile
               iconBg="primaryTint"
               icon={<Clock color={colors.primary} size={15} strokeWidth={2} />}
-              value={t('hours', { n: formatNumber(QUEST_STATS.reportingHoursPerWeek, lang, 1) })}
+              value={t('hours', { n: formatNumber(sample ? QUEST_STATS.reportingHoursPerWeek : 0, lang, sample ? 1 : 0) })}
               label={t('lessReporting')}
             />
-            <StatTile iconBg="orangeTint" icon={<Hand color={colors.orange} size={15} strokeWidth={2} />} value={n(QUEST_STATS.statusMeetings)} label={t('statusMeetings')} />
+            <StatTile iconBg="orangeTint" icon={<Hand color={colors.orange} size={15} strokeWidth={2} />} value={n(sample ? QUEST_STATS.statusMeetings : 0)} label={t('statusMeetings')} />
           </View>
         </View>
       </ScrollView>

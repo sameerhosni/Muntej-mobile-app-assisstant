@@ -1,5 +1,6 @@
 // Demo levels & badges (design/v2/html/Badges.dc.html). No gamification backend yet.
-// Level and XP come from the shared demo wallet (src/features/rewards/wallet.ts) so Employee Home matches.
+// Level and XP come from the shared wallet (src/features/rewards/wallet.ts) so Employee Home matches; the
+// design's earned badges and stats show only as a marked example.
 import type { ColorToken } from '@/theme/tokens';
 
 export type LevelState = 'done' | 'now' | 'next';
@@ -51,3 +52,10 @@ export const DEFAULT_BADGE: BadgeId = 'zc';
 
 /** Reliability stats from the design (demo). */
 export const RELIABILITY = { overtimeHours: 0, onTimePct: 96, reminders: 0 };
+
+/** Level and XP the design's example shows (only after "Show me an example"). */
+export const SAMPLE_LEVEL = 7;
+export const SAMPLE_XP = 1245;
+
+/** What a real person sees until badges have a backend: nothing earned yet. */
+export const NO_BADGES: Badge[] = BADGES.map((b) => ({ ...b, got: false, progress: 0 }));

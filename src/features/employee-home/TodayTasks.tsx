@@ -1,6 +1,6 @@
 // Screen 25 · Employee Home — "Today's tasks": the person's real open tasks (late first, then soonest due) as a checklist.
 // Ticking one marks it done for real (set_task_status): someone else assigned it → it goes to them for review
-// (submitted); self-assigned → done. Points go to the (demo) wallet and Munti cheers. Ticking again reopens it.
+// (submitted); self-assigned → done. Points go to the wallet and Munti cheers. Ticking again reopens it.
 import { useMemo } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
@@ -59,8 +59,8 @@ export function TodayTasks() {
         {SHOW_REWARDS && <PointsPill size="sm" label={t('ptsToday', { n: n(w.earnedToday) })} />}
       </View>
 
-      {tasks.isLoading && <ActivityIndicator color={colors.purple} style={{ alignSelf: 'flex-start' }} />}
-      {!tasks.isLoading && rows.length === 0 && (
+      {(tasks.isLoading || me.isLoading) && <ActivityIndicator color={colors.purple} style={{ alignSelf: 'flex-start' }} />}
+      {!tasks.isLoading && !me.isLoading && rows.length === 0 && (
         <AppText color="textMuted">{t('tt_empty')}</AppText>
       )}
 

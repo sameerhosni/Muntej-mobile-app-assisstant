@@ -1,9 +1,10 @@
 // Screen 10 · Evidence progress — see design/v2/html/Evidence.dc.html (Arabic: EvidenceAR.dc.html)
 // Manager screen. Live: active tasks (useTasks) + their subtasks / evidence / owner updates → estimated progress
 // vs the self-reported tasks.progress; biggest gaps first. "Offer help" writes activity_log (action 'help_offered').
-// Falls back to the design's sample (Khalid · Monthly attendance report) when there is no data.
+// While loading: spinner. No active tasks: an empty card; the design's sample (Khalid · Monthly attendance report)
+// only after "See an example", marked with SampleTag.
 import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -21,7 +22,7 @@ import {
   Sparkles,
   type LucideProps,
 } from 'lucide-react-native';
-import { AppText, Avatar, Button, Card, Gradient, IconBadge, IconButton, StatTile } from '@/components/ui';
+import { AppText, Avatar, Button, Card, EmptyCard, Gradient, IconBadge, IconButton, LoadingCard, SampleTag, StatTile } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -95,7 +96,8 @@ export default function EvidenceScreen() {
 
   const loading = allTasks.isLoading || (active.length > 0 && raw.isLoading);
   const noData = !loading && candidates.length === 0;
-  const useSample = sample || noData;
+  // the example only after a tap; with live data it's the explicit "See an example" from the calm state
+  const useSample = sample && !loading;
 
   const current = candidates.find((c) => c.task.id === selected) ?? candidates[0] ?? null;
 
@@ -198,28 +200,16 @@ export default function EvidenceScreen() {
                 <AppText variant="small" color="textMuted" numberOfLines={1} style={{ flexShrink: 1 }}>
                   {vm.sub}
                 </AppText>
-                {vm.sample && (
-                  <View style={{ backgroundColor: colors.chip, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 1 }}>
-                    <AppText variant="micro" weight="bold" color="textMuted">
-                      {t('sample')}
-                    </AppText>
-                  </View>
-                )}
+                {vm.sample && <SampleTag label={t('sample')} />}
               </View>
             </View>
           )}
         </View>
 
-        {loading && (
-          <Card style={{ alignItems: 'center', paddingVertical: 28 }}>
-            <ActivityIndicator color={colors.primary} />
-          </Card>
-        )}
+        {loading && <LoadingCard />}
 
         {noData && !sample && (
-          <AppText variant="caption" color="textMuted" align="center">
-            {t('empty')}
-          </AppText>
+          <EmptyCard icon={Eye} title={t('emptyTitle')} body={t('emptyBody')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
         )}
 
         {!useSample && candidates.length > 1 && (

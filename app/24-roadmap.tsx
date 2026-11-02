@@ -3,13 +3,14 @@
 // Forecast is computed locally (src/features/roadmap/model.ts). Nobody drags bars — the plan is built from tasks.
 // Apply = live update of the task's due_at (late → match the forecast) or expected_close_at (behind → real finish),
 // logged to activity_log as 'roadmap_adjusted' (undoable, previous dates in undo_payload); "move it" opens Load Radar.
-// No dated tasks yet → the design's six sample projects (incl. "Qiwa integration"); Apply there is local state only.
+// While loading: a spinner. No dated tasks yet → an empty card whose "Show me an example" reveals the design's six
+// sample projects (incl. "Qiwa integration", marked "Sample"); Apply there is local state only.
 import { useMemo, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View, type ViewStyle } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View, type ViewStyle } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CalendarDays, Check, ChevronLeft, Flag, PieChart, Sparkles, TrendingUp, UserRoundCog } from 'lucide-react-native';
-import { AppText, Button, Card, Chip, FilterChips, Gradient, Hero, IconBadge, IconButton } from '@/components/ui';
+import { AppText, Button, Card, Chip, EmptyCard, FilterChips, Gradient, Hero, IconBadge, IconButton, LoadingCard, SampleTag } from '@/components/ui';
 import { colors, gradients, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -58,14 +59,20 @@ export default function RoadmapScreen() {
   const [applied, setApplied] = useState<{ rowId: string; result?: Applied } | null>(null);
   const [undone, setUndone] = useState<string | null>(null);
   const [filter, setFilter] = useState<RoadFilter>('all');
+  const [sample, setSample] = useState(false);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   const live = useMemo(() => liveProjects(tasks.data ?? [], lang, t('noWorkspace')), [tasks.data, lang, t]);
-  const sample = !tasks.isLoading && live.length === 0;
+  const loading = tasks.isLoading;
+  const empty = !loading && live.length === 0;
+  // real tasks always win over the sample
+  const isSample = empty && sample;
+  // nothing to draw yet: loading, or no dated tasks and the example not asked for
+  const blank = loading || (empty && !sample);
   const projects = useMemo(
     () =>
-      sample
+      isSample
         ? sampleProjects(
             {
               spl: t('demo.spl'), nt: t('demo.nt'), beta: t('demo.beta'), qiwa: t('demo.qiwa'), woj: t('demo.woj'), wal: t('demo.wal'),
@@ -75,7 +82,7 @@ export default function RoadmapScreen() {
             fixed,
           )
         : live,
-    [sample, live, fixed, t],
+    [isSample, live, fixed, t],
   );
 
   // The chip row filters the rows of the current level (projects or the chosen project's tasks) by forecast.
@@ -199,23 +206,23 @@ export default function RoadmapScreen() {
               </AppText>
             </View>
           </View>
-          {!tasks.isLoading && <FilterChips options={filterOptions} value={filter} onChange={setFilter} />}
+          {!blank && <FilterChips options={filterOptions} value={filter} onChange={setFilter} />}
         </Hero>
 
         <View style={{ paddingHorizontal: 16, marginTop: -26, gap: spacing.lg }}>
+          {loading && <LoadingCard />}
+          {empty && !sample && (
+            <EmptyCard icon={CalendarDays} title={t('emptyTitle')} body={t('emptyBody')} sampleLabel={t('showSample')} onSample={() => setSample(true)} />
+          )}
+
           {/* timeline */}
+          {!blank && (
           <Card elevation="raised" padding={0} style={{ paddingTop: spacing.lg, paddingHorizontal: spacing.md, paddingBottom: spacing.md, gap: 4 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingBottom: 4 }}>
               <AppText variant="caption" weight="semibold" color="textMuted" numberOfLines={1} style={{ flexShrink: 1 }}>
                 {scopeLabel}
               </AppText>
-              {sample && (
-                <View style={{ backgroundColor: colors.chip, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 }}>
-                  <AppText variant="micro" weight="bold" color="textMuted">
-                    {t('sample')}
-                  </AppText>
-                </View>
-              )}
+              {isSample && <SampleTag label={t('sample')} />}
             </View>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <View style={{ width: LABEL_W }} />
@@ -230,8 +237,7 @@ export default function RoadmapScreen() {
               </View>
             </View>
 
-            {tasks.isLoading && <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.xxl }} />}
-            {!tasks.isLoading && rows.length === 0 && (
+            {rows.length === 0 && (
               <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>
                 <AppText color="textMuted" align="center">
                   {t('nothingHere')}
@@ -239,8 +245,7 @@ export default function RoadmapScreen() {
                 <Chip label={t('showAll')} onPress={() => setFilter('all')} />
               </View>
             )}
-            {!tasks.isLoading &&
-              rows.map((r) => (
+            {rows.map((r) => (
                 <TimelineRow
                   key={r.id}
                   row={r}
@@ -265,9 +270,10 @@ export default function RoadmapScreen() {
               <Legend swatch={<View style={{ width: 2, height: 10, backgroundColor: colors.purple }} />} label={t('today')} />
             </View>
           </Card>
+          )}
 
           {/* selected bar */}
-          {selected && (
+          {selected && !blank && (
             <Card padding={0} style={{ paddingVertical: spacing.lg, paddingHorizontal: spacing.xl, gap: spacing.sm, overflow: 'hidden' }}>
               <View style={{ position: 'absolute', start: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors[tone.bar] }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm }}>

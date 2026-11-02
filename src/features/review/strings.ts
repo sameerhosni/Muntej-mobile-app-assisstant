@@ -37,6 +37,10 @@ const en = {
   unlocked: '5/5 unlocked!',
   waiting: 'Nothing to review yet ☕',
   waitingBody: 'When {{name}} sends the next one, I’ll bring it here.',
+  emptyBody: 'When someone on your team submits work, I’ll bring the review here.',
+  showSample: 'Show me an example',
+  sample: 'Sample',
+  none: '—',
   notFound: 'Couldn’t open this review on my side.',
   saveFailed: 'The review didn’t save on my side. Try again?',
   log: {
@@ -88,6 +92,10 @@ const ar: typeof en = {
   unlocked: '5/5 انفتحت!',
   waiting: 'ما فيه شي للمراجعة للحين ☕',
   waitingBody: 'أول ما يسلّم {{name}} الجاي، بجيبه لك هنا.',
+  emptyBody: 'أول ما يسلّم أحد من فريقك شغله، بجيب لك المراجعة هنا.',
+  showSample: 'وريني مثال',
+  sample: 'مثال',
+  none: '—',
   notFound: 'ما ضبط معي أفتح المراجعة.',
   saveFailed: 'ما انحفظت المراجعة عندي. جرّب مرة ثانية.',
   log: {

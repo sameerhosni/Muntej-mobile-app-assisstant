@@ -1,6 +1,8 @@
 // Screen 14 · Task detail — see design/v2/html/TaskDetail.dc.html (Arabic: TaskDetailAR.dc.html)
 // With ?id= → live task (useTask: subtasks, evidence). Without → the design's demo task "Prepare SPL pitch".
+// (Every in-app link passes ?id=; the demo task is only for the prototype tour. Loading → spinner, never the demo.)
 // "Ask <assigner>" and "Split with AI" are local demo actions; ticking a live subtask writes subtasks.done.
+// Points pill: by the task's priority (TASK_POINTS), shown only while rewards are on (SHOW_REWARDS).
 // "Change with Muntej" (bottom bar) opens the chat locked on this task — the one place changes are made.
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from 'react-native';
@@ -28,6 +30,8 @@ import { person, personLabel } from '@/features/demo/team';
 import { ClarityRing } from '@/features/task-detail/ClarityRing';
 import { useToggleSubtask } from '@/features/task-detail/useToggleSubtask';
 import { useTaskSeen } from '@/features/ladder/api';
+import { TASK_POINTS } from '@/features/tasks/useCompleteTask';
+import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { NS } from '@/features/task-detail/strings';
 
 type CheckKey = 'owner' | 'due' | 'doneDef' | 'budget';
@@ -266,6 +270,8 @@ export default function TaskDetailScreen() {
                 />
               </Pressable>
             )}
+            {/* the points this task earns: by its priority (the demo task keeps the design's 65) */}
+            {SHOW_REWARDS && (
             <View
               style={{
                 flexDirection: 'row',
@@ -280,9 +286,10 @@ export default function TaskDetailScreen() {
             >
               <PointsCoin size={18} />
               <AppText variant="caption" weight="bold" color="orangeText">
-                {t('points', { pts: formatNumber(REWARD.pts, lang), early: formatNumber(REWARD.early, lang) })}
+                {t('points', { pts: formatNumber(live ? (TASK_POINTS[priority] ?? 15) : REWARD.pts, lang), early: formatNumber(REWARD.early, lang) })}
               </AppText>
             </View>
+            )}
           </View>
         </View>
 
