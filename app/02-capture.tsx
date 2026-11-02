@@ -191,7 +191,10 @@ export default function MuntejChatScreen() {
           router.replace('/');
         }
       } catch (e) {
-        setPending({ ...p, status: 'error', error: (e as Error).message || t('failed') });
+        // a clear sentence in the person's language, never the server's English error (owner, 2 Nov: «Muntej could not»)
+        const m = (e as Error)?.message ?? '';
+        const error = /busy|429/i.test(m) ? t('busy') : /failed to send|fetch|network|timeout/i.test(m) ? t('failed') : t('didntGetIt');
+        setPending({ ...p, status: 'error', error });
       }
     },
     [qc, t, focusTaskId],

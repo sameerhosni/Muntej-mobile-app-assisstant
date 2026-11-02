@@ -147,7 +147,8 @@ export default function ReceiptScreen() {
                   hitSlop={{ top: 4, bottom: 4 }}
                   style={{ flex: 1, minHeight: 36, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? colors.surface : colors.transparent }}
                 >
-                  <AppText weight="bold" color={on ? 'primary' : 'onDark'}>
+                  {/* full width + centered: Android measured bold Arabic too narrow and cut «هالشهر» to «هالشه» (owner, 2 Nov) */}
+                  <AppText weight="bold" color={on ? 'primary' : 'onDark'} style={{ alignSelf: 'stretch', textAlign: 'center' }}>
                     {t(p)}
                   </AppText>
                 </Pressable>

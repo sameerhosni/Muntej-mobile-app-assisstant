@@ -237,7 +237,8 @@ Each turn, choose ONE action:
 - "none": small talk (hi, thanks) and questions ("what's late?", "who is free?"). Answer questions from the provided open_tasks/team data only; never invent facts.
   TEAM QUESTIONS ("how is Faisal doing?", "who's overloaded?", "top performers this month", "risks in Khalid's team", "who knows Selenium?"): answer in 1-3 short sentences from team[].stats, skills, title and the org tree (manager_id / reports; "Khalid's team" = everyone below Khalid, any depth). Quote the real numbers (done, on-time %, late, open, hours, achievements); never invent or estimate a number that is not in the data. stats = null means the user cannot see that person's tasks: say so instead of guessing. Top performers: rank by done_this_month, then on_time_pct, then achievements. Overloaded: stats.overloaded or open_estimate_hours above weekly_hours. People who left are in former_team: mention them only when asked.
 - BRIEF: when a question's answer covers several people or tasks (team status, who is late / blocked / overloaded / free, risks, top performers, "what needs me today", what's on someone's plate, objectives at risk), fill brief: headline = one counting line; rows (max 6) = problems first (late, blocked, overloaded, at_risk, unassigned), then on_track / star only when the question is about everyone or about performance. Each row: person_id and/or task_id from the lists, status, metric (the real number from the data) and note (task name or reason). Then the reply is ONE short sentence that does not repeat the rows (e.g. "Here's your team today:" / "هذا وضع فريقك اليوم:"). Never claim you reminded or changed anything: the server adds what Muntej already did and the one-tap fix to each row. brief = null for small talk, for one-person / one-task answers and for every other action.
-- "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). Create it IMMEDIATELY, even if details are vague — the user can Undo, and gaps are filled later in the chat. Never ask a clarifying question instead of creating: write the best short title you can from what was said, and mention the open points (which one, when, what "done" means) in the reply as things they can add. Only the title is required: owner, due date, what "done" means, priority details and budget may all be null and filled later. Only use "none" for work if you cannot even name the task.
+- "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). When you can tell WHAT the work is (a concrete thing to do or deliver), create it IMMEDIATELY even if other details are vague — the user can Undo, and gaps (owner, when, what "done" means, budget) are filled later in the chat: write the best short title and mention ONE open point in the reply. Only the title is required: owner, due date, what "done" means, priority details and budget may all be null.
+- CLARIFY FIRST (owner, 2 Nov: "ask until you understand, but keep it sharp, not a conversation"): when the work itself is too general to act on — you could only write a placeholder title like "Task about the new project", "Follow up on the thing", "Something for Faisal", "مهمة تخص المشروع", "شغل على العميل" — do NOT create. Use action "none", reply with ONE short direct question about the missing core (what exactly should be done or delivered; for several people, what each one does), at most ~12 words, no greeting, no restating. Fill suggestions with 2-3 concrete likely answers written as the user would send them (e.g. "فيصل يجهز عرض السعر، نورة تراجع العقد" / "Faisal drafts the plan, Noura the budget"). Ask only about WHAT, never about dates, priority or budget (those come after). Ask at most once per request: if the next answer is still general, create with the best title you can and the open point in the reply. Never clarify a task that is already clear.
   WHO: if the user names someone (loose match: first names, Arabic/English spellings, "me"/"I'll do it" = the user), use them. Otherwise pick the best fit from team (never former_team) using, in order: skill level and years in the skills the work needs, title, recent_tasks similar to this one, then the lower load (stats.open / open_estimate_hours vs weekly_hours; avoid people marked overloaded or with late tasks when someone similar is free). Put the data-based reason in owner_reason (one short clause, user's language, e.g. "Selenium 4/5, 3 years, only 2 open tasks"). If nobody clearly fits, still CREATE it with owner_id null (unassigned) and in the reply suggest who could take it or ask them to name someone; never hold the task back for a missing owner.
 - "org": the user wants to change the team itself (people, not tasks): add someone ("add Reem as QA engineer under Khalid, 5 years, Selenium and API testing" → op "add", person_id null, fields full_name, full_name_ar when you can write it, title + title_ar, manager_id, years_experience, skills_detail), move someone ("move Saad under Maha" → op "move", fields.manager_id), change details ("Faisal is now an admin" → role; "Khalid works 35 hours a week" → weekly_capacity_hours; "Noura knows Docker now" → skills_detail with just that skill; op "update"), or someone left / came back ("Noura left the company" → op "status", status "deleted"). Fill ONLY the fields that change, all others null. person_id must come from team or former_team. Nothing is saved until the user confirms on a card: the server writes the reply, so keep yours short.
   OBJECTIVE LINK: objectives lists the company objectives the user can see (each task can belong to one). On create, set task.objective_id to the active objective the task clearly belongs to (same topic, client, project or deliverable; owner in that objective's team is a hint, never enough on its own); if none clearly fits, null — never force a link. When you link it, say so in the reply ("added to objective «X»" / "وحطيتها تحت هدف «X»").
@@ -260,7 +261,7 @@ Each turn, choose ONE action:
 Writing rules:
 - language = the language of the user's latest message. Write reply, title, owner_reason, goal, definition_of_done and helper_reason in it. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
 - reply: 1–2 short sentences (about 25 words max), human and warm, no lists, no ids. Say what you did, then at most ONE thing that's missing; never several questions at once. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so (with action "none" you created and changed nothing).
-- suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. When the task has no objective and an active objective could fit, one suggestion may link it ("Link it to «X»" / "اربطها بهدف «X»"). After a question answered with a brief: 2 short follow-up questions the user may ask next (e.g. "Who's free this week?" / "مين فاضي هالأسبوع؟"). Empty for small talk, other questions, cancel, delete, org and objective.
+- suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. When the task has no objective and an active objective could fit, one suggestion may link it ("Link it to «X»" / "اربطها بهدف «X»"). After a question answered with a brief: 2 short follow-up questions the user may ask next (e.g. "Who's free this week?" / "مين فاضي هالأسبوع؟"). After a CLARIFY FIRST question: 2-3 concrete likely answers. Empty for small talk, other questions, cancel, delete, org and objective.
 - PENDING CARDS: if the user just says "yes"/"confirm"/"تمام" to a change waiting on a card, use "none" and tell them to tap Confirm on the card.
 - ids (owner_id, helper_id, workspace_id, task_id, person_id, manager_id, objective_id) must come from the provided lists, else null.
 - task and update are null unless action is create / update; org is null unless action is org; objective is null unless action is objective; status_change only with status; bulk only with bulk; recurring only with recurring.
@@ -813,48 +814,63 @@ serve(async (req) => {
     // ── ask the model ──
     // gpt-4.1: ~2-4 s replies with good Saudi Arabic; gpt-5-mini was 5-12 s (its reasoning step) for the same quality
     const model = Deno.env.get('CHAT_MODEL') ?? 'gpt-4.1';
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${requireEnv('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: Deno.env.get('CHAT_REASONING') ?? 'low' } : {}),
-        messages: [
-          { role: 'system', content: SYSTEM },
-          { role: 'system', content: `Context:\n${JSON.stringify(context)}` },
-          ...(viaWhatsApp
-            ? [{ role: 'system', content: 'This turn is on WhatsApp: keep the reply short (at most 4 short lines), no markdown headings or tables. Cards and buttons are added for you.' }]
-            : []),
-          ...conversation,
-          // anchor the turn on the focused task so the reply talks about it (the saved message stays as typed)
-          {
-            role: 'user',
-            content: focus
-              ? `[Focused task: "${focus.title}" (id ${focus.id}). This message is about this task only.]
-${message}`
-              : message,
-          },
-        ],
-        response_format: { type: 'json_schema', json_schema: { name: 'muntej_chat', strict: true, schema: RESPONSE_SCHEMA } },
-      }),
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      console.error('OpenAI error', res.status, detail);
-      if (res.status === 429) throw new HttpError(429, 'Muntej is busy, try again in a moment');
-      if (res.status === 401) throw new HttpError(500, 'AI key is invalid (OPENAI_API_KEY)');
-      throw new HttpError(502, `AI error ${res.status}`);
+    // a refusal or a reply in the wrong shape is usually a one-off: ask once more before telling the person (owner, 2 Nov:
+    // «خلها تسليم الخميس» failed once with an English error, then worked as typed)
+    let lastError: HttpError | null = null;
+    let got: ChatOutput | null = null;
+    for (let attempt = 0; attempt < 2 && !got; attempt++) {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${requireEnv('OPENAI_API_KEY')}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          ...(/^(gpt-5|o\d)/.test(model) ? { reasoning_effort: Deno.env.get('CHAT_REASONING') ?? 'low' } : {}),
+          messages: [
+            { role: 'system', content: SYSTEM },
+            { role: 'system', content: `Context:\n${JSON.stringify(context)}` },
+            ...(viaWhatsApp
+              ? [{ role: 'system', content: 'This turn is on WhatsApp: keep the reply short (at most 4 short lines), no markdown headings or tables. Cards and buttons are added for you.' }]
+              : []),
+            ...conversation,
+            // anchor the turn on the focused task so the reply talks about it (the saved message stays as typed)
+            {
+              role: 'user',
+              content: focus
+                ? `[Focused task: "${focus.title}" (id ${focus.id}). This message is about this task only.]
+  ${message}`
+                : message,
+            },
+          ],
+          response_format: { type: 'json_schema', json_schema: { name: 'muntej_chat', strict: true, schema: RESPONSE_SCHEMA } },
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        console.error('OpenAI error', res.status, detail);
+        if (res.status === 429) throw new HttpError(429, 'Muntej is busy, try again in a moment');
+        if (res.status === 401) throw new HttpError(500, 'AI key is invalid (OPENAI_API_KEY)');
+        lastError = new HttpError(502, `AI error ${res.status}`);
+        if (res.status >= 500) continue; // their hiccup: once more
+        throw lastError;
+      }
+      const out = (await res.json()) as { choices?: { message?: { content?: string | null; refusal?: string | null } }[] };
+      const msg = out.choices?.[0]?.message;
+      if (msg?.refusal) {
+        console.warn('chat refusal', attempt, msg.refusal);
+        lastError = new HttpError(422, 'Muntej could not process that request');
+        continue;
+      }
+      try {
+        const r = ChatOutput.safeParse(JSON.parse(msg?.content ?? ''));
+        if (!r.success) throw new Error('schema');
+        got = r.data;
+      } catch {
+        console.warn('chat bad reply', attempt);
+        lastError = new HttpError(502, 'Muntej got confused, try rephrasing');
+      }
     }
-    const out = (await res.json()) as { choices?: { message?: { content?: string | null; refusal?: string | null } }[] };
-    const msg = out.choices?.[0]?.message;
-    if (msg?.refusal) throw new HttpError(422, 'Muntej could not process that request');
-    try {
-      const r = ChatOutput.safeParse(JSON.parse(msg?.content ?? ''));
-      if (!r.success) throw new Error('schema');
-      parsed = r.data;
-    } catch {
-      throw new HttpError(502, 'Muntej got confused, try rephrasing');
-    }
+    if (!got) throw lastError ?? new HttpError(502, 'Muntej got confused, try rephrasing');
+    parsed = got;
   }
 
   // ── act ──
@@ -1562,6 +1578,9 @@ ${message}`
         return { id, title: t.title, owner_name: nameOf(t.owner_id), due_at: t.due_at };
       });
     if (picks.length >= 2) payload = { candidates: picks, original_message: message };
+  } else if (parsed.action === 'none' && !parsed.brief?.rows.length && parsed.suggestions.length && /[?؟]s*$/.test(parsed.reply.trim())) {
+    // CLARIFY FIRST: one short question about a too-general task, with likely answers to tap
+    payload = { suggestions: parsed.suggestions.slice(0, 3), clarify: true };
   } else if (parsed.action === 'none' && parsed.brief?.rows.length) {
     const brief = await buildBrief(parsed.brief, parsed.language === 'ar');
     if (brief.rows.length) {

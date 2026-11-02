@@ -15,6 +15,9 @@ const en = {
   loading: 'Pulling up our chat…',
   loadFailed: "Couldn't open our chat on my side.",
   failed: "That didn't go through. Check your connection and try again?",
+  // the server answered but couldn't do it (never its English error text in the chat)
+  didntGetIt: "I couldn't do that one. Try again, or say it another way.",
+  busy: "I'm a bit busy. Try again in a few seconds.",
   notSent: 'Not sent',
   retry: 'Try again',
   // composer
@@ -170,6 +173,8 @@ const ar: typeof en = {
   loading: 'أجيب محادثتنا…',
   loadFailed: 'ما ضبط معي أفتح المحادثة.',
   failed: 'ما وصلت. شيّك على النت وجرّب مرة ثانية.',
+  didntGetIt: 'ما قدرت أسويها هالمرة. جرّب مرة ثانية أو قلها بطريقة ثانية.',
+  busy: 'مشغول شوي، جرّب بعد ثواني.',
   notSent: 'ما انرسلت',
   retry: 'جرّب ثاني',
   placeholder: 'اكتب لمنتج…',

@@ -210,6 +210,8 @@ export type RecurringDonePayload = NoTask & { recurring_done: { id: string; titl
 export type BulkProposalPayload = NoTask & { bulk_proposal: BulkProposal };
 export type BulkDonePayload = NoTask & { bulk_done: BulkDone };
 export type BriefPayload = { id?: undefined; suggestions?: string[]; brief: Brief };
+/** a too-general task: Muntej asks ONE short question first; suggestions are likely answers to tap */
+export type ClarifyPayload = { id?: undefined; suggestions: string[]; clarify: true };
 export type UndoDonePayload = NoTask & { undo_done: { log_id: string; log_ids?: string[] } };
 export type PeopleChoicePayload = NoTask & { people_choice: PeopleChoice };
 export type DuplicatePayload = NoTask & { duplicate: Duplicate };
@@ -230,7 +232,8 @@ export type ChatPayload =
   | CreatedListPayload
   | RecurringProposalPayload
   | RecurringDonePayload
-  | BriefPayload;
+  | BriefPayload
+  | ClarifyPayload;
 
 /** payload field of one card kind, or null */
 export function payloadPart<

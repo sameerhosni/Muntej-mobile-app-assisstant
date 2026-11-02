@@ -119,7 +119,8 @@ export function NoticeBubble({ text, onRetry, retryLabel }: { text: string; onRe
     <MuntejBubble tone="red">
       <View accessibilityLiveRegion="polite" style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
         <AlertTriangle color={colors.red} size={16} strokeWidth={2.1} style={{ marginTop: 2 }} />
-        <AppText color="textSoft" style={{ flex: 1, lineHeight: 20 }}>
+        {/* flexShrink, not flex: 1 — inside a bubble that sizes to its content, flex: 1 squeezed the text to one cut-off line */}
+        <AppText color="textSoft" style={{ flexShrink: 1, lineHeight: 20 }}>
           {text}
         </AppText>
       </View>
