@@ -95,6 +95,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-02 · Tapping a notification never shows Page could not be found (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts · app update 1.0.0)
 - 2026-11-02 · Super admin signs in as supermuntej: password + code on email (server: admin-login, phone-auth · app update 1.0.0)
 - 2026-11-02 · WhatsApp: a tapped button acts in the account it belongs to (server: whatsapp)
 - 2026-11-02 · Manager alerts reach WhatsApp: decisions, work to review, help asked (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts · app update 1.0.0)
