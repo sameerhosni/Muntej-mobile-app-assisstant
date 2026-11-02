@@ -96,6 +96,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-02 · Chat asks one sharp question for vague tasks, clear errors with auto retry, full month tab label, WhatsApp needs your number (server: muntej-chat · app update 1.0.0)
 - 2026-11-02 · Clearer scroll-down hint in Saree3's tour (app update 1.0.0)
 - 2026-11-02 · Setup chat understands a no instead of naming the company no (app update 1.0.0)
 - 2026-11-02 · Tapping a notification never shows Page could not be found (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts · app update 1.0.0)
