@@ -37,6 +37,8 @@ type Msg =
 type WithoutId<M> = M extends unknown ? Omit<M, 'id'> : never;
 
 const YES = /^(صح|صحيح|تمام|اي|ايوه|إيه|ايه|نعم|اوكي|أوكي|yes|yep|ok|okay|right|correct|sure)[.!\s]*$/i;
+// a bare "no" asks what's wrong instead of sending «لا» to their manager as the correction (owner, 2 Nov)
+const NO = /^(لا+ مو صح|لاء|لأ|لا|مو صح|مب صح|غلط|خطأ|خطا|no|nope|not right|wrong|incorrect)[.!،,\s]*$/i;
 
 export function MemberSetupChat() {
   const { t } = useScreenT(SETUP_CHAT_NS);
@@ -210,6 +212,7 @@ export function MemberSetupChat() {
     switch (stage) {
       case 'confirm':
         if (YES.test(s)) return confirmed();
+        if (NO.test(s.trim())) return bot(t('m_askWrong', { boss: bossName }));
         // anything else: a correction for whoever added them
         return fixOther(s);
       case 'fixName':

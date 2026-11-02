@@ -37,7 +37,12 @@ type Msg =
 type WithoutId<M> = M extends unknown ? Omit<M, 'id'> : never;
 type NewMsg = WithoutId<Msg>;
 
-const YES = /^(صح|صحيح|تمام|اي|ايوه|إيه|ايه|نعم|اوكي|أوكي|yes|yep|ok|okay|right|correct|sure)[.!\s]*$/i;
+const YES = /^(صح|صحيح|تمام|اي|ايوه|إيه|ايه|نعم|اوكي|أوكي|yes|yep|ok|okay|right|correct|sure)[.!،,\s]*$/i;
+// "no" to "right?" is an answer, not a company name (owner, 2 Nov: «لا» became the company's name)
+const NO = /^(لا+ مو صح|لا+ غلط|لاء|لأ|لا|مو صح|مب صح|غلط|خطأ|خطا|no|nope|not right|wrong|incorrect)([.!،,\s]+|$)/i;
+// what's left after the "no" says which one it is: "no, my name is Sara" / "no, it's Al-Fahd Trading"
+const MY_NAME = /^(اسمي|انا|أنا|my name is|i'?m|call me)\s+/i;
+const COMPANY_IS = /^(اسمها|اسم الشركة|الشركة اسمها|الشركة|الاسم|اسمه|it'?s|its|the name is|company is|the company is|it is)\s+/i;
 const STEP: Record<Stage, number> = { company: 1, fixCompany: 1, fixName: 1, sector: 1, team: 2, draft: 2, task: 3, push: 3, done: 3 };
 
 export default function SetupChatScreen() {
@@ -221,13 +226,27 @@ function AdminSetupChat() {
     user(s);
     switch (stage) {
       case 'company':
-        // "right" confirms; anything else is the company's real name
+        // "right" confirms; a bare "no" asks what's wrong; "my name is …" fixes the name; anything else is the company's real name
         if (YES.test(s)) return confirmCompany();
-        return run(t('thinking'), async () => {
-          await setAccountName(qc, s);
-          bot(t('fixedCompany', { name: s }));
-          await afterCompany();
-        });
+        {
+          const rest = s.trim().replace(NO, '').trim();
+          if (!rest) return bot(t('whatWrong'));
+          if (MY_NAME.test(rest)) {
+            const name = rest.replace(MY_NAME, '').trim();
+            return run(t('thinking'), async () => {
+              if (setup.me) await setMyName(qc, name);
+              bot(t('fixedName', { name: name.split(' ')[0] }));
+              add({ kind: 'company' });
+            });
+          }
+          const company = rest.replace(COMPANY_IS, '').trim();
+          if (company.length < 2) return bot(t('whatWrong'));
+          return run(t('thinking'), async () => {
+            await setAccountName(qc, company);
+            bot(t('fixedCompany', { name: company }));
+            await afterCompany();
+          });
+        }
       case 'fixCompany':
         return run(t('thinking'), async () => {
           await setAccountName(qc, s);
