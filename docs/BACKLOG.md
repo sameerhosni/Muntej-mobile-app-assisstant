@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-11-01
+Last updated: 2026-11-02
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -95,6 +95,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-02 · No fake numbers for new users; updates never restart mid-onboarding (app update 1.0.0)
 - 2026-11-01 · Setup chat: employees can fix their name, one welcome message (app update 1.0.0)
 - 2026-11-01 · Team: no duplicate people, recording indicator, Team title and tags (server: connect, muntej-chat, team-import · app update 1.0.0)
 - 2026-11-01 · Store version 1.0.0 (app update 1.0.0)
