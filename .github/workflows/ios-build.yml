@@ -1,0 +1,86 @@
+# iPhone builds on GitHub's macOS runners (EAS --local), signed through the App Store Connect API key: no Apple
+# sign-in, no prompts (scripts/ios-signing.mjs). The .ipa is uploaded to App Store Connect → TestFlight, from where it
+# goes to the App Store. If the app doesn't exist in App Store Connect yet, the .ipa is kept as the run's artifact
+# and the run says so.
+# Start it: Actions → "iOS build" → Run workflow, or push a tag `ios-production-<anything>`.
+# Needs repository secrets: EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (the .p8 file's text).
+name: iOS build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['ios-production-*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Signing
+        id: signing
+        run: node scripts/ios-signing.mjs
+
+      # a new certificate is kept (encrypted) for the next builds; Apple allows only a few per account
+      - name: Keep certificate
+        run: |
+          if [ -n "$(git status --porcelain signing/ios)" ]; then
+            git config user.name "github-actions"
+            git config user.email "github-actions@users.noreply.github.com"
+            git add signing/ios
+            git commit -m "iOS signing: keep the distribution certificate (encrypted)"
+            git push origin HEAD:${{ github.event.repository.default_branch }} || echo "::warning::Could not save the certificate; the next build makes a new one"
+          fi
+
+      - name: Build
+        run: |
+          VERSION=$(node -p "require('./app.json').expo.version")
+          OUT="muntej-${VERSION}-ios-${GITHUB_RUN_NUMBER}.ipa"
+          npx -y eas-cli@latest build --platform ios --profile production --local --non-interactive --output "$OUT"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.OUT }}
+          path: ${{ env.OUT }}
+          retention-days: 30
+
+      - name: Upload to App Store Connect (TestFlight)
+        env:
+          ASC_APP_ID: ${{ steps.signing.outputs.asc_app_id }}
+        run: |
+          if [ -z "$ASC_APP_ID" ]; then
+            echo "::warning::No app for sa.muntej.app in App Store Connect yet. Create it (Apps → + → New App), then run this workflow again."
+            exit 0
+          fi
+          printf '%s\n' "$ASC_KEY_P8" > asc-key.p8
+          node -e "
+            const fs=require('fs');const e=JSON.parse(fs.readFileSync('eas.json','utf8'));
+            e.submit.production.ios={ascAppId:process.env.ASC_APP_ID,ascApiKeyPath:'asc-key.p8',ascApiKeyId:process.env.ASC_KEY_ID,ascApiKeyIssuerId:process.env.ASC_ISSUER_ID};
+            fs.writeFileSync('eas.json',JSON.stringify(e,null,2));"
+          npx -y eas-cli@latest submit --platform ios --profile production --path "$OUT" --non-interactive

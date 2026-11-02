@@ -9,8 +9,11 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#F3F6FB",
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "sa.muntej.app"
+      "supportsTablet": false,
+      "bundleIdentifier": "sa.muntej.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "sa.muntej.app",

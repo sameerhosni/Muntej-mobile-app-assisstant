@@ -55,3 +55,8 @@ builds/
 # QA run output (scripts/qa/run.mjs)
 qa-out/
 deno.lock
+
+# iOS signing made in CI (scripts/ios-signing.mjs); only the encrypted signing/ios/dist.enc is committed
+credentials.json
+ios-signing/
+asc-key.p8
