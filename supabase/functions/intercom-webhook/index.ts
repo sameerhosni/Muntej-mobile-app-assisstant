@@ -54,7 +54,9 @@ Deno.serve(async (req) => {
     console.error('intercom-webhook alert', error.message);
     return new Response('error', { status: 500 });
   }
-  if (made?.length) await deliverPending(admin, { only: made.map((a) => a.id as string), ignoreQuiet: false });
+  // a reply to something they just wrote goes out now, even in quiet hours (owner, 2 Nov: Hoda's 11 pm replies were
+  // held till 7 am, so she never knew the team answered)
+  if (made?.length) await deliverPending(admin, { only: made.map((a) => a.id as string), ignoreQuiet: true });
   return new Response('ok');
 });
 
