@@ -258,6 +258,44 @@ const SAYS_NEEDS = /^(وش يحتاجني|ايش يحتاجني|إيش يحتا�
 const SAYS_CODE = /^(رمز الدخول|رمز دخول|الرمز|رمز|دخول|ادخل|sign[- ]?in code|login code|code|login)[\s؟?!.]*$/i;
 const SAYS_HELP = /^(مساعدة|ساعدني|help|\?|؟|وش تقدر تسوي|what can you do)[\s؟?!.]*$/i;
 
+/** With one number in several accounts: the profile a tap is about (the decision's manager, the task's assigner /
+ *  owner, the item's owner, or someone in the same account), or for typed text the one with the newest open question
+ *  (a note for "Send back", a fix in setup…). Null when nothing tells. */
+async function whoseTap(m: WaMessage, people: { id: string; account_id: string }[]): Promise<string | null> {
+  const admin = adminClient();
+  const ids = new Set(people.map((p) => p.id));
+  const tap = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? m.button?.payload ?? '';
+  if (!tap) {
+    const { data: open } = await admin
+      .from('wa_pending')
+      .select('profile_id')
+      .in('profile_id', [...ids])
+      .gte('created_at', new Date(Date.now() - 60 * 60_000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+    return (open?.[0]?.profile_id as string | undefined) ?? null;
+  }
+  const [verb, a, b] = tap.split(':');
+  let related: (string | null)[] = [];
+  if (verb === 'd' && b) {
+    const { data } = await admin.from('decisions').select('manager_id, requested_by').eq('id', b).maybeSingle();
+    related = [data?.manager_id ?? null, data?.requested_by ?? null];
+  } else if ((verb === 'r' || verb === 'h') && b) {
+    const { data } = await admin.from('tasks').select('assigner_id, owner_id').eq('id', b).maybeSingle();
+    related = verb === 'h' ? [data?.owner_id ?? null, data?.assigner_id ?? null] : [data?.assigner_id ?? null, data?.owner_id ?? null];
+  } else if ((verb === 'ok' || verb === 'no') && a) {
+    const { data } = await admin.from('incoming_items').select('owner_id').eq('id', a).maybeSingle();
+    related = [data?.owner_id ?? null];
+  }
+  const known = related.filter((x): x is string => !!x);
+  const direct = known.find((x) => ids.has(x));
+  if (direct) return direct;
+  if (!known.length) return null;
+  const { data: accts } = await admin.from('profiles').select('account_id').in('id', known);
+  const acct = new Set((accts ?? []).map((x) => x.account_id as string));
+  return people.find((p) => acct.has(p.account_id))?.id ?? null;
+}
+
 async function handle(m: WaMessage, dry = false) {
   const admin = adminClient();
   const from = m.from.replace(/\D/g, '');
@@ -347,7 +385,9 @@ async function handle(m: WaMessage, dry = false) {
       .update({ wa_last_inbound_at: new Date().toISOString(), whatsapp_connected: true })
       .in('id', people.map((p) => p.id));
   // the same pick as the reports (waProfileFor), so a report and its buttons talk about the same account
-  const pick = people.length > 1 ? await waProfileFor(admin, from) : people[0].id;
+  // a tapped button belongs to the account its decision / task / item is in, and a typed answer to the account that
+  // just asked for it (owner, 2 Nov: one number in two accounts → "I couldn't find that decision" / "Task not found")
+  const pick = people.length > 1 ? ((await whoseTap(m, people)) ?? (await waProfileFor(admin, from))) : people[0].id;
   const me = (people.find((p) => p.id === pick) ?? people[0]) as Me;
   const ar = me.locale !== 'en';
   const lang = ar ? 'ar' : 'en';
