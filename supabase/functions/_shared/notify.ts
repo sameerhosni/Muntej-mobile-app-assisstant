@@ -442,19 +442,27 @@ async function whatsAppAlert(
   const about = (kind: AlertKind) => m.alerts.filter((a) => a.kind === kind);
   const decided = about('decision_waiting');
   const reviewed = new Set(about('new_submission').map((a) => a.task_id));
-  if (m.alerts.every((a) => a.kind === 'decision_waiting' || a.kind === 'new_submission')) {
-    const cards = (await needsYouCards(admin, person.id, ar)).filter(
-      (c) =>
-        (c.kind === 'decision' && decided.some((a) => !a.task_id || a.task_id === c.taskId)) ||
-        (c.kind === 'review' && reviewed.has(c.taskId ?? null)),
-    );
-    if (cards.length) {
-      let ok = true;
-      for (const c of cards.slice(0, 3)) ok = (await waButtons(person.phone, c.body, c.buttons)) && ok;
-      return ok ? 'sent' : 'error';
-    }
+  // decisions and reviews come as cards with their buttons, even when other updates arrived in the same minute
+  // (an employee answering "more time", "help" and "done" at once used to turn the cards into one plain text)
+  const cards =
+    decided.length || reviewed.size
+      ? (await needsYouCards(admin, person.id, ar)).filter(
+          (c) =>
+            (c.kind === 'decision' && decided.some((a) => !a.task_id || a.task_id === c.taskId)) ||
+            (c.kind === 'review' && reviewed.has(c.taskId ?? null)),
+        )
+      : [];
+  let ok = true;
+  for (const c of cards.slice(0, 3)) ok = (await waButtons(person.phone, c.body, c.buttons)) && ok;
+  const carded = (a: PendingAlert) =>
+    cards.length > 0 && (a.kind === 'decision_waiting' || (a.kind === 'new_submission' && cards.some((c) => c.taskId === a.task_id)));
+  const rest = m.alerts.filter((a) => !carded(a));
+  if (rest.length) {
+    const line = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
+    const text = rest.length === m.alerts.length ? `*${m.title}*\n${m.body}` : rest.length === 1 ? `*${line(rest[0])}*\n${(ar ? rest[0].body_ar : null) ?? rest[0].body}` : rest.map(line).join('\n');
+    ok = (await sendWhatsApp(person.phone, text)) && ok;
   }
-  return (await sendWhatsApp(person.phone, `*${m.title}*\n${m.body}`)) ? 'sent' : 'error';
+  return ok ? 'sent' : 'error';
 }
 
 /** Push for a follow-up step: same channel switch and quiet hours as alerts. Returns when to retry if held. */

@@ -55,9 +55,11 @@ export const DEFAULT_PREFS: AlertPrefs = {
   channels: { push: true, email: true, whatsapp: true, teams: false },
   rules: {
     task_at_risk: { enabled: true, channels: ['push', 'whatsapp'], timing: 'instant' },
-    task_overdue: { enabled: true, channels: ['push'], timing: 'instant' },
-    decision_waiting: { enabled: true, channels: ['push'], timing: 'instant' },
-    new_submission: { enabled: true, channels: ['push'] },
+    // what needs the manager (late / help asked, a decision, work to review) reaches WhatsApp too (owner, 2 Nov:
+    // employees answered on WhatsApp and he got nothing there)
+    task_overdue: { enabled: true, channels: ['push', 'whatsapp'], timing: 'instant' },
+    decision_waiting: { enabled: true, channels: ['push', 'whatsapp'], timing: 'instant' },
+    new_submission: { enabled: true, channels: ['push', 'whatsapp'] },
     kudos: { enabled: true, channels: ['push'], timing: 'instant' },
     daily_summary: { enabled: true, channels: ['push', 'email'], time: '08:00' },
     // three reports a day (server defaults in daily-summary): midday and end of day, WhatsApp too when it's connected

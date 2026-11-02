@@ -201,9 +201,9 @@ insert into public.notification_prefs (profile_id, channels, rules) values
   ('00000000-0000-4000-a000-000000000001',
    '{"push": true, "email": true, "whatsapp": true, "teams": false}',
    '{"task_at_risk": {"enabled": true, "channels": ["push", "whatsapp"], "timing": "instant"},
-     "task_overdue": {"enabled": true, "channels": ["push"], "timing": "instant"},
-     "decision_waiting": {"enabled": true, "channels": ["push"], "timing": "instant"},
-     "new_submission": {"enabled": true, "channels": ["push"]},
+     "task_overdue": {"enabled": true, "channels": ["push", "whatsapp"], "timing": "instant"},
+     "decision_waiting": {"enabled": true, "channels": ["push", "whatsapp"], "timing": "instant"},
+     "new_submission": {"enabled": true, "channels": ["push", "whatsapp"]},
      "daily_summary": {"enabled": true, "channels": ["email"], "time": "08:00"},
      "weekly_report": {"enabled": false, "channels": ["email"], "day": "thu", "time": "16:00"}}')
 on conflict (profile_id) do nothing;
