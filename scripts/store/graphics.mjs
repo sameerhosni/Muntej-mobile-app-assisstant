@@ -1,5 +1,6 @@
 // Google Play graphics (owner, 27 Oct: "do whatever needed to go live in android").
-//   node scripts/store/graphics.mjs
+//   node scripts/store/graphics.mjs          → store/android/
+//   node scripts/store/graphics.mjs --ios    → store/ios/: the same screens at 1290×2796 (App Store's 6.9" iPhone size)
 // Writes store/android/: icon-512.png, feature-graphic.png (1024×500) and phone screenshots (1080×2160, Play's max
 // 2:1 shape) of the main screens in Arabic. The screenshots come from the QA test company (never a real one): its
 // task names are switched to Arabic and Saree3's tips paused for the shots; the next QA run resets it all.
@@ -15,7 +16,8 @@ if (!process.execArgv.includes('--use-system-ca') && !(process.env.NODE_OPTIONS 
 }
 
 const ROOT = join(import.meta.dirname, '..', '..');
-const OUT = join(ROOT, 'store', 'android');
+const IOS = process.argv.includes('--ios');
+const OUT = join(ROOT, 'store', IOS ? 'ios' : 'android');
 mkdirSync(OUT, { recursive: true });
 const REF = 'katwiedukkvssuxbjbqf';
 const TOKEN =
@@ -79,26 +81,29 @@ try {
     await new Promise((r) => setTimeout(r, 2000));
   }
 
-  // icon 512 and the feature graphic, drawn from the brand files
-  const art = await browser.newPage();
-  const b64 = (f) => `data:image/png;base64,${readFileSync(join(ROOT, f)).toString('base64')}`;
-  await art.setViewportSize({ width: 512, height: 512 });
-  await art.setContent(`<body style="margin:0"><img src="${b64('assets/icon.png')}" style="width:512px;height:512px;display:block"></body>`);
-  await art.screenshot({ path: join(OUT, 'icon-512.png') });
-  await art.setViewportSize({ width: 1024, height: 500 });
-  await art.setContent(`<html dir="rtl"><head><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@500;700&display=swap" rel="stylesheet"></head>
-    <body style="margin:0;width:1024px;height:500px;overflow:hidden;font-family:'IBM Plex Sans Arabic',sans-serif;
-      background:linear-gradient(120deg,#1d4ed8 0%,#4f46e5 55%,#06b6d4 100%);color:#fff;display:flex;align-items:center;
-      justify-content:space-between;padding:0 80px;box-sizing:border-box">
-      <div><div style="font-size:72px;font-weight:700;line-height:1.1">قلها وانساها</div>
-        <div style="font-size:30px;font-weight:500;opacity:.92;margin-top:18px">منتج يسلّم المهمة لفريقك، يتابعها،<br>ويرجع لك بالنتيجة</div></div>
-      <img src="${b64('assets/icon.png')}" style="width:220px;height:220px;border-radius:48px;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-    </body></html>`);
-  await art.waitForTimeout(1500);
-  await art.screenshot({ path: join(OUT, 'feature-graphic.png') });
+  // icon 512 and the feature graphic, drawn from the brand files (Play only; App Store takes the icon from the build)
+  const art = IOS ? null : await browser.newPage();
+  if (art) {
+    const b64 = (f) => `data:image/png;base64,${readFileSync(join(ROOT, f)).toString('base64')}`;
+    await art.setViewportSize({ width: 512, height: 512 });
+    await art.setContent(`<body style="margin:0"><img src="${b64('assets/icon.png')}" style="width:512px;height:512px;display:block"></body>`);
+    await art.screenshot({ path: join(OUT, 'icon-512.png') });
+    await art.setViewportSize({ width: 1024, height: 500 });
+    await art.setContent(`<html dir="rtl"><head><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@500;700&display=swap" rel="stylesheet"></head>
+      <body style="margin:0;width:1024px;height:500px;overflow:hidden;font-family:'IBM Plex Sans Arabic',sans-serif;
+        background:linear-gradient(120deg,#1d4ed8 0%,#4f46e5 55%,#06b6d4 100%);color:#fff;display:flex;align-items:center;
+        justify-content:space-between;padding:0 80px;box-sizing:border-box">
+        <div><div style="font-size:72px;font-weight:700;line-height:1.1">قلها وانساها</div>
+          <div style="font-size:30px;font-weight:500;opacity:.92;margin-top:18px">منتج يسلّم المهمة لفريقك، يتابعها،<br>ويرجع لك بالنتيجة</div></div>
+        <img src="${b64('assets/icon.png')}" style="width:220px;height:220px;border-radius:48px;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      </body></html>`);
+    await art.waitForTimeout(1500);
+    await art.screenshot({ path: join(OUT, 'feature-graphic.png') });
+  }
 
-  // phone screenshots: 360×720 css at 3× = 1080×2160
-  const page = await browser.newPage({ viewport: { width: 360, height: 720 }, deviceScaleFactor: 3, locale: 'ar' });
+  // phone screenshots: 360×720 css at 3× = 1080×2160 (Play), 430×932 at 3× = 1290×2796 (App Store)
+  const viewport = IOS ? { width: 430, height: 932 } : { width: 360, height: 720 };
+  const page = await browser.newPage({ viewport, deviceScaleFactor: 3, locale: 'ar' });
   await page.goto(`http://localhost:${PORT}/join?t=${await linkToken()}`, { waitUntil: 'domcontentloaded', timeout: 180_000 });
   await page.waitForFunction(() => !location.pathname.startsWith('/join'), null, { timeout: 180_000 });
   // the one-new-feature-a-day card has had its turn today (LaunchCard's key, Riyadh date)
