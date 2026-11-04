@@ -21,6 +21,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { cases } from './cases.mjs';
+import { inviteCases } from './invite-cases.mjs';
 
 // the company network re-signs HTTPS; without the system certificates every call to Supabase fails ("fetch failed")
 if (!process.execArgv.includes('--use-system-ca') && !(process.env.NODE_OPTIONS ?? '').includes('--use-system-ca')) {
@@ -106,6 +107,33 @@ async function fn(name, body, jwt, extra = {}) {
   }
   if (!r.ok) throw new Error(`${name} ${r.status}: ${text.slice(0, 300)}`);
   return json;
+}
+
+/** sign in as anyone in a test company through a one-time link → access token */
+async function jwtFor(profile, account) {
+  const token = randomBytes(24).toString('base64url');
+  await sql(`insert into public.invites (account_id, profile_id, channel, token_hash, status) values ('${account}', '${profile}', 'email', '${sha(token)}', 'sent')`);
+  const { token_hash } = await fn('phone-auth', { action: 'redeem', token });
+  const r = await fetch(`${URL_}/auth/v1/verify`, {
+    method: 'POST',
+    headers: { apikey: ANON, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'magiclink', token_hash }),
+  });
+  const s = await r.json();
+  expect(s.access_token, `verify failed: ${JSON.stringify(s).slice(0, 200)}`);
+  return s.access_token;
+}
+
+/** a database function, as a signed-in person */
+async function rpc(name, args, jwt) {
+  const r = await fetch(`${URL_}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}`, apikey: ANON, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`${name} ${r.status}: ${text.slice(0, 300)}`);
+  return text ? JSON.parse(text) : null;
 }
 
 /** sign in as the QA manager through the test link → access token */
@@ -411,7 +439,10 @@ async function screens() {
 // ─── run ──────────────────────────────────────────────────────────────────────
 expect(TOKEN, 'SUPABASE_ACCESS_TOKEN is not set (the same user env var db-apply uses)');
 if (want('code')) await code();
-if (want('server') || want('ui') || want('screens') || want('cases')) await server();
+if (want('server') || want('ui') || want('screens') || want('cases') || want('invites')) await server();
+if (JWT && (want('server') || want('cases') || want('invites'))) {
+  await inviteCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, ids: { QA_ACCOUNT, QA_BOSS } });
+}
 if (JWT && (want('server') || want('cases'))) {
   const transcript = await cases({
     check,

@@ -37,6 +37,7 @@ import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { PersonSheet } from '@/features/org/PersonSheet';
 import { PersonForm, type FormMode } from '@/features/org/PersonForm';
 import { QuickAdd } from '@/features/invite/QuickAdd';
+import { NotToldCard } from '@/features/invite/NotToldCard';
 import { Munti } from '@/features/munti/Munti';
 import { MUNTI_NS } from '@/features/munti/tips';
 import { NS } from '@/features/org/strings';
@@ -294,11 +295,16 @@ export default function TeamScreen() {
         {/* the smart way in: photo of the org chart, Excel or a sentence → the whole team (screen 61) */}
         {lead && <BuildTeamCard />}
 
+        {/* people who don't know they were added: invite them in one tap, or see who can't be reached */}
+        {lead && !selecting && <NotToldCard people={people} meId={me?.id} onShow={() => setFilter('pending')} />}
+
         <SearchField value={search} onChangeText={setSearch} placeholder={t('searchPlaceholder')} clearLabel={t('clearSearch')} />
 
-        <View accessibilityLabel={t('filtersA11y')}>
-          <FilterChips options={FILTERS.map((f) => ({ key: f, label: t(`f_${f}`), count: counts[f] }))} value={filter} onChange={setFilter} />
-        </View>
+        <TourTarget id="team.status">
+          <View accessibilityLabel={t('filtersA11y')}>
+            <FilterChips options={FILTERS.map((f) => ({ key: f, label: t(`f_${f}`), count: counts[f] }))} value={filter} onChange={setFilter} />
+          </View>
+        </TourTarget>
 
         {org.isError && (
           <Card tone="red" padding={spacing.lg}>

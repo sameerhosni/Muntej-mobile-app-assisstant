@@ -101,7 +101,7 @@ export default function TeamReviewScreen() {
     setInviting(true);
     const ids = list.filter((p) => result.ids[p.ref] && !p.existing_id && !p.skip && (p.phone || p.email)).map((p) => result.ids[p.ref]);
     const res = await sendInvites(ids, 'auto').catch(() => []);
-    setInvited(res.filter((r) => r.whatsapp === 'sent' || r.email === 'invited').length);
+    setInvited(res.filter((r) => r.whatsapp === 'sent' || r.email === 'invited' || r.app).length);
     setInviting(false);
     setBusy(false);
   };
@@ -139,6 +139,11 @@ export default function TeamReviewScreen() {
             ) : (
               <AppText color="greenText" weight="semibold">
                 {t('invited', { n: n(invited), count: invited })}
+              </AppText>
+            )}
+            {list.some((p) => result.ids[p.ref] && !p.existing_id && !p.skip && !p.phone && !p.email) && (
+              <AppText variant="small" color="amberText">
+                {t('resNoContact', { n: n(list.filter((p) => result.ids[p.ref] && !p.existing_id && !p.skip && !p.phone && !p.email).length) })}
               </AppText>
             )}
             <Button label={t('seeTeam')} variant="outline" onPress={() => router.replace('/39-team' as Href)} />

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { ViewingBanner } from '@/features/accounts/AccountSwitcher';
+import { NewCompanyCard } from '@/features/accounts/NewCompanyCard';
 import { CoachHost } from '@/features/coach/CoachHost';
 import { QuietBoundary } from '@/components/QuietBoundary';
 import { Walkthrough } from '@/features/walkthrough/Walkthrough';
@@ -115,6 +116,8 @@ function RootNavigator() {
       <StatusBar style="dark" />
       {/* super admin looking into another account: always visible, one tap back to their own */}
       {signedIn && <ViewingBanner />}
+      {/* someone added them to one more company: one tap opens it */}
+      {signedIn && <NewCompanyCard />}
       <Stack
         screenOptions={{
           headerShown: false,

@@ -31,7 +31,8 @@ export type AlertKind =
   | 'ladder_nudge'
   | 'support_reply'
   | 'idea_update'
-  | 'member_joined';
+  | 'member_joined'
+  | 'added_to_company';
 
 export type AlertItem = {
   id: string;

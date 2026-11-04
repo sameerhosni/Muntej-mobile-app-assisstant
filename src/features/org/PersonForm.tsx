@@ -307,6 +307,12 @@ export function PersonForm({ mode, me, people, index, onDone }: Props) {
               />
             )}
           />
+          {/* said before saving: nobody can tell this person they were added */}
+          {!editing && !watch('phone')?.trim() && !watch('email')?.trim() && (
+            <AppText variant="caption" color="amberText">
+              {t('noContactHint')}
+            </AppText>
+          )}
 
           <Controller
             control={control}

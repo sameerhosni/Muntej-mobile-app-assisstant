@@ -48,8 +48,12 @@ export async function sessionFor(admin: SupabaseClient, person: { id: string; us
     email = data?.user?.email ?? null;
   }
   email ??= person.email?.toLowerCase() ?? (person.phone ? `${person.phone}@${PHONE_DOMAIN}` : null);
-  if (!email) throw new Error('No way to sign this person in');
+  // no email and no mobile: they came through a join link their manager shared. handle_new_user links a new login by
+  // email (otherwise it makes them a company of their own), so an internal address sits on the profile just for that.
+  const internal = email ? null : `${person.id}@${PHONE_DOMAIN}`;
+  email ??= internal as string;
   if (!person.user_id) {
+    if (internal) await admin.from('profiles').update({ email: internal }).eq('id', person.id);
     // first sign-in: make the sign-in user BEFORE asking for a link. Asked first, Supabase quietly made the user itself
     // and returned a sign-up confirmation token, which the app's sign-in rejects as "expired" (found by the QA run,
     // 28 Oct: every invited person's first sign-in failed). Then link it to the invited profile ourselves.
@@ -60,6 +64,7 @@ export async function sessionFor(admin: SupabaseClient, person: { id: string; us
     const userId =
       created.data?.user?.id ?? (await admin.from('profiles').select('user_id').eq('id', person.id).maybeSingle()).data?.user_id ?? null;
     if (userId) await admin.from('profiles').update({ user_id: userId }).eq('id', person.id).is('user_id', null);
+    if (internal) await admin.from('profiles').update({ email: null }).eq('id', person.id);
   }
   const link = await admin.auth.admin.generateLink({ type: 'magiclink', email });
   const hash = link.data?.properties?.hashed_token;

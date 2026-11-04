@@ -23,6 +23,7 @@ export type FeatureEvent = { feature_key: string; state: FeatureState; later_cou
 /** where "Show me" takes you, and which spotlight lights up there (none = Saree3 shows it himself) */
 export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   today_home: { href: '/01-home', spot: 'home.pulse' },
+  invite_status: { href: '/39-team', spot: 'team.status' },
   confirm_new: { href: '/01-home', spot: 'home.confirm' },
   week_links: { href: '/01-home', spot: 'home.week' },
   sectors: { href: '/12-sources', spot: 'sources.sector' },

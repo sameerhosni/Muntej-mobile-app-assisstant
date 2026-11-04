@@ -6,6 +6,8 @@ import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/them
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
+import { useInviteStates } from '@/features/invite/api';
+import { toldState } from '@/features/invite/NotToldCard';
 import { displayName, displayTitle, type Person, type PersonRole, type PersonStatus } from './model';
 import { NS } from './strings';
 
@@ -45,6 +47,8 @@ export function PersonRow({ person, meId, reports, openTasks, expanded, onToggle
   const deleted = person.status === 'deleted';
   const hasToggle = expanded !== undefined && !!onToggle;
   const Chevron = expanded ? ChevronDown : ChevronRight;
+  const invites = useInviteStates();
+  const told = person.status === 'pending' ? toldState(person, invites.data?.get(person.id)) : null;
 
   return (
     <View
@@ -138,7 +142,7 @@ export function PersonRow({ person, meId, reports, openTasks, expanded, onToggle
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs }}>
             <Chip label={t(`role_${person.role}`)} tone={ROLE_TONE[person.role]} />
             {person.status !== 'active' && (
-              <Chip label={t(`status_${person.status}`)} tone={person.status === 'pending' ? 'amber' : 'neutral'} dot />
+              <Chip label={told ? t(`told_${told.key}`) : t(`status_${person.status}`)} tone={told?.tone ?? (person.status === 'pending' ? 'amber' : 'neutral')} dot />
             )}
             {reports > 0 && (
               <AppText variant="micro" color="textMuted">

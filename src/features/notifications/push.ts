@@ -148,6 +148,8 @@ function openFrom(data: unknown) {
   else if (d.kind === 'idea_update') router.push('/59-ideas' as Href);
   // someone you invited joined: your team
   else if (d.kind === 'member_joined') router.push('/39-team' as Href);
+  // added to one more company: the card that opens it is on top of every screen
+  else if (d.kind === 'added_to_company') router.replace('/' as Href);
   // a push that names its screen (the setup reminder opens the setup chat, a code join opens the team)
   else if (d.url?.startsWith('/')) router.push(d.url as Href);
   else if (d.kind === 'support_reply') router.push(`/57-support?alert=${d.alertId ?? ''}` as Href);

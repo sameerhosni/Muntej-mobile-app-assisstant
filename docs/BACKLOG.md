@@ -34,6 +34,7 @@ Last updated: 2026-11-04
 | 1.16 | **Go live on Google Play** | Play Console account (25 USD + identity; an Organization account skips the 12-testers × 14-days test), create the app, upload the .aab from the GitHub release to Internal testing, then listing / App content / Data safety from docs/store/google-play.md with graphics from store/android/, Production → send for review. Then a service-account JSON so later uploads go by themselves. Review login for App access: play-review@muntej.app + the code in REVIEW_LOGIN_CODE (demo company from scripts/store/review-seed.sql). Optional: an alias for play-review@muntej.app in Google Workspace so its code emails stop bouncing. | On hold by owner (28 Oct): Internal testing is live; Production / Send for review waits until a batch of enhancements is done |
 | 1.17 | **New Expo token** | The one in EXPO_TOKEN stopped working on 27 Oct (deleted?): app updates and builds are blocked. Make one in expo.dev → Access tokens, give it to Claude (saved as the user env var and the GitHub secret). Then ship the waiting app changes: authenticator option removed from Sign-in & security (no one has it any more: removed on the server already), code screen asks for the fingerprint. | Blocked |
 | 1.18 | **iPhone app in the App Store** | Build 1 (1.0) uploaded from Mohammed's Mac on 2 Nov and processed. Left: someone with App Manager access fills the listing, privacy answers, review sign-in and screenshots from [docs/store/app-store.md](store/app-store.md) (our API key is read-only), then Submit for Review. | Waits for the App Store Connect form |
+| 1.19 | **Email for people added to one more company** | Verify muntej.app in Resend (DNS with Thamer), then give Claude the sender for RESEND_FROM. Until then they hear it by push and on the card in the app; the email goes nowhere. Same setup as the email reports. | Built, waits for the Resend domain |
 
 ## 2. Needs a new app build (can't come by over-the-air update)
 
@@ -53,6 +54,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 | # | Item |
 |---|------|
+| 3.0 | **Added to a company, on a real phone:** Add someone who already uses Muntej: they should get a push and the card on top, Open takes them in and you hear they joined. Share a join link with someone who has no mobile or email. Checked on the web build and against the database, not yet on a phone. Known gap: someone who joined by link and signs out can't sign in again until they have a mobile or email on their profile. |
 | 3.1 | Saree3's setup guide (owner + invited member), the setup bar on main screens, the 10:00 setup reminder |
 | 3.2 | One-time screen tips (Home, Chat, Tasks, Tasks from email, task page, Team, Decisions, More) |
 | 3.3 | Tasks from email: owner / time / priority / details from the email, 3 email accounts, Gmail switches |

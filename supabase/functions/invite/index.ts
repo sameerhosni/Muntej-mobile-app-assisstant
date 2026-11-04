@@ -8,12 +8,18 @@
 //                              (approved template muntej_join with a one-time join link; Meta allows no codes in it)
 //                              and / or by email;
 //                              each send is an invites row (sent → opened → joined). Returns { results: [{ id, whatsapp,
-//                              email }] }. A manager invites only people they can see (RLS), at most 100 at a time.
+//                              email, app }] }. A manager invites only people they can see (RLS), at most 100 at a time.
+//                              Someone who already has a login hears it inside Muntej instead (app: 'told').
+//   { link: { person_id } }    a one-time join link for the manager to share, only for someone with no email, no mobile
+//                              and no login (nobody else's identity is at stake). Returns { url }. Managers and admins.
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
-import { inviteByEmail, inviterInfo } from '../_shared/invite.ts';
-import { sendInvite, type InvitePerson, type InviteResult } from '../_shared/invite-send.ts';
+import { inviterInfo } from '../_shared/invite.ts';
+import { invitePerson, sendInvite, type InvitePerson, type InviteResult } from '../_shared/invite-send.ts';
+import { newToken, sha256 } from '../_shared/phone-session.ts';
 import { phCapture } from '../_shared/posthog.ts';
+
+const JOIN_PAGE = 'https://nizamy-muntej.expo.app/join.html';
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
@@ -21,6 +27,7 @@ serve(async (req) => {
     email?: { person_id?: string };
     redeem?: { code?: string };
     send?: { person_ids?: string[]; channel?: 'auto' | 'whatsapp' | 'email' };
+    link?: { person_id?: string };
   };
 
   if (body.redeem) {
@@ -35,11 +42,30 @@ serve(async (req) => {
   if (body.email?.person_id) {
     const { db, profileId } = await getCaller(req);
     // RLS: only people in the caller's own account are visible
-    const { data: person } = await db.from('profiles').select('email, full_name, user_id').eq('id', body.email.person_id).maybeSingle();
+    const { data: person } = await db.from('profiles').select('email, user_id').eq('id', body.email.person_id).maybeSingle();
     if (!person) throw new HttpError(404, 'Person not found');
-    if (!person.email || person.user_id) return json({ result: 'skipped' });
-    const result = await inviteByEmail(person.email as string, person.full_name as string, await inviterInfo(profileId));
-    return json({ result });
+    if (!person.email) return json({ result: 'skipped' });
+    const sent = await invitePerson(adminClient(), body.email.person_id, profileId, 'email');
+    return json({ result: sent?.email ?? 'skipped' });
+  }
+
+  if (body.link?.person_id) {
+    const { db, profileId } = await getCaller(req);
+    const { data: person } = await db.from('profiles').select('id, account_id, email, phone, user_id').eq('id', body.link.person_id).maybeSingle();
+    if (!person) throw new HttpError(404, 'Person not found');
+    const [{ data: manages }, { data: admin_ }] = await Promise.all([db.rpc('is_manager_of', { target: person.id }), db.rpc('is_admin')]);
+    if (!manages && !admin_) throw new HttpError(403, 'Only their manager can share their join link');
+    if (person.email || person.phone || person.user_id) throw new HttpError(400, 'This person can be invited directly');
+    const token = newToken();
+    await adminClient().from('invites').insert({
+      account_id: person.account_id,
+      profile_id: person.id,
+      invited_by: profileId,
+      channel: 'link',
+      token_hash: await sha256(token),
+      status: 'sent',
+    });
+    return json({ url: `${JOIN_PAGE}?t=${encodeURIComponent(token)}` });
   }
 
   if (body.send?.person_ids?.length) {
@@ -47,7 +73,7 @@ serve(async (req) => {
     const ids = body.send.person_ids.slice(0, 100);
     const channel = body.send.channel ?? 'auto';
     // RLS: only people the caller can see; only people with no login yet
-    const { data: people } = await db.from('profiles').select('id, full_name, full_name_ar, email, phone, user_id, locale, account_id').in('id', ids);
+    const { data: people } = await db.from('profiles').select('id, full_name, full_name_ar, email, phone, user_id, locale, account_id, status').in('id', ids);
     const info = await inviterInfo(profileId);
     const admin = adminClient();
     const results: InviteResult[] = [];

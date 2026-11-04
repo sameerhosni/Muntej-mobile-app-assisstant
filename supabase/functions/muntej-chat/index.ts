@@ -25,6 +25,7 @@ import { getCaller, HttpError, json, requireEnv, serve, type Caller } from '../_
 import { readTeam } from '../_shared/team-reader.ts';
 import { adminClient } from '../_shared/push.ts';
 import { inviteByEmail, inviterInfo } from '../_shared/invite.ts';
+import { invitePerson } from '../_shared/invite-send.ts';
 import { deliverPending } from '../_shared/notify.ts';
 
 /** Push the alerts this request just created (assignments, reviews, changes for someone else) right away
@@ -2430,7 +2431,7 @@ async function runAccount(
     if (error && !already) return { reply: say(`I couldn't add them: ${error.message}`, `ما قدرت أضيفه: ${error.message}`), payload: null };
     const { data: acc } = await db.from('accounts').select('name, name_ar').eq('id', me.account_id).maybeSingle();
     const company = (ar ? acc?.name_ar : null) ?? acc?.name ?? '';
-    if (!already && personId) await inviteByEmail(email, fullName, await inviterInfo(meId as string));
+    if (!already && personId) await invitePerson(adminClient(), personId as string, meId as string, 'email');
     const inviter = ((ar ? me.full_name_ar : null) ?? me.full_name ?? '').split(' ')[0];
     const message = ar
       ? `هلا${name ? ` ${name}` : ''}! 👋 ${inviter} أضافك لفريق ${company} على منتج، المساعد اللي يتابع الشغل بدال الفريق.\n١) حمّل التطبيق: ${DOWNLOAD_URL}\n٢) سجّل دخول بإيميلك: ${email}\nوخلاص، أنت معنا 🚀`
@@ -2759,13 +2760,24 @@ async function applyOrg(db: Caller['db'], profileId: string, raw: unknown, ar: b
 
   const { data: person } = await db
     .from('profiles')
-    .select('full_name, full_name_ar, email, user_id')
+    .select('full_name, full_name_ar, email, phone, user_id')
     .eq('id', id as string)
     .single();
   const name = person ? ((ar ? person.full_name_ar : null) ?? person.full_name) : '';
-  // a new person with an email and no login yet gets an invitation email (sales@muntej.app)
-  const invite = isNew && person?.email && !person.user_id ? await inviteByEmail(person.email, person.full_name, await inviterInfo(profileId)) : null;
-  const invited = invite === 'invited' ? (ar ? ` وأرسلت له دعوة على ${person!.email}.` : ` I emailed ${person!.email} an invitation.`) : '';
+  // whoever is new hears about it: WhatsApp or email if they've no login, inside Muntej if they have, and the manager
+  // is told plainly when there's no way to reach them
+  const sent = isNew ? await invitePerson(adminClient(), id as string, profileId) : null;
+  const invited = !isNew
+    ? ''
+    : sent?.whatsapp === 'sent'
+      ? ar ? ' وأرسلت له دعوة على الواتساب.' : ' I invited them on WhatsApp.'
+      : sent?.email === 'invited'
+        ? ar ? ` وأرسلت له دعوة على ${person!.email}.` : ` I emailed ${person!.email} an invitation.`
+        : sent?.app
+          ? ar ? ' وعنده حساب في منتج، فبلّغته داخل التطبيق.' : ' They already use Muntej, so I told them in the app.'
+          : !person?.email && !person?.phone
+            ? ar ? ' بس ما عنده جوال ولا إيميل، فما راح يدري. افتح بطاقته في الفريق وشارك له رابط الدخول.' : ' But they have no mobile or email, so they won’t know. Open their card on Team and share their join link.'
+            : ar ? ' بس ما قدرت أرسل له الدعوة، جرّب من بطاقته في الفريق.' : ' But the invitation didn’t go out. Try again from their card on Team.';
   const reply = isNew
     ? ar
       ? `تم، أضفت ${name} للفريق.${invited}`

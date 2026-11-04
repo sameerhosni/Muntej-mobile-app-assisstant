@@ -2,7 +2,7 @@
 // no codes in it) when they have a mobile, email otherwise (or too). Each send is an invites row (sent → opened →
 // joined). Used by the invite function (a manager taps Invite) and onboarding-nudges (the daily resend).
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
-import { inviteByEmail, type InviteExtra } from './invite.ts';
+import { inviteByEmail, inviterInfo, type InviteExtra } from './invite.ts';
 import { INVITE_TEMPLATE, waConfigured, waTemplateWith } from './wa.ts';
 import { newToken, sha256 } from './phone-session.ts';
 
@@ -15,8 +15,18 @@ export type InvitePerson = {
   user_id: string | null;
   locale: string | null;
   account_id: string;
+  status?: string;
 };
-export type InviteResult = { id: string; whatsapp?: string; email?: string };
+/** app: someone with a login heard it inside Muntej ('told'), or already did today ('already') */
+export type InviteResult = { id: string; whatsapp?: string; email?: string; app?: 'told' | 'already' };
+
+const PERSON = 'id, full_name, full_name_ar, email, phone, user_id, locale, account_id, status';
+
+/** the same, for someone just added: by id, as the person who added them */
+export async function invitePerson(admin: SupabaseClient, id: string, invitedBy: string, channel: 'auto' | 'whatsapp' | 'email' = 'auto'): Promise<InviteResult | null> {
+  const { data: p } = await admin.from('profiles').select(PERSON).eq('id', id).maybeSingle();
+  return p ? sendInvite(admin, p as InvitePerson, invitedBy, await inviterInfo(invitedBy), channel) : null;
+}
 
 export async function sendInvite(
   admin: SupabaseClient,
@@ -26,7 +36,12 @@ export async function sendInvite(
   channel: 'auto' | 'whatsapp' | 'email' = 'auto',
 ): Promise<InviteResult> {
   const r: InviteResult = { id: p.id };
-  if (p.user_id) return { ...r, whatsapp: 'has_login', email: 'has_login' };
+  if (p.user_id) {
+    // no invitation for a login that exists: if they haven't opened this company, they hear it inside Muntej
+    if (p.status !== 'pending') return { ...r, whatsapp: 'has_login', email: 'has_login' };
+    const { data: told } = await admin.rpc('tell_added_person', { p_person: p.id, p_by: invitedBy });
+    return { ...r, whatsapp: 'has_login', email: 'has_login', app: told ? 'told' : 'already' };
+  }
   if (p.phone && (channel === 'auto' || channel === 'whatsapp')) {
     if (!waConfigured()) r.whatsapp = 'not_configured';
     else {

@@ -8,6 +8,7 @@ import { sendPush } from './push.ts';
 import { ACTION_TEMPLATE, inWindow, waButtons, waTemplate } from './wa.ts';
 import { needsYouCards } from './wa-actions.ts';
 import { phCapture } from './posthog.ts';
+import { sendEmail } from './email.ts';
 
 export type AlertKind =
   | 'task_late'
@@ -35,7 +36,9 @@ export type AlertKind =
   // news about an idea the person sent (status or the team's reply)
   | 'idea_update'
   // someone you invited signed in for the first time (trigger member_joined_notice): good news, sent right away
-  | 'member_joined';
+  | 'member_joined'
+  // someone with a login was added to one more company (tell_added_person): heard where they are now, also by email
+  | 'added_to_company';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -64,6 +67,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   support_reply: null,
   idea_update: null,
   member_joined: null,
+  added_to_company: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
@@ -79,6 +83,7 @@ export const EXCEPTION_KINDS = new Set<AlertKind>([
   'objective_missed',
   'support_reply',
   'idea_update',
+  'added_to_company',
 ]);
 /** these go out at once too when the task is high or urgent priority */
 export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk', 'no_reply']);
@@ -263,7 +268,7 @@ export async function deliverPending(
   const ids = [...new Set(rows.map((r) => r.profile_id))];
   const [prefs, { data: ppl }] = await Promise.all([
     loadPrefs(admin, ids),
-    admin.from('profiles').select('id, full_name, full_name_ar, locale, phone, whatsapp_connected, wa_last_inbound_at').in('id', ids),
+    admin.from('profiles').select('id, full_name, full_name_ar, locale, phone, email, whatsapp_connected, wa_last_inbound_at').in('id', ids),
   ]);
   const people = new Map((ppl ?? []).map((p) => [p.id as string, p]));
   // high-priority work going late or at risk is urgent: it goes out at once like a decision (owner's request), never
@@ -355,6 +360,12 @@ export async function deliverPending(
     const ar = person?.locale === 'ar';
     const tTitle = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
     const tBody = (a: PendingAlert) => (ar ? a.body_ar : null) ?? a.body;
+    // a new company is worth an email too: their phone may not be registered for push yet
+    if (person?.email) {
+      for (const a of list.filter((x) => x.kind === 'added_to_company')) {
+        await sendEmail(person.email, tTitle(a), `<div dir="${ar ? 'rtl' : 'ltr'}"><p><b>${tTitle(a)}</b></p><p>${tBody(a)}</p></div>`, `${tTitle(a)}\n\n${tBody(a)}`).catch((e) => console.error('added email', String(e)));
+      }
+    }
     // 2+ at once (the morning backlog, a busy minute): one notification that opens the Alerts screen
     const grouped = list.length >= 2;
     const messages = grouped
