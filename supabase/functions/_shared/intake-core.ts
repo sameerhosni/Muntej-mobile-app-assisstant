@@ -376,8 +376,10 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const relevant = confident
     .map((t) => (isChat && t.owner_id && t.owner_id !== input.profileId && !named(t.owner_id) ? { ...t, owner_id: null } : t))
     .filter((t) => !(t.outside && !t.owner_id && !t.asked_by_user) && !(isChat && !t.owner_id && !t.asked_by_user))
-    // only work someone asked of the user, or the user handed out (task tools assign work, so theirs always is)
-    .filter((t) => st || t.asked_of_user || t.asked_by_user);
+    // only work someone asked of the user (task tools assign work, so theirs always is). What the user asked of others
+    // in their own mail / chats is theirs to chase, not a task for them (owner, 4 Nov: "not even assigned to me"); it
+    // still counts when they hand it to Saree3 directly (WhatsApp, a pasted note)
+    .filter((t) => st || t.asked_of_user || (t.asked_by_user && !input.connectionId));
   const kept = onlyMine ? relevant.filter((t) => t.owner_id === input.profileId) : relevant;
   const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;
