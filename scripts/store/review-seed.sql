@@ -24,6 +24,7 @@ begin
   delete from public.ideas where account_id = demo;
   delete from public.team_drafts where account_id = demo;
   delete from public.invites where account_id = demo;
+  delete from public.chat_messages where profile_id in (select id from public.profiles where account_id = demo);
   delete from public.tasks where assigner_id in (select id from public.profiles where account_id = demo)
                               or owner_id in (select id from public.profiles where account_id = demo);
   delete from public.profiles where account_id = demo and id not in (boss, faisal, abdullah, noura, khalid, saad, maha);
@@ -40,6 +41,11 @@ begin
   on conflict (id) do update set
     full_name = excluded.full_name, full_name_ar = excluded.full_name_ar, title = excluded.title, role = excluded.role,
     manager_id = excluded.manager_id, status = excluded.status, deleted_batch = null, phone = null, email = excluded.email;
+
+  -- the reviewer opens in the demo company, even after making another company of their own (Apple's review, 3 Nov)
+  insert into public.account_sessions (user_id, account_id)
+  select id, demo from auth.users where email = 'play-review@muntej.app'
+  on conflict (user_id) do update set account_id = excluded.account_id, updated_at = now();
 
   -- nothing goes out from the demo company
   insert into public.notification_prefs (profile_id, channels)

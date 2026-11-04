@@ -57,7 +57,32 @@ The current name, "Muntej ( Task Assisstant )", has a typo. Replace it with the 
     Sign in: type the email play-review@muntej.app, tap Send code, then type the 6-digit code given as the password
     (no email needed). You are the manager of a demo company (Horizon Trading) with a sample team and tasks. The app
     is in Arabic and English. Tap the microphone to say a task; Saree3 (the assistant) assigns it and follows up.
-    There are no purchases in the app. Accounts can be deleted in Settings → Delete account.
+    There are no purchases in the app. The full user journey, screen by screen:
+    https://nizamy-muntej.expo.app/journey.html
+    Team members delete their account in Settings → Delete my account. That button is not shown to company admins,
+    including this demo login. Admins can ask for deletion at sales@muntej.app
+    (https://nizamy-muntej.expo.app/delete-account.html).
+    ```
+  - Journey guide: page `support-web/journey.html`, PDF `store/journey/muntej-user-journey.pdf`. To refresh them, run
+    `node scripts/store/journey.mjs`, then `node --use-system-ca scripts/store/journey-guide.mjs`, then deploy
+    support-web.
+  - Reply to Apple in the Resolution Center (attach the PDF):
+    ```
+    Hello,
+
+    The attached PDF shows the full user journey with a captioned screen for every step. The same guide is online:
+    https://nizamy-muntej.expo.app/journey.html
+
+    How it works: a manager says or types a task once. Muntej assigns it to the right person, follows up, collects
+    the proof and reports back. The employee gets the task, updates it with one tap and sends it for review. The
+    manager then approves requests and finished work and reads the reports.
+
+    To follow it in the app, sign in with the demo login in App Review Information. You are the manager of a demo
+    company, Horizon Trading. To see the employee screens, open Settings → View the app as → Employee.
+
+    The screens are captured at iPhone size from the app's web build, using the same demo company.
+
+    Thank you.
     ```
 - **Version Release:** "Automatically release this version" (or manual, if you want to pick the day).
 
