@@ -26,6 +26,11 @@ const Found = z.object({
       owner_name: z.string().nullable().describe('who the message says should do it, as written ("Mohammed Nabulsi", "the dev team"), even when they are not in team; null when unclear'),
       outside: z.boolean().describe('true when the work is for a person or team that is not in team and is not the user'),
       asked_by_user: z.boolean().describe('true when the user themself is the one asking for this work (they are handing it out)'),
+      asked_of_user: z
+        .boolean()
+        .describe(
+          'true only when this work is asked of the user: the message is written to them (To line, a direct chat, "Hi <user>", "can you…") with a concrete request, or names / assigns them, or is their own note or promise. A report, status update, offer, pitch, newsletter or work between other people = false',
+        ),
       requested_by: z.string().nullable().describe('who asked for this work: their name as written (the sender, or the person in the chat / meeting who asked), or null'),
       due_at: z.string().nullable().describe('ISO 8601 with +03:00: the date AND time the message gives, or null'),
       priority: z.enum(['low', 'medium', 'high', 'urgent']),
@@ -59,6 +64,11 @@ Rules:
 - Find only real, actionable work someone has to do (requests, action items, promises with a deadline). Ignore greetings, FYIs, signatures, quoted history, marketing, automated notifications and things already done. No tasks → empty list.
 - Automated mail is NEVER a task: security alerts, sign-in / verification codes, receipts and payment notices, newsletters, "X accepted your invitation", policy / terms updates, system alerts and reports, marketing. Only a real person asking for work (or the user's own note-to-self) makes a task. This holds even when the alert tells the reader to act ("check your account", "revoke the app password", "investigate pipeline failures", "review active sessions"): monitoring / security / product alerts from Google, Microsoft, PostHog, Intercom, Sentry, GitHub, AWS, Stripe and the like are NOT tasks.
 - Scope: a task needs a human sender who is on the team, or a person (client, partner, colleague) writing to the user about their work and asking for something. Vendor / SaaS mail, cold outreach and mail the user was only copied on without a request → no task.
+- ONLY WHAT IS ASKED OF THE USER (owner, 4 Nov: "I need only direct tasks for me, either assigned or asked, or the context means it's for me"). A task needs someone asking the user (or, for a manager, the user's team through them) to do it. NOT tasks, whatever the wording:
+  · reports, status updates, run logs and summaries, from a person or an agent ("X run stopped: setup missing", "canary not sent — hold wave 1", "status of…"): the next steps they list are information, not asks;
+  · offers, sales pitches, partnership or vendor proposals, "would you like…", demo or meeting invitations from someone selling something, even when written to the user by name and asking for a reply or a decision: that is cold outreach;
+  · steps for "the person responsible", "someone", "the team" with nobody asked.
+  When unsure, leave it out: a missed task costs less than a wrong one.
 - A short message whose subject or body is itself an instruction ("test the Availo system", "send the price list", "راجع العقد") IS a task, even without "please" or a deadline: the work is for the user (owner = user_id) unless someone else is named. confidence 0.6–0.8. Only a message with no work in it at all (thanks, FYI, a newsletter) has no task.
 - At most ${MAX_TASKS} tasks. Every separate piece of work is its own task: when a message (or a conversation) gives several things to do, numbered or not, or tells one person several things, list each one separately with its own owner. Talking with someone about what a third person should do (e.g. telling Faisal what Vamsi must do) = tasks for that third person (or for the one who must pass it on, if that is the ask). Never pack a whole conversation into one task. Only merge the exact same work said twice. Keep titles short (max ~10 words) and in the message's language; Saudi conversational Arabic when Arabic.
 - THE NAMED PERSON WINS: when the message names who should do it (a name, an @mention, "Rahma will test it"), that is the owner. If they are in team → owner_id; if not → owner_id null, owner_name = the name as written, outside = true. Never replace a named person with someone else because of their role or skills (a QA job named for Rahma is Rahma's, not the team's tester). Role / skill matching is only for work with no name.
@@ -320,6 +330,7 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
             owner_name: null,
             outside: false,
             asked_by_user: false,
+            asked_of_user: true,
           },
         ],
       }
@@ -364,7 +375,9 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   };
   const relevant = confident
     .map((t) => (isChat && t.owner_id && t.owner_id !== input.profileId && !named(t.owner_id) ? { ...t, owner_id: null } : t))
-    .filter((t) => !(t.outside && !t.owner_id && !t.asked_by_user) && !(isChat && !t.owner_id && !t.asked_by_user));
+    .filter((t) => !(t.outside && !t.owner_id && !t.asked_by_user) && !(isChat && !t.owner_id && !t.asked_by_user))
+    // only work someone asked of the user, or the user handed out (task tools assign work, so theirs always is)
+    .filter((t) => st || t.asked_of_user || t.asked_by_user);
   const kept = onlyMine ? relevant.filter((t) => t.owner_id === input.profileId) : relevant;
   const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;
