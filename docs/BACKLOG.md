@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-11-02
+Last updated: 2026-11-04
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -96,6 +96,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-04 · Email and chat bring only work asked of you (server: connect, intake, public-api, sync-sources, whatsapp)
 - 2026-11-02 · Support replies notify at once, chat stays on tasks (server: intercom-webhook, muntej-chat)
 - 2026-11-02 · Chat asks one sharp question for vague tasks, clear errors with auto retry, full month tab label, WhatsApp needs your number (server: muntej-chat · app update 1.0.0)
 - 2026-11-02 · Clearer scroll-down hint in Saree3's tour (app update 1.0.0)
