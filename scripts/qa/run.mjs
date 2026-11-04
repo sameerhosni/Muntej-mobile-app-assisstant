@@ -4,6 +4,7 @@
 //   node scripts/qa/run.mjs --no-ui    code + server only (no browser)
 //   node scripts/qa/run.mjs --only ui  only the screens
 //   node scripts/qa/run.mjs --only cases  only the real cases
+//   node scripts/qa/run.mjs --only tasks  only the task cases
 // What it does:
 //   1. code: app type-check, every edge function type-check
 //   2. resets the separate test company "Muntej QA" (scripts/qa/seed.sql; real companies are never touched) and signs
@@ -22,6 +23,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 
 import { join } from 'node:path';
 import { cases } from './cases.mjs';
 import { inviteCases } from './invite-cases.mjs';
+import { taskCases } from './task-cases.mjs';
 
 // the company network re-signs HTTPS; without the system certificates every call to Supabase fails ("fetch failed")
 if (!process.execArgv.includes('--use-system-ca') && !(process.env.NODE_OPTIONS ?? '').includes('--use-system-ca')) {
@@ -134,6 +136,15 @@ async function rpc(name, args, jwt) {
   const text = await r.text();
   if (!r.ok) throw new Error(`${name} ${r.status}: ${text.slice(0, 300)}`);
   return text ? JSON.parse(text) : null;
+}
+
+async function insert(table, row, jwt) {
+  const r = await fetch(`${URL_}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jwt}`, apikey: ANON, 'Content-Type': 'application/json' },
+    body: JSON.stringify(row),
+  });
+  if (!r.ok) throw new Error(`${table} ${r.status}: ${(await r.text()).slice(0, 300)}`);
 }
 
 /** sign in as the QA manager through the test link → access token */
@@ -439,7 +450,10 @@ async function screens() {
 // ─── run ──────────────────────────────────────────────────────────────────────
 expect(TOKEN, 'SUPABASE_ACCESS_TOKEN is not set (the same user env var db-apply uses)');
 if (want('code')) await code();
-if (want('server') || want('ui') || want('screens') || want('cases') || want('invites')) await server();
+if (want('server') || want('ui') || want('screens') || want('cases') || want('invites') || want('tasks')) await server();
+if (JWT && (want('server') || want('cases') || want('tasks'))) {
+  await taskCases({ check, expect, sql, jwt: JWT, jwtFor, rpc, insert, ids: { QA_ACCOUNT, QA_BOSS } });
+}
 if (JWT && (want('server') || want('cases') || want('invites'))) {
   await inviteCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, ids: { QA_ACCOUNT, QA_BOSS } });
 }
