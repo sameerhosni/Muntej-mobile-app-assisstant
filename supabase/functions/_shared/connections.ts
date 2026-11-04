@@ -5,7 +5,7 @@ import { requireEnv } from './http.ts';
 import { sendPush } from './push.ts';
 import { ingestMessage, OPEN, type Creator } from './intake-core.ts';
 import { microsoft } from './providers/microsoft.ts';
-import { google } from './providers/google.ts';
+import { google, findEmailByName } from './providers/google.ts';
 import { clickup } from './providers/clickup.ts';
 import { jira } from './providers/jira.ts';
 import { trello } from './providers/trello.ts';
@@ -67,6 +67,28 @@ export type TaskSync = {
 };
 
 /** every tool shown on the Sources screen; only those in PROVIDERS can connect today */
+/** someone's email from this person's connected Google mailbox, or null (no mailbox, nothing found, or it failed) */
+export async function emailFromMailbox(admin: SupabaseClient, profileId: string, name: string, myEmail?: string | null): Promise<string | null> {
+  const { data: conns } = await admin.from('connections').select('id').eq('profile_id', profileId).eq('provider', 'google');
+  for (const conn of conns ?? []) {
+    try {
+      const { data: secret } = await admin.from('connection_secrets').select('data').eq('connection_id', conn.id).single();
+      if (!secret) continue;
+      let tokens = await open(secret.data as string);
+      if (tokens.expires_at && tokens.expires_at < Date.now() + 60_000) {
+        if (!tokens.refresh_token) continue;
+        tokens = await google.refresh(tokens);
+        await admin.from('connection_secrets').update({ data: await seal(tokens), updated_at: new Date().toISOString() }).eq('connection_id', conn.id);
+      }
+      const found = await findEmailByName(tokens, name, myEmail);
+      if (found) return found;
+    } catch (e) {
+      console.warn('email lookup', (e as Error).message);
+    }
+  }
+  return null;
+}
+
 export const ALL_PROVIDERS = ['microsoft', 'google', 'slack', 'jira', 'clickup', 'trello', 'notion', 'azure_devops'] as const;
 export type ProviderId = (typeof ALL_PROVIDERS)[number];
 export const PROVIDERS: Partial<Record<ProviderId, Provider>> = { microsoft, google, clickup, jira, trello };

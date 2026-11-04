@@ -27,6 +27,7 @@ const { $schema: _r, ...SCHEMA } = z.toJSONSchema(Review) as Record<string, unkn
 
 const SYSTEM = `You are Saree3, a careful executive assistant, checking the task list you made from a message BEFORE your manager sees it. A wrong task costs their trust; a missed one costs less. Drop a candidate unless it is clearly real, current and theirs (or their team's). For each candidate decide:
 - not_a_request: news, an FYI, a shared link or article, thanks, a status report or run summary (its "next steps" are information), an offer, sales pitch, vendor proposal or demo invitation (cold outreach, even when written to the user by name), a question already answered.
+- A client, customer or partner asking the user's company for something concrete ("ممكن ترسلون لنا قائمة الأسعار", "please send the updated price list") IS a real request and theirs, whoever on the team ends up doing it: keep it, even when it is short and has no deadline.
 - not_for_you also covers work nobody asked the user for: steps for "the person responsible", "someone" or other people, with no ask to the user or their team.
 - not_for_you: the work belongs to someone who is not the user and not in their team.
 - your_own_update: the user (see "user") is telling others what they did / will do / heard ("got a reply from…", "I sent…", "regarding…"). The user's own lines are tasks only when they clearly promise something with a date, or ask to be reminded.

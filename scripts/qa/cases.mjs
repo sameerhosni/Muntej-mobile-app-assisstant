@@ -58,6 +58,24 @@ export async function cases({ check, expect, fn, sql, jwt, ids, ref, token }) {
     return `${s[0].title} → ${NAME[s[0].owner_id] ?? (s[0].owner_id === QA_BOSS ? 'you' : 'nobody yet')}`;
   });
 
+  // the owner, 5 Nov: "These 2 tasks are assigned to nouran I am sure". Sameer told Nouran in a direct message, and the
+  // cards said Sameer. The same message, with the header the Google Chat reader now writes.
+  const [{ full_name: BOSS_NAME }] = await sql(`select full_name from public.profiles where id = '${QA_BOSS}'`);
+  const [{ full_name: FAISAL_NAME }] = await sql(`select full_name from public.profiles where id = '${FAISAL}'`);
+  const dm = (lines) => ['Google Chat · Direct message between: ' + BOSS_NAME + ', ' + FAISAL_NAME, ...lines].join('\n');
+  await check('inbox', 'A direct message telling someone goes to them, not you', async () => {
+    const s = live(await ingest(dm([`[2026-11-04T13:04:46Z] ${BOSS_NAME}: Check for explee every 10 min pls`]), BOSS_NAME, 'Direct message'));
+    expect(s.length >= 1, 'no task');
+    expect(s.every((x) => x.owner_id === FAISAL), `went to ${s.map((x) => NAME[x.owner_id] ?? x.owner_name ?? (x.owner_id === QA_BOSS ? 'you' : 'nobody')).join(', ')}`);
+    return s[0].title;
+  });
+  await check('inbox', 'What they ask of you in a direct message stays yours', async () => {
+    const s = live(await ingest(dm([`[2026-11-04T13:04:46Z] ${FAISAL_NAME}: ممكن تعتمد لي عرض السعر قبل بكرة؟`]), FAISAL_NAME, 'Direct message'));
+    expect(s.length >= 1, 'no task');
+    expect(s.every((x) => x.owner_id === QA_BOSS), `went to ${s.map((x) => NAME[x.owner_id] ?? x.owner_name ?? 'nobody').join(', ')}`);
+    return s[0].title;
+  });
+
   // ─── chat: Hoda's conversation ──────────────────────────────────────────────
   const snapshot = async () =>
     (await sql(`select coalesce(max(updated_at), 'epoch')::text u, count(*)::int n from public.tasks where assigner_id in ${inQa} or owner_id in ${inQa}`))[0];

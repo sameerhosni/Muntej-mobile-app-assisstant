@@ -3,8 +3,9 @@
 //   (one per line or separated by commas) → Add. Role (employee / manager) and who they report to are two chips with
 //   sensible defaults; the name comes from what you typed or the email, the title is left for later. Each person gets
 //   the invitation email, and a WhatsApp button to tell them too. The full form is only for editing someone.
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Linking, Pressable, Share, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
 import { MessageCircle, Share2 } from 'lucide-react-native';
 import { AppText, Button, Card } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
@@ -13,6 +14,7 @@ import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTeam } from '@/lib/api';
 import { useUpsertPerson } from '@/features/org/model';
 import { useMyAccounts } from '@/features/accounts/api';
+import { useIncomingActions } from '@/features/incoming/api';
 import { emailInviteMessage, nameFromEmail, whatsappUrl } from './api';
 import { INVITE_NS } from './strings';
 
@@ -28,6 +30,11 @@ const en = {
   addN: 'Add {{n}}',
   noEmail: 'I need an email for each person (that’s how they sign in).',
   later: 'Their job title and the rest: they fill it in when they first sign in, or you edit it any time.',
+  foundMessage: 'I found this email in the message. Check it, then tap Add.',
+  foundMailbox: 'I found this email in your mailbox. Check it, then tap Add.',
+  noneFound: 'I couldn’t find their email. Type it after their name.',
+  looking: 'Looking for their email…',
+  backToTask: 'Back to the task',
 };
 const ar: typeof en & Record<string, string> = {
   box: 'إيميله، أو اسمه وإيميله',
@@ -41,6 +48,11 @@ const ar: typeof en & Record<string, string> = {
   addN: 'أضف {{n}}',
   noEmail: 'أحتاج إيميل لكل شخص (فيه يدخل).',
   later: 'مسماه الوظيفي والباقي: يعبّيها هو أول ما يدخل، أو تعدّلها أنت بأي وقت.',
+  foundMessage: 'لقيت إيميله في الرسالة. تأكد منه واضغط أضف.',
+  foundMailbox: 'لقيت إيميله في بريدك. تأكد منه واضغط أضف.',
+  noneFound: 'ما لقيت إيميله. اكتبه بعد اسمه.',
+  looking: 'أدوّر على إيميله…',
+  backToTask: 'رجوع للمهمة',
 };
 const NS = registerStrings('quickAdd', { en, ar });
 
@@ -68,7 +80,8 @@ function parse(text: string): Entry[] | null {
   return out;
 }
 
-export function QuickAdd({ managerId, onDone }: { managerId?: string | null; onDone?: (lastId: string) => void }) {
+/** fromTask: "+ Add Nouran" on a task card. The box opens with her name and the email Muntej found, and she gets the task. */
+export function QuickAdd({ managerId, onDone, fromTask }: { managerId?: string | null; onDone?: (lastId: string) => void; fromTask?: { name: string; item: string; index: number } }) {
   const { t } = useScreenT(NS);
   const { t: ti } = useScreenT(INVITE_NS);
   const { lang, isRTL } = useDirection();
@@ -76,12 +89,34 @@ export function QuickAdd({ managerId, onDone }: { managerId?: string | null; onD
   const team = useTeam();
   const accounts = useMyAccounts();
   const upsert = useUpsertPerson();
-  const [text, setText] = useState('');
+  const incoming = useIncomingActions();
+  const [text, setText] = useState(fromTask ? `${fromTask.name} ` : '');
+  const [hint, setHint] = useState<string | null>(null);
+  const [gaveTask, setGaveTask] = useState(false);
   const [role, setRole] = useState<'employee' | 'manager'>('employee');
   const [boss, setBoss] = useState<string | null>(managerId === undefined ? (me.data?.id ?? null) : managerId);
   const [sent, setSent] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!fromTask) return;
+    let live = true;
+    setHint('looking');
+    incoming
+      .findEmail(fromTask.item, fromTask.index)
+      .then((r) => {
+        if (!live) return;
+        setHint(r.email ? (r.from === 'message' ? 'foundMessage' : 'foundMailbox') : 'noneFound');
+        // never over what they already typed after the name
+        if (r.email) setText((now) => (now.trim() === fromTask.name.trim() ? `${fromTask.name} ${r.email}` : now));
+      })
+      .catch(() => live && setHint('noneFound'));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromTask?.item, fromTask?.index]);
 
   const ar_ = lang === 'ar';
   const entries = text.trim() ? parse(text) : [];
@@ -117,6 +152,11 @@ export function QuickAdd({ managerId, onDone }: { managerId?: string | null; onD
     if (done.length) {
       setSent((s) => [...done, ...s.filter((x) => !done.includes(x))]);
       setText('');
+      setHint(null);
+      if (last && fromTask) {
+        await incoming.setOwner(fromTask.item, fromTask.index, last).catch(() => {});
+        setGaveTask(true);
+      }
       if (last) onDone?.(last);
     }
   };
@@ -149,8 +189,8 @@ export function QuickAdd({ managerId, onDone }: { managerId?: string | null; onD
             textAlign: isRTL ? 'right' : 'left',
           }}
         />
-        <AppText variant="caption" color="textMuted">
-          {t('boxHint')}
+        <AppText variant="caption" color={hint === 'noneFound' ? 'amberText' : hint ? 'primary' : 'textMuted'}>
+          {t(hint ?? 'boxHint')}
         </AppText>
 
         <Chips label={t('role')}>
@@ -182,6 +222,7 @@ export function QuickAdd({ managerId, onDone }: { managerId?: string | null; onD
         </AppText>
       </Card>
 
+      {gaveTask && <Button label={t('backToTask')} variant="outline" size="md" onPress={() => router.back()} />}
       {/* everyone just added: tell them on WhatsApp too (the email may sit in spam) */}
       {sent.map((e) => {
         const message = emailInviteMessage(ti, { company, inviter, email: e });

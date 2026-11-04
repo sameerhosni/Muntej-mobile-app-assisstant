@@ -366,6 +366,35 @@ function skillLine(s: Skill) {
   return [s.name, s.level ? `${s.level}/5` : null, s.years ? `${s.years}y` : null].filter(Boolean).join(' ');
 }
 
+/** a reply that says the work was done */
+const CLAIMS_DONE = /^(تم|سويت|سوّيت|عدّلت|عدلت|حطيت|أضفت|ضفت|جهزت|سجلت|سجّلت|غيرت|غيّرت|done|created|updated|added|i(’|')ve (made|added|set|moved))/i;
+
+/** teammates named right next to this owner in the message ("عبدالله وخالد", "Faisal, Noura and Saad") */
+function namesJoinedTo(message: string, ownerId: string, team: { id: string; full_name: string; full_name_ar: string | null }[]): string[] {
+  const firsts = (p: { full_name: string; full_name_ar: string | null }) =>
+    [p.full_name, p.full_name_ar].filter((n): n is string => !!n).map((n) => n.split(' ')[0]).filter((n) => n.length > 1).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const group = (p: { full_name: string; full_name_ar: string | null }) => firsts(p).join('|');
+  const owner = team.find((p) => p.id === ownerId);
+  if (!owner || !group(owner)) return [];
+  const others = team.filter((p) => p.id !== ownerId && group(p));
+  const found = new Set<string>();
+  let names = group(owner);
+  // walk along the list: each name found joins the chain
+  for (let round = 0; round < team.length; round++) {
+    const before = found.size;
+    for (const p of others) {
+      if (found.has(p.id)) continue;
+      const near = new RegExp(`(?:${names})\\s*(?:،|,|\\s(?:و|and)\\s*|\\s&\\s*)\\s*(?:${group(p)})|(?:${group(p)})\\s*(?:،|,|\\s(?:و|and)\\s*|\\s&\\s*)\\s*(?:${names})`, 'i');
+      if (near.test(message)) {
+        found.add(p.id);
+        names = `${names}|${group(p)}`;
+      }
+    }
+    if (found.size === before) break;
+  }
+  return [...found];
+}
+
 function missingOf(t: Pick<TaskRow, 'owner_id' | 'due_at' | 'definition_of_done' | 'budget'>) {
   const m: string[] = [];
   if (!t.owner_id) m.push('owner');
@@ -839,6 +868,7 @@ serve(async (req) => {
     // «خلها تسليم الخميس» failed once with an English error, then worked as typed)
     let lastError: HttpError | null = null;
     let got: ChatOutput | null = null;
+    let correction: string | null = null;
     for (let attempt = 0; attempt < 2 && !got; attempt++) {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -853,6 +883,7 @@ serve(async (req) => {
               ? [{ role: 'system', content: 'This turn is on WhatsApp: keep the reply short (at most 4 short lines), no markdown headings or tables. Cards and buttons are added for you.' }]
               : []),
             ...conversation,
+            ...(correction ? [{ role: 'system', content: correction }] : []),
             // anchor the turn on the focused task so the reply talks about it (the saved message stays as typed)
             {
               role: 'user',
@@ -884,6 +915,12 @@ serve(async (req) => {
       try {
         const r = ChatOutput.safeParse(JSON.parse(msg?.content ?? ''));
         if (!r.success) throw new Error('schema');
+        // says it did it, with no action: once more, told so (a reply must never claim what didn't happen)
+        if (attempt === 0 && r.data.action === 'none' && CLAIMS_DONE.test(r.data.reply.trim())) {
+          console.warn('chat claimed work with no action', r.data.reply.slice(0, 80));
+          correction = `Your last answer said "${r.data.reply.slice(0, 120)}" but its action was "none", so nothing was saved. If the user asked for this, answer with the real action and all its fields. If you are not doing anything, say so honestly.`;
+          continue;
+        }
         got = r.data;
       } catch {
         console.warn('chat bad reply', attempt);
@@ -1105,7 +1142,9 @@ serve(async (req) => {
     if (t.due_at && Number.isNaN(Date.parse(t.due_at))) t.due_at = null;
     if (estDue) t.due_at = dueFromHours(est! + queueHoursOf(person(t.owner_id)), perDayOf(person(t.owner_id)));
     const ac = body.apply_create;
-    const others = ac ? [] : [...new Set((alsoFor ?? []).map(person).filter((x): x is string => !!x && x !== t.owner_id))];
+    // "عط عبدالله وخالد مهمة": the model sometimes keeps only the first; names joined to the owner's are for this task too
+    const joined = ac || !t.owner_id ? [] : namesJoinedTo(message, t.owner_id, team);
+    const others = ac ? [] : [...new Set([...(alsoFor ?? []).map(person), ...joined].filter((x): x is string => !!x && x !== t.owner_id))];
     const dup = ac ? null : findDuplicate(t.title, t.owner_id);
     const proposed = { ...t, objective_id: wantObjective, estimate_hours: est };
     if (each.length >= 2) {
@@ -1517,6 +1556,13 @@ serve(async (req) => {
         : `Saved, but heads up: you're in “${accountLabel(here, false)}” where you're the only one. Your team is in “${there}”. Switch there and give it to them?`;
       parsed.suggestions = [ar ? `انقلني لحساب ${there}` : `Switch to ${there}`];
     }
+  }
+
+  // still claims it with nothing done (a bad task id, say): the truth, not a false "done"
+  const asked = bulkProposal || peopleChoice || duplicate || teamDraft || orgProposal || objectiveProposal || recurringProposal || proposedPatch;
+  if (action === 'none' && !asked && !undoLogId && ['none', 'create', 'update'].includes(parsed.action) && CLAIMS_DONE.test(parsed.reply.trim())) {
+    parsed.reply = ar0 ? 'ما قدرت أسويها للحين، ولا تغيّر شي. قولها لي مرة ثانية وبتفاصيل أكثر.' : "I couldn't do that yet, and nothing changed. Tell me again with a bit more detail.";
+    parsed.suggestions = [];
   }
 
   // ── task card snapshot ──

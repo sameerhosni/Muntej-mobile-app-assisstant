@@ -61,9 +61,8 @@ export async function inviteCases({ check, expect, fn, sql, jwt, ids, jwtFor, rp
       expect(i.channel === 'link', `invite channel ${i.channel}`);
       return 'joined';
     });
-    await check('invites', 'No join link for someone we can reach', async () => {
-      const id = await rpc('upsert_person', { p: { full_name: 'QA invite Reachable', email: 'qa-nobody@qa.muntej.test', role: 'employee', manager_id: QA_BOSS } }, jwt);
-      const r = await fn('invite', { link: { person_id: id } }, jwt).catch((e) => e);
+    await check('invites', 'No join link for someone who already signs in', async () => {
+      const r = await fn('invite', { link: { person_id: seat } }, jwt).catch((e) => e);
       expect(r instanceof Error && /400/.test(r.message), `answered ${r?.message ?? JSON.stringify(r)}`);
       return 'refused';
     });

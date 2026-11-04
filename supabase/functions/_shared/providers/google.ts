@@ -363,7 +363,8 @@ export const google: Provider = {
           if (!said.length) continue;
           // names: from the message, else from the space's members (user auth often leaves displayName empty)
           const names = new Map<string, string>();
-          if (said.some((m) => !m.sender?.displayName))
+          const isDirect = sp.spaceType === 'DIRECT_MESSAGE';
+          if (isDirect || said.some((m) => !m.sender?.displayName))
             try {
               const mem = await api<{ memberships?: { member?: { name?: string; displayName?: string } }[] }>(
                 t,
@@ -374,13 +375,15 @@ export const google: Provider = {
               // names are nice to have
             }
           const who = (m: ChatMessage) => m.sender?.displayName || names.get(m.sender?.name ?? '') || 'Someone';
-          const where = sp.spaceType === 'DIRECT_MESSAGE' ? 'Direct message' : (sp.displayName ?? 'Space');
+          const where = isDirect ? 'Direct message' : (sp.displayName ?? 'Space');
+          // both people in it, by name: a line that only says "Check for explee pls" doesn't say who it's for
+          const people = isDirect ? [...new Set([...names.values(), ...said.map(who)])].filter((x) => x !== 'Someone') : [];
           const last = said[said.length - 1];
           items.push({
             externalId: `gchat:${last.name}`,
             source: 'google_chat',
             text: [
-              `Google Chat · ${where}`,
+              people.length ? `Google Chat · Direct message between: ${people.join(', ')}` : `Google Chat · ${where}`,
               ...said.map((m) => `[${m.createTime ?? ''}] ${who(m)}: ${(m.text ?? '').trim()}`),
             ]
               .join('\n')
@@ -403,6 +406,26 @@ export const google: Provider = {
     };
   },
 };
+
+/** the address someone uses, from mail with them: their name must match, and the most used address wins */
+export async function findEmailByName(t: Tokens, name: string, myEmail?: string | null): Promise<string | null> {
+  const words = name.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const list = await api<{ messages?: { id: string }[] }>(t, `${GMAIL}/messages?${new URLSearchParams({ q: `from:"${name}" OR to:"${name}" OR cc:"${name}"`, maxResults: '10' })}`);
+  const count = new Map<string, number>();
+  for (const m of list.messages ?? []) {
+    const params = new URLSearchParams({ format: 'metadata' });
+    for (const h of ['From', 'To', 'Cc']) params.append('metadataHeaders', h);
+    const full = await api<{ payload?: { headers?: { name: string; value: string }[] } }>(t, `${GMAIL}/messages/${m.id}?${params}`);
+    for (const h of full.payload?.headers ?? [])
+      for (const [, shown, address] of h.value.matchAll(/"?([^",<]*?)"?\s*<([^>\s]+@[^>\s]+)>/g)) {
+        const said = shown.toLowerCase();
+        const mail = address.toLowerCase();
+        if (mail !== myEmail?.toLowerCase() && words.every((w) => said.includes(w))) count.set(mail, (count.get(mail) ?? 0) + 1);
+      }
+  }
+  return [...count].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
 
 type MeetRecord = { name: string; space?: string; startTime?: string; endTime?: string };
 type ChatSpace = { name: string; displayName?: string; spaceType?: string; lastActiveTime?: string };

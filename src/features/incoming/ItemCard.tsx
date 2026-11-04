@@ -65,6 +65,7 @@ export function ItemCard({ item }: { item: IncomingItem }) {
             busy={busy === `s${i}`}
             onAccept={(edit) => run(`s${i}`, () => actions.accept(item.id, i, edit))}
             onIgnore={() => run(`s${i}`, () => actions.ignore(item.id, i))}
+            onAddOwner={() => router.push({ pathname: '/39-team', params: { add: '1', name: s.owner_name ?? '', item: item.id, index: String(i) } })}
           />
         ))}
       </View>
@@ -108,12 +109,15 @@ function SuggestionRow({
   busy,
   onAccept,
   onIgnore,
+  onAddOwner,
 }: {
   s: Suggestion;
   /** the message's sender, when Saree3 didn't name who asked */
   from?: string | null;
   busy: boolean;
   onAccept: (edit?: SuggestionEdit) => void;
+  /** the message names someone not in Muntej: add them */
+  onAddOwner: () => void;
   onIgnore: () => void;
 }) {
   const { t } = useScreenT(NS);
@@ -159,7 +163,7 @@ function SuggestionRow({
       {/* the message names someone who isn't in Muntej yet: add them, then the task can go to them */}
       {!done && !ownerName && !!s.owner_name && (
         <Pressable
-          onPress={() => router.push({ pathname: '/39-team', params: { add: '1' } })}
+          onPress={onAddOwner}
           accessibilityRole="link"
           style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: sizes.touch - 8 }}
         >

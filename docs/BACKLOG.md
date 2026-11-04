@@ -55,6 +55,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | # | Item |
 |---|------|
 | 3.0 | **Added to a company, on a real phone:** Add someone who already uses Muntej: they should get a push and the card on top, Open takes them in and you hear they joined. Share a join link with someone who has no mobile or email. Checked on the web build and against the database, not yet on a phone. Known gap: someone who joined by link and signs out can't sign in again until they have a mobile or email on their profile. |
+| 3.01 | **Arabic and English on a real Android phone:** Arabic on the right, English sentences on the left, no cut letters ("مدير"), Reject all shows its bar. Checked on the web build only |
 | 3.1 | Saree3's setup guide (owner + invited member), the setup bar on main screens, the 10:00 setup reminder |
 | 3.2 | One-time screen tips (Home, Chat, Tasks, Tasks from email, task page, Team, Decisions, More) |
 | 3.3 | Tasks from email: owner / time / priority / details from the email, 3 email accounts, Gmail switches |

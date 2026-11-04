@@ -15,6 +15,7 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatDue } from '@/features/capture/format';
 import { useIncoming, useIncomingActions } from '@/features/incoming/api';
+import { BulkProgress } from '@/features/incoming/BulkProgress';
 import { NS } from '@/features/incoming/strings';
 import { useConnections, useProviders } from '@/features/sources/connections';
 import { CONN_NS } from '@/features/sources/connStrings';
@@ -42,6 +43,8 @@ export default function IncomingScreen() {
   const conns = useConnections();
   const { tiles } = useToolList();
   const [bulk, setBulk] = useState<'add' | 'reject' | null>(null);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const onProgress = (done: number, total: number) => setProgress({ done, total });
   const [note, setNote] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
   // tools you can still connect (set up on the server, or with your own token); open at first when you have none
   const connected = new Set((conns.data ?? []).map((c) => c.provider));
@@ -70,7 +73,7 @@ export default function IncomingScreen() {
   const addEverything = async () => {
     setBulk('add');
     try {
-      await actions.acceptEverything(waitingIds());
+      await actions.acceptEverything(waitingIds(), onProgress);
     } finally {
       setBulk(null);
     }
@@ -79,7 +82,7 @@ export default function IncomingScreen() {
     const go = async () => {
       setBulk('reject');
       try {
-        await actions.ignoreEverything(waitingIds());
+        await actions.ignoreEverything(waitingIds(), onProgress);
       } finally {
         setBulk(null);
       }
@@ -131,7 +134,8 @@ export default function IncomingScreen() {
             {t('waiting', { count: waiting, n: waiting })}
           </AppText>
         )}
-        {waiting > 1 && (
+        {!!bulk && <BulkProgress kind={bulk} done={progress.done} total={progress.total} />}
+        {waiting > 1 && !bulk && (
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Button label={t('addEverything', { n: waiting })} size="md" loading={bulk === 'add'} disabled={!!bulk} onPress={addEverything} style={{ flex: 1.3 }} />
             <Button label={t('rejectEverything')} variant="outline" size="md" loading={bulk === 'reject'} disabled={!!bulk} onPress={rejectEverything} style={{ flex: 1 }} />

@@ -6,12 +6,15 @@
 //   { action: 'accept', id, index, edit?: { title?, owner_id?, due_at? } }    → creates that task (as the caller, RLS applies)
 //   { action: 'accept_all', id }                                             → every open suggestion that isn't a duplicate
 //   { action: 'ignore', id, index? }                                         → one suggestion, or the whole item
+//   { action: 'find_email', id, index }                                      → the email of the person a task names
+//   { action: 'set_owner', id, index, owner_id }                             → that waiting task goes to this person
 //   { action: 'recheck_owners' }                                             → re-pick owners of my waiting tasks
 //   (server, x-cron-secret) { action: 'recheck_owners', profiles: [ids] }    → the same for those people
 // Every read and every task created is written to activity_log.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
+import { emailFromMailbox } from '../_shared/connections.ts';
 import { createFromSuggestion, ingestMessage, recheckOwners, rereadWaiting, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 
 async function loadItem(admin: SupabaseClient, profileId: string, id: unknown): Promise<Item> {
@@ -124,6 +127,43 @@ serve(async (req) => {
         if (!s || s.state !== 'new') throw new HttpError(409, 'Already handled');
         s.state = 'ignored';
       }
+      return json(await saveItem(admin, item));
+    }
+
+    // "+ Add Nouran" on a task card: the message's own "Name <email>" or an address with her name, else the mailbox
+    case 'find_email': {
+      const item = await loadItem(admin, profileId, body.id);
+      const name = item.suggestions[Number(body.index)]?.owner_name?.trim();
+      if (!name) return json({ email: null, from: null });
+      const first = name.split(/\s+/)[0].toLowerCase();
+      const inBody = [...item.body.matchAll(/([^\s<>,;:]+@[^\s<>,;:]+\.[a-z]{2,})/gi)].map((m) => m[1].toLowerCase());
+      const own = first.length >= 3 ? inBody.find((m) => m.split('@')[0].includes(first)) : undefined;
+      if (own) return json({ email: own, from: 'message' });
+      const { data: me } = await admin.from('profiles').select('email').eq('id', profileId).maybeSingle();
+      const found = await emailFromMailbox(admin, profileId, name, me?.email as string | null);
+      if (found)
+        await admin.from('activity_log').insert({
+          actor_type: 'muntej',
+          subject_id: profileId,
+          action: 'email_looked_up',
+          summary: `Found ${name}'s email in the connected mailbox`,
+          summary_ar: `لقيت إيميل ${name} في البريد المربوط`,
+          reason: 'adding them to the team from a task',
+          undoable: false,
+        });
+      return json({ email: found, from: found ? 'mailbox' : null });
+    }
+
+    // someone was just added to the team: the waiting task goes to them
+    case 'set_owner': {
+      const item = await loadItem(admin, profileId, body.id);
+      const s = item.suggestions[Number(body.index)];
+      if (!s || s.state !== 'new') throw new HttpError(409, 'Already handled');
+      const { data: me } = await admin.from('profiles').select('account_id').eq('id', profileId).maybeSingle();
+      const { data: them } = await admin.from('profiles').select('id, account_id').eq('id', String(body.owner_id ?? '')).maybeSingle();
+      if (!them || them.account_id !== me?.account_id) throw new HttpError(404, 'Person not found');
+      s.owner_id = them.id as string;
+      s.outside = false;
       return json(await saveItem(admin, item));
     }
 

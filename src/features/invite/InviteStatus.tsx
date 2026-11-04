@@ -110,7 +110,11 @@ export function InviteStatus({ person }: { person: { id: string; user_id: string
       )}
       {!joined &&
         (person.phone || person.email || person.user_id ? (
-          <Button label={last ? t('again') : t('invite')} variant={last ? 'outline' : 'primary'} size="md" loading={busy} onPress={send} />
+          <>
+            <Button label={last ? t('again') : t('invite')} variant={last ? 'outline' : 'primary'} size="md" loading={busy} onPress={send} />
+            {/* the email may never arrive: the manager can send them in anywhere they already talk */}
+            {!!last && last.channel !== 'app' && <Button label={t('shareLink')} variant="outline" size="md" loading={busy} onPress={shareLink} />}
+          </>
         ) : (
           <>
             <AppText variant="caption" color="amberText">

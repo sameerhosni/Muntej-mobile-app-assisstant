@@ -386,6 +386,27 @@ async function screens() {
     // signed out, every screen is just the sign-in page and would pass for the wrong reason
     if (!results.at(-1).pass) throw new Error('not signed in, so the screens were not checked');
 
+    // the owner, 5 Nov: "Text in Arabic should be rtl and English ltr" (Arabic sat on the left of every screen)
+    await check('screens', 'Arabic reads from the right, an English sentence from the left', async () => {
+      await page.goto('http://localhost:8099/42-incoming', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+      await page.waitForTimeout(3500);
+      const lines = await page.evaluate(() => {
+        const out = { ar: null };
+        for (const el of document.querySelectorAll('div[dir], div')) {
+          const text = el.childElementCount ? '' : (el.textContent ?? '').trim();
+          if (text.length < 12 || !/[\u0600-\u06FF]/.test(text)) continue;
+          const s = getComputedStyle(el);
+          out.ar = { text: text.slice(0, 30), direction: s.direction, align: s.textAlign };
+          break;
+        }
+        return out;
+      });
+      expect(lines.ar, 'no Arabic line found on the screen');
+      expect(lines.ar.direction === 'rtl', `«${lines.ar.text}» is ${lines.ar.direction}`);
+      expect(!['left'].includes(lines.ar.align), `«${lines.ar.text}» is aligned ${lines.ar.align}`);
+      return lines.ar.text;
+    });
+
     for (const route of ROUTES)
       await check('screens', `Open ${route}`, async () => {
         errors.length = 0;
@@ -452,7 +473,7 @@ expect(TOKEN, 'SUPABASE_ACCESS_TOKEN is not set (the same user env var db-apply 
 if (want('code')) await code();
 if (want('server') || want('ui') || want('screens') || want('cases') || want('invites') || want('tasks')) await server();
 if (JWT && (want('server') || want('cases') || want('tasks'))) {
-  await taskCases({ check, expect, sql, jwt: JWT, jwtFor, rpc, insert, ids: { QA_ACCOUNT, QA_BOSS } });
+  await taskCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, insert, ids: { QA_ACCOUNT, QA_BOSS } });
 }
 if (JWT && (want('server') || want('cases') || want('invites'))) {
   await inviteCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, ids: { QA_ACCOUNT, QA_BOSS } });

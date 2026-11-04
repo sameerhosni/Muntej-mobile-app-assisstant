@@ -1,7 +1,7 @@
 // The owner's screenshot, 4 Nov: on a task, "Request proof" answered `column "account_id" does not exist`. The function
 // looked for a company on the task, and tasks have none; Postgres only finds that when the function runs, so it was
 // broken for every manager since 29 Oct. The last check finds this whole kind of mistake in every database function.
-export async function taskCases({ check, expect, sql, jwt, ids, jwtFor, rpc, insert }) {
+export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc, insert }) {
   const { QA_ACCOUNT, QA_BOSS } = ids;
   const DEMO = 'c0000000-0000-4000-b000-000000000001';
   const STRANGER = 'c0000000-0000-4000-b000-000000000011';
@@ -35,6 +35,80 @@ export async function taskCases({ check, expect, sql, jwt, ids, jwtFor, rpc, ins
   } finally {
     await sql(`delete from public.tasks where id = '${task.id}'`);
   }
+  // The owner, 5 Nov: "You added 3 active but no one received the invitation yet and no one accept it neither login".
+  // Sending an email invitation makes the login, and that alone said "active" and told the manager they joined.
+  const INVITED = 'qa-invited@qa.muntej.test';
+  const LOGIN = 'a0000000-0000-4000-b000-0000000000e1';
+  const tidyInvited = () =>
+    sql(`delete from public.alerts where subject_id in (select id from public.profiles where lower(email) = '${INVITED}');
+         delete from public.profiles where lower(email) = '${INVITED}';
+         delete from auth.users where id = '${LOGIN}';`);
+  await tidyInvited();
+  let invited = null;
+  const seat = async () => (await sql(`select status, user_id from public.profiles where id = '${invited}'`))[0];
+  const joinedAlerts = async () => (await sql(`select id from public.alerts where subject_id = '${invited}' and kind = 'member_joined'`)).length;
+  try {
+    await check('invites', 'Sending the invitation doesn’t make them active', async () => {
+      invited = await rpc('upsert_person', { p: { full_name: 'QA Invited', email: INVITED, role: 'employee', manager_id: QA_BOSS } }, jwt);
+      // what Supabase does on an email invitation: a login nobody has used
+      await sql(`insert into auth.users (id, instance_id, aud, role, email, invited_at, created_at, updated_at)
+                 values ('${LOGIN}', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', '${INVITED}', now(), now(), now())`);
+      const p = await seat();
+      expect(p.user_id === LOGIN, 'the login was not linked');
+      expect(p.status === 'pending', `shows "${p.status}" before they ever signed in`);
+      expect(!(await joinedAlerts()), 'the manager was told they joined');
+      return 'still waiting';
+    });
+    await check('invites', 'A manager can share a join link with someone who never signed in', async () => {
+      const r = await fn('invite', { link: { person_id: invited } }, jwt);
+      expect(r?.url, `answered ${JSON.stringify(r)}`);
+      return 'link made';
+    });
+    await check('invites', 'Their first sign-in makes them active and tells the manager', async () => {
+      await sql(`update public.profiles set status = 'pending' where id = '${invited}'`);
+      await sql(`update auth.users set email_confirmed_at = now(), last_sign_in_at = now() where id = '${LOGIN}'`);
+      const p = await seat();
+      expect(p.status === 'active', `still "${p.status}"`);
+      expect((await joinedAlerts()) === 1, 'the manager was not told');
+      return 'active';
+    });
+  } finally {
+    await tidyInvited();
+  }
+  await check('invites', 'Delete then restore doesn’t mark someone as joined', async () => {
+    const theirs = await jwtFor(STRANGER, DEMO);
+    await rpc('switch_account', { p_account: DEMO }, theirs);
+    const id = await rpc('upsert_person', { p: { full_name: 'QA Restored', email: 'faisal@demo.muntej.test', role: 'employee', manager_id: QA_BOSS } }, jwt);
+    try {
+      await rpc('delete_people', { ids: [id], with_branch: false }, jwt);
+      await rpc('restore_person', { person: id, with_batch: false }, jwt);
+      const [p] = await sql(`select status from public.profiles where id = '${id}'`);
+      expect(p.status === 'pending', `came back "${p.status}" though they never opened this company`);
+      return 'still waiting';
+    } finally {
+      await sql(`delete from public.alerts where subject_id = '${id}' or profile_id = '${STRANGER}' and kind = 'added_to_company'; delete from public.profiles where id = '${id}'`);
+    }
+  });
+  // The owner, 5 Nov: "+ Add Nouran" opened an empty box, "without nouran email which you can get it from chat".
+  await check('tasks', 'Adding the person a task names: email found, and the task goes to them', async () => {
+    const email = 'qa.nouran@qa.muntej.test';
+    const [item] = await sql(`insert into public.incoming_items (owner_id, source, external_id, sender, subject, body, status, suggestions)
+      values ('${QA_BOSS}', 'paste', 'qa-add-person', 'QA', 'QA add person', 'Nouran will watch the box. Reach her on ${email}', 'new',
+        jsonb_build_array(jsonb_build_object('title', 'QA watch the box', 'owner_id', null, 'owner_name', 'QA Nouran', 'outside', true, 'state', 'new', 'confidence', 0.9, 'priority', 'medium', 'quote', 'x', 'task_id', null, 'duplicate_of', null))) returning id`);
+    try {
+      const found = await fn('intake', { action: 'find_email', id: item.id, index: 0 }, jwt);
+      expect(found.email === null, `"QA Nouran" matched ${found.email}: the first word isn't in the address, so it must not guess`);
+      await sql(`update public.incoming_items set suggestions = jsonb_set(suggestions, '{0,owner_name}', '"Nouran Emira"') where id = '${item.id}'`);
+      const named = await fn('intake', { action: 'find_email', id: item.id, index: 0 }, jwt);
+      expect(named.email === email && named.from === 'message', `found ${JSON.stringify(named)}`);
+      await fn('intake', { action: 'set_owner', id: item.id, index: 0, owner_id: them.id }, jwt);
+      const [after] = await sql(`select suggestions->0->>'owner_id' o from public.incoming_items where id = '${item.id}'`);
+      expect(after.o === them.id, `the task's owner is ${after.o}`);
+      return email;
+    } finally {
+      await sql(`delete from public.incoming_items where id = '${item.id}'`);
+    }
+  });
   await check('tasks', 'No database function points at a column or table that isn’t there', async () => {
     // plpgsql_check is installed only inside this block: the final raise rolls everything back, and carries the answer
     const r = await sql(`do $do$

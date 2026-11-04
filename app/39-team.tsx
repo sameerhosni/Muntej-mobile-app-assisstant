@@ -164,7 +164,7 @@ export default function TeamScreen() {
     setForm({ kind: 'add', managerId: isAdminRole(me?.role) ? null : (me?.id ?? null) });
   };
   // ?add=1 ("Add team" from Everything Muntej does): open the add form once the profile is known
-  const { add, me: meParam } = useLocalSearchParams<{ add?: string; me?: string }>();
+  const { add, me: meParam, name: addName, item: addItem, index: addIndex } = useLocalSearchParams<{ add?: string; me?: string; name?: string; item?: string; index?: string }>();
   const opened = useRef(false);
   useEffect(() => {
     if (add === '1' && me && !opened.current) {
@@ -437,6 +437,7 @@ export default function TeamScreen() {
                 <QuickAdd
                   key={`add-${form.managerId ?? 'top'}`}
                   managerId={form.managerId}
+                  fromTask={addItem ? { name: addName ?? '', item: addItem, index: Number(addIndex ?? 0) } : undefined}
                   onDone={(id) => setSelectedId(id)}
                 />
               ) : form ? (

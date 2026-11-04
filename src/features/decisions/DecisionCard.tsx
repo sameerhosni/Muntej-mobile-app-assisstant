@@ -209,7 +209,7 @@ export function DecisionCard({ card, outcome, busy, raised, candidates, onResolv
                   onPress={() => onResolve('moved', card.suggested!)}
                   style={{ flex: 1, minHeight: 48 }}
                 />
-                <Button size="md" variant="outline" label={t('keep', { name: ownerName })} onPress={() => onResolve('kept')} style={{ flex: 1, minHeight: 48 }} />
+                <Button size="md" variant="outline" label={ownerName ? t('keep', { name: ownerName }) : t('leaveIt')} onPress={() => onResolve('kept')} style={{ flex: 1, minHeight: 48 }} />
               </View>
               {others.length > 1 && (
                 <Pressable onPress={() => setPicking(true)} accessibilityRole="button" style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center', marginVertical: -spacing.sm }}>

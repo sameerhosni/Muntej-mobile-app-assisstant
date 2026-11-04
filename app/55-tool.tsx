@@ -15,6 +15,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useTeam } from '@/lib/api';
 import { formatDue } from '@/features/capture/format';
 import { useIncomingActions } from '@/features/incoming/api';
+import { BulkProgress } from '@/features/incoming/BulkProgress';
 import { ItemCard } from '@/features/incoming/ItemCard';
 import { PasteBox } from '@/features/incoming/PasteBox';
 import { ToolCard } from '@/features/incoming/ToolCards';
@@ -43,6 +44,8 @@ export default function ToolScreen() {
   const connActions = useConnectionActions();
   const [note, setNote] = useState<{ tone: 'green' | 'red'; text: string } | null>(null);
   const [bulk, setBulk] = useState<'add' | 'reject' | null>(null);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const onProgress = (done: number, total: number) => setProgress({ done, total });
   const [allAdded, setAllAdded] = useState(false);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/42-incoming'));
@@ -89,7 +92,7 @@ export default function ToolScreen() {
   const addAll = async () => {
     setBulk('add');
     try {
-      await incoming.acceptEverything(waitingItems.map((it) => it.id));
+      await incoming.acceptEverything(waitingItems.map((it) => it.id), onProgress);
       await items.refetch();
     } finally {
       setBulk(null);
@@ -99,7 +102,7 @@ export default function ToolScreen() {
     const go = async () => {
       setBulk('reject');
       try {
-        await incoming.ignoreEverything(waitingItems.map((it) => it.id));
+        await incoming.ignoreEverything(waitingItems.map((it) => it.id), onProgress);
         await items.refetch();
       } finally {
         setBulk(null);
@@ -193,7 +196,8 @@ export default function ToolScreen() {
             {t('nothingWaiting')}
           </AppText>
         )}
-        {waiting > 1 && (
+        {!!bulk && <BulkProgress kind={bulk} done={progress.done} total={progress.total} />}
+        {waiting > 1 && !bulk && (
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Button label={t('addAll', { n: waiting })} size="md" loading={bulk === 'add'} disabled={!!bulk} onPress={addAll} style={{ flex: 1.3 }} />
             <Button label={t('rejectAll')} variant="outline" size="md" loading={bulk === 'reject'} disabled={!!bulk} onPress={rejectAll} style={{ flex: 1 }} />

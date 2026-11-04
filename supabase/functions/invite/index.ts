@@ -10,7 +10,7 @@
 //                              each send is an invites row (sent → opened → joined). Returns { results: [{ id, whatsapp,
 //                              email, app }] }. A manager invites only people they can see (RLS), at most 100 at a time.
 //                              Someone who already has a login hears it inside Muntej instead (app: 'told').
-//   { link: { person_id } }    a one-time join link for the manager to share, only for someone with no email, no mobile
+//   { link: { person_id } }    a one-time join link for the manager to share, for someone who hasn't signed in yet
 //                              and no login (nobody else's identity is at stake). Returns { url }. Managers and admins.
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
@@ -55,7 +55,10 @@ serve(async (req) => {
     if (!person) throw new HttpError(404, 'Person not found');
     const [{ data: manages }, { data: admin_ }] = await Promise.all([db.rpc('is_manager_of', { target: person.id }), db.rpc('is_admin')]);
     if (!manages && !admin_) throw new HttpError(403, 'Only their manager can share their join link');
-    if (person.email || person.phone || person.user_id) throw new HttpError(400, 'This person can be invited directly');
+    if (person.user_id) {
+      const { data: login } = await adminClient().auth.admin.getUserById(person.user_id);
+      if (login?.user?.last_sign_in_at) throw new HttpError(400, 'This person already signs in to Muntej');
+    }
     const token = newToken();
     await adminClient().from('invites').insert({
       account_id: person.account_id,

@@ -36,7 +36,10 @@ export async function sendInvite(
   channel: 'auto' | 'whatsapp' | 'email' = 'auto',
 ): Promise<InviteResult> {
   const r: InviteResult = { id: p.id };
-  if (p.user_id) {
+  // the login an earlier invitation made isn't a login they use: that invitation just didn't reach them, so send again
+  const { data: login } = p.user_id ? await admin.auth.admin.getUserById(p.user_id) : { data: null };
+  const usedLogin = !!p.user_id && !!(login?.user?.last_sign_in_at || login?.user?.email_confirmed_at);
+  if (usedLogin) {
     // no invitation for a login that exists: if they haven't opened this company, they hear it inside Muntej
     if (p.status !== 'pending') return { ...r, whatsapp: 'has_login', email: 'has_login' };
     const { data: told } = await admin.rpc('tell_added_person', { p_person: p.id, p_by: invitedBy });

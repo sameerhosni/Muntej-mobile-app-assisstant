@@ -123,12 +123,45 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
   return res.data as T;
 }
 
+/** several messages at a time, so a long list doesn't crawl */
+const AT_ONCE = 5;
+
 /** The incoming actions; each refreshes the list (and tasks when one was created). */
 export function useIncomingActions() {
   const qc = useQueryClient();
   const done = async (tasks = false) => {
     await qc.invalidateQueries({ queryKey: KEY });
     if (tasks) await invalidateTaskData(qc);
+  };
+  // off the list the moment it's decided (owner, 5 Nov: "any task deleted remove it directly"); a failure refreshes it back
+  const hide = (id: string, index?: number) => {
+    const without = (list: IncomingItem[]) =>
+      list.flatMap((it) => {
+        if (it.id !== id) return [it];
+        if (index === undefined) return [];
+        const suggestions = it.suggestions.map((s, i) => (i === index ? { ...s, state: 'ignored' as const } : s));
+        return suggestions.some((s) => s.state === 'new') ? [{ ...it, suggestions }] : [];
+      });
+    const update = (old: unknown) => {
+      if (Array.isArray(old)) return without(old as IncomingItem[]);
+      const pages = (old as { pages?: IncomingItem[][] } | undefined)?.pages;
+      return pages ? { ...(old as object), pages: pages.map(without) } : old;
+    };
+    qc.setQueriesData({ queryKey: KEY }, update);
+  };
+  /** each message: off the list, then done on the server; onProgress counts them */
+  const everything = async (ids: string[], one: (id: string) => Promise<unknown>, onProgress?: (done: number, total: number) => void) => {
+    let finished = 0;
+    onProgress?.(0, ids.length);
+    const queue = [...ids];
+    const worker = async () => {
+      for (let id = queue.shift(); id; id = queue.shift()) {
+        hide(id);
+        await one(id);
+        onProgress?.(++finished, ids.length);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(AT_ONCE, ids.length) }, worker));
   };
   return {
     ingest: async (text: string, source: 'paste' | 'share' | 'meeting' = 'paste', subject?: string) => {
@@ -145,17 +178,34 @@ export function useIncomingActions() {
       await done(true);
     },
     /** every waiting message at once: add all their tasks / ignore them all (one refresh at the end) */
-    acceptEverything: async (ids: string[]) => {
-      for (const id of ids) await call({ action: 'accept_all', id });
-      await done(true);
+    acceptEverything: async (ids: string[], onProgress?: (done: number, total: number) => void) => {
+      try {
+        await everything(ids, (id) => call({ action: 'accept_all', id }), onProgress);
+      } finally {
+        await done(true);
+      }
     },
-    ignoreEverything: async (ids: string[]) => {
-      for (const id of ids) await call({ action: 'ignore', id });
-      await done();
+    ignoreEverything: async (ids: string[], onProgress?: (done: number, total: number) => void) => {
+      try {
+        await everything(ids, (id) => call({ action: 'ignore', id }), onProgress);
+      } finally {
+        await done();
+      }
     },
     ignore: async (id: string, index?: number) => {
-      await call({ action: 'ignore', id, index });
+      hide(id, index);
+      try {
+        await call({ action: 'ignore', id, index });
+      } finally {
+        await done();
+      }
+    },
+    /** a person was just added to the team: this task goes to them */
+    setOwner: async (id: string, index: number, ownerId: string) => {
+      await call({ action: 'set_owner', id, index, owner_id: ownerId });
       await done();
     },
+    /** the email of someone a message names, from the message or the connected mailbox; null when not found */
+    findEmail: (id: string, index: number) => call<{ email: string | null; from: 'message' | 'mailbox' | null }>({ action: 'find_email', id, index }),
   };
 }

@@ -86,6 +86,7 @@ Rules:
 - confidence: 0.9+ explicit request with owner or deadline; 0.6–0.8 clear but vague; under 0.5 maybe.
 - user_is_manager = true: the user runs a team, and a request reaching their inbox / chat / meeting is not automatically theirs. This holds even when the message says "you" / "can you…" / "تقدر" to the user: a manager hands such work on. Work someone on the team can do (prepare, check, test, review a file, fill in a form, write a report, data entry, follow up with a client, design, build) → owner_id = the teammate whose title, then skills, fit it best (a test / QA job → the tester; marketing work → the marketer). The user is the owner ONLY for what needs them personally: approve, decide, sign, attend a meeting they're invited to, reply as themselves, or when the message says they will do it. No teammate fits → null, not the user.
 - Group chats, channels and meetings (is_group = true): the user sees every line but only some of it is theirs. Keep a task only when it is asked of the user (by name, @mention, or "you" in a reply to them), or of a named team member, or of everyone ("@all", "team", "يا شباب") AND the user's title / role fits the work. Work for named people or teams that are not in team ("Anas", "the dev team", "OP team", "Nabulsi to follow up") → outside = true.
+- Direct messages ("Direct message between: A, B"): two people talking, so the header says who everything is for. What the user writes there asking, telling or reminding ("Check for explee every 10 min pls", "عشان كده قلتلك تبعتي من الإيميل", "راجعي الملف") is the OTHER person's work, even with no name in the line: owner = the other person, asked_by_user = true, never the user. In team (match loosely: "N Emira" = "Nouran Emira") → owner_id; not → owner_name = their name, outside = true. It is the user's only when the other person asks the user for it or the user clearly promises to do it for them ("I'll send it", "راح أرسلها"). Saying what they are doing themself is not a task for anyone. Read the whole conversation before deciding who each thing is for.
 - Messages the user wrote themself (sender = user_name) asking someone else ("send me the Trello card", "ابعتلي") are that person's work, not the user's: owner = that person; not in team → outside = true.
 - Chats (google_chat, slack, teams, whatsapp) are conversations, not to-do lists (owner: "it's only chats, not tasks"). Default to NO task. A chat line is a task only when someone clearly asks a specific person (the user, or a teammate by name) for a concrete piece of work that is still open at the end of the conversation. NOT tasks in a chat: asking for, arranging or agreeing on a call / meeting, even before it's agreed ("can we have a call?", "إذا يناسبكم مكالمة", "4 pm ok?", "shall I put it in the calendar?": the calendar holds it); greetings and small talk; a question or ask the user already answered or handled in the same chat ("let me check", "check now", "done", "sent", "اى اكيد", "تمام"); someone posting their own list of work, plans or status ("X — done", "planned for tomorrow", a bare list of items with no one asked): that is the poster's own work, so owner = the poster (not in team → outside = true), never a teammate; links and files shared.
 - Never give work to a teammate only because they are the only one, or because nobody else is in team: role / skill matching needs a title or skills that really fit; a teammate with no title and no skills matches only by name.
@@ -133,6 +134,20 @@ const words = (x: string) =>
       .split(/\s+/)
       .filter((w) => w.length > 1),
   );
+
+/** the same person? "Nouran Emira" = "N Emira" = "Nouran": every word matches, or matches by its first letter */
+export function sameName(a: string, b: string): boolean {
+  const words = (x: string) => x.toLowerCase().split(/\s+/).filter(Boolean);
+  const [short, long] = [words(a), words(b)].sort((x, y) => x.length - y.length);
+  if (!short.length || short.every((w) => w.length === 1)) return false;
+  return short.every((w) => long.some((l) => l === w || (w.length === 1 && l[0] === w) || (l.length === 1 && w[0] === l)));
+}
+
+/** the one teammate with this name, or null when none or several match */
+function teammateByName(name: string, team: Person[]): string | null {
+  const hits = team.filter((p) => [p.full_name, p.full_name_ar].some((n) => n && sameName(n, name)));
+  return hits.length === 1 ? hits[0].id : null;
+}
 
 /** The open task this title most looks like (same rule as the chat's duplicate check), or null. */
 function duplicateOf(title: string, ownerId: string | null, open: OpenTask[]) {
@@ -379,15 +394,28 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     const p = input.team.find((x) => x.id === id);
     return !!p && [p.full_name, p.full_name_ar].some((n) => n && n.split(' ')[0].length > 1 && lower.includes(n.split(' ')[0].toLowerCase()));
   };
+  // a direct message: the other person, by name. What the user asks there is theirs (owner, 5 Nov: "These 2 tasks are
+  // assigned to nouran... assign tasks correctly to the mentioned person by reading the context")
+  const myNames = [me?.full_name, me?.full_name_ar].filter(Boolean) as string[];
+  const dmWith = /^Google Chat · Direct message between: (.+)$/m.exec(body)?.[1].split(', ').find((n) => !myNames.some((x) => sameName(x, n))) ?? null;
+  const dmId = dmWith ? teammateByName(dmWith, input.team) : null;
   const relevant = confident
-    .map((t) => (isChat && t.owner_id && t.owner_id !== input.profileId && !named(t.owner_id) ? { ...t, owner_id: null } : t))
+    .map((t) => {
+      // asked by the user, so it can't be the user's own work
+      if (dmWith && t.asked_by_user && !t.asked_of_user && (t.owner_id === input.profileId || !t.owner_id))
+        return { ...t, owner_id: dmId, owner_name: dmWith, outside: !dmId };
+      // named in the message, and on the team under a shorter name
+      const byName = !t.owner_id && t.owner_name ? teammateByName(t.owner_name, input.team) : null;
+      return byName ? { ...t, owner_id: byName, outside: false } : t;
+    })
+    .map((t) => (isChat && t.owner_id && t.owner_id !== input.profileId && !named(t.owner_id) && t.owner_id !== dmId && !t.owner_name ? { ...t, owner_id: null } : t))
     .filter((t) => !(t.outside && !t.owner_id && !t.asked_by_user) && !(isChat && !t.owner_id && !t.asked_by_user))
     // reports, pitches, newsletters and alerts are never work for the user, whatever their "next steps" say
     .filter(() => st || ['request', 'conversation'].includes(found.kind))
     // only work someone asked of the user (task tools assign work, so theirs always is). What the user asked of others
     // in their own mail / chats is theirs to chase, not a task for them (owner, 4 Nov: "not even assigned to me"); it
     // still counts when they hand it to Saree3 directly (WhatsApp, a pasted note)
-    .filter((t) => st || t.asked_of_user || (t.asked_by_user && !input.connectionId));
+    .filter((t) => st || t.asked_of_user || (t.asked_by_user && (!input.connectionId || (!!dmWith && t.owner_id !== input.profileId))));
   const kept = onlyMine ? relevant.filter((t) => t.owner_id === input.profileId) : relevant;
   const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;
