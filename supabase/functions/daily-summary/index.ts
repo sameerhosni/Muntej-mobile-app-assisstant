@@ -249,7 +249,8 @@ function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind):
   const name = (id: string | null) => firstName(id ? w.people.get(id) : undefined, lang) || '…';
   const t = now.getTime();
   const endToday = riyadhMidnightUtc(now) + DAY;
-  const isLate = (x: Task) => OPEN.includes(x.status) && !!x.due_at && Date.parse(x.due_at) < t;
+  // the app's rule (isLateOpen): sent in for review is not late, it waits for the reviewer
+  const isLate = (x: Task) => OPEN.includes(x.status) && x.status !== 'submitted' && !!x.due_at && Date.parse(x.due_at) < t;
   const team = w.tasks.filter((x) => x.owner_id !== me.id && ((x.owner_id && reportIds.has(x.owner_id)) || x.assigner_id === me.id));
   const late = team.filter(isLate).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
   const blocked = team.filter((x) => x.status === 'blocked' && !isLate(x));
@@ -332,7 +333,8 @@ function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind):
     };
   const v = {
     working: num(working.length, lang),
-    late: num(late.length, lang),
+    // the same number as Home's "Late" tile: the team's and your own (owner, 4 Nov: report said 1, Home 2)
+    late: num(late.length + w.tasks.filter((x) => x.owner_id === me.id && isLate(x)).length, lang),
     done: num(kind === 'daily' ? wins.length : won.length, lang),
     needs: num(needs.length, lang),
     open: num(working.length + late.length, lang),
@@ -362,7 +364,7 @@ function ownWork(me: Person, w: World, now: Date, lang: Lang, kind: Kind): strin
   const endToday = riyadhMidnightUtc(now) + DAY;
   const until = kind === 'evening' ? endToday + DAY : endToday;
   const mine = w.tasks.filter((x) => x.owner_id === me.id && OPEN.includes(x.status));
-  const late = mine.filter((x) => x.due_at && Date.parse(x.due_at) < t).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
+  const late = mine.filter((x) => x.status !== 'submitted' && x.due_at && Date.parse(x.due_at) < t).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
   const soon = mine.filter((x) => x.due_at && Date.parse(x.due_at) >= t && Date.parse(x.due_at) < until).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
   const back = mine.filter((x) => x.status === 'returned' && !late.includes(x) && !soon.includes(x));
   return [

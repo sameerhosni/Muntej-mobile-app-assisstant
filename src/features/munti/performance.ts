@@ -4,6 +4,7 @@
 //   manager/admin → every task they can see (their team) (+ who on the team is overloaded)
 // Each status names the tasks behind it and says the one thing that would make Saree3 happier (the cheer line).
 import { useMemo } from 'react';
+import { AppState } from 'react-native';
 import type { Href } from 'expo-router';
 import { useMyProfile, useTasks, useTeam, type TaskWithPeople } from '@/lib/api';
 import { isLate } from '@/features/tasks/model';
@@ -31,6 +32,12 @@ export type Performance = {
 };
 
 const DAY = 86_400_000;
+
+// when the app last came to the front: Saree3 only judges tasks loaded since then
+let activeSince = Date.now();
+AppState.addEventListener('change', (s) => {
+  if (s === 'active') activeSince = Date.now();
+});
 const DEFAULT_TASK_HOURS = 4;
 
 export const MOOD: Record<PerfStatus, MuntiMood> = {
@@ -68,7 +75,9 @@ export function usePerformance(lang: 'en' | 'ar'): Performance | null {
   const team = useTeam();
 
   return useMemo(() => {
-    if (!me.data || !tasks.data) return null;
+    // only from data fetched since the app opened: a list kept from before (or loaded before sign-in finished) once
+    // made him say "0 open, none late, relax" to a manager with 8 open tasks (Hoda, 4 Nov)
+    if (!me.data || !tasks.data || tasks.dataUpdatedAt < activeSince - 60_000) return null; // a minute of slack: fresh data isn't refetched (staleTime 30 s)
     const meId = me.data.id;
     const employee = me.data.role === 'employee';
     const now = Date.now();
@@ -171,5 +180,5 @@ export function usePerformance(lang: 'en' | 'ar'): Performance | null {
 
     const showMe: Href | null = showIds.length ? { pathname: '/38-tasks', params: { ids: showIds.slice(0, 50).join(',') } } : null;
     return { status, mood: MOOD[status], tone: TONE[status], message, extra, cheer, showIds, showMe };
-  }, [me.data, tasks.data, team.data, lang]);
+  }, [me.data, tasks.data, tasks.dataUpdatedAt, team.data, lang]);
 }

@@ -52,6 +52,9 @@ const NewTask = z.object({
   workspace_id: z.string().nullable(),
   objective_id: z.string().nullable().describe('id from objectives (status active) when the task clearly belongs to one, else null'),
   also_for_ids: z.array(z.string()).describe('Other people named for this same work besides owner_id (ids from team); [] when one person'),
+  each: z
+    .array(z.object({ owner_id: z.string(), title: z.string(), goal: z.string().nullable() }))
+    .describe('A task for EACH of several people with DIFFERENT work per person (see EACH THEIR OWN); [] otherwise'),
   estimate_hours: z.number().nullable().describe('Hours of work when the user says it ("8 hours of work", "takes two days" = 16), else null'),
   proof: Proof.describe('What the finished work must show, see PROOF'),
 });
@@ -234,7 +237,7 @@ const { $schema: _ignored, ...RESPONSE_SCHEMA } = z.toJSONSchema(ChatOutput) as 
 const SYSTEM = `You are Muntej, a friendly, sharp AI task assistant for people in Saudi companies. You chat with ONE user (anyone: manager or employee; employees can manage others too). Promise: "create it and forget it" — they talk normally, you turn work into tasks, pick the right person, and follow up for them.
 
 Each turn, choose ONE action:
-- "none": small talk (hi, thanks) and questions ("what's late?", "who is free?"). Answer questions from the provided open_tasks/team data only; never invent facts.
+- "none": small talk (hi, thanks) and questions ("what's late?", "who is free?"). Answer questions from the provided open_tasks/team data only; never invent facts. "What did I make / add today?": list made_by_you_today in the reply itself, one line each ("«title» لـname"), never a lead-in ending with ":" and nothing after it. "How many…" questions: quote counts (the same numbers as the Home screen); a task sent in for review is not late.
 - SCOPE (owner, 2 Nov): you are a TASK assistant. In scope: tasks, follow-ups, the team and its workload, objectives, decisions, recurring work, and how Muntej itself works (its alerts, reports and settings). Everything else is out of scope: general knowledge, writing or translating unrelated text, coding, personal advice, and setting up other apps or services (Gmail filters, Outlook rules, WhatsApp groups, calendars outside Muntej…). Out of scope → action "none", ONE short, warm, playful line in the user's language (Saudi dialect in Arabic, a light joke or emoji is welcome) saying you only handle tasks, then offer to turn it into a task if it fits (e.g. "هذي برّا تخصصي 😅 أنا مساعد مهام وبس، تبيني أسويها مهمة لأحد من الفريق؟" / "That's outside my lane 😄 I only do tasks. Want me to make it a task for someone?"). Never pretend: do not say you saved, set up, turned on or will do anything the action fields do not actually do. For questions about Muntej's own alerts (push, email, WhatsApp), say they can be set on the Alerts screen; never claim you changed them.
   TEAM QUESTIONS ("how is Faisal doing?", "who's overloaded?", "top performers this month", "risks in Khalid's team", "who knows Selenium?"): answer in 1-3 short sentences from team[].stats, skills, title and the org tree (manager_id / reports; "Khalid's team" = everyone below Khalid, any depth). Quote the real numbers (done, on-time %, late, open, hours, achievements); never invent or estimate a number that is not in the data. stats = null means the user cannot see that person's tasks: say so instead of guessing. Top performers: rank by done_this_month, then on_time_pct, then achievements. Overloaded: stats.overloaded or open_estimate_hours above weekly_hours. People who left are in former_team: mention them only when asked.
 - BRIEF: when a question's answer covers several people or tasks (team status, who is late / blocked / overloaded / free, risks, top performers, "what needs me today", what's on someone's plate, objectives at risk), fill brief: headline = one counting line; rows (max 6) = problems first (late, blocked, overloaded, at_risk, unassigned), then on_track / star only when the question is about everyone or about performance. Each row: person_id and/or task_id from the lists, status, metric (the real number from the data) and note (task name or reason). Then the reply is ONE short sentence that does not repeat the rows (e.g. "Here's your team today:" / "هذا وضع فريقك اليوم:"). Never claim you reminded or changed anything: the server adds what Muntej already did and the one-tap fix to each row. brief = null for small talk, for one-person / one-task answers and for every other action.
@@ -252,7 +255,8 @@ Each turn, choose ONE action:
 - WHICH ONE: when the user wants to change a task by describing it (title, client, owner, any detail) and two or more tasks in open_tasks fit equally, use action "none", put their ids in candidates (max 3) and ask which one in the reply. If exactly one fits, use "update" with its id (the app will ask the user to confirm when it is not the task being discussed). If NO task fits (e.g. it was cancelled or never existed), use "none" and say you couldn't find it; never pick an unrelated task.
 - "status": the user says ONE task's state changed: finished ("I finished the report", "خلصت", "mark it done", "it's done") → done; started ("I'm on it", "بديت فيها") → in_progress; stuck ("it's blocked, waiting for the client", "واقفة") → blocked (put the reason in note); "reopen it" / "not done yet" → reopen. Target = focused_task, else the task being discussed, else the one they describe (same WHICH ONE rules). Never use "update" or "none" for this. The server words the reply (closed vs sent for review), so keep yours short.
 - "bulk": the user wants the SAME change on several tasks at once: "mark all my tasks done", "خلص كل مهامي", "move all high-priority tasks to Sunday", "give all Faisal's tasks to Noura", "cancel all overdue tasks", "delete the security tasks". Fill bulk.filter (mine_only for "my tasks", owner_id for someone's tasks, assigned_by_me, priority, late_only, due_before, title_contains, objective_id) OR bulk.task_ids when they listed specific tasks, and bulk.change (kind status + status / due + due_at / priority + priority / owner + owner_id / cancel / delete). Nothing changes until the user confirms on a preview card that lists the tasks: the server writes the reply. Use "status"/"update"/"cancel" instead when exactly one task is meant.
-- SEVERAL PEOPLE: when a new task names more than one person ("for Ahmed, Sarah and Ali", "لفيصل وعبدالله"), use "create" with the first person as owner_id and the others in task.also_for_ids; the server asks the user whether it's one task each or one shared task. Otherwise also_for_ids = [].
+- EACH THEIR OWN: "a task for each of them", "كل واحد مهمة حسب تخصصه", "every one in their field", or one message that lists different work for different people ("Mohammed codes the app, Sally designs it") → "create" with task.each = one entry per person (ids from team; "all of them" / "the team" = everyone the user manages, see team) and a REAL title for each that fits that person's title and skills and names the project ("برمجة تطبيق المشروع الأول", "تصميم هوية المشروع الأول", "تسويق المشروع الأول"); the shared details (due_at, priority, project) go in task. Never a title that just repeats the ask ("حسب تخصصه", "by specialty") or is only a project or a person's name. Then also_for_ids = [].
+- SEVERAL PEOPLE: when a new task names more than one person ("for Ahmed, Sarah and Ali", "لفيصل وعبدالله"), use "create" with the first person as owner_id and the others in task.also_for_ids; the server asks the user whether it's one task each or one shared task. Never make the second person the helper_id for this: helper_id only when the user says someone helps ("X with Y helping", "ويساعده Y"). Otherwise also_for_ids = [].
 - "recurring": work that REPEATS ("standup every Monday 10:00 for Faisal", "monthly report on the 1st", "every other Tuesday", "كل يوم أحد", "rotate weekly between Faisal and Noura") → op "create" with fields (title, owner_id or rotation_ids, freq, every, weekdays, month_day, time_of_day, starts_on/ends_on when said, priority, definition_of_done, estimate_hours). Changing an existing schedule from recurring[] ("move all future standups to Tuesday", "make it 9am") → op "update" with only the changing fields (+ recurring_id). "Skip next Monday's standup" → skip_next; "pause the standup for 2 weeks" → pause + pause_until; "start it again" → resume; "stop the monthly report" → stop. Questions about them ("what repeats?") → "none" and answer from recurring[]. Nothing is created until the user confirms the schedule on a card: the server writes the reply.
 - PROOF: proof is optional by default, so task.proof is "none" unless the user explicitly asks for proof of the finished work ("send me a photo when done", "I need the file", "share the link", "أبي صورة لما يخلص", "أرفق الملف"): then "image" / "file" / "link", or "any" when no kind is named. Asking to be told or updated ("let me know", "confirm with me", "بلغني") is NOT proof. On update, set update.proof only when the user asks for or drops a proof requirement ("no proof needed" = "none").
 - ESTIMATES: when the user says how long work takes ("8 hours of work", "takes two days" = 16 h), put it in task.estimate_hours / update.estimate_hours; the server turns it into a due date in working days (after the owner's current workload) when no date was said — then leave due_at null (never work the date out yourself), do NOT call the due date missing and don't mention a date: the server adds it to your reply. Each open task has likely_done (Muntej's prediction from the owner's queue and past speed) and likely_late_days: use them for "when will X be done?" / "what will be late?" questions, saying it's an estimate.
@@ -445,6 +449,8 @@ serve(async (req) => {
   const everyone = (people ?? []) as PersonRow[];
   const team = everyone.filter((p) => p.status !== 'deleted' && !p.hidden);
   const allTasks = (tasks ?? []) as TaskRow[];
+  // midnight today in Riyadh (UTC+3), for "today" questions
+  const riyadhTodayStart = Math.floor((Date.now() + 3 * 3_600_000) / 86_400_000) * 86_400_000 - 3 * 3_600_000;
   const nameOf = (id: string | null) => (id ? (everyone.find((p) => p.id === id)?.full_name ?? null) : null);
   const open = allTasks.filter((t) => ACTIVE.includes(t.status));
 
@@ -577,7 +583,7 @@ serve(async (req) => {
     const withDue = done.filter((t) => t.due_at);
     const onTime = withDue.filter((t) => closedAt(t) <= new Date(t.due_at!).getTime()).length;
     const openMine = mine.filter((t) => ACTIVE.includes(t.status));
-    const late = openMine.filter((t) => t.due_at && new Date(t.due_at) < now);
+    const late = openMine.filter((t) => t.status !== 'submitted' && t.due_at && new Date(t.due_at) < now);
     const estimated = openMine.filter((t) => t.estimate_hours != null);
     const openHours = estimated.length ? estimated.reduce((s, t) => s + Number(t.estimate_hours), 0) : null;
     const weekly = p.weekly_capacity_hours != null ? Number(p.weekly_capacity_hours) : null;
@@ -703,13 +709,25 @@ serve(async (req) => {
         }
       : null,
     recent_chat_tasks: recentChatTasks,
+    // "what did I make today?" (Hoda, 2 Nov: the answer stopped at "today you made:" with nothing after it)
+    made_by_you_today: allTasks
+      .filter((t) => t.assigner_id === profileId && Date.parse(t.created_at) >= riyadhTodayStart && t.status !== 'cancelled')
+      .slice(0, 20)
+      .map((t) => ({ title: t.title, owner: nameOf(t.owner_id), due_at: t.due_at, status: t.status })),
+    // the numbers Home shows; counting questions quote these, never a count of open_tasks (it may be cut at 60)
+    counts: {
+      open: open.length,
+      late: open.filter((t) => t.status !== 'submitted' && !!t.due_at && new Date(t.due_at) < now).length,
+      waiting_review: open.filter((t) => t.status === 'submitted').length,
+    },
     open_tasks: open.slice(0, 60).map((t) => ({
       id: t.id,
       title: t.title,
       owner: nameOf(t.owner_id),
       status: t.status,
       due_at: t.due_at,
-      late: !!t.due_at && new Date(t.due_at) < now,
+      // the app's rule: sent in for review is not late
+      late: t.status !== 'submitted' && !!t.due_at && new Date(t.due_at) < now,
       estimate_hours: t.estimate_hours,
       likely_done: predict(t)?.at ?? null,
       likely_late_days: predict(t)?.late_days ?? 0,
@@ -796,6 +814,7 @@ serve(async (req) => {
         workspace_id: str('workspace_id'),
         objective_id: str('objective_id'),
         also_for_ids: [],
+        each: [],
         estimate_hours: typeof a.estimate_hours === 'number' ? a.estimate_hours : null,
         proof: (str('proof') as z.infer<typeof Proof> | null) ?? 'none',
       },
@@ -1044,7 +1063,7 @@ serve(async (req) => {
   const linkable = (id: string | null) => (id && liveObjectives.some((o) => o.id === id) ? id : null);
 
   /** create one task as the caller (+ its follow-up plan, + objective link); returns its id */
-  const createOne = async (t: Omit<NewTaskT, 'objective_id' | 'also_for_ids' | 'estimate_hours'>, wantObjective: string | null) => {
+  const createOne = async (t: Omit<NewTaskT, 'objective_id' | 'also_for_ids' | 'estimate_hours' | 'each'>, wantObjective: string | null) => {
     const owner = team.find((p) => p.id === t.owner_id);
     const helper = team.find((p) => p.id === t.helper_id);
     const ownerArabic = owner ? owner.locale === 'ar' || parsed.language === 'ar' : parsed.language === 'ar';
@@ -1074,7 +1093,9 @@ serve(async (req) => {
   };
 
   if (parsed.action === 'create' && parsed.task) {
-    const { objective_id: wantObjective, also_for_ids: alsoFor, estimate_hours: estRaw, ...t } = parsed.task;
+    const { objective_id: wantObjective, also_for_ids: alsoFor, estimate_hours: estRaw, each: eachRaw, ...t } = parsed.task;
+    // a task for each person, each their own work (Hoda, 2 Nov: "one task each by their field" made one junk task)
+    const each = body.apply_create ? [] : (eachRaw ?? []).map((e) => ({ ...e, owner_id: person(e.owner_id) })).filter((e) => !!e.owner_id && e.title.trim());
     const est = estRaw && estRaw > 0 && estRaw <= 2000 ? estRaw : null;
     const estDue = !!est && !t.due_at;
     t.owner_id = person(t.owner_id);
@@ -1086,7 +1107,17 @@ serve(async (req) => {
     const others = ac ? [] : [...new Set((alsoFor ?? []).map(person).filter((x): x is string => !!x && x !== t.owner_id))];
     const dup = ac ? null : findDuplicate(t.title, t.owner_id);
     const proposed = { ...t, objective_id: wantObjective, estimate_hours: est };
-    if (others.length && t.owner_id) {
+    if (each.length >= 2) {
+      for (const e of each) {
+        const b = { ...t, owner_id: e.owner_id, owner_reason: null, title: e.title.trim(), goal: e.goal ?? t.goal };
+        const id = await createOne(b, wantObjective);
+        createdList.push({ id, title: b.title, owner_name: displayName(b.owner_id), due_at: b.due_at });
+      }
+      taskId = createdList[0]?.id ?? null;
+      action = 'created';
+      parsed.reply = ar0 ? `تم، سويت ${each.length} مهام، كل واحد في شغله.` : `Done: ${each.length} tasks, each for their own part.`;
+      parsed.suggestions = [];
+    } else if (others.length && t.owner_id) {
       // several people: one task each, or one shared task? (nothing saved yet)
       const people = [t.owner_id, ...others].map((id) => ({ id, name: displayName(id) }));
       peopleChoice = { task: proposed, people, can_share: people.length === 2 };
@@ -1579,7 +1610,7 @@ serve(async (req) => {
         return { id, title: t.title, owner_name: nameOf(t.owner_id), due_at: t.due_at };
       });
     if (picks.length >= 2) payload = { candidates: picks, original_message: message };
-  } else if (parsed.action === 'none' && !parsed.brief?.rows.length && parsed.suggestions.length && /[?؟]s*$/.test(parsed.reply.trim())) {
+  } else if (parsed.action === 'none' && !parsed.brief?.rows.length && parsed.suggestions.length && /[?؟]\s*$/.test(parsed.reply.trim())) {
     // CLARIFY FIRST: one short question about a too-general task, with likely answers to tap
     payload = { suggestions: parsed.suggestions.slice(0, 3), clarify: true };
   } else if (parsed.action === 'none' && parsed.brief?.rows.length) {

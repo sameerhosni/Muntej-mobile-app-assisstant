@@ -19,6 +19,11 @@ export const OPEN = ['draft', 'assigned', 'in_progress', 'blocked', 'submitted',
 const Found = z.object({
   language: z.enum(['en', 'ar']),
   summary: z.string().describe('One short line: what the message is about, in its language'),
+  kind: z
+    .enum(['request', 'conversation', 'report', 'pitch', 'newsletter', 'notification'])
+    .describe(
+      'What the message is, decided BEFORE looking for tasks. request = someone asks the user (or their team) for work; conversation = a chat / meeting; report = a status update, run summary, log or results, from a person or an agent, even when it lists "next steps"; pitch = selling or offering something (vendor proposal, demo invite, cold outreach, "want me to send…?"); newsletter = marketing / news; notification = automated alert or receipt',
+    ),
   tasks: z.array(
     z.object({
       title: z.string().describe('Short action title, starts with a verb, in the message language'),
@@ -29,7 +34,7 @@ const Found = z.object({
       asked_of_user: z
         .boolean()
         .describe(
-          'true only when this work is asked of the user: the message is written to them (To line, a direct chat, "Hi <user>", "can you…") with a concrete request, or names / assigns them, or is their own note or promise. A report, status update, offer, pitch, newsletter or work between other people = false',
+          'true when this work is asked of the user or of their company / team through them: the message is written to them (To line, a direct chat, "Hi <user>", "can you…", "ممكن ترسلون لنا…") with a concrete request, or names / assigns them, or is their own note or promise. Who will DO it does not matter here (a manager hands it on: still true). A report, status update, offer, pitch, newsletter or work between other people = false',
         ),
       requested_by: z.string().nullable().describe('who asked for this work: their name as written (the sender, or the person in the chat / meeting who asked), or null'),
       due_at: z.string().nullable().describe('ISO 8601 with +03:00: the date AND time the message gives, or null'),
@@ -312,6 +317,7 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     ? {
         language: /[؀-ۿ]/.test(st.title) ? 'ar' : 'en',
         summary: `${input.source}: ${st.title}`,
+        kind: 'request',
         tasks: [
           {
             title: st.title.slice(0, 200),
@@ -376,6 +382,8 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const relevant = confident
     .map((t) => (isChat && t.owner_id && t.owner_id !== input.profileId && !named(t.owner_id) ? { ...t, owner_id: null } : t))
     .filter((t) => !(t.outside && !t.owner_id && !t.asked_by_user) && !(isChat && !t.owner_id && !t.asked_by_user))
+    // reports, pitches, newsletters and alerts are never work for the user, whatever their "next steps" say
+    .filter(() => st || ['request', 'conversation'].includes(found.kind))
     // only work someone asked of the user (task tools assign work, so theirs always is). What the user asked of others
     // in their own mail / chats is theirs to chase, not a task for them (owner, 4 Nov: "not even assigned to me"); it
     // still counts when they hand it to Saree3 directly (WhatsApp, a pasted note)

@@ -3,12 +3,15 @@
 //   node scripts/qa/run.mjs            everything
 //   node scripts/qa/run.mjs --no-ui    code + server only (no browser)
 //   node scripts/qa/run.mjs --only ui  only the screens
+//   node scripts/qa/run.mjs --only cases  only the real cases
 // What it does:
 //   1. code: app type-check, every edge function type-check
 //   2. resets the separate test company "Muntej QA" (scripts/qa/seed.sql; real companies are never touched) and signs
 //      in as its manager with a one-time test link (no shared code, no real person)
 //   3. server: Saree3 chat, the three reports, reading a team, confirming it, WhatsApp turns (dry, nothing sent),
 //      WhatsApp sign-in, ideas
+//   3b. real cases (scripts/qa/cases.mjs): the owner's complaints as tests, judged against the database: inbox
+//      messages that must (not) become tasks, Hoda's chat replayed, counts that must match, channels that must send
 //   4. screens: runs the app in a browser on this PC, opens every screen (errors, blank screens, crashes) and the key
 //      flows (build a team → review → edit someone; send an idea; Customize Home), with screenshots
 // Writes qa-out/report.md and qa-out/*.png; exits 1 when anything failed.
@@ -17,6 +20,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { cases } from './cases.mjs';
 
 // the company network re-signs HTTPS; without the system certificates every call to Supabase fails ("fetch failed")
 if (!process.execArgv.includes('--use-system-ca') && !(process.env.NODE_OPTIONS ?? '').includes('--use-system-ca')) {
@@ -50,6 +54,8 @@ const QA_PHONE = '966500000010';
 const results = [];
 const ok = (area, name, detail = '') => results.push({ area, name, pass: true, detail });
 const bad = (area, name, detail = '') => results.push({ area, name, pass: false, detail: String(detail).slice(0, 600) });
+// setup only the owner can do (a DNS record, an account): shown as a warning, doesn't stop a release
+const WARN_ONLY = new Set(['delivery']);
 async function check(area, name, fn) {
   const t0 = Date.now();
   try {
@@ -405,18 +411,41 @@ async function screens() {
 // ─── run ──────────────────────────────────────────────────────────────────────
 expect(TOKEN, 'SUPABASE_ACCESS_TOKEN is not set (the same user env var db-apply uses)');
 if (want('code')) await code();
-if (want('server') || want('ui') || want('screens')) await server();
+if (want('server') || want('ui') || want('screens') || want('cases')) await server();
+if (JWT && (want('server') || want('cases'))) {
+  const transcript = await cases({
+    check,
+    expect,
+    fn,
+    sql,
+    jwt: JWT,
+    ref: REF,
+    token: TOKEN,
+    ids: {
+      QA_ACCOUNT,
+      QA_BOSS,
+      FAISAL: 'a0000000-0000-4000-b000-000000000011',
+      ABDULLAH: 'a0000000-0000-4000-b000-000000000012',
+      NOURA: 'a0000000-0000-4000-b000-000000000013',
+      KHALID: 'a0000000-0000-4000-b000-000000000014',
+      SAAD: 'a0000000-0000-4000-b000-000000000015',
+    },
+  }).catch((e) => (bad('cases', 'Real cases', e?.message ?? e), []));
+  writeFileSync(join(OUT, 'chat-transcript.md'), transcript.join('\n\n'));
+}
 if (!noUi && (want('ui') || want('screens'))) await screens();
 
-const failed = results.filter((r) => !r.pass);
+const failed = results.filter((r) => !r.pass && !WARN_ONLY.has(r.area));
+const warned = results.filter((r) => !r.pass && WARN_ONLY.has(r.area));
 const lines = [
   `# Muntej QA — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
   '',
-  failed.length ? `**${failed.length} failed** of ${results.length}` : `**All ${results.length} passed** ✅`,
+  (failed.length ? `**${failed.length} failed** of ${results.length}` : `**All ${results.length - warned.length} passed** ✅`) +
+    (warned.length ? ` · ⚠️ ${warned.length} need the owner's setup` : ''),
   '',
   '| | Area | Check | Detail |',
   '|---|---|---|---|',
-  ...results.map((r) => `| ${r.pass ? '✅' : '❌'} | ${r.area} | ${r.name} | ${r.detail.replace(/\n/g, '<br>').replace(/\|/g, '/')} |`),
+  ...results.map((r) => `| ${r.pass ? '✅' : WARN_ONLY.has(r.area) ? '⚠️' : '❌'} | ${r.area} | ${r.name} | ${r.detail.replace(/\n/g, '<br>').replace(/\|/g, '/')} |`),
 ];
 writeFileSync(join(OUT, 'report.md'), lines.join('\n'));
 console.log(lines.join('\n'));
