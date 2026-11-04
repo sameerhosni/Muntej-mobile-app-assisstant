@@ -99,6 +99,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-04 · Active means really signed in; direct messages go to the right person; Arabic reads right to left; Reject all shows progress (server: connect, intake, invite, muntej-chat, onboarding-nudges, public-api, sync-sources, whatsapp · app update 1.0.0)
 - 2026-11-04 · People added to a company are really told; Team shows who knows (server: admin-login, autopilot, daily-summary, intercom-webhook, invite, muntej-chat, onboarding-nudges, phone-auth, quick-login, send-followups, sync-sources, team-alerts, whatsapp · app update 1.0.0)
 - 2026-11-04 · Chat makes a real task per person, counts match Home, QA checks real cases (server: connect, daily-summary, intake, muntej-chat, public-api, sync-sources, whatsapp · app update 1.0.0)
 - 2026-11-04 · Chats: your own asks to others are not your tasks (server: connect, intake, public-api, sync-sources, whatsapp)
