@@ -6,7 +6,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { translationPending } from './task-text.ts';
 import { sendPush } from './push.ts';
-import { ACTION_TEMPLATE, inWindow, waButtons, waTemplate } from './wa.ts';
+import { ACTION_TEMPLATE, inWindow, waButtons, waTemplate, localizedFor } from './wa.ts';
 import { needsYouCards } from './wa-actions.ts';
 import { phCapture } from './posthog.ts';
 import { sendEmail } from './email.ts';
@@ -214,7 +214,8 @@ export function quietUntil(q: QuietHours | undefined, at: Date): Date | null {
 
 // ─── WhatsApp (Meta Cloud API) ────────────────────────────────────────────────
 
-export async function sendWhatsApp(phone: string, text: string): Promise<boolean> {
+export async function sendWhatsApp(phone: string, written: string): Promise<boolean> {
+  const text = await localizedFor(phone, written);
   const token = Deno.env.get('WHATSAPP_TOKEN');
   const phoneId = Deno.env.get('WHATSAPP_PHONE_ID');
   if (!token || !phoneId) return false;

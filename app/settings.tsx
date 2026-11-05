@@ -1,6 +1,7 @@
 // Screen · Settings — profile, language, sign out, all-screens dev index; no mockup, v2 style per design/TOKENS.md
 // The prototype tour, the all-screens list and the Manager/Employee "View as" switch are for admins only.
 import { Pressable, View } from 'react-native';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { SectorSetting } from '@/features/sectors/SectorPicker';
 import { router, type Href } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -355,8 +356,9 @@ export default function SettingsScreen() {
             {t('settings.languageHint')}
           </AppText>
         </View>
+        <TourTarget id="settings.language">
         <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', backgroundColor: colors.track, borderRadius: radius.pill, padding: 4 }}>
-          {(['en', 'ar'] as Language[]).map((l) => {
+          {(['en', 'ar', 'hi'] as Language[]).map((l) => {
             const active = lang === l;
             return (
               <Pressable
@@ -375,12 +377,13 @@ export default function SettingsScreen() {
                 }}
               >
                 <AppText weight="bold" color={active ? 'primary' : 'textMuted'}>
-                  {l === 'en' ? t('settings.english') : t('settings.arabic')}
+                  {l === 'en' ? t('settings.english') : l === 'ar' ? t('settings.arabic') : t('settings.hindi')}
                 </AppText>
               </Pressable>
             );
           })}
         </View>
+        </TourTarget>
       </Card>
 
       {isAdmin && (

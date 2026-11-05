@@ -1,4 +1,6 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
+import { localizeRows } from '@/lib/api/localize';
+import type { Language } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 import type { Task, TaskPriority, TaskStatus } from '@/lib/api';
 import { toError } from '@/features/capture/api';
@@ -249,21 +251,21 @@ export function payloadPart<
 async function invokeChat(body: Record<string, unknown>): Promise<ChatMessage[]> {
   const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', { body });
   if (error) throw await toError(error);
-  return data?.messages ?? [];
+  return localizeRows(data?.messages ?? [], ['content']);
 }
 
 /** Apply on a bulk preview: only the ticked tasks. Returns the stored result message. */
-export function applyBulkChange(ids: string[], change: BulkChange, lang: 'en' | 'ar') {
+export function applyBulkChange(ids: string[], change: BulkChange, lang: Language) {
   return invokeChat({ apply_bulk: { ids, change }, lang });
 }
 
 /** Confirm on a recurring card: saves the schedule (the first task may be created right away). */
-export function confirmRecurring(recurringId: string | null, patch: Record<string, unknown>, lang: 'en' | 'ar') {
+export function confirmRecurring(recurringId: string | null, patch: Record<string, unknown>, lang: Language) {
   return invokeChat({ apply_recurring: { recurring_id: recurringId, patch }, lang });
 }
 
 /** One tap / "Do all" on a team brief: the rows' fixes (move to someone / 2 more days). */
-export function applyBriefFixes(sourceId: string, rows: BriefRow[], lang: 'en' | 'ar') {
+export function applyBriefFixes(sourceId: string, rows: BriefRow[], lang: Language) {
   const items = rows
     .filter((r) => r.action)
     .map((r) => ({ key: r.key, kind: r.action!.kind, task_id: r.action!.task_id, owner_id: r.action!.owner_id, due_at: r.action!.due_at }));
@@ -271,12 +273,12 @@ export function applyBriefFixes(sourceId: string, rows: BriefRow[], lang: 'en' |
 }
 
 /** Undo every fix of one "Do all" tap. */
-export function undoTaskChanges(logIds: string[], lang: 'en' | 'ar') {
+export function undoTaskChanges(logIds: string[], lang: Language) {
   return invokeChat({ undo_log_ids: logIds, lang });
 }
 
 /** Undo a status / bulk change (the server allows 5 minutes). */
-export function undoTaskChange(logId: string, lang: 'en' | 'ar') {
+export function undoTaskChange(logId: string, lang: Language) {
   return invokeChat({ undo_log_id: logId, lang });
 }
 
@@ -284,7 +286,7 @@ export function undoTaskChange(logId: string, lang: 'en' | 'ar') {
 export function createHeldTask(
   task: HeldTask,
   opts: { owner_ids?: string[]; mode?: 'separate' | 'shared'; force?: boolean },
-  lang: 'en' | 'ar',
+  lang: Language,
 ) {
   return invokeChat({ apply_create: { task, ...opts }, lang });
 }
@@ -344,7 +346,7 @@ async function fetchChat(): Promise<ChatData> {
     .order('created_at', { ascending: false })
     .limit(60);
   if (error) throw new Error(error.message);
-  const messages = ((data ?? []) as ChatMessage[]).reverse();
+  const messages = await localizeRows(((data ?? []) as ChatMessage[]).reverse(), ['content']);
 
   // payload.id survives a delete (task_id is set to null when the task row goes)
   const ids = [...new Set(messages.map((m) => taskSnapshot(m.payload)?.id ?? m.task_id).filter((x): x is string => !!x))];
@@ -380,7 +382,7 @@ export async function sendChat(message: string, source: ChatSource, focusTaskId?
 }
 
 /** Applies a proposed change the user confirmed; returns the one stored assistant row. */
-export async function confirmChange(taskId: string, patch: ProposedPatch, lang: 'en' | 'ar'): Promise<ChatMessage[]> {
+export async function confirmChange(taskId: string, patch: ProposedPatch, lang: Language): Promise<ChatMessage[]> {
   const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', {
     body: { apply: { task_id: taskId, patch }, lang },
   });
@@ -390,7 +392,7 @@ export async function confirmChange(taskId: string, patch: ProposedPatch, lang: 
 
 /** Saves a team change the user confirmed (upsert_person runs as them and enforces permissions).
  *  Throws with the server's readable reason ("You can only change people in your own team"). */
-export async function confirmOrg(patch: OrgPatch, lang: 'en' | 'ar'): Promise<ChatMessage[]> {
+export async function confirmOrg(patch: OrgPatch, lang: Language): Promise<ChatMessage[]> {
   const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', {
     body: { apply_org: { patch }, lang },
   });
@@ -404,7 +406,7 @@ export async function confirmObjective(
   op: ObjectiveOp,
   objectiveId: string | null,
   patch: ObjectivePatch,
-  lang: 'en' | 'ar',
+  lang: Language,
 ): Promise<ChatMessage[]> {
   const { data, error } = await supabase.functions.invoke<{ messages: ChatMessage[] }>('muntej-chat', {
     body: { apply_objective: { op, objective_id: objectiveId, patch }, lang },

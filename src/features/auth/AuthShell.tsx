@@ -7,11 +7,23 @@ import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { setLanguage, useDirection, type Language } from '@/lib/i18n';
 
 /** before sign-in: one tap to the other language, named in its own script ("English" / "عربي") (owner, 28 Oct) */
-function LanguageButton() {
-  const { t } = useTranslation();
+/** the languages you're not in, each in its own words */
+function LanguageButtons() {
   const { lang } = useDirection();
-  const other: Language = lang === 'ar' ? 'en' : 'ar';
-  const label = other === 'en' ? t('settings.english', { lng: 'en' }) : t('settings.arabic', { lng: 'ar' });
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+      {(['ar', 'en', 'hi'] as Language[])
+        .filter((l) => l !== lang)
+        .map((l) => (
+          <LanguageButton key={l} other={l} />
+        ))}
+    </View>
+  );
+}
+
+function LanguageButton({ other }: { other: Language }) {
+  const { t } = useTranslation();
+  const label = other === 'en' ? t('settings.english', { lng: 'en' }) : other === 'ar' ? t('settings.arabic', { lng: 'ar' }) : t('settings.hindi', { lng: 'en' });
   return (
     <Pressable
       onPress={() => setLanguage(other)}
@@ -50,7 +62,7 @@ export function AuthShell({ title, hint, children }: { title: string; hint: stri
               <BrandChip size={48} />
               <BrandWordmark width={124} variant="white" style={{ marginTop: 4 }} />
             </View>
-            <LanguageButton />
+            <LanguageButtons />
           </View>
           <AppText color="onDarkMuted">{t('auth.tagline')}</AppText>
         </Hero>

@@ -7,6 +7,7 @@
 //   member name → notifications → a practice check-in → email (optional)
 // The Home strip shows "Setting up your account 3/6" and reopens here at the next missing item.
 import { useState, type ComponentType, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -451,7 +452,7 @@ function TaskStep({ t, onDone }: { t: T; onDone: () => Promise<unknown> }) {
   const [made, setMade] = useState<TaskSnapshot | null>(null);
   const when = (iso: string | null | undefined) =>
     iso
-      ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', {
+      ? new Intl.DateTimeFormat(intlTag(lang, 'ar-SA', 'en-GB'), {
           timeZone: 'Asia/Riyadh',
           weekday: 'long',
           hour: 'numeric',

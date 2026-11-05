@@ -212,7 +212,7 @@ const Brief = z.object({
 });
 
 const ChatOutput = z.object({
-  language: z.enum(['en', 'ar']),
+  language: z.enum(['en', 'ar', 'hi']),
   reply: z.string(),
   action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'recurring', 'cancel', 'delete', 'org', 'team', 'objective', 'account']),
   task: NewTask.nullable().describe('Only when action = create'),
@@ -265,7 +265,7 @@ Each turn, choose ONE action:
 - "delete": the user wants a task removed completely ("delete it", "احذفها"). Put its id in target_task_id. Deleting needs one tap to confirm, so say you've shown it and they just need to confirm. Prefer "cancel" when they only mean it's no longer needed.
 
 Writing rules:
-- language = the language of the user's latest message. Write reply, title, owner_reason, goal, definition_of_done and helper_reason in it. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
+- language = the language of the user's latest message (en, ar or hi). Write reply, title, owner_reason, goal, definition_of_done and helper_reason in it. Hindi → simple, friendly workplace Hindi in Devanagari, the way a colleague writes. Arabic → warm Saudi (Najdi/Hijazi) conversational Arabic, never Egyptian or formal MSA: use شي، ثاني، الحين، وش، أبي/تبي، زين، عشان (not حاجة، تاني، دلوقتي، إيه، عايز، كده). Example: "تمام، سجلتها لنورة…".
 - reply: 1–2 short sentences (about 25 words max), human and warm, no lists, no ids. Say what you did, then at most ONE thing that's missing; never several questions at once. After a create: say what you added and for whom + why, then mention what's still missing (due date, what "done" means; budget only when the work clearly costs money) and that they can just say or type it. After an update: confirm what changed and what is still missing, if anything. Never say you created or changed something unless action says so (with action "none" you created and changed nothing).
 - suggestions: after create or update, 2-3 useful next steps the user might want, written as the exact short message they would send (e.g. "خلها يوم الخميس", "أضف نورة تساعده", "المطلوب تقرير اختبار" / "Make it due Thursday", "Add Noura to help"). Prefer filling what is missing (due date, what done means, owner), then helpful extras (a helper, priority). Never repeat what is already set. When the task has no objective and an active objective could fit, one suggestion may link it ("Link it to «X»" / "اربطها بهدف «X»"). After a question answered with a brief: 2 short follow-up questions the user may ask next (e.g. "Who's free this week?" / "مين فاضي هالأسبوع؟"). After a CLARIFY FIRST question: 2-3 concrete likely answers. Empty for small talk, other questions, cancel, delete, org and objective.
 - PENDING CARDS: if the user just says "yes"/"confirm"/"تمام" to a change waiting on a card, use "none" and tell them to tap Confirm on the card.

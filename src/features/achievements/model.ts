@@ -1,5 +1,6 @@
 // Screen 21 view model: windows (week / month / quarter), dots and lanes for live rows and the design's sample.
 import type { Profile } from '@/lib/api';
+import { intlTag } from '@/lib/i18n/locale';
 import { DAY_MS, firstName, personName, startOfWeek } from '@/features/dashboard/metrics';
 import { wsTone, type WsTone } from '@/features/workspaces/color';
 import { workspaceName, type WorkspaceWithMembers } from '@/features/workspaces/useWorkspaces';
@@ -44,7 +45,7 @@ type T = (key: string, opts?: Record<string, unknown>) => string;
 const NO_WS = '__none';
 
 function locale(lang: string) {
-  return lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-US';
+  return intlTag(lang, 'ar-SA-u-ca-gregory-nu-latn', 'en-US');
 }
 
 export function fmtDate(d: Date, lang: string) {

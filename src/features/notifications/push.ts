@@ -1,6 +1,7 @@
 // Push notifications (Android first). Expo Go can't receive pushes since SDK 53, so everything here is a no-op
 // unless the app runs as a real Muntej build on a physical device.
 import { useEffect, useSyncExternalStore } from 'react';
+import { registerStrings } from '@/lib/i18n/register';
 import { Platform } from 'react-native';
 import { router, type Href } from 'expo-router';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
@@ -79,32 +80,59 @@ async function register() {
 const CHECKIN_ACTIONS = ['done', 'on_track', 'blocked', 'got_it', 'need_time', 'need_help'] as const;
 type CheckinAction = (typeof CHECKIN_ACTIONS)[number];
 
+const PUSH_NS = registerStrings('pushButtons', {
+ en: {
+  done: 'Done ✓',
+  onTrack: 'On track',
+  blocked: 'Blocked',
+  gotIt: 'Got it 👍',
+  needTime: 'Need time',
+  needHelp: 'Need help',
+  send: 'Send',
+  whatsBlocking: "What's in the way?",
+  howMuchTime: 'How much more, and why?',
+  whatsInTheWay: "What's in the way?",
+ },
+ ar: {
+  done: 'خلصت ✓',
+  onTrack: 'ماشية تمام',
+  blocked: 'واقفة',
+  gotIt: 'استلمت 👍',
+  needTime: 'أحتاج وقت',
+  needHelp: 'أحتاج مساعدة',
+  send: 'أرسل',
+  whatsBlocking: 'وش اللي موقفها؟',
+  howMuchTime: 'كم تحتاج زيادة وليش؟',
+  whatsInTheWay: 'وش اللي موقفك؟',
+ },
+});
+
 async function registerCheckinButtons() {
   if (!Notifications) return;
-  const ar = i18n.language === 'ar';
+  const tp = (k: string) => i18n.t(`${PUSH_NS}.${k}`);
   await Notifications.setNotificationCategoryAsync('checkin', [
-    { identifier: 'done', buttonTitle: ar ? 'خلصت ✓' : 'Done ✓', options: { opensAppToForeground: true } },
-    { identifier: 'on_track', buttonTitle: ar ? 'ماشية تمام' : 'On track', options: { opensAppToForeground: true } },
+    { identifier: 'done', buttonTitle: tp('done'), options: { opensAppToForeground: true } },
+    { identifier: 'on_track', buttonTitle: tp('onTrack'), options: { opensAppToForeground: true } },
     {
       identifier: 'blocked',
-      buttonTitle: ar ? 'واقفة' : 'Blocked',
-      textInput: { submitButtonTitle: ar ? 'أرسل' : 'Send', placeholder: ar ? 'وش اللي موقفها؟' : "What's in the way?" },
+      buttonTitle: tp('blocked'),
+      textInput: { submitButtonTitle: tp('send'), placeholder: tp('whatsBlocking') },
       options: { opensAppToForeground: true },
     },
   ]).catch((e) => console.warn('[push] check-in buttons', e));
   // the hand-off of a task someone gave you (category 'handoff', also Saree3's "you haven't confirmed" reminder)
   await Notifications.setNotificationCategoryAsync('handoff', [
-    { identifier: 'got_it', buttonTitle: ar ? 'استلمت 👍' : 'Got it 👍', options: { opensAppToForeground: true } },
+    { identifier: 'got_it', buttonTitle: tp('gotIt'), options: { opensAppToForeground: true } },
     {
       identifier: 'need_time',
-      buttonTitle: ar ? 'أحتاج وقت' : 'Need time',
-      textInput: { submitButtonTitle: ar ? 'أرسل' : 'Send', placeholder: ar ? 'كم تحتاج زيادة وليش؟' : 'How much more, and why?' },
+      buttonTitle: tp('needTime'),
+      textInput: { submitButtonTitle: tp('send'), placeholder: tp('howMuchTime') },
       options: { opensAppToForeground: true },
     },
     {
       identifier: 'need_help',
-      buttonTitle: ar ? 'أحتاج مساعدة' : 'Need help',
-      textInput: { submitButtonTitle: ar ? 'أرسل' : 'Send', placeholder: ar ? 'وش اللي موقفك؟' : "What's in the way?" },
+      buttonTitle: tp('needHelp'),
+      textInput: { submitButtonTitle: tp('send'), placeholder: tp('whatsInTheWay') },
       options: { opensAppToForeground: true },
     },
   ]).catch((e) => console.warn('[push] hand-off buttons', e));

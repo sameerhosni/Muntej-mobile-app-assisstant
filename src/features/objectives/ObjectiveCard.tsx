@@ -1,4 +1,6 @@
 import { View } from 'react-native';
+import type { Language } from '@/lib/i18n';
+import { intlTag } from '@/lib/i18n/locale';
 import { router } from 'expo-router';
 import { AppText, Avatar, Card } from '@/components/ui';
 import { spacing } from '@/theme/tokens';
@@ -10,9 +12,9 @@ import type { ObjectiveHealth } from './health';
 import { DualBar, GapIcons, HealthChip } from './visuals';
 import { NS } from './strings';
 
-export function shortDate(iso: string, lang: 'en' | 'ar') {
+export function shortDate(iso: string, lang: Language) {
   try {
-    return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-US', { month: 'short', day: 'numeric' }).format(
+    return new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-ca-gregory-nu-latn', 'en-US'), { month: 'short', day: 'numeric' }).format(
       new Date(iso),
     );
   } catch {
@@ -20,7 +22,7 @@ export function shortDate(iso: string, lang: 'en' | 'ar') {
   }
 }
 
-export function ownerName(o: ObjectiveWithOwner, lang: 'en' | 'ar') {
+export function ownerName(o: ObjectiveWithOwner, lang: Language) {
   return o.owner ? (lang === 'ar' && o.owner.full_name_ar) || o.owner.full_name : null;
 }
 

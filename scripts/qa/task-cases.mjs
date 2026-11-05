@@ -132,6 +132,51 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
   } finally {
     await sql(`delete from public.tasks where id in ('${en.id}', '${mine.id}')`);
   }
+  // The owner, 5 Nov: "add indian language in the whole app as an option". Arabic stays the default; Hindi is chosen.
+  const DEVANAGARI = /[\u0900-\u097F]/;
+  await check('hindi', 'Choosing Hindi is saved, and new people still start in Arabic', async () => {
+    await rpc('set_my_locale', { p_locale: 'hi' }, jwt);
+    const [boss] = await sql(`select locale from public.profiles where id = '${QA_BOSS}'`);
+    expect(boss.locale === 'hi', `saved as ${boss.locale}`);
+    await rpc('set_my_locale', { p_locale: 'ar' }, jwt);
+    const invited = await rpc('upsert_person', { p: { full_name: 'QA Hindi Default', email: 'qa-hindi@qa.muntej.test', role: 'employee', manager_id: QA_BOSS } }, jwt);
+    const [fresh] = await sql(`select locale from public.profiles where id = '${invited}'`);
+    await sql(`delete from public.profiles where id = '${invited}'`);
+    expect(fresh.locale === 'ar', `a new person starts in ${fresh.locale}`);
+    return 'saved; default stays Arabic';
+  });
+  await check('hindi', 'A task reaches someone who chose Hindi in Hindi', async () => {
+    await sql(`update public.profiles set locale = 'hi' where id = '${them.id}'`);
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('Prepare the monthly safety checklist', '${them.id}', '${QA_BOSS}', 'assigned') returning id`);
+    try {
+      const hi = await until(async () => (await sql(`select translations -> 'hi' ->> 'title' as t from public.tasks where id = '${t.id}'`))[0]?.t);
+      expect(hi && DEVANAGARI.test(hi), `got: ${hi}`);
+      return hi;
+    } finally {
+      await sql(`delete from public.tasks where id = '${t.id}'; update public.profiles set locale = 'ar' where id = '${them.id}'`);
+    }
+  });
+  await check('hindi', 'Muntej’s own words come back in Hindi and are remembered', async () => {
+    const line = `QA: Your report is ready to read ${Date.now() % 1000}`;
+    const { texts } = await fn('localize-text', { lang: 'hi', texts: [line, 'Hello {{name}}, your task is due'] }, jwt);
+    expect(DEVANAGARI.test(texts[0]), `got: ${texts[0]}`);
+    expect(texts[1].includes('{{name}}'), `lost the name: ${texts[1]}`);
+    const saved = await sql(`select lang from public.text_translations where lang = 'hi' and source = '${line}'`);
+    expect(saved.length === 1, 'not remembered');
+    await sql(`delete from public.text_translations where source = '${line}'`);
+    return texts[0];
+  });
+  await check('hindi', 'Saree3 answers Hindi in Hindi', async () => {
+    const r = await fn('muntej-chat', { message: 'मेरे कितने काम बाकी हैं?', lang: 'hi' }, jwt);
+    const bot = (r.messages ?? []).at(-1);
+    expect(bot && DEVANAGARI.test(bot.content), `answered: ${bot?.content}`);
+    return bot.content.slice(0, 60);
+  });
+  await check('hindi', 'Someone can’t use the translator without signing in', async () => {
+    const r = await fn('localize-text', { lang: 'hi', texts: ['Hello'] }, null).catch((e) => e);
+    expect(r instanceof Error && /401/.test(r.message), `answered ${r?.message ?? JSON.stringify(r)}`);
+    return 'refused';
+  });
   // The owner, 5 Nov: "You added 3 active but no one received the invitation yet and no one accept it neither login".
   // Sending an email invitation makes the login, and that alone said "active" and told the manager they joined.
   const INVITED = 'qa-invited@qa.muntej.test';

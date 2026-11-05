@@ -4,6 +4,7 @@
 // an empty card; the design's demo week only after "Show me an example", marked with SampleTag.
 // The audio brief is read aloud by the speak Edge Function (useSpokenBrief). Accepting the kudos suggestion is local state.
 import { useMemo, useState, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { Banknote, CalendarDays, ChevronRight, CircleCheck, Clock, Hand, Pause, Play, Send, Sparkles, TrendingUp } from 'lucide-react-native';
@@ -60,7 +61,7 @@ export default function BriefScreen() {
   }, []);
 
   const rangeLabel = useMemo(() => {
-    const loc = lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-US';
+    const loc = intlTag(lang, 'ar-SA-u-nu-latn-ca-gregory', 'en-US');
     const a = new Date(week.from);
     const b = new Date(week.end);
     const month = new Intl.DateTimeFormat(loc, { month: lang === 'ar' ? 'long' : 'short' }).format(a);

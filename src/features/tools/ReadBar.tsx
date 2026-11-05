@@ -2,6 +2,7 @@
 // messages…"), then the result in one line pointing at the tasks right under it. Also when the tool was last read and
 // when it's read next, so the page answers "is it working?" before anything else.
 import { useEffect, useRef, useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Animated, Easing, View } from 'react-native';
 import { RefreshCw } from 'lucide-react-native';
 import { AppText, Button, Card } from '@/components/ui';
@@ -85,7 +86,7 @@ export function ReadBar({ conns, onRead }: { conns: Connection[]; onRead?: () =>
     const at = last ? Date.parse(last) + every * 60_000 : now;
     const mins = Math.max(1, Math.round((at - now) / 60_000));
     if (mins <= 60) return t('next', { when: t('inMin', { n: mins }) });
-    return t('next', { when: new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-GB', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(at) });
+    return t('next', { when: new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn', 'en-GB'), { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(at) });
   };
 
   const read = async () => {

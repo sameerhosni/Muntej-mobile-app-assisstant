@@ -2,6 +2,7 @@
 // Live data: activity_log counts for this week/month (+ followups totals via useHomeStats). Demo numbers only
 // when the workspace has no activity yet. Hours from value.ts; SAR = hours × the rate the user picks.
 import { useState, type ComponentType, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Pressable, ScrollView, Share, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -65,7 +66,7 @@ export default function ReceiptScreen() {
   const r = useReceipt(period, rate);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  const locale = lang === 'ar' ? 'ar-u-ca-gregory-nu-latn' : 'en-US';
+  const locale = intlTag(lang, 'ar-u-ca-gregory-nu-latn', 'en-US');
   const fmt = (n: number) => formatNumber(n, lang);
 
   // Week = Sunday → Thursday (Saudi work week); month = month name.

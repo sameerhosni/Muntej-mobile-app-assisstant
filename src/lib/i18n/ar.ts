@@ -247,6 +247,7 @@ const ar: Translations = {
     languageHint: 'العربي يقلب التطبيق كله من اليمين لليسار.',
     english: 'English',
     arabic: 'العربية',
+    hindi: 'हिन्दी',
     allScreens: 'كل الشاشات',
     allScreensHint: 'روح لأي شاشة من الـ ٢٤ (اختصار للتطوير).',
     aboutTagline: 'تتكلم، والشغل يخلص.',

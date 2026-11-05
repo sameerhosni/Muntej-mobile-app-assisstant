@@ -1,3 +1,4 @@
+import { intlTag } from '@/lib/i18n/locale';
 // "Value realization" numbers shown on Home / Capture / Receipt.
 // These are ESTIMATES from activity counts, not measurements. Tune the constants with real pilot data.
 
@@ -23,7 +24,7 @@ export function taskSavings(followupSteps: number) {
 }
 
 export function formatNumber(n: number, lang: string, fractionDigits = 0) {
-  return new Intl.NumberFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US', {
+  return new Intl.NumberFormat(intlTag(lang, 'ar-SA-u-nu-latn', 'en-US'), {
     maximumFractionDigits: fractionDigits,
     minimumFractionDigits: fractionDigits,
   }).format(n);

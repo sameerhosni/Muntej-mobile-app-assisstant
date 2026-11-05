@@ -6,6 +6,7 @@
 //   2) an invite nobody opened: resent after 1 and 3 days (WhatsApp join link or email, as the inviter), then stop.
 // Every nudge and resend is written to activity_log.
 import { HttpError, json, serve } from '../_shared/http.ts';
+import { prefersArabic } from '../_shared/localize.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 import { loadPrefs } from '../_shared/notify.ts';
 import { inWindow, rtl, waText } from '../_shared/wa.ts';
@@ -42,7 +43,7 @@ serve(async (req) => {
     for (const r of due) {
       const p = people.get(r.profile_id);
       if (!p || p.status !== 'active' || !p.user_id || p.hidden) continue;
-      const ar = p.locale !== 'en';
+      const ar = prefersArabic(p.locale);
       const name = ((ar && p.full_name_ar) || p.full_name).split(' ')[0];
       let title: string;
       let body: string;

@@ -2,6 +2,7 @@
 // Every account's first steps as five checkpoints (named → first task → team → hand-off → review), newest first,
 // with this week's task count; then the one-tap feedback people gave after big moments.
 import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { intlTag } from '@/lib/i18n/locale';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -42,7 +43,7 @@ export default function GrowthScreen() {
       return d as { accounts: AccountRow[]; feedback: FeedbackRow[] };
     },
   });
-  const day = (iso: string) => new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', { day: 'numeric', month: 'short' }).format(new Date(iso));
+  const day = (iso: string) => new Intl.DateTimeFormat(intlTag(lang, 'ar-SA', 'en-GB'), { day: 'numeric', month: 'short' }).format(new Date(iso));
   const steps = (a: AccountRow) => [
     ['stNamed', a.named],
     ['stTask', a.first_task],

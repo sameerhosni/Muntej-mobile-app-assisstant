@@ -2,6 +2,7 @@
 // filtered by kind and status, with who sent it, their company and the screen it came from. Tap a status to change it
 // and/or write a reply: the person hears it from Saree3 (database trigger → alert idea_update). Also in PostHog.
 import { useMemo, useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { ScrollView, View } from 'react-native';
 import { Redirect, router, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -65,7 +66,7 @@ function WishRow({ idea: i, lang }: { idea: Idea; lang: string }) {
   const update = useUpdateIdea();
   const [reply, setReply] = useState(i.reply ?? '');
   const who = (lang === 'ar' && i.person?.full_name_ar) || i.person?.full_name || '…';
-  const date = new Date(i.created_at).toLocaleDateString(lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short' });
+  const date = new Date(i.created_at).toLocaleDateString(intlTag(lang, 'ar-SA-u-ca-gregory-nu-latn', 'en-GB'), { day: 'numeric', month: 'short' });
   return (
     <Card style={{ gap: spacing.sm }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>

@@ -2,6 +2,7 @@
 // Everything Muntej knows about you in the account you're working in, in one place (owner: "show all profile info
 // details somewhere"). Opened by tapping your card at the top of Settings. "Edit" opens your entry on the Team screen.
 import type { ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -47,6 +48,7 @@ const en = {
   language: 'Language',
   ar: 'Arabic',
   en: 'English',
+  hi: 'Hindi',
   whatsapp: 'WhatsApp',
   connected: 'Connected ✓',
   notConnected: 'Not connected',
@@ -89,6 +91,7 @@ const ar: typeof en & Record<string, string> = {
   language: 'اللغة',
   ar: 'العربية',
   en: 'الإنجليزية',
+  hi: 'الهندية',
   whatsapp: 'واتساب',
   connected: 'مربوط ✓',
   notConnected: 'مو مربوط',
@@ -123,7 +126,7 @@ export default function MyProfileScreen() {
   const role = (p as { actual_role?: string } | undefined)?.actual_role ?? p?.role;
   const skills = (p?.skills ?? []) as string[];
   const since = p?.created_at
-    ? new Intl.DateTimeFormat(isAr ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(p.created_at))
+    ? new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn-ca-gregory', 'en-GB'), { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(p.created_at))
     : null;
 
   return (
@@ -158,7 +161,7 @@ export default function MyProfileScreen() {
             <Row k={t('nameAr')} v={p.full_name_ar} none={t('none')} />
             <Row k={t('email')} v={p.email} none={t('none')} />
             <Row k={t('phone')} v={p.phone} none={t('none')} />
-            <Row k={t('language')} v={p.locale === 'ar' ? t('ar') : t('en')} />
+            <Row k={t('language')} v={p.locale === 'ar' ? t('ar') : p.locale === 'hi' ? t('hi') : t('en')} />
           </Section>
 
           <Section title={t('work')}>

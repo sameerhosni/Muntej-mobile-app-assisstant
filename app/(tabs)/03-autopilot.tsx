@@ -1,6 +1,7 @@
 // Screen 03 · Autopilot — see design/v2/html/Autopilot.dc.html (Arabic: AutopilotAR.dc.html)
 // Live data: activity_log (RLS-scoped). Read-only feed of what Muntej did.
 import { useMemo, useState, type ComponentType } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import {
@@ -129,7 +130,7 @@ export default function AutopilotScreen() {
     .filter((g) => g.items.length > 0);
 
   const timeFmt = (iso: string) =>
-    new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-GB', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+    new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn', 'en-GB'), { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
   const nameOf = (id: string | null) => {
     const p = team.data?.find((x) => x.id === id);
     return p ? (lang === 'ar' && p.full_name_ar ? p.full_name_ar : p.full_name) : null;

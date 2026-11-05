@@ -5,6 +5,7 @@
 //   working   Saree3 is on it (late work he's chasing, a tool he keeps retrying)
 //   waiting   he's waiting on someone else, and when he nudges them next
 import { useQuery } from '@tanstack/react-query';
+import { intlTag } from '@/lib/i18n/locale';
 import { titleFor } from '@/lib/api/taskText';
 import { supabase } from '@/lib/supabase';
 import { useDecisions, useMyProfile, useTasks, useTeam } from '@/lib/api';
@@ -79,7 +80,7 @@ export function useSaree3Jobs(t: T, lang: string) {
   const at = (iso: string) => {
     const d = new Date(iso);
     const sameDay = Math.abs(d.getTime() - Date.now()) < DAY && d.getDate() === new Date().getDate();
-    return new Intl.DateTimeFormat(ar ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', {
+    return new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn-ca-gregory', 'en-GB'), {
       ...(sameDay ? {} : { weekday: 'short' }),
       hour: 'numeric',
       minute: '2-digit',

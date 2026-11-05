@@ -1,6 +1,7 @@
 // A person's invitation on their sheet (Team): not invited / sent / opened / joined, with Invite or Send again.
 // WhatsApp with a one-time join link when they have a mobile, email otherwise (invite function "send").
 import { useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Share, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Send } from 'lucide-react-native';
@@ -63,7 +64,7 @@ export function InviteStatus({ person }: { person: { id: string; user_id: string
   // a login alone isn't joining: someone who already uses Muntej stays pending until they open this company
   const joined = (!!person.user_id && person.status !== 'pending') || last?.status === 'joined';
   const label = joined ? t('joined') : !last ? t('none') : last.status === 'sent' ? t(`sent_${last.channel}`) : t(last.status);
-  const when = last ? new Date(last.sent_at).toLocaleDateString(lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short' }) : null;
+  const when = last ? new Date(last.sent_at).toLocaleDateString(intlTag(lang, 'ar-SA-u-ca-gregory-nu-latn', 'en-GB'), { day: 'numeric', month: 'short' }) : null;
 
   const send = async () => {
     setBusy(true);

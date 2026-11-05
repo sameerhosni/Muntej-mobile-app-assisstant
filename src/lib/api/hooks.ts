@@ -1,5 +1,6 @@
 // Typed data hooks (TanStack Query). RLS decides what each user can see, so queries stay simple.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { localizeRows } from './localize';
 import { supabase } from '@/lib/supabase';
 import { useCallback } from 'react';
 import { useAuth } from '@/features/auth/AuthProvider';
@@ -99,8 +100,8 @@ export function useTask(id: string | undefined) {
     queryKey: qk.task(id ?? ''),
     select: useCallback((x: TaskDetail) => localizeTask(x, lang, meId), [lang, meId]),
     enabled: !!id,
-    queryFn: async (): Promise<TaskDetail> =>
-      unwrap(
+    queryFn: async (): Promise<TaskDetail> => {
+      const row = unwrap(
         await supabase
           .from('tasks')
           .select(`${TASK_SELECT}, subtasks(*), evidence(*), followups(*), reviews(*)`)
@@ -109,7 +110,9 @@ export function useTask(id: string | undefined) {
           .order('scheduled_at', { referencedTable: 'followups' })
           .order('round', { referencedTable: 'reviews' })
           .single(),
-      ) as unknown as TaskDetail,
+      ) as unknown as TaskDetail;
+      return { ...row, followups: await localizeRows(row.followups, ['message']) };
+    },
   });
 }
 
@@ -135,7 +138,7 @@ export function useDecisions(status?: DecisionStatus) {
         .eq('manager_id', meId!)
         .order('created_at', { ascending: false });
       if (status) q = q.eq('status', status);
-      return unwrap(await q) as unknown as DecisionWithContext[];
+      return localizeRows(unwrap(await q) as unknown as DecisionWithContext[], ['title', 'recommendation']);
     },
   });
 }
@@ -150,7 +153,7 @@ export function useActivity(limit = 50) {
   return useQuery({
     queryKey: qk.activity(limit),
     queryFn: async (): Promise<ActivityEntry[]> =>
-      unwrap(await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(limit)),
+      localizeRows(unwrap(await supabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(limit)) as ActivityEntry[], ['summary', 'reason']),
   });
 }
 

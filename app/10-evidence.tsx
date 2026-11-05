@@ -4,6 +4,7 @@
 // While loading: spinner. No active tasks: an empty card; the design's sample (Khalid · Monthly attendance report)
 // only after "See an example", marked with SampleTag.
 import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -84,7 +85,7 @@ export default function EvidenceScreen() {
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
   const n = (v: number) => formatNumber(v, lang);
-  const locale = lang === 'ar' ? 'ar-u-ca-gregory-nu-latn' : 'en-US';
+  const locale = intlTag(lang, 'ar-u-ca-gregory-nu-latn', 'en-US');
   const weekday = (iso: string) => new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(iso));
 
   const signals = useMemo(() => {

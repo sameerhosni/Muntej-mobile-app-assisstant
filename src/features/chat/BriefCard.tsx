@@ -3,6 +3,7 @@
 //   ✓ what Muntej already did by itself (reminder / check-in) · the one fix waiting for a tap (move it / +2 days)
 //   "Do all" when there are two or more fixes. Applied rows turn green; Undo is on the result message (5 minutes).
 import { useMemo, useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
 import { ArrowRightLeft, CalendarPlus, CircleCheck, Sparkles, Zap } from 'lucide-react-native';
@@ -126,9 +127,9 @@ function Row({ row, first, applied, busy, onFix }: { row: BriefRow; first: boole
   const tone = TONE[row.status] ?? TONE.on_track;
   const name = row.person_name ?? t('nobody');
   const timeFmt = (iso: string) =>
-    new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+    new Intl.DateTimeFormat(intlTag(lang, 'ar-SA', 'en-GB'), { timeZone: 'Asia/Riyadh', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
   const dayFmt = (iso: string) =>
-    new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(iso));
+    new Intl.DateTimeFormat(intlTag(lang, 'ar-SA', 'en-GB'), { timeZone: 'Asia/Riyadh', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(iso));
   const a = row.action;
   const fixLabel = a
     ? a.kind === 'owner'

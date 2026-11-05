@@ -12,6 +12,13 @@ import {
   Tajawal_700Bold,
   Tajawal_800ExtraBold,
 } from '@expo-google-fonts/tajawal';
+import {
+  NotoSansDevanagari_400Regular,
+  NotoSansDevanagari_500Medium,
+  NotoSansDevanagari_600SemiBold,
+  NotoSansDevanagari_700Bold,
+  NotoSansDevanagari_800ExtraBold,
+} from '@expo-google-fonts/noto-sans-devanagari';
 
 export const appFonts = {
   Karla_400Regular,
@@ -24,4 +31,9 @@ export const appFonts = {
   Tajawal_500Medium,
   Tajawal_700Bold,
   Tajawal_800ExtraBold,
+  NotoSansDevanagari_400Regular,
+  NotoSansDevanagari_500Medium,
+  NotoSansDevanagari_600SemiBold,
+  NotoSansDevanagari_700Bold,
+  NotoSansDevanagari_800ExtraBold,
 };

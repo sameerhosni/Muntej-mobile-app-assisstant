@@ -11,6 +11,7 @@
 // mobile and every IP is rate-limited. Each sign-in is written to activity_log.
 // Deployed without JWT checks (people aren't signed in yet).
 import { HttpError, json, serve } from '../_shared/http.ts';
+import { prefersArabic } from '../_shared/localize.ts';
 import { adminClient } from '../_shared/push.ts';
 import { newPin, newToken, normPhone, sessionFor, sha256, tooMany } from '../_shared/phone-session.ts';
 import { CODE_TEMPLATE, waConfigured, waTemplateWith } from '../_shared/wa.ts';
@@ -92,7 +93,7 @@ serve(async (req) => {
     if (body.action === 'opened') {
       if (inv.status === 'sent') await admin.from('invites').update({ status: 'opened', opened_at: new Date().toISOString() }).eq('id', inv.id);
       const { data: acc } = await admin.from('accounts').select('name').eq('id', person.account_id).maybeSingle();
-      return json({ first_name: (((person.locale !== 'en' && person.full_name_ar) || person.full_name) as string).split(' ')[0], company: acc?.name ?? null });
+      return json({ first_name: (((prefersArabic(person.locale) && person.full_name_ar) || person.full_name) as string).split(' ')[0], company: acc?.name ?? null });
     }
     if (inv.used_at || Date.parse(inv.expires_at) < Date.now()) throw new HttpError(410, 'This link was already used or has expired. Sign in with your mobile number instead.');
     await admin.from('invites').update({ used_at: new Date().toISOString(), status: inv.status === 'joined' ? 'joined' : 'opened', opened_at: new Date().toISOString() }).eq('id', inv.id);
@@ -130,7 +131,7 @@ serve(async (req) => {
     if (person && waConfigured()) {
       const code = newPin();
       await admin.from('phone_codes').upsert({ phone, code_hash: await sha256(`${phone}:${code}`), tries: 0, expires_at: new Date(Date.now() + 10 * 60_000).toISOString() });
-      const ok = await waTemplateWith(phone, CODE_TEMPLATE(), person.locale === 'en' ? 'en' : 'ar', [code], [{ sub_type: 'url', index: 0, param: code }]);
+      const ok = await waTemplateWith(phone, CODE_TEMPLATE(), prefersArabic(person.locale) ? 'ar' : 'en', [code], [{ sub_type: 'url', index: 0, param: code }]);
       if (!ok) console.error('phone-auth: code template failed (not approved yet?)');
     }
     return json({ sent: true });

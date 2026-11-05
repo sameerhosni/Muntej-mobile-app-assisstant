@@ -5,6 +5,7 @@
 //   the reviewer, once it's in      → Approve / Send back + the countdown (Muntej approves by itself when it runs out)
 //   anyone else                     → only "Change with Muntej"
 import { useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,7 +76,7 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
   const at = autoApproveAt(review);
   const c = at ? countdown(at, now) : null;
   const when = at
-    ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(at))
+    ? new Intl.DateTimeFormat(intlTag(lang, 'ar-SA', 'en-GB'), { timeZone: 'Asia/Riyadh', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(at))
     : '';
   const strip =
     review && (isOwner || isReviewer) ? (

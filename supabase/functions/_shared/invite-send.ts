@@ -2,6 +2,7 @@
 // no codes in it) when they have a mobile, email otherwise (or too). Each send is an invites row (sent → opened →
 // joined). Used by the invite function (a manager taps Invite) and onboarding-nudges (the daily resend).
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { prefersArabic } from './localize.ts';
 import { inviteByEmail, inviterInfo, type InviteExtra } from './invite.ts';
 import { INVITE_TEMPLATE, waConfigured, waTemplateWith } from './wa.ts';
 import { newToken, sha256 } from './phone-session.ts';
@@ -49,7 +50,7 @@ export async function sendInvite(
     if (!waConfigured()) r.whatsapp = 'not_configured';
     else {
       const token = newToken();
-      const ar = p.locale !== 'en';
+      const ar = prefersArabic(p.locale);
       const first = ((ar && p.full_name_ar) || p.full_name).split(' ')[0];
       const ok = await waTemplateWith(
         p.phone,

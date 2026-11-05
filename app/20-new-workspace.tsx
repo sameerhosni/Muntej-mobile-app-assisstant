@@ -5,6 +5,7 @@
 // The three value tiles (10 sec / 400 SAR / 0 meetings) are the design's estimates.
 // Prototype tip t20: tap people to add / remove, then create.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Pressable, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -60,7 +61,7 @@ export default function NewWorkspaceScreen() {
   }, [created]);
 
   const dateFmt = (d: Date) =>
-    new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-US', { month: 'short', day: 'numeric' }).format(d);
+    new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-ca-gregory-nu-latn', 'en-US'), { month: 'short', day: 'numeric' }).format(d);
 
   const why = (c: Candidate) => {
     const parts: string[] = [];

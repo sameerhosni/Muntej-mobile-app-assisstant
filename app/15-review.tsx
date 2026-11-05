@@ -3,6 +3,7 @@
 // Without → an empty card; the design's demo rounds only after "Show me an example" (marked with SampleTag),
 // where rating, Approve & close and Send back are local state. While loading: spinner.
 import { useState, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,7 +44,7 @@ const starPoints = (r: number) => (r === 5 ? 30 : r * 5);
 
 /** Weekday name; Jan 4 2026 is a Sunday, so dayIdx 0 = Sunday. */
 function weekday(dayIdx: number, lang: string) {
-  return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-US', { weekday: lang === 'ar' ? 'long' : 'short' }).format(new Date(2026, 0, 4 + dayIdx));
+  return new Intl.DateTimeFormat(intlTag(lang, 'ar-SA', 'en-US'), { weekday: lang === 'ar' ? 'long' : 'short' }).format(new Date(2026, 0, 4 + dayIdx));
 }
 
 export default function ReviewScreen() {

@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/karla": "^0.4.2",
+    "@expo-google-fonts/noto-sans-devanagari": "^0.4.2",
     "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo-google-fonts/tajawal": "^0.4.1",
     "@hookform/resolvers": "^5.9.2",
@@ -64,6 +65,7 @@
     "db:seed": "powershell -ExecutionPolicy Bypass -File scripts/db-apply.ps1 -Seed",
     "db:types": "supabase gen types typescript --project-id katwiedukkvssuxbjbqf --schema public > src/lib/api/database.types.ts",
     "qa": "node scripts/qa/run.mjs",
+    "i18n:hi": "node scripts/i18n/hi.mjs",
     "ship": "node scripts/ship.mjs"
   },
   "private": true

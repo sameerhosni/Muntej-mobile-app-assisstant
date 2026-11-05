@@ -2,6 +2,7 @@
 // Live: the task card is the signed-in employee's first active task (tasks, RLS-scoped) with its assigner + helper.
 // Demo: the chat thread, quick-reply answers and points (shared demo wallet) — no chat/points backend yet.
 import { useRef, useState, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,8 +57,8 @@ export default function EmployeeChatScreen() {
   const pr = priorityStyle[priority];
 
   const timeFmt = (d: Date) =>
-    new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-GB', { hour: '2-digit', minute: '2-digit' }).format(d);
-  const dayFmt = (d: Date) => new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-US', { weekday: 'short' }).format(d);
+    new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn', 'en-GB'), { hour: '2-digit', minute: '2-digit' }).format(d);
+  const dayFmt = (d: Date) => new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-ca-gregory-nu-latn', 'en-US'), { weekday: 'short' }).format(d);
 
   const hours = stats.data ? hoursSaved(0, stats.data.updatesReceived) : 1.5;
   const earned = picked ? (picked === 'Done' ? 55 : 5) : 0;

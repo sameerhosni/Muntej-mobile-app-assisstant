@@ -27,7 +27,8 @@ const RLM = '‏';
 const LRM = '‎';
 const NBSP = ' ';
 const ARABIC_LETTER = /[؀-ۿ]/g;
-const LATIN_LETTER = /[A-Za-z]/g;
+/** the left-to-right scripts the app shows: English and Hindi */
+const LTR_LETTER = /[A-Za-z\u0900-\u097F]/g;
 /** at least this many words make a sentence; shorter (a name, a label) keeps the screen's side */
 const SENTENCE_WORDS = 4;
 
@@ -40,7 +41,7 @@ const textOf = (children: TextProps['children']): string =>
  */
 function directionOf(text: string, isRTL: boolean): 'rtl' | 'ltr' {
   const arabic = text.match(ARABIC_LETTER)?.length ?? 0;
-  const latin = text.match(LATIN_LETTER)?.length ?? 0;
+  const latin = text.match(LTR_LETTER)?.length ?? 0;
   if (!arabic && !latin) return isRTL ? 'rtl' : 'ltr';
   const words = text.trim().split(/\s+/).length;
   if (isRTL) return !arabic && words >= SENTENCE_WORDS ? 'ltr' : 'rtl';

@@ -4,6 +4,8 @@
 // Env: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID; templates WHATSAPP_REPORT_TEMPLATE / WHATSAPP_ACTION_TEMPLATE (default
 // muntej_report / muntej_action, created by the whatsapp function's setup action and approved by Meta).
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { adminClient } from './push.ts';
+import { localizeTexts } from './localize.ts';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 /** Meta's window is 24 h after the person's last message; keep a margin */
@@ -15,7 +17,49 @@ export type WaRow = { id: string; title: string; description?: string };
 /** dry run (the whatsapp function's server-only "simulate"): messages are collected here instead of being sent */
 export const capture: { on: boolean; out: unknown[] } = { on: false, out: [] };
 
-async function send(phone: string, message: Record<string, unknown>): Promise<boolean> {
+/** does this number belong to someone who chose Hindi? */
+async function readsHindi(phone: string): Promise<boolean> {
+  if (!phone) return false;
+  const { data } = await adminClient().from('profiles').select('id').eq('phone', phone.replace(/\D/g, '')).neq('status', 'deleted').eq('locale', 'hi').limit(1);
+  return !!data?.length;
+}
+
+/** Someone who chose Hindi reads every message in it, whoever wrote it (Arabic and English are written by each sender). */
+export async function localizedFor(phone: string, text: string): Promise<string> {
+  return (await readsHindi(phone)) ? (await localizeTexts(adminClient(), 'hi', [text]))[0] : text;
+}
+
+// deno-lint-ignore no-explicit-any
+async function inTheirLanguage(phone: string, message: any): Promise<Record<string, unknown>> {
+  if (!(await readsHindi(phone))) return message;
+  const m = JSON.parse(JSON.stringify(message));
+  const slots: { get: () => string; set: (v: string) => void }[] = [];
+  // deno-lint-ignore no-explicit-any
+  const slot = (o: any, k: string, max: number) => {
+    if (typeof o?.[k] === 'string' && o[k]) slots.push({ get: () => o[k], set: (v) => (o[k] = v.slice(0, max)) });
+  };
+  slot(m.text, 'body', 4096);
+  const i = m.interactive;
+  slot(i?.body, 'text', 1024);
+  slot(i?.footer, 'text', 60);
+  slot(i?.action, 'button', 20);
+  for (const b of i?.action?.buttons ?? []) slot(b.reply, 'title', 20);
+  for (const sec of i?.action?.sections ?? []) {
+    for (const row of sec.rows ?? []) {
+      slot(row, 'title', 24);
+      slot(row, 'description', 72);
+    }
+  }
+  for (const c of m.template?.components ?? []) {
+    if (c.type === 'body') for (const p of c.parameters ?? []) slot(p, 'text', 1024);
+  }
+  const out = await localizeTexts(adminClient(), 'hi', slots.map((x) => x.get()));
+  slots.forEach((x, k) => x.set(out[k]));
+  return m;
+}
+
+async function send(phone: string, raw: Record<string, unknown>): Promise<boolean> {
+  const message = await inTheirLanguage(phone, raw);
   if (capture.on) return (capture.out.push(message), true);
   const token = Deno.env.get('WHATSAPP_TOKEN');
   const phoneId = Deno.env.get('WHATSAPP_PHONE_ID');

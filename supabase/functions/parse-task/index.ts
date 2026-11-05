@@ -1,5 +1,5 @@
 // parse-task — turns one spoken/typed sentence into a structured task + follow-up plan (OpenAI, model via PARSE_MODEL).
-// Input: { text: string, lang?: 'en' | 'ar' }. Output: ParsedTask (see schema below).
+// Input: { text: string, lang?: 'en' | 'ar' | 'hi' }. Output: ParsedTask (see schema below).
 // The team list comes from the caller's own RLS view, so Claude can only assign people they can see.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve } from '../_shared/http.ts';
@@ -13,7 +13,7 @@ const FollowupStep = z.object({
 });
 
 const ParsedTask = z.object({
-  language: z.enum(['en', 'ar']),
+  language: z.enum(['en', 'ar', 'hi']),
   title: z.string(),
   owner_id: z.string().nullable(),
   helper_id: z.string().nullable(),
@@ -36,7 +36,7 @@ const { $schema: _ignored, ...RESPONSE_SCHEMA } = z.toJSONSchema(ParsedTask) as 
 const SYSTEM = `You are Muntej, an AI task assistant for managers in Saudi companies. A manager says one sentence; you turn it into a task so they can "create it and forget it".
 
 Rules:
-- Write title, goal, definition_of_done, helper_reason and summaries in the language the manager used ("language"). Saudi conversational Arabic when Arabic.
+- Write title, goal, definition_of_done, helper_reason and summaries in the language the manager used ("language": en, ar or hi). Hindi → simple, friendly workplace Hindi in Devanagari, the way a colleague writes. Saudi conversational Arabic when Arabic.
 - owner_id / helper_id / workspace_id must be ids from the provided lists, or null. Match names loosely (first names, Arabic or English spellings, nicknames).
 - Resolve relative dates against the provided current time in Asia/Riyadh. The Saudi work week is Sunday–Thursday. "Before Thursday" means Thursday 17:00 unless a time is said. No time said → 17:00. Output ISO 8601 with +03:00.
 - priority: urgent only if the manager signals urgency (today, ASAP, ضروري, عاجل); high for client/exec deadlines within a week; else medium; low if they say no rush.

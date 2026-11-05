@@ -5,6 +5,7 @@
 // my work and follow-ups, and what moved since a day you pick. Every number opens the tasks behind it.
 // Numbers: src/features/overview/model.ts.
 import { useMemo, useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Modal, Pressable, RefreshControl, ScrollView, useWindowDimensions, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -65,7 +66,7 @@ export default function OverviewScreen() {
     decisions.refetch();
     org.refetch();
   };
-  const now = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', {
+  const now = new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn-ca-gregory', 'en-GB'), {
     weekday: 'long',
     day: 'numeric',
     month: 'long',

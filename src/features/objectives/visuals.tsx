@@ -1,5 +1,6 @@
 // Small shared visuals for objectives: start-anchored positioning, dual progress/time bar, status chip, gap icons.
 import type { ReactNode } from 'react';
+import type { Language } from '@/lib/i18n';
 import { View, type ViewStyle } from 'react-native';
 import { AlertTriangle, CalendarX, Check, Clock, FileQuestion, UserX } from 'lucide-react-native';
 import { AppText, Chip } from '@/components/ui';
@@ -114,7 +115,7 @@ export function GapIcons({ health }: { health: ObjectiveHealth }) {
 }
 
 /** "12 days left" / "Due today" / "3 days over". */
-export function daysLeftText(t: (k: string, o?: Record<string, unknown>) => string, days: number, lang: 'en' | 'ar') {
+export function daysLeftText(t: (k: string, o?: Record<string, unknown>) => string, days: number, lang: Language) {
   if (days === 0) return t('dueToday');
   if (days > 0) return t('daysLeft', { count: days, n: formatNumber(days, lang) });
   return t('daysOver', { count: -days, n: formatNumber(-days, lang) });

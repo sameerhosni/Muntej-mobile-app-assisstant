@@ -10,6 +10,7 @@
 // looks like an open task asks first (PeopleCard / DuplicateCard). Repeating work ("standup every Monday") comes as a
 // RecurringCard to confirm. Task cards show the estimate and Muntej's predicted finish.
 import { InviteLinkCard, type InviteLinkPayload } from '@/features/invite/InviteLinkCard';
+import { intlTag } from '@/lib/i18n/locale';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -158,7 +159,7 @@ export default function MuntejChatScreen() {
   const started = useRef(false);
 
   const timeFmt = useMemo(() => {
-    const f = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US', { hour: 'numeric', minute: '2-digit' });
+    const f = new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn', 'en-US'), { hour: 'numeric', minute: '2-digit' });
     return (iso: string) => {
       try {
         return f.format(new Date(iso));

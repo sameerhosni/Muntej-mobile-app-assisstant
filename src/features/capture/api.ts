@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import type { Language } from '@/lib/i18n';
 import { File } from 'expo-file-system';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -15,7 +16,7 @@ export type FollowupStep = {
 
 /** Mirrors the parse-task Edge Function output. */
 export type ParsedTask = {
-  language: 'en' | 'ar';
+  language: Language;
   transcript: string;
   title: string;
   owner_id: string | null;

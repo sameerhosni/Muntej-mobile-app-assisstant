@@ -2,6 +2,7 @@
 // I like, type it or say it (mic → text), attach a photo or a PDF, send; below, everything you sent with its status and the team's reply.
 // Opened from Saree3's menu, More and Settings with ?from=<screen> so the idea knows where it came from.
 import { useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -68,7 +69,7 @@ export default function IdeasScreen() {
   };
   const back = () => (router.canGoBack() ? router.back() : router.replace('/' as Href));
   const date = (iso: string) =>
-    new Date(iso).toLocaleDateString(lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short' });
+    new Date(iso).toLocaleDateString(intlTag(lang, 'ar-SA-u-ca-gregory-nu-latn', 'en-GB'), { day: 'numeric', month: 'short' });
 
   const submit = () => {
     setNote(null);

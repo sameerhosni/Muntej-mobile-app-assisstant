@@ -42,7 +42,7 @@ serve(async (req) => {
   const body = new FormData();
   body.append('file', file, file.name || 'audio.m4a');
   body.append('model', Deno.env.get('STT_MODEL') ?? 'gpt-4o-transcribe');
-  if (lang === 'ar') body.append('language', 'ar');
+  if (lang === 'ar' || lang === 'hi') body.append('language', lang);
   body.append('prompt', `Saudi dialect. Names: ${vocab}.`.slice(0, 800));
 
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {

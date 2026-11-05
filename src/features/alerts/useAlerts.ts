@@ -3,6 +3,7 @@
 // RLS: own rows only; the app may only set read_at.
 // The alerts table is newer than src/lib/api/database.types.ts, so it is reached through a small local typed cast.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { localizeRows } from '@/lib/api/localize';
 import { supabase } from '@/lib/supabase';
 import { useMyProfile } from '@/lib/api';
 
@@ -98,7 +99,7 @@ export function useRecentAlerts() {
         .order('created_at', { ascending: false })
         .limit(20);
       if (error) throw new Error(error.message);
-      return data ?? [];
+      return localizeRows(data ?? [], ['title', 'body']);
     },
   });
 

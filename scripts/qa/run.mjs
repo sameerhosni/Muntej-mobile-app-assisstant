@@ -173,6 +173,11 @@ async function code() {
     expect(r.code === 0, r.out.split('\n').filter((l) => /error TS/.test(l)).slice(0, 8).join('\n') || r.out.slice(-500));
     return 'no errors';
   });
+  await check('code', 'Every app string has Hindi', async () => {
+    const r = run('node', ['scripts/i18n/hi.mjs', '--check']);
+    expect(r.code === 0, `${r.out.slice(0, 500)} Run: npm run i18n:hi`);
+    return r.out.split('\n')[0];
+  });
   await check('code', 'Edge functions type-check (deno)', async () => {
     const fns = readdirSync(join(ROOT, 'supabase', 'functions')).filter((d) => existsSync(join(ROOT, 'supabase', 'functions', d, 'index.ts')));
     const r = run('npx', ['-y', 'deno', 'check', '--node-modules-dir=none', ...fns.map((f) => `${f}/index.ts`)], { cwd: join(ROOT, 'supabase', 'functions'), timeout: 900_000 });
@@ -465,6 +470,28 @@ async function screens() {
         expect(!errors.length, errors.slice(0, 3).join('\n'));
         return 'ok';
       });
+
+    // Hindi is a choice, not the default (owner, 5 Nov): the main screens in it, then back to Arabic for the flows below
+    await page.evaluate(() => localStorage.setItem('muntej.language', 'hi'));
+    for (const route of ['/01-home', '/38-tasks', '/04-decisions', '/18-alerts', '/17-summaries', '/39-team', '/53-profile', '/settings'])
+      await check('hindi', `Open ${route} in Hindi`, async () => {
+        errors.length = 0;
+        await page.goto(`http://localhost:8099${route}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.waitForTimeout(5000);
+        const text = await page.evaluate(() => document.body.innerText || '');
+        await page.screenshot({ path: join(OUT, `hi_${route.replace(/^\//, '')}.png`) });
+        expect(!/Something went wrong|Unexpected error|undefined is not|Cannot read propert|Unmatched Route/i.test(text), `error on screen: ${text.slice(0, 200)}`);
+        expect(!/\{\{\w+\}\}|undefined|NaN/.test(text), `raw text on screen: ${text.match(/\{\{\w+\}\}|undefined|NaN/)?.[0]}`);
+        const hindi = text.match(/[\u0900-\u097F]/g)?.length ?? 0;
+        expect(hindi >= 30, `only ${hindi} Hindi letters on screen: ${text.slice(0, 160)}`);
+        const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        expect(wide <= 1, `the page is ${wide}px too wide`);
+        expect(!errors.length, errors.slice(0, 3).join('\n'));
+        return `${hindi} Hindi letters`;
+      });
+    await page.evaluate(() => localStorage.setItem('muntej.language', 'ar'));
+    await page.goto('http://localhost:8099/01-home', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+    await page.waitForTimeout(3000);
 
     await check('flows', 'Build a team → Review → edit a person', async () => {
       errors.length = 0;

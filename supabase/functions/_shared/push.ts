@@ -1,6 +1,7 @@
 // Push notifications through the Expo push service (it delivers via FCM on Android, APNs on iPhone,
 // using the credentials stored in the Expo project, never here).
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { localizeTexts } from './localize.ts';
 import { requireEnv } from './http.ts';
 
 /** categoryId: the app's notification buttons (e.g. 'checkin' = Done / On track / Blocked) */
@@ -68,10 +69,15 @@ export async function sendPush(profileIds: string[], msg: PushMessage, admin = a
     const { data: same } = await admin.from('profiles').select('id').in('user_id', userIds);
     ids = [...new Set([...ids, ...(same ?? []).map((r) => r.id as string)])];
   }
-  const { data: rows, error } = await admin.from('push_tokens').select('token').in('profile_id', ids);
+  const { data: rows, error } = await admin.from('push_tokens').select('token, profile_id').in('profile_id', ids);
   if (error) throw error;
   const tokens = (rows ?? []).map((r) => r.token as string);
   if (!tokens.length) return 0;
+  // someone who chose Hindi reads it in Hindi, whoever wrote the message (Arabic and English are written by each sender)
+  const { data: hindi } = await admin.from('profiles').select('id').in('id', ids).eq('locale', 'hi');
+  const hiPeople = new Set((hindi ?? []).map((p) => p.id as string));
+  const hiTokens = new Set((rows ?? []).filter((r) => hiPeople.has(r.profile_id as string)).map((r) => r.token as string));
+  const [hiTitle, hiBody] = hiTokens.size ? await localizeTexts(admin, 'hi', [msg.title, msg.body]) : [msg.title, msg.body];
 
   let sent = 0;
   for (let i = 0; i < tokens.length; i += 100) {
@@ -82,8 +88,8 @@ export async function sendPush(profileIds: string[], msg: PushMessage, admin = a
       body: JSON.stringify(
         batch.map((to) => ({
           to,
-          title: rtlSafe(isolate(shapeTitle(msg.title))),
-          body: rtlSafe(isolate(shapeBody(msg.body))),
+          title: rtlSafe(isolate(shapeTitle(hiTokens.has(to) ? hiTitle : msg.title))),
+          body: rtlSafe(isolate(shapeBody(hiTokens.has(to) ? hiBody : msg.body))),
           data: msg.data ?? {},
           sound: 'default',
           channelId: 'muntej',

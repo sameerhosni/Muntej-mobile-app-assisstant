@@ -244,6 +244,7 @@ const en = {
     languageHint: 'Arabic switches the whole app to right-to-left.',
     english: 'English',
     arabic: 'العربية',
+    hindi: 'हिन्दी',
     allScreens: 'All screens',
     allScreensHint: 'Jump to any of the 24 screens (dev shortcut).',
     aboutTagline: 'You talk. Work gets done.',

@@ -5,6 +5,7 @@
 // decisions (type priority_question, requested_by me, manager_id = my manager) via src/features/pushback/usePushback.
 // Points pill = demo wallet.
 import { useEffect, useState, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -90,7 +91,7 @@ export default function PushbackScreen() {
 
   const dueLabel = model.live
     ? model.newTask.dueAt
-      ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { weekday: 'short', day: 'numeric' }).format(
+      ? new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn-ca-gregory', 'en-GB'), { weekday: 'short', day: 'numeric' }).format(
           new Date(model.newTask.dueAt),
         )
       : t('noDue')

@@ -15,6 +15,7 @@ serve(async (req) => {
     .slice(0, MAX_CHARS);
   if (!say) throw new HttpError(400, 'Nothing to read');
   const ar = String(lang ?? '').startsWith('ar');
+  const hi = String(lang ?? '').startsWith('hi');
 
   const res = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
@@ -26,7 +27,7 @@ serve(async (req) => {
       response_format: 'mp3',
       instructions: ar
         ? 'Read in natural Saudi Arabic (Najdi) dialect, warm and upbeat, like a friendly colleague giving a quick weekly update. Clear, not too fast.'
-        : 'Warm and upbeat, like a friendly colleague giving a quick weekly update. Clear, not too fast.',
+        : `${hi ? 'Read in natural Hindi. ' : ''}Warm and upbeat, like a friendly colleague giving a quick weekly update. Clear, not too fast.`,
     }),
   });
   if (!res.ok) {

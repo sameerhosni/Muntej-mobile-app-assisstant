@@ -1,5 +1,5 @@
 // suggest-skills — "✨ Suggest with AI" on the person form (screen 39).
-// Input: { person_id, lang: 'en' | 'ar' }. Reads the person's title, years of experience, current skills and the
+// Input: { person_id, lang: 'en' | 'ar' | 'hi' }. Reads the person's title, years of experience, current skills and the
 // titles of their last 30 tasks as the caller (RLS: only people/tasks the caller may see), asks the model for
 // up to 8 detailed skills and returns { skills: [{ name, level 1-5, years|null, notes|null }] }.
 // Nothing is saved here: the form merges the suggestions and the user saves through upsert_person.
@@ -44,7 +44,7 @@ suggest at most 8 concrete, work-relevant skills (tools, domains, abilities) —
 - years: only when it can be reasonably inferred (never more than total experience); otherwise null.
 - notes: one short line of evidence (e.g. "Did 6 of the last 30 tasks: monthly sales reports"); null if none.
 - Never invent personal facts; no soft-skill fluff unless the tasks clearly show it.
-Write every name and note in the requested language ("en" = English, "ar" = Saudi-friendly Modern Standard Arabic),
+Write every name and note in the requested language ("en" = English, "ar" = Saudi-friendly Modern Standard Arabic, "hi" = simple Hindi in Devanagari),
 translating task wording when the tasks are in the other language; keep an existing skill's name exactly as given. Return JSON only.`;
 
 serve(async (req) => {
@@ -53,7 +53,7 @@ serve(async (req) => {
 
   const body = (await req.json().catch(() => ({}))) as { person_id?: string; lang?: string };
   const personId = (body.person_id ?? '').trim();
-  const lang = body.lang === 'ar' ? 'ar' : 'en';
+  const lang = body.lang === 'ar' || body.lang === 'hi' ? body.lang : 'en';
   if (!/^[0-9a-f-]{36}$/i.test(personId)) throw new HttpError(400, 'person_id is required');
 
   const { data: person, error: pErr } = await db

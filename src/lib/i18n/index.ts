@@ -4,8 +4,9 @@ import { I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import en from './en';
 import ar from './ar';
+import hi from './hi.generated';
 
-export type Language = 'en' | 'ar';
+export type Language = 'en' | 'ar' | 'hi';
 
 const STORAGE_KEY = 'muntej.language';
 
@@ -13,7 +14,7 @@ const STORAGE_KEY = 'muntej.language';
 const DEFAULT_LANGUAGE: Language = 'ar';
 
 i18n.use(initReactI18next).init({
-  resources: { en: { translation: en }, ar: { translation: ar } },
+  resources: { en: { translation: en }, ar: { translation: ar }, hi: { translation: hi } },
   lng: DEFAULT_LANGUAGE,
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
@@ -24,7 +25,7 @@ i18n.use(initReactI18next).init({
 export async function loadSavedLanguage(): Promise<void> {
   try {
     const saved = await AsyncStorage.getItem(STORAGE_KEY);
-    if (saved === 'en' || saved === 'ar') await i18n.changeLanguage(saved);
+    if (saved === 'en' || saved === 'ar' || saved === 'hi') await i18n.changeLanguage(saved);
   } catch {
     // keep the default
   }
@@ -51,7 +52,7 @@ export async function setLanguage(lang: Language): Promise<void> {
 
 export function useDirection() {
   const { i18n: inst } = useTranslation();
-  const lang: Language = inst.language === 'ar' ? 'ar' : 'en';
+  const lang: Language = inst.language === 'ar' || inst.language === 'hi' ? inst.language : 'en';
   const isRTL = lang === 'ar';
   return { lang, isRTL, direction: isRTL ? ('rtl' as const) : ('ltr' as const) };
 }

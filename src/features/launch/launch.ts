@@ -2,6 +2,7 @@
 // and for whom; feature_events holds each person's state. Here: where each feature lives in the app, the state hooks,
 // featureUsed() to call wherever a feature is really used, and the spotlight that points at the right button.
 import { useSyncExternalStore } from 'react';
+import { localizeRows } from '@/lib/api/localize';
 import type { Href } from 'expo-router';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -50,6 +51,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   // opens one of your own open tasks (LaunchCard picks it) with its steps lit up
   steps: { href: '/38-tasks', spot: 'task.steps' },
   task_translation: { href: '/38-tasks', spot: 'task.translate' },
+  hindi_language: { href: '/settings', spot: 'settings.language' },
   // 23 Oct: each one's place is a TourTarget, so "Show me" runs Saree3's walkthrough right on it
   from_saree3: { href: '/', spot: 'home.from' },
   team_risks: { href: '/01-home', spot: 'home.risks' },
@@ -73,7 +75,7 @@ export function useFeatures() {
     queryFn: async (): Promise<Feature[]> => {
       const { data, error } = await untyped.from('features').select('*').order('sort');
       if (error) throw new Error(error.message);
-      return (data ?? []) as Feature[];
+      return localizeRows((data ?? []) as Feature[], ['title', 'benefit']);
     },
     staleTime: 10 * 60_000,
   });

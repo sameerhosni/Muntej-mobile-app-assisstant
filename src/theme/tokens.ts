@@ -116,7 +116,7 @@ export const radius = {
   pill: 999,
 } as const;
 
-// English: Karla body + Playfair Display headings. Arabic: Tajawal for both.
+// English: Karla body + Playfair Display headings. Arabic: Tajawal for both. Hindi: Noto Sans Devanagari for both.
 export const fontFamily = {
   en: {
     regular: 'Karla_400Regular',
@@ -132,9 +132,17 @@ export const fontFamily = {
     bold: 'Tajawal_700Bold',
     extrabold: 'Tajawal_800ExtraBold',
   },
+  hi: {
+    regular: 'NotoSansDevanagari_400Regular',
+    medium: 'NotoSansDevanagari_500Medium',
+    semibold: 'NotoSansDevanagari_600SemiBold',
+    bold: 'NotoSansDevanagari_700Bold',
+    extrabold: 'NotoSansDevanagari_800ExtraBold',
+  },
   display: {
     en: 'PlayfairDisplay_600SemiBold',
     ar: 'Tajawal_800ExtraBold',
+    hi: 'NotoSansDevanagari_700Bold',
   },
 } as const;
 

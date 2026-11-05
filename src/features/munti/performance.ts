@@ -4,6 +4,7 @@
 //   manager/admin → every task they can see (their team) (+ who on the team is overloaded)
 // Each status names the tasks behind it and says the one thing that would make Saree3 happier (the cheer line).
 import { useMemo } from 'react';
+import type { Language } from '@/lib/i18n';
 import { AppState } from 'react-native';
 import type { Href } from 'expo-router';
 import { useMyProfile, useTasks, useTeam, type TaskWithPeople } from '@/lib/api';
@@ -69,7 +70,7 @@ function statusOf(late: number, soon: number, overloaded: boolean, open: number,
   return done >= 3 ? 'great' : 'good';
 }
 
-export function usePerformance(lang: 'en' | 'ar'): Performance | null {
+export function usePerformance(lang: Language): Performance | null {
   const me = useMyProfile();
   const tasks = useTasks();
   const team = useTeam();
@@ -91,8 +92,8 @@ export function usePerformance(lang: 'en' | 'ar'): Performance | null {
     const list = (xs: TaskWithPeople[], withOwner: boolean) => {
       // each item isolated (FSI…PDI): an English title inside an Arabic line keeps its own direction
       const shown = xs.slice(0, 2).map((x) => `⁨«${x.title}»${withOwner && x.owner_id ? ` (${first(x.owner_id)})` : ''}⁩`);
-      const more = xs.length > 2 ? (ar ? ` و${xs.length - 2} غيرها` : ` +${xs.length - 2} more`) : '';
-      return shown.join(ar ? ' و' : ' and ') + more;
+      const more = xs.length > 2 ? (ar ? ` و${xs.length - 2} غيرها` : ` +${xs.length - 2}`) : '';
+      return shown.join(ar ? ' و' : lang === 'hi' ? ' और ' : ' and ') + more;
     };
     const dueMs = (x: TaskWithPeople) => (x.due_at ? Date.parse(x.due_at) : Number.MAX_SAFE_INTEGER);
     const byDue = (a: TaskWithPeople, b: TaskWithPeople) => dueMs(a) - dueMs(b);

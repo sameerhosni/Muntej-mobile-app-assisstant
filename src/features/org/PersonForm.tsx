@@ -2,6 +2,7 @@
 // "✨ Suggest with AI" (edit only) asks the suggest-skills Edge Function and merges its answer into the form:
 // new skills get an "AI" badge, existing ones take the suggested level. Nothing is saved until Save.
 import { useMemo, useState } from 'react';
+import type { Language } from '@/lib/i18n';
 import { Pressable, View } from 'react-native';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -100,7 +101,7 @@ function toValues(p: Person | undefined, managerId: string | null): FormValues {
 
 const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v));
 
-async function suggestSkills(personId: string, lang: 'en' | 'ar'): Promise<Skill[]> {
+async function suggestSkills(personId: string, lang: Language): Promise<Skill[]> {
   const { data, error } = await supabase.functions.invoke<{ skills: Skill[] }>('suggest-skills', {
     body: { person_id: personId, lang },
   });

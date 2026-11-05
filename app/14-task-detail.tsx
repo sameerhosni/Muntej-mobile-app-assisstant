@@ -5,6 +5,7 @@
 // Points pill: by the task's priority (TASK_POINTS), shown only while rewards are on (SHOW_REWARDS).
 // "Change with Muntej" (bottom bar) opens the chat locked on this task — the one place changes are made.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { useQueryClient } from '@tanstack/react-query';
 import { lacksTranslation } from '@/lib/api/taskText';
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from 'react-native';
@@ -134,7 +135,7 @@ export default function TaskDetailScreen() {
   const assignerName = live ? nameOf(d?.assigner_id) || t('manager') : personLabel(person('ahmed'), lang);
   const dueIso = live ? (d?.due_at ?? null) : nextThursday5pm();
   const due = dueIso
-    ? new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US', { weekday: lang === 'ar' ? 'long' : 'short', hour: 'numeric' }).format(
+    ? new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn', 'en-US'), { weekday: lang === 'ar' ? 'long' : 'short', hour: 'numeric' }).format(
         new Date(dueIso),
       )
     : t('noDue');

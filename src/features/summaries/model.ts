@@ -1,5 +1,6 @@
 // Screen 17: one-tap summaries built locally from live tasks / reviews (no AI call yet).
 import { useQuery } from '@tanstack/react-query';
+import { intlTag } from '@/lib/i18n/locale';
 import type { TFunction } from 'i18next';
 import { supabase } from '@/lib/supabase';
 import type { Profile, TaskWithPeople, Workspace } from '@/lib/api';
@@ -43,7 +44,7 @@ type Ctx = {
 };
 
 function dateLabel(iso: string, lang: string) {
-  return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { day: 'numeric', month: 'short' }).format(new Date(iso));
+  return new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn-ca-gregory', 'en-GB'), { day: 'numeric', month: 'short' }).format(new Date(iso));
 }
 
 /** Done / in progress / late / next due for a set of tasks over the last 30 days. */

@@ -1,8 +1,9 @@
 import type { Language } from '@/lib/i18n';
+import { intlTag } from '@/lib/i18n/locale';
 
 // Gregorian calendar + Latin digits in Arabic too, matching the mockups.
 function locale(lang: Language) {
-  return lang === 'ar' ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-US';
+  return intlTag(lang, 'ar-SA-u-ca-gregory-nu-latn', 'en-US');
 }
 
 function fmt(date: Date, lang: Language, opts: Intl.DateTimeFormatOptions) {

@@ -3,6 +3,7 @@
 // 3 h · daily · manual only), saved on the connection (read_every_min). sync-sources reads each one on its own
 // schedule. WhatsApp (Muntej's own number) has no schedule: messages arrive the moment they're sent.
 import { useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Pressable, ScrollView, View } from 'react-native';
 import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react-native';
 import { AppText, Card } from '@/components/ui';
@@ -103,7 +104,7 @@ export function ToolCard({ c, hideRead }: { c: Connection; hideRead?: boolean })
     const at = c.last_sync_at ? Date.parse(c.last_sync_at) + every * 60_000 : now;
     const mins = Math.max(1, Math.round((at - now) / 60_000));
     if (mins <= 60) return t('next', { when: t('inMin', { n: mins }) });
-    const time = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-GB', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(at);
+    const time = new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn', 'en-GB'), { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(at);
     return t('next', { when: t('at', { time }) });
   };
   const today = c.found_day === new Date(now + 3 * 3_600_000).toISOString().slice(0, 10) ? c.found_today : 0;

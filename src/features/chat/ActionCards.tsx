@@ -7,6 +7,7 @@
 //   CreatedListCard — several tasks created at once
 //   RecurringCard   — a repeating schedule to confirm (nothing saved before that)
 import { useMemo, useState } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Pressable, View } from 'react-native';
 import { CircleCheck, Copy, Layers, ListChecks, Repeat, RotateCcw, Square, SquareCheck, Users } from 'lucide-react-native';
 import { AppText } from '@/components/ui';
@@ -24,7 +25,7 @@ export type AskState = 'open' | 'done' | 'rejected' | 'stale';
 function useDueFmt() {
   const { lang } = useDirection();
   return useMemo(() => {
-    const f = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-GB', {
+    const f = new Intl.DateTimeFormat(intlTag(lang, 'ar-SA-u-nu-latn', 'en-GB'), {
       timeZone: 'Asia/Riyadh',
       weekday: 'short',
       day: 'numeric',

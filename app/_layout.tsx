@@ -1,5 +1,5 @@
 import '@/lib/i18n';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { ViewingBanner } from '@/features/accounts/AccountSwitcher';
@@ -93,6 +93,12 @@ function RootNavigator() {
   useEffect(() => {
     if (session && !needsMfa) Promise.resolve(supabase.rpc('set_my_locale' as never, { p_locale: lang } as never)).catch(() => {});
   }, [session, needsMfa, lang]);
+  // what came from the database is read again in the new language
+  const firstLang = useRef(lang);
+  useEffect(() => {
+    if (firstLang.current !== lang) queryClient.invalidateQueries();
+    firstLang.current = lang;
+  }, [lang]);
 
   useEffect(() => {
     loadSavedLanguage().finally(() => setLangReady(true));

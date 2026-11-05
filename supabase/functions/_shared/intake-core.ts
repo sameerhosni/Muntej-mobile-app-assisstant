@@ -17,7 +17,7 @@ const MAX_TASKS = 10;
 export const OPEN = ['draft', 'assigned', 'in_progress', 'blocked', 'submitted', 'returned'];
 
 const Found = z.object({
-  language: z.enum(['en', 'ar']),
+  language: z.enum(['en', 'ar', 'hi']),
   summary: z.string().describe('One short line: what the message is about, in its language'),
   kind: z
     .enum(['request', 'conversation', 'report', 'pitch', 'newsletter', 'notification'])

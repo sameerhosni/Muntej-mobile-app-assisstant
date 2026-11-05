@@ -5,6 +5,7 @@
 // so the next person takes over, with the admin's direct reports and open decisions. Refused only for the super admin.
 // The store review login leaves its demo company as it is: quick-login brings that person back on the next sign-in.
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
+import { prefersArabic } from '../_shared/localize.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 
 type Admin = ReturnType<typeof adminClient>;
@@ -37,7 +38,7 @@ async function handOver(admin: Admin, leaving: { id: string; account_id: string;
       summary_ar: `صار مدير الحساب بعد ما حذف ${leaving.full_name} حسابه`,
       undoable: false,
     });
-    const ar = next.locale !== 'en';
+    const ar = prefersArabic(next.locale);
     await sendPush(
       [next.id],
       ar

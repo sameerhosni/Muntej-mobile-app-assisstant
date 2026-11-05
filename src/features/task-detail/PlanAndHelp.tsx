@@ -4,6 +4,7 @@
 //   Who should take it? — for the person who gives the work: load per teammate (screen 11, ?task=)
 //   Too busy? — for the person doing it, while it's new: Muntej asks their manager what to move (screen 08, ?task=)
 import { Pressable, View } from 'react-native';
+import { intlTag } from '@/lib/i18n/locale';
 import { router } from 'expo-router';
 import { BellRing, CircleCheck, CircleGauge, Hand } from 'lucide-react-native';
 import { AppText, Card } from '@/components/ui';
@@ -34,7 +35,7 @@ export function PlanAndHelp({ task, me, team }: { task: TaskLike; me: Profile | 
   const nextIdx = steps.findIndex((f) => f.status === 'scheduled');
   const shown = steps.slice(Math.max(0, nextIdx - 1), Math.max(0, nextIdx - 1) + 4);
   const when = (iso: string) =>
-    new Intl.DateTimeFormat(lang === 'ar' ? 'ar-SA' : 'en-GB', { timeZone: 'Asia/Riyadh', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+    new Intl.DateTimeFormat(intlTag(lang, 'ar-SA', 'en-GB'), { timeZone: 'Asia/Riyadh', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
 
   if (!shown.length && !(open && givesWork) && !showPushback) return null;
 

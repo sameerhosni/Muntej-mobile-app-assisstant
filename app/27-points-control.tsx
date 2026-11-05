@@ -1,6 +1,7 @@
 // Screen 27 · Points control — see design/v2/html/PointsControl.dc.html (Arabic: PointsControlAR.dc.html)
 // Demo data (no points backend yet): budget, earning rules, reward requests, fairness check. 10 pts = SAR 1.
 import { useState, type ComponentType, type ReactNode } from 'react';
+import { intlTag } from '@/lib/i18n/locale';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -56,7 +57,7 @@ export default function PointsControlScreen() {
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
   const used = BUDGET.used + REQUESTS.reduce((s, r) => s + (approved[r.id] ? r.cost : 0), 0);
-  const month = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-u-ca-gregory-nu-latn' : 'en-US', { month: 'long' }).format(new Date());
+  const month = new Intl.DateTimeFormat(intlTag(lang, 'ar-u-ca-gregory-nu-latn', 'en-US'), { month: 'long' }).format(new Date());
 
   const setRule = (id: RuleId, patch: Partial<(typeof RULES)[number]>) =>
     setRules((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));

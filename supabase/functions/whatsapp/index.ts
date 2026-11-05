@@ -11,6 +11,7 @@
 // Env: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET, OPENAI_API_KEY.
 // Deployed without JWT checks (Meta calls it), so the signature check is what keeps strangers out.
 import { corsHeaders } from '../_shared/http.ts';
+import { prefersArabic } from '../_shared/localize.ts';
 import { titleIn } from '../_shared/task-text.ts';
 import { adminClient } from '../_shared/push.ts';
 import { createFromSuggestion, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
@@ -305,7 +306,7 @@ async function handle(m: WaMessage, dry = false) {
   if (login) {
     const { data: known } = await admin.from('profiles').select('id, locale').eq('phone', from).neq('status', 'deleted').eq('hidden', false).order('created_at').limit(1);
     const who = (known ?? [])[0];
-    const ar = who?.locale !== 'en';
+    const ar = prefersArabic(who?.locale);
     if (!who)
       return void (await waText(
         from,
@@ -332,7 +333,7 @@ async function handle(m: WaMessage, dry = false) {
     const code = newPin();
     if (!dry)
       await admin.from('phone_codes').upsert({ phone: from, code_hash: await sha256(`${from}:${code}`), tries: 0, expires_at: new Date(Date.now() + 10 * 60_000).toISOString() });
-    const ar = who.locale !== 'en';
+    const ar = prefersArabic(who.locale);
     return void (await waText(
       from,
       ar ? `رمز دخولك لمنتج: *${code}*\nصالح ١٠ دقايق. لا تعطيه أحد 🔒` : `Your Muntej sign-in code: *${code}*\nValid for 10 minutes. Don’t share it 🔒`,
@@ -390,8 +391,8 @@ async function handle(m: WaMessage, dry = false) {
   // just asked for it (owner, 2 Nov: one number in two accounts → "I couldn't find that decision" / "Task not found")
   const pick = people.length > 1 ? ((await whoseTap(m, people)) ?? (await waProfileFor(admin, from))) : people[0].id;
   const me = (people.find((p) => p.id === pick) ?? people[0]) as Me;
-  const ar = me.locale !== 'en';
-  const lang = ar ? 'ar' : 'en';
+  const ar = prefersArabic(me.locale);
+  const lang = ar ? 'ar' : me.locale === 'hi' ? 'hi' : 'en';
   const rtl = (s: string) => rtlOf(ar, s);
   const say = (s: string) => waText(from, rtl(s));
   if (!dry) await waTyping(m.id).catch(() => false);
