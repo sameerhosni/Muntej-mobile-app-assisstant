@@ -1278,6 +1278,17 @@ serve(async (req) => {
       if (Object.keys(rpcPatch).length) {
         const { error } = await db.rpc('update_task_from_chat', { p_task: u.task_id, patch: rpcPatch });
         if (error) throw new HttpError(400, error.message);
+        // "make it Thursday" after "one task each": the model names one task and says it changed them all, so the
+        // same ask made at the same moment for other people changes too (never who owns it or what it's called)
+        if (!focus && !body.apply && before) {
+          const { owner_id: _o, helper_id: _h, title: _t, ...shared } = rpcPatch;
+          const made = Date.parse(before.created_at);
+          const twins = open.filter((t) => t.id !== u.task_id && t.title === before.title && t.assigner_id === before.assigner_id && t.owner_id !== before.owner_id && Math.abs(Date.parse(t.created_at) - made) < 120_000);
+          for (const twin of Object.keys(shared).length ? twins : []) {
+            const { error: twinError } = await db.rpc('update_task_from_chat', { p_task: twin.id, patch: shared });
+            if (twinError) throw new HttpError(400, twinError.message);
+          }
+        }
       }
       if (estPatch) {
         const { error } = await db.from('tasks').update({ estimate_hours: estPatch }).eq('id', u.task_id);
