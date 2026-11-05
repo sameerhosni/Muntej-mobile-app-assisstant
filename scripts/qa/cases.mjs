@@ -6,6 +6,8 @@
 //   chat      Hoda's 2 Nov conversation: one task per person, "make it Thursday", "update X's task", "what did I make"
 //   numbers   Home, Saree3, the morning report and the chat must give the same counts as the database
 //   delivery  every channel a report can go out on is really able to send
+import { readFileSync } from 'node:fs';
+
 const DAY = 86_400_000;
 const riyadh = (ms) => new Date(ms + 3 * 3_600_000);
 
@@ -210,6 +212,20 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
   });
 
   // ─── delivery ───────────────────────────────────────────────────────────────
+  // The owner's screenshot, 5 Nov: the invitation still sent people to an Expo build. "We should on stores now and links should be changed".
+  await check('invites', 'Invitations send people to the store, not an old build', async () => {
+    const PLAY = 'https://play.google.com/store/apps/details?id=sa.muntej.app';
+    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, { headers: { Authorization: `Bearer ${token}` } });
+    const email = (await r.json()).mailer_templates_invite_content ?? '';
+    const places = { 'the invitation email': email };
+    for (const f of ['src/features/invite/api.ts', 'supabase/functions/muntej-chat/index.ts', 'supabase/templates/invite.html', 'website/index.html', 'support-web/join.html'])
+      places[f] = readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
+    for (const [where, text] of Object.entries(places)) {
+      expect(!/expo\.dev\/(accounts|artifacts)/.test(text), `${where} still links to an Expo build`);
+      expect(text.includes(PLAY), `${where} has no store link`);
+    }
+    return 'Google Play in all 6';
+  });
   await check('delivery', 'Email can reach people (a real sender is set)', async () => {
     const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/secrets`, { headers: { Authorization: `Bearer ${token}` } });
     const names = new Set((await r.json()).map((x) => x.name));

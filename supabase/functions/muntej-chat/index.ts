@@ -2429,7 +2429,7 @@ async function undoMany(db: Caller['db'], profileId: string, raw: string[], ar: 
 // ─── accounts by conversation ───────────────────────────────────────────────────
 
 // where people download the app until muntej.app hosts the download page (same as src/features/invite/api.ts)
-const DOWNLOAD_URL = 'https://expo.dev/accounts/nizamys-team/projects/nizamy-muntej/builds/3dcac193-c0b9-476a-9fde-c8f49eb3c186';
+const DOWNLOAD_URL = 'https://play.google.com/store/apps/details?id=sa.muntej.app';
 
 type MyAccount = { id: string; name: string; name_ar: string | null; status: string; people: number; member: boolean; active: boolean };
 

@@ -3,8 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
-/** where people download the app until muntej.app hosts the download page (same link as website/index.html) */
-export const DOWNLOAD_URL = 'https://expo.dev/accounts/nizamys-team/projects/nizamy-muntej/builds/3dcac193-c0b9-476a-9fde-c8f49eb3c186';
+/** where people download the app (same link as website/index.html). Add the App Store once the iPhone app is live. */
+export const DOWNLOAD_URL = 'https://play.google.com/store/apps/details?id=sa.muntej.app';
 
 export type InviteResult = { id: string; whatsapp?: string; email?: string; app?: 'told' | 'already' };
 
