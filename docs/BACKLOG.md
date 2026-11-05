@@ -99,6 +99,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-05 · Decisions and task buttons answer at once; Saree3 stops showing a false error on polite replies (server: muntej-chat · app update 1.0.0)
 - 2026-11-05 · Main buttons always show their label; invitations open Google Play; report emails off for now; admins can delete their account; Saree3 spots more duplicates and dates every task it just made (server: daily-summary, delete-account, muntej-chat, quick-login · app update 1.0.0)
 - 2026-11-04 · Active means really signed in; direct messages go to the right person; Arabic reads right to left; Reject all shows progress (server: connect, intake, invite, muntej-chat, onboarding-nudges, public-api, sync-sources, whatsapp · app update 1.0.0)
 - 2026-11-04 · People added to a company are really told; Team shows who knows (server: admin-login, autopilot, daily-summary, intercom-webhook, invite, muntej-chat, onboarding-nudges, phone-auth, quick-login, send-followups, sync-sources, team-alerts, whatsapp · app update 1.0.0)
