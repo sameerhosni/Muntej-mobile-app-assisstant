@@ -17,7 +17,7 @@ export function DeleteAccount({ role }: { role: string | undefined }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!role || role === 'admin' || role === 'super_admin') return null;
+  if (!role || role === 'super_admin') return null;
 
   const remove = async () => {
     setBusy(true);
@@ -42,6 +42,11 @@ export function DeleteAccount({ role }: { role: string | undefined }) {
       <AppText variant="small" color="textSoft">
         {t('body')}
       </AppText>
+      {role === 'admin' && (
+        <AppText variant="small" color="textSoft">
+          {t('adminNote')}
+        </AppText>
+      )}
       {!!error && (
         <AppText variant="small" color="red">
           {error}

@@ -59,9 +59,8 @@ The current name, "Muntej ( Task Assisstant )", has a typo. Replace it with the 
     is in Arabic and English. Tap the microphone to say a task; Saree3 (the assistant) assigns it and follows up.
     There are no purchases in the app. The full user journey, screen by screen:
     https://nizamy-muntej.expo.app/journey.html
-    Team members delete their account in Settings → Delete my account. That button is not shown to company admins,
-    including this demo login. Admins can ask for deletion at sales@muntej.app
-    (https://nizamy-muntej.expo.app/delete-account.html).
+    To delete an account: Settings → scroll down → Delete my account → Delete. You can test it with this demo login:
+    it signs you out, and the same login works again afterwards in the demo company.
     ```
   - Journey guide: page `support-web/journey.html`, PDF `store/journey/muntej-user-journey.pdf`. To refresh them, run
     `node scripts/store/journey.mjs`, then `node --use-system-ca scripts/store/journey-guide.mjs`, then deploy

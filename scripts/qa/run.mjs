@@ -497,6 +497,7 @@ if (JWT && (want('server') || want('cases') || want('invites'))) {
 }
 if (JWT && (want('server') || want('cases'))) {
   const transcript = await cases({
+    jwtFor,
     check,
     expect,
     fn,

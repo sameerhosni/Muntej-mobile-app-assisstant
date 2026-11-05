@@ -9,7 +9,7 @@
 const DAY = 86_400_000;
 const riyadh = (ms) => new Date(ms + 3 * 3_600_000);
 
-export async function cases({ check, expect, fn, sql, jwt, ids, ref, token }) {
+export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, token }) {
   const { QA_ACCOUNT, QA_BOSS, FAISAL, ABDULLAH, NOURA, KHALID, SAAD } = ids;
   const NAME = { [FAISAL]: 'فيصل', [ABDULLAH]: 'عبدالله', [NOURA]: 'نورة', [KHALID]: 'خالد', [SAAD]: 'سعد' };
   const inQa = `(select id from public.profiles where account_id = '${QA_ACCOUNT}')`;
@@ -183,6 +183,30 @@ export async function cases({ check, expect, fn, sql, jwt, ids, ref, token }) {
     for (const [w, n] of Object.entries(WORDS)) if (said.includes(w)) nums.push(n);
     expect(nums.includes(db.late), `answer «${said.slice(0, 140)}», the database has ${db.late} late`);
     return `${db.late} late`;
+  });
+
+  // ─── account deletion ───────────────────────────────────────────────────────
+  // Apple needs every account deletable in the app, admins too (5 Nov), and a company must keep an admin afterwards.
+  await check('deletion', 'An admin can delete their account and the next person takes over', async () => {
+    const co = 'd0000000-0000-4000-b000-000000000001';
+    const [boss, lead, member] = ['10', '11', '12'].map((n) => `d0000000-0000-4000-b000-0000000000${n}`);
+    await sql(`
+      delete from public.profiles where account_id = '${co}';
+      insert into public.accounts (id, name) values ('${co}', 'QA deletion') on conflict (id) do nothing;
+      insert into public.profiles (id, account_id, full_name, email, role, manager_id, status) values
+        ('${boss}', '${co}', 'QA Boss', 'qa-delete-boss@demo.muntej.test', 'admin', null, 'active'),
+        ('${lead}', '${co}', 'QA Lead', 'qa-delete-lead@demo.muntej.test', 'manager', '${boss}', 'active'),
+        ('${member}', '${co}', 'QA Member', 'qa-delete-member@demo.muntej.test', 'employee', '${boss}', 'active');
+    `);
+    const r = await fn('delete-account', {}, await jwtFor(boss, co));
+    expect(r.deleted === true, `refused: ${JSON.stringify(r)}`);
+    const rows = await sql(`select id, role, status, user_id, manager_id from public.profiles where account_id = '${co}'`);
+    const by = Object.fromEntries(rows.map((p) => [p.id, p]));
+    expect(by[boss].status === 'deleted' && !by[boss].user_id, 'the admin is still there');
+    expect(by[lead].role === 'admin' && !by[lead].manager_id, `nobody took over: the lead is ${by[lead].role}`);
+    expect(by[member].manager_id === lead, 'the direct report still points to the deleted admin');
+    await sql(`delete from public.profiles where account_id = '${co}'; delete from public.accounts where id = '${co}'`);
+    return 'lead is admin, report moved';
   });
 
   // ─── delivery ───────────────────────────────────────────────────────────────

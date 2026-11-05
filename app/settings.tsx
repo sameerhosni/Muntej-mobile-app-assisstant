@@ -416,7 +416,7 @@ export default function SettingsScreen() {
         </>
       )}
 
-      {/* members can delete their own account (admins / super admin: hidden, and the server refuses) */}
+      {/* everyone can delete their own account (super admin: hidden, and the server refuses) */}
       <DeleteAccount role={realRole} />
 
       {/* about: the brand + version */}

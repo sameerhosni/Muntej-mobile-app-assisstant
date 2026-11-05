@@ -8,6 +8,9 @@ import { HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
 import { tooMany } from '../_shared/phone-session.ts';
 
+/** the manager of the demo company (scripts/store/review-seed.sql) */
+const REVIEW_PROFILE = 'c0000000-0000-4000-b000-000000000010';
+
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
   const body = (await req.json().catch(() => ({}))) as { email?: string; code?: string };
@@ -22,6 +25,8 @@ serve(async (req) => {
   if (reviewEmail && reviewCode && email === reviewEmail) {
     if (await tooMany(admin, `review:${email}`, 10, 15)) throw new HttpError(429, 'Too many tries, wait a few minutes');
     if (String(body.code ?? '').trim() !== reviewCode) throw new HttpError(401, 'Wrong code');
+    // a reviewer may try Delete my account: the login comes back in its demo company for the next one
+    await admin.from('profiles').update({ status: 'active' }).eq('id', REVIEW_PROFILE).eq('status', 'deleted').ilike('email', email);
     const { data: who } = await admin.from('profiles').select('id, role').ilike('email', email).neq('status', 'deleted');
     if (!who?.length || who.some((p) => p.role === 'super_admin')) throw new HttpError(404, 'No Muntej account for this email');
     return json({ token_hash: await tokenFor(admin, email, who[0].id, 'review_login', 'Signed in with the store review login', 'دخل بحساب مراجعة المتجر') });

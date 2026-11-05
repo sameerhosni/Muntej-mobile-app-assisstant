@@ -142,11 +142,6 @@ try {
       await p.getByRole('button', { name: label, exact: true }).last().click({ timeout: 800 }).catch(() => {});
     await p.waitForTimeout(4000);
   });
-  // the delete button shows for members only (DeleteAccount.tsx hides it from admins), so this one is Faisal's Settings
-  await shot(e, '17-settings', '/settings', async (p) => {
-    await p.getByText('Delete my account', { exact: true }).first().scrollIntoViewIfNeeded({ timeout: 10_000 });
-    await p.waitForTimeout(800);
-  });
   await e.context().close();
 
   // ── 3. the manager decides, reviews and reads the reports ──
@@ -157,6 +152,10 @@ try {
   await shot(m, '14-saree3', '/54-saree3');
   await shot(m, '15-team', '/39-team');
   await shot(m, '16-tools', '/42-incoming');
+  await shot(m, '17-settings', '/settings', async (p) => {
+    await p.getByText('Delete my account', { exact: true }).first().scrollIntoViewIfNeeded({ timeout: 10_000 });
+    await p.waitForTimeout(800);
+  });
   await m.context().close();
   console.log(`\nSaved in ${OUT}`);
 } finally {
