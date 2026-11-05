@@ -241,6 +241,15 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     }
     return 'Google Play in all 6';
   });
+  // The owner's screenshot, 5 Nov: "whatsapp stopped working", "no longer on WhatsApp". The dry WhatsApp checks all
+  // passed for two days, because they never touch Meta. This asks Meta about the number itself.
+  await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
+    const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
+    const r = await fn('whatsapp', { template_status: true }, null, { 'x-cron-secret': s });
+    expect(r.number?.ok, `Meta can't find the number: ${r.number?.body?.error?.message?.slice(0, 90) ?? 'no answer'}`);
+    expect(r.number.body.status !== 'DISCONNECTED', 'Meta shows the number as disconnected');
+    return `${r.number.body.display_phone_number} · ${r.number.body.status ?? 'ok'}`;
+  });
   await check('delivery', 'Email can reach people (a real sender is set)', async () => {
     const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/secrets`, { headers: { Authorization: `Bearer ${token}` } });
     const names = new Set((await r.json()).map((x) => x.name));
