@@ -86,7 +86,7 @@ async function signInAs(profile) {
   const c = await ctx();
   const page = await c.newPage();
   await page.goto(`${BASE}/join?t=${await linkToken(profile)}`, { waitUntil: 'domcontentloaded', timeout: 180_000 });
-  await page.waitForFunction(() => !location.pathname.startsWith('/join'), null, { timeout: 180_000 });
+  await page.waitForFunction(() => !location.pathname.startsWith('/join'), null, { timeout: 420_000 });
   await page.evaluate(() => localStorage.setItem('launch.lastShown', new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10)));
   return page;
 }
