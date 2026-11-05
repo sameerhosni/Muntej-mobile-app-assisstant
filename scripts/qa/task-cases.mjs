@@ -91,7 +91,8 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       return 'not translated';
     });
     await check('translation', 'A request that comes during a translation isn’t lost', async () => {
-      const [held] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('Book the training room', '${them.id}', '${them.id}', 'assigned') returning id`);
+      // already in their language, so the real translator stays out of this
+      const [held] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('احجز قاعة التدريب', '${them.id}', '${them.id}', 'assigned') returning id`);
       const call = async (name) => (await sql(`select public.${name}('${held.id}') as r`))[0].r;
       expect((await call('claim_task_translation')) === true, 'the first one could not start');
       expect((await call('claim_task_translation')) === false, 'two translators at once');
@@ -116,9 +117,12 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       return back;
     });
     await check('translation', 'A failed translation still delivers: messages wait 2 minutes at most, with the original words', async () => {
-      const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('Check the delivery schedule today', '${them.id}', '${QA_BOSS}', 'assigned') returning id`);
+      const [late] = await sql('select gen_random_uuid() as id');
       const waits = async () => (await sql(`select public.task_translation_pending('${late.id}', 'ar') as p`))[0].p;
-      expect((await waits()) === true, 'a new task did not wait for its translation');
+      // asked in the same transaction as the insert: the translator can't answer until it commits
+      const [fresh] = await sql(`insert into public.tasks (id, title, owner_id, assigner_id, status) values ('${late.id}', 'Check the delivery schedule today', '${them.id}', '${QA_BOSS}', 'assigned');
+        select public.task_translation_pending('${late.id}', 'ar') as p`);
+      expect(fresh.p === true, 'a new task did not wait for its translation');
       // as if the translator never answered
       await sql(`update public.tasks set created_at = now() - interval '3 minutes', translations = '{}'::jsonb where id = '${late.id}'`);
       expect((await waits()) === false, 'a message waits forever when the translation fails');
