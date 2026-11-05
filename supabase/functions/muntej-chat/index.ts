@@ -1055,6 +1055,8 @@ serve(async (req) => {
           .toLowerCase()
           .replace(/[^\p{L}\p{N}\s]/gu, ' ')
           .split(/\s+/)
+          // Arabic glues "and", "the", "for" to the word: «والهوية» and «هوية» are the same work (a duplicate slipped through)
+          .map((w) => (w.length > 4 ? w.replace(/^و?(?:ال|لل|ل)/, '') : w).replace(/^و(?=\p{L}{3})/u, ''))
           .filter((w) => w.length > 1),
       );
     const a = words(title);
