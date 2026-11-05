@@ -38,7 +38,8 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
   // A customer, 5 Nov: "send task in english, but the recipient gets it in arabic". Tasks stayed in the words they were
   // written in, for everyone. Judged in the database, with the real translator.
   const ARABIC = /[\u0600-\u06FF]/;
-  const until = async (ask, ms = 60000) => {
+  // the sweep runs each minute, so a lost request can take a little over one
+  const until = async (ask, ms = 100000) => {
     const end = Date.now() + ms;
     for (;;) {
       const got = await ask();
@@ -72,8 +73,8 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
     });
     await check('translation', 'An edit clears the old translation at once, then a new one arrives', async () => {
       const before = (await tr()).title;
-      await sql(`update public.tasks set title = 'Send the yearly sales report to the finance team' where id = '${en.id}'`);
-      const after = await tr();
+      // read in the edit itself: the new translation can be back before a second question gets here
+      const [{ ar: after }] = await sql(`update public.tasks set title = 'Send the yearly sales report to the finance team' where id = '${en.id}' returning translations -> 'ar' as ar`);
       expect(!after?.title, `still shows the old translation: ${after?.title}`);
       expect(after?.description, 'the part that did not change lost its translation');
       const fresh = await until(async () => (await tr())?.title);
@@ -88,6 +89,31 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       expect(row.source_language === 'ar', `read as ${row.source_language}`);
       expect(!Object.keys(row.translations ?? {}).length, 'it was translated anyway');
       return 'not translated';
+    });
+    await check('translation', 'A request that comes during a translation isn’t lost', async () => {
+      const [held] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('Book the training room', '${them.id}', '${them.id}', 'assigned') returning id`);
+      const call = async (name) => (await sql(`select public.${name}('${held.id}') as r`))[0].r;
+      expect((await call('claim_task_translation')) === true, 'the first one could not start');
+      expect((await call('claim_task_translation')) === false, 'two translators at once');
+      expect((await call('release_task_translation')) === true, 'the request during the translation was forgotten');
+      expect((await call('release_task_translation')) === false, 'it never finishes');
+      expect((await call('claim_task_translation')) === true, 'the task stayed locked');
+      await call('release_task_translation');
+      await sql(`delete from public.tasks where id = '${held.id}'`);
+      return 'looked again';
+    });
+    await check('translation', 'A request that never arrived gets picked up again', async () => {
+      const [lost] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('Renew the office internet contract', '${them.id}', '${QA_BOSS}', 'assigned') returning id`);
+      const done = await until(async () => (await tr(lost.id))?.title);
+      expect(done, 'not translated');
+      await sql(`update public.tasks set translations = '{}'::jsonb where id = '${lost.id}'`);
+      expect((await sql(`select public.task_translation_missing('${lost.id}') as m`))[0].m === true, 'nothing noticed it was missing');
+      const [{ jobs }] = await sql(`select count(*)::int as jobs from cron.job where jobname = 'translate-tasks-sweep' and active`);
+      expect(jobs === 1, 'the sweep is not scheduled');
+      const back = await until(async () => (await tr(lost.id))?.title);
+      await sql(`delete from public.tasks where id = '${lost.id}'`);
+      expect(back && ARABIC.test(back), 'the sweep did not bring it back');
+      return back;
     });
     await check('translation', 'A failed translation still delivers: messages wait 2 minutes at most, with the original words', async () => {
       const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('Check the delivery schedule today', '${them.id}', '${QA_BOSS}', 'assigned') returning id`);

@@ -75,7 +75,7 @@ serve(async (req) => {
   }
 
   const admin = adminClient();
-  // someone else is on it: they translate whatever the database asked for; a person opening it waits for their language
+  // someone else is on it: the claim told them to look again; a person opening it waits for their language
   let claimed = false;
   for (let i = 0; i < (asked ? 6 : 1) && !claimed; i++) {
     if (i) await new Promise((r) => setTimeout(r, 3000));
@@ -84,16 +84,25 @@ serve(async (req) => {
   if (!claimed) return json({ busy: true });
 
   const saved: string[] = [];
+  let released = false;
   try {
-    // again until nothing's left: text may change, or steps arrive, while the model is working
-    for (let round = 0; round < 3; round++) {
+    // again until nothing's left and nobody asked meanwhile: text may change, or steps arrive, while the model is working
+    for (let round = 0; round < 6; round++) {
       const { data: task } = await admin.from('tasks').select('id, title, description, goal, definition_of_done, source_language, translations').eq('id', task_id).maybeSingle();
-      if (!task?.source_language) break;
+      if (!task?.source_language) {
+        if ((await admin.rpc('release_task_translation', { p_task: task_id })).data === true) continue;
+        released = true;
+        break;
+      }
       const { data: steps } = await admin.from('subtasks').select('id, title').eq('task_id', task_id);
       const { data: targets } = await admin.rpc('task_translation_targets', { p_task: task_id });
       const langs = [...new Set([...((targets ?? []) as string[]), ...(asked ? [asked] : [])])].filter((l) => l !== task.source_language);
       const work = langs.map((l) => ({ l, todo: missing(task as Task, (steps ?? []) as Step[], l) })).filter((w) => w.todo);
-      if (!work.length) break;
+      if (!work.length) {
+        if ((await admin.rpc('release_task_translation', { p_task: task_id })).data === true) continue;
+        released = true;
+        break;
+      }
       await Promise.all(
         work.map(async ({ l, todo }) => {
           const out = await translate(LANGUAGES[l], todo!);
@@ -109,7 +118,8 @@ serve(async (req) => {
       );
     }
   } finally {
-    await admin.from('task_translation_runs').delete().eq('task_id', task_id);
+    // stopped early (a failed translation, too many rounds): free the task, the sweep asks again
+    if (!released) await admin.from('task_translation_runs').delete().eq('task_id', task_id);
   }
   return json({ translated: [...new Set(saved)] });
 });
