@@ -104,6 +104,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-05 · Muntej in Hindi: a language people can choose, with Arabic staying the default (server: admin-login, autopilot, connect, daily-summary, delete-account, intake, intercom-webhook, invite, localize-text, muntej-chat, onboarding-nudges, parse-task, phone-auth, public-api, quick-login, send-followups, speak, suggest-skills, suggest-steps, support-identity, sync-sources, team-alerts, team-import, transcribe, translate-task, verify-proof, webhook-dispatch, whatsapp · app update 1.0.0)
 - 2026-11-05 · Tasks reach each person in their language, with the original one tap away (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts, translate-task, whatsapp · app update 1.0.0)
 - 2026-11-05 · Decisions and task buttons answer at once; Saree3 stops showing a false error on polite replies (server: muntej-chat · app update 1.0.0)
 - 2026-11-05 · Main buttons always show their label; invitations open Google Play; report emails off for now; admins can delete their account; Saree3 spots more duplicates and dates every task it just made (server: daily-summary, delete-account, muntej-chat, quick-login · app update 1.0.0)
