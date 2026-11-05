@@ -199,10 +199,18 @@ export async function cases({ check, expect, fn, sql, jwt, ids, ref, token }) {
   // The owner, 5 Nov: "i don't need email notifications for tasks, only the invitation to join the account for now".
   // Reports stay off email until the secret REPORT_EMAILS is 'on'; the sender being set must not switch them on.
   await check('emails', 'Reports send no email for now, only invitations do', async () => {
-    const r = await fn('daily-summary', { test: true, kind: 'daily' }, jwt);
-    expect(Array.isArray(r.tried), `the report didn't say which channels it tried: ${JSON.stringify(Object.keys(r))}`);
-    expect(!r.tried.includes('email'), `the report tried ${r.tried.join(', ')}`);
-    return r.tried.join(', ') || 'no channels';
+    // the test manager has email off, which would pass this for the wrong reason: on for the check, then back as it was
+    const [was] = await sql(`select channels from public.notification_prefs where profile_id = '${QA_BOSS}'`);
+    await sql(`update public.notification_prefs set channels = coalesce(channels, '{}'::jsonb) || '{"email": true, "push": true}' where profile_id = '${QA_BOSS}'`);
+    try {
+      const r = await fn('daily-summary', { test: true, kind: 'daily' }, jwt);
+      expect(Array.isArray(r.tried), `the report didn't say which channels it tried: ${JSON.stringify(Object.keys(r))}`);
+      expect(r.tried.includes('push'), `the report tried only ${r.tried.join(', ') || 'nothing'}, so this proves nothing`);
+      expect(!r.tried.includes('email'), `the report tried ${r.tried.join(', ')}`);
+      return r.tried.join(', ');
+    } finally {
+      if (was) await sql(`update public.notification_prefs set channels = '${JSON.stringify(was.channels)}'::jsonb where profile_id = '${QA_BOSS}'`);
+    }
   });
 
   return transcript;
