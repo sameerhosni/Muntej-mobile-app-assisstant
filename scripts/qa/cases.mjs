@@ -243,6 +243,16 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
   });
   // The owner's screenshot, 5 Nov: "whatsapp stopped working", "no longer on WhatsApp". The dry WhatsApp checks all
   // passed for two days, because they never touch Meta. This asks Meta about the number itself.
+  // The owner's screenshot, 5 Nov: "Why iam receiving this". «هلا Sameer 👋 Nouran عطاك مهمة» was for him, but two English
+  // names with only an emoji between them display swapped: it read as "Hi Nouran, Sameer gave you a task".
+  await check('invites', 'Arabic messages keep a word between two names, so they can’t swap', async () => {
+    for (const f of ['supabase/functions/_shared/followup-plan.ts', 'supabase/functions/muntej-chat/index.ts']) {
+      const text = readFileSync(new URL(`../../${f}`, import.meta.url), 'utf8');
+      const swapped = text.split('\n').filter((l) => /هلا/.test(l) && /\$\{[^}]*\}!?\s*\}?[^\p{L}\n]{0,6}\p{Extended_Pictographic}\s*\$\{/u.test(l.replace(/\$\{name \? ` \$\{name\}` : ''\}/, '${name}')));
+      expect(!swapped.length, `${f}: ${swapped[0]?.trim().slice(0, 70)}`);
+    }
+    return 'no greeting has two names side by side';
+  });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
     const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
     const r = await fn('whatsapp', { template_status: true }, null, { 'x-cron-secret': s });

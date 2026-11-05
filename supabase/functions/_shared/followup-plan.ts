@@ -137,7 +137,8 @@ export function buildPlan(opts: {
     message: self
       ? line('selfStart')
       : ar
-        ? `هلا ${name} 👋 ${from ? `${from} عطاك مهمة` : 'جاتك مهمة جديدة'}${when ? `\nموعدها ${when}` : ''}${helper ? `\n${helper} بيساعدك فيها` : ''}\nاضغط "استلمت" وأنا معك لين تخلص`
+        ? // an Arabic word between the names: "Sameer 👋 Nouran" alone displays swapped, as if Sameer gave it to Nouran
+          `${from ? `هلا ${name} 👋 عطاك ${from} مهمة` : `هلا ${name} 👋 جاتك مهمة جديدة`}${when ? `\nموعدها ${when}` : ''}${helper ? `\n${helper} بيساعدك فيها` : ''}\nاضغط "استلمت" وأنا معك لين تخلص`
         : `Hey ${name} 👋 ${from ? `${from} gave you a task` : 'A new task for you'}${when ? `\nDue ${when}` : ''}${helper ? `\n${helper} will help you with it` : ''}\nTap "Got it" and I'm with you till it's done`,
   };
 

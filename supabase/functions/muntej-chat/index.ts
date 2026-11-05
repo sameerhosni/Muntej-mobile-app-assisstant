@@ -2493,7 +2493,7 @@ async function runAccount(
     if (!already && personId) await invitePerson(adminClient(), personId as string, meId as string, 'email');
     const inviter = ((ar ? me.full_name_ar : null) ?? me.full_name ?? '').split(' ')[0];
     const message = ar
-      ? `هلا${name ? ` ${name}` : ''}! 👋 ${inviter} أضافك لفريق ${company} على منتج، المساعد اللي يتابع الشغل بدال الفريق.\n١) حمّل التطبيق: ${DOWNLOAD_URL}\n٢) سجّل دخول بإيميلك: ${email}\nوخلاص، أنت معنا 🚀`
+      ? `هلا${name ? ` ${name}` : ''}! 👋 أضافك ${inviter} لفريق ${company} على منتج، المساعد اللي يتابع الشغل بدال الفريق.\n١) حمّل التطبيق: ${DOWNLOAD_URL}\n٢) سجّل دخول بإيميلك: ${email}\nوخلاص، أنت معنا 🚀`
       : `Hi${name ? ` ${name}` : ''}! 👋 ${inviter} added you to ${company} on Muntej, the assistant that follows up on work for the team.\n1) Download the app: ${DOWNLOAD_URL}\n2) Sign in with your email: ${email}\nThat’s it, you’re in 🚀`;
     const who = name || email;
     return {
