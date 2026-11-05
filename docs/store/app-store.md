@@ -60,7 +60,8 @@ The current name, "Muntej ( Task Assisstant )", has a typo. Replace it with the 
     There are no purchases in the app. The full user journey, screen by screen:
     https://nizamy-muntej.expo.app/journey.html
     To delete an account: Settings → scroll down → Delete my account → Delete. You can test it with this demo login:
-    it signs you out, and the same login works again afterwards in the demo company.
+    it signs you out, and the same login works again afterwards in the demo company. If the button is missing, close
+    and reopen the app once to load the latest update.
     ```
   - Journey guide: page `support-web/journey.html`, PDF `store/journey/muntej-user-journey.pdf`. To refresh them, run
     `node scripts/store/journey.mjs`, then `node --use-system-ca scripts/store/journey-guide.mjs`, then deploy
