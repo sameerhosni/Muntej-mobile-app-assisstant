@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
-import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
+import { colors, gradients, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { AppText } from './AppText';
 import { Gradient } from './Gradient';
 
@@ -26,6 +26,7 @@ const toneBorder = { blue: colors.borderBlue, purple: colors.purpleBorder, amber
 export function Button({ label, onPress, variant = 'primary', tone = 'blue', size = 'lg', icon, loading, disabled, style }: Props) {
   const height = size === 'lg' ? sizes.buttonHeight : sizes.touch;
   const primary = variant === 'primary';
+  const fill = tone === 'purple' ? 'purple' : tone === 'amber' ? 'warning' : 'primary';
   const content = loading ? (
     <ActivityIndicator color={primary ? colors.onDark : colors[toneText[tone]]} />
   ) : (
@@ -38,7 +39,8 @@ export function Button({ label, onPress, variant = 'primary', tone = 'blue', siz
   );
 
   // the gradient is only a painted background (absolute fill) and never sizes the button: on Android a gradient in the
-  // layout measured itself tall inside a centred column and stretched the button down the whole screen
+  // layout measured itself tall inside a centred column and stretched the button down the whole screen. A solid colour
+  // sits under it: when the gradient didn't paint on a phone, the white label was left on nothing (an "empty" button)
   return (
     <Pressable
       onPress={onPress}
@@ -65,12 +67,10 @@ export function Button({ label, onPress, variant = 'primary', tone = 'blue', siz
             alignItems: 'center',
             justifyContent: 'center',
             paddingHorizontal: spacing.screen,
+            backgroundColor: gradients[fill][0],
           }}
         >
-          <Gradient
-            name={tone === 'purple' ? 'purple' : tone === 'amber' ? 'warning' : 'primary'}
-            style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }}
-          />
+          <Gradient name={fill} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} />
           {content}
         </View>
       ) : (

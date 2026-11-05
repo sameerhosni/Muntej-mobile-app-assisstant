@@ -610,13 +610,15 @@ async function sendOne(
   }
 
   const allowed = (c: string) => rule.channels.includes(c) && prefs?.channels?.[c] !== false;
-  const channels = opts.dry
+  let channels = opts.dry
     ? []
     : opts.only
     ? [opts.only]
     : opts.test
       ? [...new Set([...rule.channels, 'push', 'email'])].filter((c) => prefs?.channels?.[c] !== false)
       : rule.channels.filter(allowed);
+  // the owner, 5 Nov: only invitations go by email for now; the secret REPORT_EMAILS = on brings reports back
+  if (Deno.env.get('REPORT_EMAILS') !== 'on') channels = channels.filter((c) => c !== 'email');
   const sent: string[] = [];
 
   if (channels.includes('push')) {
@@ -663,7 +665,7 @@ async function sendOne(
       undoable: false,
     });
   }
-  return { profile: me.id, kind, sent, preview: opts.test ? (opts.dry ? whatsappText(s, lang) : plainText(s, s.hello, lang)) : undefined };
+  return { profile: me.id, kind, sent, tried: opts.test ? channels : undefined, preview: opts.test ? (opts.dry ? whatsappText(s, lang) : plainText(s, s.hello, lang)) : undefined };
 }
 
 serve(async (req) => {

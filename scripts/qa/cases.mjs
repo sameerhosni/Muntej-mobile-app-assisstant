@@ -196,16 +196,13 @@ export async function cases({ check, expect, fn, sql, jwt, ids, ref, token }) {
     );
     return 'sender set';
   });
-  await check('delivery', 'Morning reports went out on every channel people chose', async () => {
-    const rows = await sql(
-      `select p.full_name, d.channels::text got, (n.rules->'daily_summary'->'channels')::text want
-         from public.daily_summaries d join public.profiles p on p.id = d.profile_id
-         left join public.notification_prefs n on n.profile_id = p.id
-        where d.kind = 'daily' and d.day = (now() at time zone 'Asia/Riyadh')::date and p.account_id <> '${QA_ACCOUNT}'`,
-    );
-    const missed = rows.filter((x) => (x.want ?? '').includes('email') && !(x.got ?? '').includes('email'));
-    expect(!missed.length, `${missed.length} of ${rows.length} people chose email but got none today (${missed.map((x) => x.full_name).slice(0, 3).join(', ')})`);
-    return `${rows.length} checked`;
+  // The owner, 5 Nov: "i don't need email notifications for tasks, only the invitation to join the account for now".
+  // Reports stay off email until the secret REPORT_EMAILS is 'on'; the sender being set must not switch them on.
+  await check('emails', 'Reports send no email for now, only invitations do', async () => {
+    const r = await fn('daily-summary', { test: true, kind: 'daily' }, jwt);
+    expect(Array.isArray(r.tried), `the report didn't say which channels it tried: ${JSON.stringify(Object.keys(r))}`);
+    expect(!r.tried.includes('email'), `the report tried ${r.tried.join(', ')}`);
+    return r.tried.join(', ') || 'no channels';
   });
 
   return transcript;

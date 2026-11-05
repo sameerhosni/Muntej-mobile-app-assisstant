@@ -407,6 +407,23 @@ async function screens() {
       return lines.ar.text;
     });
 
+    // the owner's screenshot, 5 Nov: "Empty button and I don't know what to do". White label, and the gradient behind
+    // it didn't paint on the phone; a main button must have a solid colour of its own under the gradient.
+    await check('screens', 'A task’s main button keeps its label readable', async () => {
+      const [other] = await sql(`select id from public.profiles where account_id = '${QA_ACCOUNT}' and id <> '${QA_BOSS}' and status = 'active' limit 1`);
+      const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA main button', '${QA_BOSS}', '${other.id}', 'assigned') returning id`);
+      try {
+        await page.goto(`http://localhost:8099/14-task-detail?id=${task.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        const button = page.getByRole('button', { name: /أرسلها للمراجعة|Send for review/ });
+        await button.waitFor({ timeout: 30_000 });
+        const under = await button.evaluate((el) => getComputedStyle(el.firstElementChild).backgroundColor);
+        expect(!['transparent', 'rgba(0, 0, 0, 0)'].includes(under), `nothing solid under the white label (${under})`);
+        return under;
+      } finally {
+        await sql(`delete from public.tasks where id = '${task.id}'`);
+      }
+    });
+
     for (const route of ROUTES)
       await check('screens', `Open ${route}`, async () => {
         errors.length = 0;
