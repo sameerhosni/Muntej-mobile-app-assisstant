@@ -116,7 +116,7 @@ export function LaunchCard() {
       );
     // steps live on a task: open your first open task (else the Tasks list)
     const ownTask =
-      current.key === 'steps'
+      current.key === 'steps' || current.key === 'task_translation'
         ? ((tasks.data ?? []).find((x) => x.owner_id === me.data?.id && !['done', 'cancelled', 'submitted'].includes(x.status)) ??
           (tasks.data ?? []).find((x) => !['done', 'cancelled'].includes(x.status)))
         : undefined;

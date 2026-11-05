@@ -2,6 +2,10 @@ import { registerStrings } from '@/lib/i18n/register';
 
 const en = {
   back: 'Back',
+  translatedFrom: 'Translated from {{lang}}',
+  seeOriginal: 'See original',
+  seeTranslation: 'See translation',
+  languageName: { en: 'English', ar: 'Arabic', hi: 'Hindi' },
   demoTitle: 'Prepare SPL pitch',
   ownerDue: '{{name}} · {{due}}',
   noDue: 'No date',
@@ -64,6 +68,10 @@ const en = {
 
 const ar: typeof en = {
   back: 'رجوع',
+  translatedFrom: 'مترجمة من {{lang}}',
+  seeOriginal: 'شوف الأصل',
+  seeTranslation: 'شوف الترجمة',
+  languageName: { en: 'الإنجليزي', ar: 'العربي', hi: 'الهندي' },
   demoTitle: 'تجهيز عرض SPL',
   ownerDue: '{{name}} · {{due}}',
   noDue: 'بدون موعد',

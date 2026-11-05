@@ -85,6 +85,11 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 | 4.5 | Clear "you deleted your account" message on sign-in (today a generic error) and let a manager re-add someone who left |
 | 4.7 | Onboarding: a «كمّل هنا في الواتساب» button on the WhatsApp invite itself (needs a new template version once muntej_join is approved), and set-up status (set up / not yet) next to invite status on the Team list |
 | 4.8 | Better company name from the email domain ("najm-logistics" → "Najm Logistics"; today the dash stays) in the sign-up trigger |
+| 4.9 | **Hindi across the whole app** (owner approved, 5 Nov; Stage 2 of task translation): 3,968 app strings, Noto Sans Devanagari, picker, server text through a cache, Hindi WhatsApp templates. Plan agreed, not started |
+| 4.10 | Translate more than tasks: chat and direct messages, proof notes and comments still stay in the words they were written in |
+| 4.11 | The task screen doesn't show the description or definition of done, so their translations aren't visible there yet |
+| 4.12 | Tasks listed under a connected tool (`useToolTasks`) and in lists that come straight from database functions still show the original title |
+| 4.13 | Demo picker: Faisal (966500000002) signs in to a login with no profile, so he sees "not added yet" and no tasks (found 5 Nov, not caused by translation) |
 
 ## 5. Cleanup
 

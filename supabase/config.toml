@@ -490,3 +490,6 @@ verify_jwt = false
 # daily setup reminders (pg_cron, x-cron-secret)
 [functions.onboarding-nudges]
 verify_jwt = false
+
+[functions.translate-task]
+verify_jwt = false

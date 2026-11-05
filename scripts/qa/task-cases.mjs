@@ -35,6 +35,73 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
   } finally {
     await sql(`delete from public.tasks where id = '${task.id}'`);
   }
+  // A customer, 5 Nov: "send task in english, but the recipient gets it in arabic". Tasks stayed in the words they were
+  // written in, for everyone. Judged in the database, with the real translator.
+  const ARABIC = /[\u0600-\u06FF]/;
+  const until = async (ask, ms = 60000) => {
+    const end = Date.now() + ms;
+    for (;;) {
+      const got = await ask();
+      if (got || Date.now() > end) return got;
+      await new Promise((res) => setTimeout(res, 2000));
+    }
+  };
+  const [en] = await sql(`insert into public.tasks (title, description, definition_of_done, owner_id, assigner_id, status)
+    values ('Send the quarterly sales report to the finance team', 'Include the northern region numbers', 'Finance confirms they received it', '${them.id}', '${QA_BOSS}', 'assigned') returning id`);
+  const [step] = await sql(`insert into public.subtasks (task_id, title) values ('${en.id}', 'Collect the numbers from each branch') returning id`);
+  const [mine] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('جهّز تقرير المبيعات لهذا الربع', '${them.id}', '${them.id}', 'assigned') returning id`);
+  const tr = async (id = en.id) => (await sql(`select translations -> 'ar' as ar from public.tasks where id = '${id}'`))[0]?.ar ?? null;
+  try {
+    await check('translation', 'A task written in English reaches an Arabic reader in Arabic, steps too', async () => {
+      const ok = await until(async () => {
+        const x = await tr();
+        return x?.title && x?.description && x?.definition_of_done && x?.steps?.[step.id] ? x : null;
+      });
+      expect(ok, `translated so far: ${JSON.stringify(await tr())}`);
+      expect(ARABIC.test(ok.title) && ARABIC.test(ok.steps[step.id]), `not Arabic: ${ok.title}`);
+      const [orig] = await sql(`select title, source_language from public.tasks where id = '${en.id}'`);
+      expect(orig.title.startsWith('Send the quarterly') && orig.source_language === 'en', 'the original words were changed');
+      return ok.title;
+    });
+    await check('translation', 'Their alerts carry the Arabic title', async () => {
+      const [a] = await sql(`insert into public.alerts (profile_id, kind, task_id, title, body, title_ar, body_ar, delivered_at, dedupe_key)
+        values ('${them.id}', 'task_assigned', '${en.id}', 'New: Send the quarterly sales report to the finance team', 'x',
+                'جديدة: Send the quarterly sales report to the finance team', 'x', now(), 'qa-tr-${en.id}') returning title_ar`);
+      expect(ARABIC.test(a.title_ar.replace('جديدة: ', '')) && !a.title_ar.includes('Send the quarterly'), `alert says: ${a.title_ar}`);
+      return a.title_ar;
+    });
+    await check('translation', 'An edit clears the old translation at once, then a new one arrives', async () => {
+      const before = (await tr()).title;
+      await sql(`update public.tasks set title = 'Send the yearly sales report to the finance team' where id = '${en.id}'`);
+      const after = await tr();
+      expect(!after?.title, `still shows the old translation: ${after?.title}`);
+      expect(after?.description, 'the part that did not change lost its translation');
+      const fresh = await until(async () => (await tr())?.title);
+      expect(fresh && fresh !== before && ARABIC.test(fresh), `got: ${fresh}`);
+      return fresh;
+    });
+    await check('translation', 'A task already in the reader’s language costs nothing', async () => {
+      const [{ langs }] = await sql(`select public.task_translation_targets('${mine.id}') as langs`);
+      expect(!langs?.length, `would translate into ${JSON.stringify(langs)}`);
+      await new Promise((res) => setTimeout(res, 4000));
+      const [row] = await sql(`select source_language, translations from public.tasks where id = '${mine.id}'`);
+      expect(row.source_language === 'ar', `read as ${row.source_language}`);
+      expect(!Object.keys(row.translations ?? {}).length, 'it was translated anyway');
+      return 'not translated';
+    });
+    await check('translation', 'A failed translation still delivers: messages wait 2 minutes at most, with the original words', async () => {
+      const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('Check the delivery schedule today', '${them.id}', '${QA_BOSS}', 'assigned') returning id`);
+      const waits = async () => (await sql(`select public.task_translation_pending('${late.id}', 'ar') as p`))[0].p;
+      expect((await waits()) === true, 'a new task did not wait for its translation');
+      // as if the translator never answered
+      await sql(`update public.tasks set created_at = now() - interval '3 minutes', translations = '{}'::jsonb where id = '${late.id}'`);
+      expect((await waits()) === false, 'a message waits forever when the translation fails');
+      await sql(`delete from public.tasks where id = '${late.id}'`);
+      return 'sent with the original';
+    });
+  } finally {
+    await sql(`delete from public.tasks where id in ('${en.id}', '${mine.id}')`);
+  }
   // The owner, 5 Nov: "You added 3 active but no one received the invitation yet and no one accept it neither login".
   // Sending an email invitation makes the login, and that alone said "active" and told the manager they joined.
   const INVITED = 'qa-invited@qa.muntej.test';

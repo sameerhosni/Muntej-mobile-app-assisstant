@@ -5,6 +5,8 @@ import { useCallback } from 'react';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { useViewAs, withView } from '@/features/view-as/store';
 import { qk, type TaskFilter } from './keys';
+import { useDirection } from '@/lib/i18n';
+import { localizeTask, titleFor } from './taskText';
 import { logoutSupport } from '@/features/support/intercom';
 import { resetAnalytics } from '@/lib/analytics';
 import {
@@ -65,8 +67,11 @@ export function useTeam() {
 }
 
 export function useTasks(filter: TaskFilter = {}) {
+  const { lang } = useDirection();
+  const meId = useMyProfile().data?.id;
   return useQuery({
     queryKey: qk.tasks(filter),
+    select: useCallback((rows: TaskWithPeople[]) => rows.map((x) => localizeTask(x, lang, meId)), [lang, meId]),
     queryFn: async (): Promise<TaskWithPeople[]> => {
       let q =
         filter.orderBy === 'created'
@@ -88,8 +93,11 @@ export type TaskDetail = TaskWithPeople & {
 };
 
 export function useTask(id: string | undefined) {
+  const { lang } = useDirection();
+  const meId = useMyProfile().data?.id;
   return useQuery({
     queryKey: qk.task(id ?? ''),
+    select: useCallback((x: TaskDetail) => localizeTask(x, lang, meId), [lang, meId]),
     enabled: !!id,
     queryFn: async (): Promise<TaskDetail> =>
       unwrap(
@@ -108,8 +116,13 @@ export function useTask(id: string | undefined) {
 export function useDecisions(status?: DecisionStatus) {
   const me = useMyProfile();
   const meId = me.data?.id;
+  const { lang } = useDirection();
   return useQuery({
     queryKey: [...qk.decisions(status), meId],
+    select: useCallback(
+      (rows: DecisionWithContext[]) => rows.map((d) => (d.task ? { ...d, task: { ...d.task, title: titleFor(d.task, lang, meId) ?? d.task.title } } : d)),
+      [lang, meId],
+    ),
     enabled: !!meId,
     queryFn: async (): Promise<DecisionWithContext[]> => {
       // only decisions that are yours to make: the person who asked can read their own request (to see its answer),
@@ -117,7 +130,7 @@ export function useDecisions(status?: DecisionStatus) {
       let q = supabase
         .from('decisions')
         .select(
-          '*, task:tasks(id, title, due_at), requester:profiles!decisions_requested_by_fkey(id, full_name, full_name_ar)',
+          '*, task:tasks(id, title, due_at, translations, source_language, source_by), requester:profiles!decisions_requested_by_fkey(id, full_name, full_name_ar)',
         )
         .eq('manager_id', meId!)
         .order('created_at', { ascending: false });

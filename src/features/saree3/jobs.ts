@@ -5,6 +5,7 @@
 //   working   Saree3 is on it (late work he's chasing, a tool he keeps retrying)
 //   waiting   he's waiting on someone else, and when he nudges them next
 import { useQuery } from '@tanstack/react-query';
+import { titleFor } from '@/lib/api/taskText';
 import { supabase } from '@/lib/supabase';
 import { useDecisions, useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { useConnections } from '@/features/sources/connections';
@@ -63,11 +64,11 @@ export function useSaree3Jobs(t: T, lang: string) {
     queryFn: async () => {
       const { data } = await supabase
         .from('decisions')
-        .select('id, manager_id, task:tasks(title)')
+        .select('id, manager_id, task:tasks(title, translations, source_language, source_by)')
         .eq('requested_by', meId!)
         .neq('manager_id', meId!)
         .eq('status', 'pending');
-      return (data ?? []) as unknown as { id: string; manager_id: string; task: { title: string } | null }[];
+      return (data ?? []) as unknown as { id: string; manager_id: string; task: Parameters<typeof titleFor>[0] }[];
     },
   });
 
@@ -131,7 +132,7 @@ export function useSaree3Jobs(t: T, lang: string) {
     });
   }
   for (const d of asked.data ?? [])
-    jobs.push({ key: `a${d.id}`, kind: 'waiting', icon: '⏳', text: t('answer', { name: first(d.manager_id), title: d.task?.title ?? '…' }), sub: t('tellYou') });
+    jobs.push({ key: `a${d.id}`, kind: 'waiting', icon: '⏳', text: t('answer', { name: first(d.manager_id), title: titleFor(d.task, lang, meId) ?? '…' }), sub: t('tellYou') });
   for (const x of (tasks.data ?? []).filter((x) => x.owner_id === meId && x.status === 'submitted'))
     jobs.push({ key: `r${x.id}`, kind: 'waiting', icon: '⏳', text: t('review', { title: x.title }), sub: t('tellYou'), href: { pathname: '/14-task-detail', params: { id: x.id } } });
 

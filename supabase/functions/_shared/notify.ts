@@ -4,6 +4,7 @@
 // (after-hours, Friday, prayer times in Riyadh). An alert that lands in quiet hours waits (deliver_after) and goes out
 // when they end. Called every minute by send-followups, right after changes by muntej-chat, and by team-alerts.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { translationPending } from './task-text.ts';
 import { sendPush } from './push.ts';
 import { ACTION_TEMPLATE, inWindow, waButtons, waTemplate } from './wa.ts';
 import { needsYouCards } from './wa-actions.ts';
@@ -311,6 +312,8 @@ export async function deliverPending(
   // decide per alert: switched off / held for quiet hours / to send (grouped per person)
   const toSend = new Map<string, PendingAlert[]>();
   for (const a of rows) {
+    // a new task's words are being put into this person's language: the next run sends them
+    if (a.task_id && (await translationPending(admin, a.task_id, people.get(a.profile_id)?.locale))) continue;
     if (a.kind === 'task_assigned' && briefed.has(`${a.task_id}:${a.profile_id}`)) {
       await admin.from('alerts').update({ delivered_at: now.toISOString(), sent_push: false, whatsapp_status: 'merged' }).eq('id', a.id);
       continue;

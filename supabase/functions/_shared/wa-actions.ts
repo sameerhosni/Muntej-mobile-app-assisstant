@@ -4,6 +4,7 @@
 // back to the whatsapp function, which does them as the person (their own permissions).
 //   d:ok|no|mv:<decision id>   r:ok|back:<task id>   ok|no:<incoming item id>:<index>   h:done|need_time|blocked:<task id>
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { titleIn } from './task-text.ts';
 import { rtl, waButtons, waText, type WaButton } from './wa.ts';
 
 export type WaCard = {
@@ -55,12 +56,12 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
       .limit(10),
     admin.from('reviews').select('task_id').eq('reviewer_id', meId).is('decision', null).limit(30),
     admin.from('incoming_items').select('id, source, suggestions').eq('owner_id', meId).eq('status', 'new').order('received_at', { ascending: false }).limit(10),
-    admin.from('tasks').select('id, title, due_at, status').eq('owner_id', meId).in('status', OPEN).not('due_at', 'is', null).lt('due_at', new Date(endToday).toISOString()).order('due_at').limit(10),
+    admin.from('tasks').select('id, title, translations, due_at, status').eq('owner_id', meId).in('status', OPEN).not('due_at', 'is', null).lt('due_at', new Date(endToday).toISOString()).order('due_at').limit(10),
   ]);
   const reviewIds = (reviewRows ?? []).map((r) => r.task_id as string);
   const { data: submitted } = await admin
     .from('tasks')
-    .select('id, title, owner_id')
+    .select('id, title, translations, owner_id')
     .eq('status', 'submitted')
     .neq('owner_id', meId)
     .or(`assigner_id.eq.${meId}${reviewIds.length ? `,id.in.(${reviewIds.join(',')})` : ''}`)
@@ -104,7 +105,7 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
     cards.push({
       kind: 'review',
       taskId: t.id as string,
-      body: rtl(ar, ar ? `📥 ${first(person.get(t.owner_id as string), ar) || 'أحد'} خلّص:\n📝 *${t.title}*\nتراجعها؟` : `📥 ${first(person.get(t.owner_id as string), ar) || 'Someone'} finished:\n📝 *${t.title}*\nReview it?`),
+      body: rtl(ar, ar ? `📥 ${first(person.get(t.owner_id as string), ar) || 'أحد'} خلّص:\n📝 *${titleIn(t as never, ar ? 'ar' : 'en')}*\nتراجعها؟` : `📥 ${first(person.get(t.owner_id as string), ar) || 'Someone'} finished:\n📝 *${titleIn(t as never, ar ? 'ar' : 'en')}*\nReview it?`),
       buttons: [
         { id: `r:ok:${t.id}`, title: ar ? '✅ اعتمد' : '✅ Approve' },
         { id: `r:back:${t.id}`, title: ar ? '↩️ رجّعها' : '↩️ Send back' },
@@ -130,7 +131,7 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
     const late = Date.parse(t.due_at as string) < now;
     cards.push({
       kind: 'mine',
-      body: rtl(ar, `${late ? '🔴' : '🟡'} *${t.title}*\n⏰ ${late ? (ar ? 'متأخرة من' : 'late since') : ar ? 'مطلوبة' : 'due'} ${whenText(t.due_at as string, ar)}`),
+      body: rtl(ar, `${late ? '🔴' : '🟡'} *${titleIn(t as never, ar ? 'ar' : 'en')}*\n⏰ ${late ? (ar ? 'متأخرة من' : 'late since') : ar ? 'مطلوبة' : 'due'} ${whenText(t.due_at as string, ar)}`),
       buttons: [
         { id: `h:done:${t.id}`, title: ar ? '✅ خلصت' : '✅ Done' },
         { id: `h:need_time:${t.id}`, title: ar ? '⏳ أبي وقت' : '⏳ Need time' },
@@ -173,17 +174,17 @@ export async function lateTeamLines(admin: SupabaseClient, meId: string, ar: boo
   const ids = (reports ?? []).map((p) => p.id as string);
   const { data: late } = await admin
     .from('tasks')
-    .select('title, due_at, owner:profiles!tasks_owner_id_fkey(full_name, full_name_ar)')
+    .select('title, translations, due_at, owner:profiles!tasks_owner_id_fkey(full_name, full_name_ar)')
     .in('status', OPEN)
     .lt('due_at', new Date().toISOString())
     .neq('owner_id', meId)
     .or(`assigner_id.eq.${meId}${ids.length ? `,owner_id.in.(${ids.join(',')})` : ''}`)
     .order('due_at')
     .limit(20);
-  const rows = (late ?? []) as unknown as { title: string; due_at: string; owner: P | null }[];
+  const rows = (late ?? []) as unknown as { title: string; translations: Record<string, { title?: string }> | null; due_at: string; owner: P | null }[];
   return {
     count: rows.length,
-    lines: rows.slice(0, max).map((t) => `🔴 *${t.title.length > 50 ? `${t.title.slice(0, 49)}…` : t.title}* · ${first(t.owner ?? undefined, ar) || '…'} · ${whenText(t.due_at, ar)}`),
+    lines: rows.slice(0, max).map((x) => ({ ...x, title: titleIn(x, ar ? 'ar' : 'en') })).map((t) => `🔴 *${t.title.length > 50 ? `${t.title.slice(0, 49)}…` : t.title}* · ${first(t.owner ?? undefined, ar) || '…'} · ${whenText(t.due_at, ar)}`),
   };
 }
 

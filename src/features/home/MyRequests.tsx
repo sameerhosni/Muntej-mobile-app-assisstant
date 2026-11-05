@@ -2,6 +2,7 @@
 // changes something: "⏳ waiting for Sameer" until they answer, then "✅ new due date …" / "the date stays" for two
 // days. Saree3 chases the answer; you don't need to.
 import { useState, type ReactNode } from 'react';
+import { titleFor } from '@/lib/api/taskText';
 import { Pressable, View } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -52,7 +53,7 @@ type Req = {
   manager_id: string;
   details: { new_due_at?: string } | null;
   resolved_at: string | null;
-  task: { title: string } | null;
+  task: Parameters<typeof titleFor>[0];
 };
 
 export function MyRequests({ bare = false }: { bare?: boolean } = {}) {
@@ -71,7 +72,7 @@ export function MyRequests({ bare = false }: { bare?: boolean } = {}) {
       const since = new Date(Date.now() - 2 * 86_400_000).toISOString();
       const { data, error } = await supabase
         .from('decisions')
-        .select('id, type, status, task_id, manager_id, details, resolved_at, task:tasks(title)')
+        .select('id, type, status, task_id, manager_id, details, resolved_at, task:tasks(title, translations, source_language, source_by)')
         .eq('requested_by', meId!)
         .neq('manager_id', meId!)
         .or(`status.eq.pending,resolved_at.gte.${since}`)
@@ -139,7 +140,7 @@ export function MyRequests({ bare = false }: { bare?: boolean } = {}) {
   );
 
   function line(r: Req) {
-        const task = r.task?.title ?? '…';
+        const task = titleFor(r.task, lang, meId) ?? '…';
         const name = nameOf(r.manager_id);
         const time = r.type === 'extension_request';
         const text =

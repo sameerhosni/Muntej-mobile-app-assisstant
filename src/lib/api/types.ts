@@ -1,5 +1,6 @@
 // Friendly row types over the generated schema (regenerate with `npm run db:types`).
 import type { Database } from './database.types';
+import type { TranslatedInfo } from './taskText';
 
 type PublicSchema = Database['public'];
 export type Row<T extends keyof PublicSchema['Tables']> = PublicSchema['Tables'][T]['Row'];
@@ -32,9 +33,11 @@ export type TaskWithPeople = Task & {
   owner: Pick<Profile, 'id' | 'full_name' | 'full_name_ar' | 'avatar_color'> | null;
   helper: Pick<Profile, 'id' | 'full_name' | 'full_name_ar'> | null;
   workspace: Pick<Workspace, 'id' | 'name' | 'name_ar' | 'color'> | null;
+  /** set when the text is shown in the reader's language (see taskText.ts) */
+  translated?: TranslatedInfo | null;
 };
 
 export type DecisionWithContext = Decision & {
-  task: Pick<Task, 'id' | 'title' | 'due_at'> | null;
+  task: Pick<Task, 'id' | 'title' | 'due_at' | 'translations' | 'source_language' | 'source_by'> | null;
   requester: Pick<Profile, 'id' | 'full_name' | 'full_name_ar'> | null;
 };

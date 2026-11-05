@@ -11,6 +11,7 @@
 // Env: WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_APP_SECRET, OPENAI_API_KEY.
 // Deployed without JWT checks (Meta calls it), so the signature check is what keeps strangers out.
 import { corsHeaders } from '../_shared/http.ts';
+import { titleIn } from '../_shared/task-text.ts';
 import { adminClient } from '../_shared/push.ts';
 import { createFromSuggestion, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 import {
@@ -735,7 +736,7 @@ async function handle(m: WaMessage, dry = false) {
     // work already waiting for them, with its buttons (Got it / Need time / Need help)
     const { data: t } = await admin
       .from('tasks')
-      .select('id, title, due_at, assigner_id')
+      .select('id, title, translations, due_at, assigner_id')
       .eq('owner_id', me.id)
       .eq('status', 'assigned')
       .neq('assigner_id', me.id)
@@ -746,7 +747,7 @@ async function handle(m: WaMessage, dry = false) {
       const giver = t.assigner_id ? await nameOf(t.assigner_id as string) : null;
       await waButtons(
         from,
-        rtl(`${ar ? 'وهذي أول مهمة' : 'Your first task'}${giver ? (ar ? ` من ${giver.split(' ')[0]}` : ` from ${giver.split(' ')[0]}`) : ''}:\n📝 *${t.title}*${t.due_at ? `\n⏰ ${whenText(t.due_at as string, ar)}` : ''}`),
+        rtl(`${ar ? 'وهذي أول مهمة' : 'Your first task'}${giver ? (ar ? ` من ${giver.split(' ')[0]}` : ` from ${giver.split(' ')[0]}`) : ''}:\n📝 *${titleIn(t as never, me.locale)}*${t.due_at ? `\n⏰ ${whenText(t.due_at as string, ar)}` : ''}`),
         [
           { id: `h:got_it:${t.id}`, title: ar ? '✅ وصلت' : '✅ Got it' },
           { id: `h:need_time:${t.id}`, title: ar ? '⏳ أحتاج وقت' : '⏳ Need time' },

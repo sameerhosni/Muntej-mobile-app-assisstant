@@ -11,6 +11,7 @@
 // theirs now ("Send me today's summary", or "report" on WhatsApp with only: 'whatsapp').
 // Email goes through Resend (RESEND_API_KEY, RESEND_FROM).
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { titleIn } from '../_shared/task-text.ts';
 import { HttpError, getCaller, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
@@ -35,6 +36,7 @@ type Person = {
   weekly_capacity_hours: number | null;
 };
 type Task = {
+  translations?: Record<string, { title?: string }> | null;
   id: string;
   title: string;
   owner_id: string | null;
@@ -267,16 +269,16 @@ function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind):
   const tools = w.toolsWaiting.get(me.id) ?? 0;
 
   const risks = [
-    ...late.map((x) => say(lang, 'late', { title: x.title, name: name(x.owner_id), when: when(x.due_at!, lang) })),
-    ...blocked.map((x) => say(lang, 'blocked', { title: x.title, name: name(x.owner_id) })),
-    ...notStarted.map((x) => say(lang, 'dueToday', { title: x.title, name: name(x.owner_id) })),
+    ...late.map((x) => say(lang, 'late', { title: titleIn(x, lang), name: name(x.owner_id), when: when(x.due_at!, lang) })),
+    ...blocked.map((x) => say(lang, 'blocked', { title: titleIn(x, lang), name: name(x.owner_id) })),
+    ...notStarted.map((x) => say(lang, 'dueToday', { title: titleIn(x, lang), name: name(x.owner_id) })),
   ];
   const needs = [
     ...decisions.map((d) => say(lang, 'decision', { title: (lang === 'ar' && d.title_ar) || d.title })),
-    ...reviews.map((x) => say(lang, 'review', { name: name(x.owner_id), title: x.title })),
+    ...reviews.map((x) => say(lang, 'review', { name: name(x.owner_id), title: titleIn(x, lang) })),
     ...(tools ? [say(lang, 'tools', { n: num(tools, lang) })] : []),
   ];
-  const wins = won.map((x) => (x.owner_id === me.id ? say(lang, 'wonMine', { title: x.title }) : say(lang, 'won', { title: x.title, name: name(x.owner_id) })));
+  const wins = won.map((x) => (x.owner_id === me.id ? say(lang, 'wonMine', { title: titleIn(x, lang) }) : say(lang, 'won', { title: titleIn(x, lang), name: name(x.owner_id) })));
 
   // people who look stuck (same signals as the Home "Needs your support" block): the morning only
   const weekEnd = riyadhMidnightUtc(now) + 7 * DAY;
@@ -368,9 +370,9 @@ function ownWork(me: Person, w: World, now: Date, lang: Lang, kind: Kind): strin
   const soon = mine.filter((x) => x.due_at && Date.parse(x.due_at) >= t && Date.parse(x.due_at) < until).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!));
   const back = mine.filter((x) => x.status === 'returned' && !late.includes(x) && !soon.includes(x));
   return [
-    ...late.map((x) => say(lang, 'lateMine', { title: x.title, when: when(x.due_at!, lang) })),
-    ...soon.map((x) => say(lang, 'due', { title: x.title, when: when(x.due_at!, lang) })),
-    ...back.map((x) => say(lang, 'back', { title: x.title })),
+    ...late.map((x) => say(lang, 'lateMine', { title: titleIn(x, lang), when: when(x.due_at!, lang) })),
+    ...soon.map((x) => say(lang, 'due', { title: titleIn(x, lang), when: when(x.due_at!, lang) })),
+    ...back.map((x) => say(lang, 'back', { title: titleIn(x, lang) })),
   ];
 }
 
@@ -390,7 +392,7 @@ function employeeReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind)
   const week = mine.filter((x) => x.status === 'done' && x.closed_at && Date.parse(x.closed_at) >= weekStart).length + waiting;
 
   const work = ownWork(me, w, now, lang, kind);
-  const wins = won.map((x) => say(lang, 'wonMine', { title: x.title }));
+  const wins = won.map((x) => say(lang, 'wonMine', { title: titleIn(x, lang) }));
   if (kind === 'daily' ? !work.length && !waiting : !work.length && !wins.length) return null;
   const v = { today: num(today, lang), late: num(late, lang), back: num(back, lang), done: num(won.length, lang), tomorrow: num(tomorrow, lang) };
   const label = say(lang, `label_${kind}`);
@@ -507,7 +509,7 @@ async function loadWorld(admin: SupabaseClient): Promise<World> {
     admin.from('profiles').select(PERSON_COLS).neq('status', 'deleted').eq('hidden', false),
     admin
       .from('tasks')
-      .select('id, title, owner_id, assigner_id, status, due_at, closed_at, estimate_hours')
+      .select('id, title, translations, owner_id, assigner_id, status, due_at, closed_at, estimate_hours')
       .or(`status.in.(${[...OPEN, 'submitted'].join(',')}),closed_at.gte.${since}`),
     admin.from('decisions').select('manager_id, title, title_ar').eq('status', 'pending'),
     admin.from('reviews').select('task_id, reviewer_id').is('decision', null),

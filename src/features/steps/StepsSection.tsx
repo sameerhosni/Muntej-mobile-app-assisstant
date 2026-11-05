@@ -418,6 +418,7 @@ export function StepsSection({ task }: Props) {
       {editing && (
         <StepSheet
           step={editing}
+          originalTitle={task.translated?.original.steps[editing.id]}
           meId={me.data?.id ?? null}
           onClose={() => setEditing(null)}
           onSave={(patch) =>
@@ -441,12 +442,15 @@ export function StepsSection({ task }: Props) {
 /** change one step: its words, who does it, by when — or delete it */
 function StepSheet({
   step,
+  originalTitle,
   meId,
   onClose,
   onSave,
   onDelete,
 }: {
   step: Step;
+  /** a translated step is edited in the words it was written in */
+  originalTitle?: string;
   meId: string | null;
   onClose: () => void;
   onSave: (p: { title?: string; owner_id?: string | null; due_at?: string | null }) => void;
@@ -455,7 +459,7 @@ function StepSheet({
   const { t } = useScreenT(STEPS_NS);
   const { lang } = useDirection();
   const team = useTeam();
-  const [title, setTitle] = useState(step.title);
+  const [title, setTitle] = useState(originalTitle ?? step.title);
   const [owner, setOwner] = useState<string | null>(step.owner_id);
   const [due, setDue] = useState<string | null>(step.due_at ?? null);
   const people = (team.data ?? []).filter((p) => p.status !== 'deleted');

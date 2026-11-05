@@ -1750,6 +1750,9 @@ export type Database = {
           progress: number
           proof_required: string
           source: Database["public"]["Enums"]["task_source"]
+          source_by: string | null
+          source_language: string | null
+          translations: Json
           source_ref: string | null
           start_at: string | null
           status: Database["public"]["Enums"]["task_status"]
@@ -1778,6 +1781,9 @@ export type Database = {
           progress?: number
           proof_required?: string
           source?: Database["public"]["Enums"]["task_source"]
+          source_by?: string | null
+          source_language?: string | null
+          translations?: Json
           source_ref?: string | null
           start_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
@@ -1806,6 +1812,9 @@ export type Database = {
           progress?: number
           proof_required?: string
           source?: Database["public"]["Enums"]["task_source"]
+          source_by?: string | null
+          source_language?: string | null
+          translations?: Json
           source_ref?: string | null
           start_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]

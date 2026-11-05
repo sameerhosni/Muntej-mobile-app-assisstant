@@ -73,6 +73,7 @@ export function matchesTask(task: TaskWithPeople, search: string): boolean {
   return matchesSearch(
     search,
     task.title,
+    task.translated?.original.title,
     task.owner?.full_name,
     task.owner?.full_name_ar,
     task.workspace?.name,

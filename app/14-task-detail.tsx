@@ -4,19 +4,22 @@
 // "Ask <assigner>" and "Split with AI" are local demo actions; ticking a live subtask writes subtasks.done.
 // Points pill: by the task's priority (TASK_POINTS), shown only while rewards are on (SHOW_REWARDS).
 // "Change with Muntej" (bottom bar) opens the chat locked on this task — the one place changes are made.
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { lacksTranslation } from '@/lib/api/taskText';
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from 'react-native';
 import { TOOL_LABEL, useTaskTools } from '@/features/tasks/toolTags';
 import { StepsSection } from '@/features/steps/StepsSection';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AlertTriangle, Check, ChevronLeft, Clock, Link2, Mic, MessageSquare, Plus, Send, Sparkles } from 'lucide-react-native';
+import { AlertTriangle, Check, ChevronLeft, Clock, Languages, Link2, Mic, MessageSquare, Plus, Send, Sparkles } from 'lucide-react-native';
 import { AppText, Avatar, BottomCTA, BOTTOM_CTA_SPACE, Card, Gradient, IconBadge, IconButton, PointsCoin } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
+import { qk, useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { ReviewBar } from '@/features/review/ReviewBar';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { FromTag } from '@/features/tasks/FromTag';
@@ -99,17 +102,34 @@ export default function TaskDetailScreen() {
   const [localSubs, setLocalSubs] = useState<SubVM[] | null>(null);
   const [liveDone, setLiveDone] = useState<Record<string, boolean>>({});
   const [saveFailed, setSaveFailed] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
 
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
   const d = task.data;
+  // nobody has put this task in my language yet (a manager above, an old task): ask once
+  const qc = useQueryClient();
+  const askedTranslation = useRef('');
+  useEffect(() => {
+    if (!d || !me.data?.id || !lacksTranslation(d, lang, me.data.id)) return;
+    const key = `${d.id}:${lang}`;
+    if (askedTranslation.current === key) return;
+    askedTranslation.current = key;
+    supabase.functions
+      .invoke('translate-task', { body: { task_id: d.id, lang } })
+      .then(({ error }) => {
+        if (!error) qc.invalidateQueries({ queryKey: qk.task(d.id) });
+      })
+      .catch(() => {}); // the original words stay
+  }, [d, lang, me.data?.id, qc]);
   const nameOf = (pid: string | null | undefined) => {
     const p = team.data?.find((x) => x.id === pid);
     return p ? shortName(p, lang) : '';
   };
 
   // ---- shape the screen from live data or the design's demo values
-  const title = live ? (d?.title ?? '') : t('demoTitle');
+  const original = showOriginal ? d?.translated?.original : undefined;
+  const title = live ? (original?.title ?? d?.title ?? '') : t('demoTitle');
   const ownerName = live ? (d?.owner ? shortName(d.owner, lang) : t('unassigned')) : personLabel(person('faisal'), lang);
   const assignerName = live ? nameOf(d?.assigner_id) || t('manager') : personLabel(person('ahmed'), lang);
   const dueIso = live ? (d?.due_at ?? null) : nextThursday5pm();
@@ -224,9 +244,26 @@ export default function TaskDetailScreen() {
               <ChevronLeft color={colors.text} size={20} strokeWidth={1.9} style={flip} />
             </IconButton>
             <View style={{ flex: 1, gap: 3 }}>
-              <AppText variant="title" style={{ fontSize: 22, lineHeight: 28 }}>
-                {title}
-              </AppText>
+              <TourTarget id="task.translate" style={{ gap: 3 }}>
+                <AppText variant="title" style={{ fontSize: 22, lineHeight: 28 }}>
+                  {title}
+                </AppText>
+                {!!d?.translated && (
+                  <Pressable
+                    onPress={() => setShowOriginal((x) => !x)}
+                    accessibilityRole="button"
+                    style={{ minHeight: sizes.touch, flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
+                  >
+                    <Languages color={colors.textMuted} size={14} strokeWidth={2} />
+                    <AppText variant="small" color="textMuted">
+                      {t('translatedFrom', { lang: t(`languageName.${d.translated.from}`) })}
+                    </AppText>
+                    <AppText variant="small" weight="bold" color="primary">
+                      {t(showOriginal ? 'seeTranslation' : 'seeOriginal')}
+                    </AppText>
+                  </Pressable>
+                )}
+              </TourTarget>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <Avatar name={ownerName} size={18} gradient="avatarBlue" />
                 <AppText variant="small" color="textMuted">
@@ -367,7 +404,11 @@ export default function TaskDetailScreen() {
         {live && d ? (
           <Spotlight id="task.steps" style={{ marginHorizontal: spacing.screen }}>
             <TourTarget id="task.steps">
-              <StepsSection task={d as unknown as Parameters<typeof StepsSection>[0]['task']} />
+              <StepsSection
+                task={
+                  (original ? { ...d, subtasks: d.subtasks.map((x) => ({ ...x, title: original.steps[x.id] ?? x.title })) } : d) as unknown as Parameters<typeof StepsSection>[0]['task']
+                }
+              />
             </TourTarget>
           </Spotlight>
         ) : (

@@ -8,6 +8,7 @@
 // WhatsApp arrives in Sprint 2; until then every follow-up channel is delivered as a push.
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
+import { titleIn, translationPending } from '../_shared/task-text.ts';
 import { deliverPending, followupHold, loadPrefs } from '../_shared/notify.ts';
 
 serve(async (req) => {
@@ -39,7 +40,7 @@ serve(async (req) => {
   const { data: due, error } = await admin
     .from('followups')
     .select(
-      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, status, owner_id, assigner_id, created_at, due_at, priority), recipient:profiles!followups_recipient_id_fkey(locale, full_name, full_name_ar, manager_id)',
+      'id, task_id, recipient_id, message, message_ar, channel, scheduled_at, task:tasks(title, translations, status, owner_id, assigner_id, created_at, due_at, priority), recipient:profiles!followups_recipient_id_fkey(locale, full_name, full_name_ar, manager_id)',
     )
     .eq('status', 'scheduled')
     .gte('scheduled_at', from.toISOString())
@@ -82,13 +83,18 @@ serve(async (req) => {
     lastAnswer.set(k, Math.max(lastAnswer.get(k) ?? 0, Date.parse(a.created_at)));
   }
   for (const f of due ?? []) {
-    const task = f.task as unknown as { title: string; status: string; owner_id: string | null; assigner_id: string | null; created_at: string; due_at: string | null } | null;
+    const task = f.task as unknown as { title: string; translations?: Record<string, { title?: string }> | null; status: string; owner_id: string | null; assigner_id: string | null; created_at: string; due_at: string | null } | null;
     const who = f.recipient as unknown as { locale?: string; full_name?: string; full_name_ar?: string | null; manager_id?: string | null } | null;
     const locale = who?.locale;
     // a task that was finished or cancelled since the plan was made needs no more chasing
     if (!task || ['done', 'cancelled'].includes(task.status) || !f.recipient_id) {
       await admin.from('followups').update({ status: 'skipped' }).eq('id', f.id);
       skipped++;
+      continue;
+    }
+    // a new task's words are being put into this person's language: next minute's run sends them
+    if (await translationPending(admin, f.task_id, locale)) {
+      held++;
       continue;
     }
     // the person's settings: push off → skip; quiet hours → try again when they end
@@ -141,7 +147,7 @@ serve(async (req) => {
         skipped++;
         continue;
       }
-      const delivered = await sendPush([f.recipient_id], { title: task.title, body: chase, data: { taskId: f.task_id }, categoryId: 'handoff' }, admin);
+      const delivered = await sendPush([f.recipient_id], { title: titleIn(task, locale), body: chase, data: { taskId: f.task_id }, categoryId: 'handoff' }, admin);
       await admin.from('followups').update(delivered ? { status: 'sent', sent_at: now.toISOString() } : { status: 'skipped' }).eq('id', f.id);
       if (!delivered) {
         skipped++;
@@ -201,7 +207,7 @@ serve(async (req) => {
     const delivered = await sendPush(
       [f.recipient_id],
       // the hand-off to someone who was given the task carries the answers: Got it · Need time · Need help
-      { title: task.title, body: text, data: { taskId: f.task_id, checkin }, ...(checkin ? { categoryId: 'checkin' } : given ? { categoryId: 'handoff' } : {}) },
+      { title: titleIn(task, locale), body: text, data: { taskId: f.task_id, checkin }, ...(checkin ? { categoryId: 'checkin' } : given ? { categoryId: 'handoff' } : {}) },
       admin,
     );
     if (delivered) {
