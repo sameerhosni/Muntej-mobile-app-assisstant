@@ -202,6 +202,17 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     return `${db.late} late`;
   });
 
+  // ─── store review login ─────────────────────────────────────────────────────
+  // The owner, 5 Nov: recording with this login showed no decisions. An admin can stay in the employee view, which
+  // hides the Decisions tab, so the login must stay a manager with a decision to show.
+  await check('review', 'The store review login is a manager with a decision to show', async () => {
+    const boss = 'c0000000-0000-4000-b000-000000000010';
+    const [row] = await sql(`select p.role, (select count(*)::int from public.decisions d where d.manager_id = p.id) decisions from public.profiles p where p.id = '${boss}'`);
+    expect(row?.role === 'manager', `the review login is ${row?.role ?? 'missing'}`);
+    expect(row.decisions > 0, 'the demo company has no decision for it');
+    return `${row.decisions} decision(s)`;
+  });
+
   // ─── account deletion ───────────────────────────────────────────────────────
   // Apple needs every account deletable in the app, admins too (5 Nov), and a company must keep an admin afterwards.
   await check('deletion', 'An admin can delete their account and the next person takes over', async () => {

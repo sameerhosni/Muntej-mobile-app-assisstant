@@ -78,7 +78,7 @@ The current name, "Muntej ( Task Assisstant )", has a typo. Replace it with the 
     manager then approves requests and finished work and reads the reports.
 
     To follow it in the app, sign in with the demo login in App Review Information. You are the manager of a demo
-    company, Horizon Trading. To see the employee screens, open Settings → View the app as → Employee.
+    company, Horizon Trading. Part 2 of the guide shows the employee screens.
 
     The screens are captured at iPhone size from the app's web build, using the same demo company.
 

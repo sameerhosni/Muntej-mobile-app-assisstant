@@ -2,6 +2,7 @@
 -- sign in as its manager with play-review@muntej.app + the fixed code in the REVIEW_LOGIN_CODE secret
 -- (supabase/functions/quick-login). Nobody here is a real person: no phones, every notification channel off, emails on
 -- the unroutable demo.muntej.test domain. Re-running resets this company only (fresh due dates), never another one.
+-- The reviewer is a manager, not an admin: an admin can stay in the employee view, which hides Decisions (5 Nov).
 -- Run: scripts\db-apply.ps1 -Sql (Get-Content scripts\store\review-seed.sql -Raw -Encoding UTF8)
 
 do $$
@@ -31,7 +32,7 @@ begin
 
   insert into public.profiles (id, account_id, full_name, full_name_ar, title, email, role, manager_id, status, locale)
   values
-    (boss, demo, 'Ahmed (reviewer)', 'أحمد', 'General Manager', 'play-review@muntej.app', 'admin', null, 'active', 'en'),
+    (boss, demo, 'Ahmed (reviewer)', 'أحمد', 'General Manager', 'play-review@muntej.app', 'manager', null, 'active', 'en'),
     (faisal, demo, 'Faisal', 'فيصل', 'Sales Manager', 'faisal@demo.muntej.test', 'manager', boss, 'active', 'ar'),
     (abdullah, demo, 'Abdullah', 'عبدالله', 'Sales Representative', 'abdullah@demo.muntej.test', 'employee', faisal, 'active', 'ar'),
     (noura, demo, 'Noura', 'نورة', 'Operations Manager', 'noura@demo.muntej.test', 'manager', boss, 'active', 'ar'),
