@@ -424,6 +424,33 @@ async function screens() {
       }
     });
 
+    // the owner, 5 Nov: "Everything takes time to be applied". The card sat on a spinner through every save; it must
+    // answer the tap at once and only come back if the save fails (the save is held, then refused: nothing changes).
+    await check('screens', 'A decision answers the tap at once, and comes back if the save fails', async () => {
+      await page.goto('http://localhost:8099/04-decisions', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+      const approve = page.getByRole('button', { name: 'وافق', exact: true });
+      await approve.first().waitFor({ timeout: 30_000 });
+      const before = await approve.count();
+      const held = async (r) => {
+        if (r.request().method() !== 'PATCH') return r.continue();
+        await new Promise((done) => setTimeout(done, 3000));
+        return r.abort();
+      };
+      await page.route('**/rest/v1/decisions*', held);
+      try {
+        await approve.first().click();
+        await page.waitForTimeout(600);
+        // the spinner also hides the buttons, so only the finished line proves it answered
+        expect(await page.getByText('تمام ·').first().isVisible(), '0.6s after the tap the card is still waiting');
+        await page.getByText('ما مشت').waitFor({ timeout: 15_000 });
+        await page.waitForTimeout(300);
+        expect((await approve.count()) === before, 'the save failed but the card did not come back');
+        return 'instant, and back on failure';
+      } finally {
+        await page.unroute('**/rest/v1/decisions*', held);
+      }
+    });
+
     for (const route of ROUTES)
       await check('screens', `Open ${route}`, async () => {
         errors.length = 0;

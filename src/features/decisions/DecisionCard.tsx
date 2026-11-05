@@ -1,6 +1,6 @@
 // One decision card on screen 04 (design/v2/html/Decisions.dc.html).
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { AlertTriangle, Check, Clock, Hand, Inbox, Mic, Sparkles } from 'lucide-react-native';
 import { AppText, Avatar, Button, Card, Gradient, IconBadge, ProgressBar } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
@@ -14,7 +14,6 @@ import { NS } from './strings';
 type Props = {
   card: CardVM;
   outcome: Outcome | undefined;
-  busy: boolean;
   raised?: boolean;
   /** Teammates the task can move to (live: team employees; sample: demo team). */
   candidates: Person[];
@@ -34,7 +33,7 @@ const badgeTone = {
   primary: { bg: 'primaryTint', fg: 'primary' },
 } as const;
 
-export function DecisionCard({ card, outcome, busy, raised, candidates, onResolve }: Props) {
+export function DecisionCard({ card, outcome, raised, candidates, onResolve }: Props) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const [voiceHint, setVoiceHint] = useState(false);
@@ -164,11 +163,7 @@ export function DecisionCard({ card, outcome, busy, raised, candidates, onResolv
             {doneLabel}
           </AppText>
         </View>
-      ) : busy ? (
-        <View style={{ minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      ) : card.reassign ? (
+            ) : card.reassign ? (
         <View style={{ gap: spacing.sm }}>
           {showPicker ? (
             <View style={{ gap: spacing.sm }}>

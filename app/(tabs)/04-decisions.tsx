@@ -44,7 +44,6 @@ export default function DecisionsScreen() {
   const [outcomes, setOutcomes] = useState<Record<string, Outcome>>({});
   /** Cards resolved this session stay visible with their "Done" line after the live list drops them. */
   const [kept, setKept] = useState<Record<string, CardVM>>({});
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<DecisionFilter>('all');
 
@@ -88,7 +87,9 @@ export default function DecisionsScreen() {
       setFailed(true);
       return;
     }
-    setBusyId(card.id);
+    // the card answers the tap at once while the saves run behind it, and comes back only if they fail
+    setKept((k) => ({ ...k, [card.id]: card }));
+    setOutcomes((o) => ({ ...o, [card.id]: outcome }));
     resolve.mutate(
       {
         decision: card.raw,
@@ -98,12 +99,10 @@ export default function DecisionsScreen() {
         ownerId: card.owner?.id ?? null,
       },
       {
-        onSuccess: () => {
-          setKept((k) => ({ ...k, [card.id]: card }));
-          setOutcomes((o) => ({ ...o, [card.id]: outcome }));
+        onError: () => {
+          setOutcomes(({ [card.id]: _gone, ...rest }) => rest);
+          setFailed(true);
         },
-        onError: () => setFailed(true),
-        onSettled: () => setBusyId(null),
       },
     );
   };
@@ -192,7 +191,6 @@ export default function DecisionsScreen() {
                 card={c}
                 raised={i === 0}
                 outcome={outcomes[c.id]}
-                busy={busyId === c.id}
                 candidates={candidates}
                 onResolve={(o, p) => onResolve(c, o, p)}
               />

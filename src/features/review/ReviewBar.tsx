@@ -56,7 +56,8 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
     try {
       const result = await setTaskStatus(task.id, status);
       setNote(okText(result));
-      await refresh();
+      // saved: the button is free now, the lists catch up behind it
+      void refresh();
     } catch (e) {
       setError(t('failed', { reason: (e as Error).message }));
     } finally {

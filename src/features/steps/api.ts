@@ -66,7 +66,7 @@ export function useStepActions() {
       if (!clean.length) return;
       await rpc('add_steps', { p_task: taskId, p_titles: clean, p_owner: owner, p_due: due });
       featureUsed('steps');
-      await refresh();
+      void refresh();
     },
     set: async (id: string, patch: { title?: string; owner_id?: string | null; due_at?: string | null }) => {
       const p: Record<string, unknown> = {};
@@ -74,22 +74,22 @@ export function useStepActions() {
       if (patch.owner_id !== undefined) p.owner_id = patch.owner_id ?? '';
       if (patch.due_at !== undefined) p.due_at = patch.due_at ?? '';
       await rpc('set_step', { p_id: id, p });
-      await refresh();
+      void refresh();
     },
     remove: async (id: string) => {
       const { error } = await untyped.from('subtasks').delete().eq('id', id);
       if (error) throw new Error(error.message);
-      await refresh();
+      void refresh();
     },
     tick: async (id: string, done: boolean) => {
       const { error } = await untyped.from('subtasks').update({ done }).eq('id', id);
       if (error) throw new Error(error.message);
-      await refresh();
+      void refresh();
     },
     /** a step given to me on a task I may not be able to open */
     tickMine: async (id: string) => {
       await rpc('tick_my_step', { p_id: id, p_done: true });
-      await refresh();
+      void refresh();
     },
     parse: (taskId: string, text: string) => fn<{ steps: ParsedStep[] }>({ action: 'parse', task_id: taskId, text }),
   };

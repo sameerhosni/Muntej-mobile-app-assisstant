@@ -367,7 +367,7 @@ function skillLine(s: Skill) {
 }
 
 /** a reply that says the work was done */
-const CLAIMS_DONE = /^(تم|سويت|سوّيت|عدّلت|عدلت|حطيت|أضفت|ضفت|جهزت|سجلت|سجّلت|غيرت|غيّرت|done|created|updated|added|i(’|')ve (made|added|set|moved))/i;
+const CLAIMS_DONE = /^(تم(?!ام)|سويت|سوّيت|عدّلت|عدلت|حطيت|أضفت|ضفت|جهزت|سجلت|سجّلت|غيرت|غيّرت|done|created|updated|added|i(’|')ve (made|added|set|moved))/i;
 
 /** teammates named right next to this owner in the message ("عبدالله وخالد", "Faisal, Noura and Saad") */
 function namesJoinedTo(message: string, ownerId: string, team: { id: string; full_name: string; full_name_ar: string | null }[]): string[] {

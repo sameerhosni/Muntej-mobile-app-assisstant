@@ -177,6 +177,21 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(n === db.late, `report says ${n} late, the database has ${db.late}: «${r.preview.split(String.fromCharCode(10)).slice(0, 2).join(' / ')}»`);
     return `${n} late`;
   });
+  // The owner's screenshot, 5 Nov: «ما يحتاج شي تانى» (nothing else needed) got "I couldn't do that, nothing changed":
+  // a polite «تمام» looked like a claim of «تم» (done) to the false-claim guard.
+  await check('chat', 'Saying nothing else is needed gets no error', async () => {
+    // the model only sometimes starts with «تمام», so the guard itself is checked too
+    const src = readFileSync(new URL('../../supabase/functions/muntej-chat/index.ts', import.meta.url), 'utf8');
+    const guard = new RegExp(/const CLAIMS_DONE = \/(.+)\/i;/.exec(src)[1], 'i');
+    expect(!guard.test('تمام، على راحتك') && guard.test('تم، سويتها'), 'the false-claim guard reads «تمام» as «تم»');
+    for (const message of ['ما يحتاج شي ثاني', 'تمام شكرا']) {
+      const r = await fn('muntej-chat', { message, source: 'text', lang: 'ar' }, jwt);
+      const said = r.messages?.at(-1)?.content ?? '';
+      expect(said.length > 1, `no reply to «${message}»`);
+      expect(!/ما قدرت|ولا تغيّر شي/.test(said), `«${message}» got «${said.slice(0, 70)}»`);
+    }
+    return 'answered';
+  });
   await check('numbers', 'Saree3’s answer counts match the database', async () => {
     await sql(`delete from public.chat_messages where profile_id = '${QA_BOSS}'`);
     const { said } = await talk('كم مهمة متأخرة عند الفريق الحين؟ بالرقم');

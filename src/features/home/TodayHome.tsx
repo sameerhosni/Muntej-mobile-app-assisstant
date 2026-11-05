@@ -87,7 +87,7 @@ export function useTodayActions() {
     approve: async (taskId: string) => {
       try {
         await setTaskStatus(taskId, 'done');
-        await invalidateTaskData(qc);
+        void invalidateTaskData(qc);
         featureUsed('today_home');
         return true;
       } catch {

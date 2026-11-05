@@ -61,7 +61,7 @@ export function useCompleteTask() {
         // done = a green flash (Saree3's living colour), on top of the cheer
         munti.flash('green');
       }
-      await invalidateTaskData(qc);
+      void invalidateTaskData(qc);
       return true;
     } catch (e) {
       munti.say(tm('complete_failed', { reason: (e as Error).message }), 'oops');
