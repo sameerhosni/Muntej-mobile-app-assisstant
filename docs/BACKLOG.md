@@ -105,6 +105,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-06 · In testing: Team from your mail; test-before-live releases (server: autopilot, daily-summary, team-import · Muntej Test update 1.0.0 · new build android-test-1.0.0-mw51fc3z)
 - 2026-11-06 · Arabic task messages can't swap who gave the task and who received it (server: connect, intake, muntej-chat, public-api, sync-sources, whatsapp)
 - 2026-11-05 · Muntej in Hindi: a language people can choose, with Arabic staying the default (server: admin-login, autopilot, connect, daily-summary, delete-account, intake, intercom-webhook, invite, localize-text, muntej-chat, onboarding-nudges, parse-task, phone-auth, public-api, quick-login, send-followups, speak, suggest-skills, suggest-steps, support-identity, sync-sources, team-alerts, team-import, transcribe, translate-task, verify-proof, webhook-dispatch, whatsapp · app update 1.0.0)
 - 2026-11-05 · Tasks reach each person in their language, with the original one tap away (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts, translate-task, whatsapp · app update 1.0.0)
