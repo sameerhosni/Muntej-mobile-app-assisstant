@@ -1,7 +1,9 @@
 # Android builds on GitHub's free runners instead of Expo's build servers (no monthly build limit).
 # Same EAS build, run with --local: signing keys and EXPO_PUBLIC_* variables still come from the Expo project.
-# Start it: Actions → "Android build" → Run workflow, or push a tag `android-preview-<anything>` / `android-production-<anything>`.
-# Result: a GitHub release with the .apk (preview) or .aab (production, for Google Play), plus the workflow artifact.
+# Start it: Actions → "Android build" → Run workflow, or push a tag `android-preview-<anything>` / `android-test-<anything>` /
+# `android-production-<anything>`.
+# Result: a GitHub release with the .apk (preview, or test = the Muntej Test app beside the store one) or .aab
+# (production, for Google Play), plus the workflow artifact.
 # Needs one repository secret: EXPO_TOKEN (expo.dev → Account settings → Access tokens).
 name: Android build
 
@@ -9,12 +11,12 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: 'preview = APK to install on phones, production = AAB for Google Play'
+        description: 'preview = APK to install on phones, test = the Muntej Test APK, production = AAB for Google Play'
         type: choice
-        options: [preview, production]
+        options: [preview, test, production]
         default: preview
   push:
-    tags: ['android-preview-*', 'android-production-*']
+    tags: ['android-preview-*', 'android-test-*', 'android-production-*']
 
 permissions:
   contents: write
@@ -29,7 +31,7 @@ jobs:
     timeout-minutes: 90
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      PROFILE: ${{ inputs.profile || (startsWith(github.ref_name, 'android-production-') && 'production' || 'preview') }}
+      PROFILE: ${{ inputs.profile || (startsWith(github.ref_name, 'android-production-') && 'production' || (startsWith(github.ref_name, 'android-test-') && 'test' || 'preview')) }}
     steps:
       - uses: actions/checkout@v4
 

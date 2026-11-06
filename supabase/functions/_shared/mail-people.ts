@@ -59,6 +59,9 @@ export function peopleInItem(source: string, body: string): { name: string | nul
 export async function peopleFromMail(db: SupabaseClient, profileId: string, opts: { countOnly?: boolean } = {}) {
   const { data: lead } = await db.rpc('can_lead');
   if (!lead) throw new HttpError(403, 'Only managers and admins can change the team');
+  // in testing until the owner approves it (features.testing): only testers have it
+  const { data: on } = await db.rpc('feature_on', { p_key: 'team_from_mail' });
+  if (on === false) throw new HttpError(403, 'Not available yet');
   const { data: me } = await db.from('profiles').select('id, account_id, email, role, manager_id').eq('id', profileId).single();
   if (!me) throw new HttpError(404, 'No profile');
   const [{ data: team }, { data: items }, { data: skips }, { data: conns }] = await Promise.all([

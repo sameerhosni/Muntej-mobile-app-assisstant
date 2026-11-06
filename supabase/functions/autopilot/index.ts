@@ -524,7 +524,8 @@ async function run(admin: SupabaseClient, dry: boolean) {
     }
   }
   // ── 6. new features nobody showed them yet: one push, 3 days after launch, grouped per person ──
-  const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar');
+  // a feature still in testing is announced to nobody (testers see it in What's New)
+  const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar').eq('testing', false);
   const launchable = (feats ?? []).filter((f) => {
     const age = now - Date.parse(f.released_at as string);
     return age >= 3 * DAY && age <= 30 * DAY;

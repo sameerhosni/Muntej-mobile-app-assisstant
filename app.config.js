@@ -7,7 +7,21 @@ const INTERCOM_APP_ID = 'lrn5nc6m';
 const POSTHOG_KEY = 'phc_qhy99hF49RqU5ZD5fSMVEokUzLpayhmKCjYbCQn8wVhS';
 const POSTHOG_HOST = 'https://us.i.posthog.com';
 
+// Muntej Test (owner, 6 Nov: "create a new version for testing before going live"): APP_VARIANT=test (eas.json profile
+// "test") builds a second app that installs beside the store one, with its own name, id and link scheme. It takes
+// updates from the preview channel, where every release lands first; `npm run ship -- --live` then sends the same
+// update to the store app. No push there until a Firebase Android app exists for sa.muntej.app.test.
+const TEST = process.env.APP_VARIANT === 'test';
+
 module.exports = ({ config }) => ({
   ...config,
-  extra: { ...config.extra, intercomAppId: INTERCOM_APP_ID, posthogKey: POSTHOG_KEY, posthogHost: POSTHOG_HOST },
+  ...(TEST
+    ? {
+        name: 'Muntej Test',
+        scheme: 'muntej-test',
+        ios: { ...config.ios, bundleIdentifier: 'sa.muntej.app.test' },
+        android: { ...config.android, package: 'sa.muntej.app.test', googleServicesFile: undefined },
+      }
+    : {}),
+  extra: { ...config.extra, intercomAppId: INTERCOM_APP_ID, posthogKey: POSTHOG_KEY, posthogHost: POSTHOG_HOST, variant: TEST ? 'test' : 'store' },
 });

@@ -573,7 +573,7 @@ async function sendOne(
 
   if (kind === 'daily') {
     // "New for you": up to two features from the last 2 weeks this person hasn't tried (or turned down) yet
-    const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar').order('sort');
+    const { data: feats } = await admin.from('features').select('key, audience, released_at, title, title_ar, benefit, benefit_ar').eq('testing', false).order('sort');
     const { data: mine } = await admin.from('feature_events').select('feature_key, state').eq('profile_id', me.id);
     const done = new Set(
       (mine ?? []).filter((e) => ['tried', 'adopted', 'not_interested'].includes(e.state as string)).map((e) => e.feature_key as string),
