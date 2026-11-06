@@ -286,7 +286,9 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       return `${people.length} found, Reem under Faisal`;
     });
     await check('team', 'Confirming adds them, and skipped people aren’t asked again', async () => {
-      const r = await fn('team-import', { action: 'apply', draft_id: draft.id, people: draft.people }, jwt);
+      // the test company may already have a «ريم»: answer "someone new", as the manager would on the card
+      const people = draft.people.map((p) => (p.email === REEM ? { ...p, is_new: true } : p));
+      const r = await fn('team-import', { action: 'apply', draft_id: draft.id, people }, jwt);
       expect(r.created >= 1, `created ${r.created}: ${JSON.stringify(r.failed).slice(0, 120)}`);
       const [p] = await sql(`select manager_id from public.profiles where lower(email) = '${REEM}'`);
       expect(p?.manager_id === QA_FAISAL, `Reem is under ${p?.manager_id ?? 'nobody'}`);
