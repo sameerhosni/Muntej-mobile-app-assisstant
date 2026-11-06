@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-11-05
+Last updated: 2026-11-06
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -104,6 +104,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-06 · Arabic task messages can't swap who gave the task and who received it (server: connect, intake, muntej-chat, public-api, sync-sources, whatsapp)
 - 2026-11-05 · Muntej in Hindi: a language people can choose, with Arabic staying the default (server: admin-login, autopilot, connect, daily-summary, delete-account, intake, intercom-webhook, invite, localize-text, muntej-chat, onboarding-nudges, parse-task, phone-auth, public-api, quick-login, send-followups, speak, suggest-skills, suggest-steps, support-identity, sync-sources, team-alerts, team-import, transcribe, translate-task, verify-proof, webhook-dispatch, whatsapp · app update 1.0.0)
 - 2026-11-05 · Tasks reach each person in their language, with the original one tap away (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts, translate-task, whatsapp · app update 1.0.0)
 - 2026-11-05 · Decisions and task buttons answer at once; Saree3 stops showing a false error on polite replies (server: muntej-chat · app update 1.0.0)
