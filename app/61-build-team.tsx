@@ -2,18 +2,20 @@
 // the hook, so many smart ways in: snap the org chart, upload Excel / CSV / PDF, write or paste a list (Saree3 reads
 // sentences too), connect a system (Microsoft / Google / Jisr, coming), or one person by hand. Every way ends on
 // Review your team (screen 62).
-import { useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { router, type Href } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera, ChevronLeft, ClipboardPaste, FileSpreadsheet, Image as ImageIcon, PlugZap, UserPlus, type LucideProps } from 'lucide-react-native';
+import { Camera, ChevronLeft, ClipboardPaste, FileSpreadsheet, Image as ImageIcon, Mail, PlugZap, UserPlus, type LucideProps } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, IconBadge, IconButton, TextField, TimedProgress } from '@/components/ui';
 import { colors, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { Munti } from '@/features/munti/Munti';
-import { canFile, canPhoto, readDirectory, readFile, readPhoto, readText, type Draft } from '@/features/teamImport/api';
+import { canFile, canPhoto, readDirectory, readFile, readMail, readPhoto, readText, type Draft } from '@/features/teamImport/api';
 import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
+import { useConnections } from '@/features/sources/connections';
+import { TourTarget } from '@/features/walkthrough/TourTarget';
 
 export default function BuildTeamScreen() {
   const { t } = useScreenT(TEAM_IMPORT_NS);
@@ -26,6 +28,17 @@ export default function BuildTeamScreen() {
   const [text, setText] = useState('');
   const [jisr, setJisr] = useState(false);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/39-team' as Href));
+  // the people in what Muntej read for you: only once Google is connected (Home's "Needs you" card opens it with ?mail=1)
+  const hasGoogle = (useConnections().data ?? []).some((c) => c.provider === 'google');
+  const { mail } = useLocalSearchParams<{ mail?: string }>();
+  const started = useRef(false);
+  useEffect(() => {
+    if (mail === '1' && hasGoogle && !started.current) {
+      started.current = true;
+      void run(readMail, 25_000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mail, hasGoogle]);
 
   const run = async (read: () => Promise<Draft | null>, ms = 12_000) => {
     setError(null);
@@ -92,6 +105,11 @@ export default function BuildTeamScreen() {
             </AppText>
           )}
         </Way>
+        {hasGoogle && (
+          <TourTarget id="build.mail">
+            <Way Icon={Mail} bg="greenTint" fg={colors.green} title={t('mail')} sub={t('mailSub')} disabled={busy} onPress={() => run(readMail, 25_000)} />
+          </TourTarget>
+        )}
         <Way Icon={UserPlus} bg="chip" fg={colors.textSoft} title={t('manual')} sub={t('manualSub')} disabled={busy} onPress={() => router.push('/39-team?add=1' as Href)} />
         {!canPhoto && <Way Icon={ImageIcon} bg="chip" fg={colors.textFaint} title={t('photo')} sub={t('photoSub')} disabled badge={t('soon')} onPress={() => {}} />}
       </ScrollView>

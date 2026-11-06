@@ -108,7 +108,7 @@ export function TeamTree({
                     {(lang === 'ar' && p.full_name_ar) || p.full_name}
                   </AppText>
                   <AppText variant="caption" color="textMuted" numberOfLines={2}>
-                    {[p.title, outside].filter(Boolean).join(' · ')}
+                    {[p.title ?? (p.outside ? t('outsideCompany') : p.email), outside].filter(Boolean).join(' · ')}
                   </AppText>
                 </View>
                 {p.skip ? (

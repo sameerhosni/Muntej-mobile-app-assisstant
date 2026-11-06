@@ -30,6 +30,8 @@ export type DraftPerson = {
   maybe?: { id: string; name: string }[];
   /** they said: someone new */
   is_new?: boolean;
+  /** from your mail: outside your company's email domain (a client, a supplier), so left out unless you add them */
+  outside?: boolean;
 };
 /** a "maybe" nobody answered yet (the server won't add them either) */
 export const undecided = (p: DraftPerson) => !p.skip && !p.existing_id && !p.is_new && !!p.maybe?.length;
@@ -72,6 +74,22 @@ export async function readDirectory(provider: 'microsoft_directory' | 'google_di
   if (error || !data?.url) throw await toError(error);
   if (Platform.OS === 'web') window.location.href = data.url;
   else await Linking.openURL(data.url);
+}
+
+/** the people in the mail and chats Muntej read for you who aren't in the team yet → a draft (owner, 6 Nov) */
+export async function readMail() {
+  track('team_import_start', { source: 'mail' });
+  return (await call<{ draft: Draft }>({ action: 'from_mail' })).draft;
+}
+
+/** how many colleagues are waiting to be added from your mail (Home "Needs you"); 0 for people who can't add */
+export function useMailPeopleCount(enabled: boolean) {
+  return useQuery({
+    queryKey: ['mailPeople'],
+    enabled,
+    staleTime: 30 * 60_000,
+    queryFn: async () => (await call<{ count: number; outside: number }>({ action: 'from_mail', count_only: true }).catch(() => ({ count: 0, outside: 0 }))).count,
+  });
 }
 
 /** read pasted text / a sentence about the team */

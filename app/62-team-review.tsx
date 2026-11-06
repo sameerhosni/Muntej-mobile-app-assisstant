@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, IconButton, TimedProgress } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
@@ -24,6 +25,7 @@ export default function TeamReviewScreen() {
   const { id, error: back_error } = useLocalSearchParams<{ id?: string; error?: string }>();
   const draft = useDraft(id);
   const org = useOrg();
+  const qc = useQueryClient();
   const [people, setPeople] = useState<DraftPerson[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +89,8 @@ export default function TeamReviewScreen() {
     setError(null);
     try {
       setResult(await applyDraft(id, list));
+      // Home's "people in your mail" card counts again
+      void qc.invalidateQueries({ queryKey: ['mailPeople'] });
     } catch (e) {
       setError((e as Error).message);
     } finally {

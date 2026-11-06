@@ -3,6 +3,7 @@
 // broken for every manager since 29 Oct. The last check finds this whole kind of mistake in every database function.
 export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc, insert }) {
   const { QA_ACCOUNT, QA_BOSS } = ids;
+  const QA_FAISAL = 'a0000000-0000-4000-b000-000000000011';
   const DEMO = 'c0000000-0000-4000-b000-000000000001';
   const STRANGER = 'c0000000-0000-4000-b000-000000000011';
   const [them] = await sql(`select id from public.profiles where account_id = '${QA_ACCOUNT}' and id <> '${QA_BOSS}' and status = 'active' and manager_id = '${QA_BOSS}' limit 1`);
@@ -251,6 +252,52 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       await sql(`delete from public.incoming_items where id = '${item.id}'`);
     }
   });
+  // The owner, 6 Nov: "once we connect Google tools, saree3 should import all users email found in tasks and suggest to
+  // add it to the account org structure under one of the existing users or skip the user".
+  const MAIL_IDS = ['qa-mail-1', 'qa-mail-2', 'qa-mail-3'];
+  const REEM = 'qa-reem@qa.muntej.test';
+  const CLIENT = 'buyer@client-co.test';
+  const tidyMail = () =>
+    sql(`delete from public.incoming_items where owner_id = '${QA_BOSS}' and external_id like 'qa-mail-%';
+         delete from public.team_mail_skips where created_by = '${QA_BOSS}';
+         delete from public.team_drafts where created_by = '${QA_BOSS}' and source = 'mail';
+         delete from public.profiles where lower(email) = '${REEM}';`);
+  await tidyMail();
+  try {
+    const mail = (id, from, to, cc, words) =>
+      sql(`insert into public.incoming_items (owner_id, source, external_id, sender, subject, received_at, body, status, suggestions)
+           values ('${QA_BOSS}', 'gmail', '${id}', 'QA', 'QA mail', now(), ${`'Subject: QA mail\nFrom: ${from}\nTo: ${to}\n${cc ? `Cc: ${cc}\n` : ''}\n${words}'`}, 'nothing', '[]'::jsonb)`);
+    await mail(MAIL_IDS[0], `"Reem Salem" <${REEM}>`, `"Ahmed QA" <qa-manager@qa.muntej.test>`, `"Faisal QA" <qa-faisal@qa.muntej.test>`, 'The sales sheet is ready');
+    await mail(MAIL_IDS[1], `"Faisal QA" <qa-faisal@qa.muntej.test>`, `"Reem Salem" <${REEM}>`, 'no-reply@notifications.qa.muntej.test', 'Thanks Reem, send it to the client');
+    await mail(MAIL_IDS[2], `"Client Buyer" <${CLIENT}>`, `"Ahmed QA" <qa-manager@qa.muntej.test>`, null, 'Please share the offer');
+    let draft = null;
+    let before = null;
+    await check('team', 'People found in your mail are suggested for the team', async () => {
+      before = await fn('team-import', { action: 'from_mail', count_only: true }, jwt);
+      const r = await fn('team-import', { action: 'from_mail' }, jwt);
+      draft = r.draft;
+      const people = draft?.people ?? [];
+      const reem = people.find((p) => p.email === REEM);
+      const client = people.find((p) => p.email === CLIENT);
+      expect(reem, `Reem wasn't suggested: ${people.map((p) => p.email ?? p.full_name).join(', ') || 'nobody'}`);
+      expect(reem.manager_id === QA_FAISAL && !reem.skip, `Reem goes under ${reem.manager_id ?? 'you'}${reem.skip ? ', skipped' : ''}, not Faisal, who mails with her`);
+      expect(client?.skip && client.outside, `the client is ${client ? 'not set to skip' : 'missing'}`);
+      expect(!people.some((p) => /qa-faisal|qa-manager|no-reply/.test(p.email ?? '')), 'you, a teammate or a no-reply address is in the list');
+      return `${people.length} found, Reem under Faisal`;
+    });
+    await check('team', 'Confirming adds them, and skipped people aren’t asked again', async () => {
+      const r = await fn('team-import', { action: 'apply', draft_id: draft.id, people: draft.people }, jwt);
+      expect(r.created >= 1, `created ${r.created}: ${JSON.stringify(r.failed).slice(0, 120)}`);
+      const [p] = await sql(`select manager_id from public.profiles where lower(email) = '${REEM}'`);
+      expect(p?.manager_id === QA_FAISAL, `Reem is under ${p?.manager_id ?? 'nobody'}`);
+      const again = await fn('team-import', { action: 'from_mail', count_only: true }, jwt);
+      // other test mail may name more people: Reem (now in the team) and the client (skipped) must be the two gone
+      expect(again.count === before.count - 1 && again.outside === before.outside - 1, `before ${before.count} + ${before.outside} outside, after ${again.count} + ${again.outside}`);
+      return 'added, nothing asked twice';
+    });
+  } finally {
+    await tidyMail();
+  }
   await check('tasks', 'No database function points at a column or table that isn’t there', async () => {
     // plpgsql_check is installed only inside this block: the final raise rolls everything back, and carries the answer
     const r = await sql(`do $do$

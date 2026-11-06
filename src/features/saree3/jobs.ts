@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { useDecisions, useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { useConnections } from '@/features/sources/connections';
 import { useIncomingCount } from '@/features/incoming/api';
+import { useMailPeopleCount } from '@/features/teamImport/api';
 import { toolForConnection } from '@/features/tools/tools';
 import type { Href } from 'expo-router';
 
@@ -36,6 +37,7 @@ export function useSaree3Jobs(t: T, lang: string) {
   const decisions = useDecisions('pending');
   const conns = useConnections();
   const incoming = useIncomingCount();
+  const mailPeople = useMailPeopleCount(!!me.data && me.data.role !== 'employee' && (conns.data ?? []).some((c) => c.provider === 'google'));
   const meId = me.data?.id;
   const ar = lang === 'ar';
 
@@ -93,6 +95,8 @@ export function useSaree3Jobs(t: T, lang: string) {
   for (const d of decisions.data ?? [])
     jobs.push({ key: `d${d.id}`, kind: 'needs', icon: '🙋', text: (ar && d.title_ar) || d.title, sub: t('decide'), href: '/04-decisions' });
   if (incoming.count) jobs.push({ key: 'inc', kind: 'needs', icon: '📥', text: t('incoming', { count: incoming.count }), sub: t('incomingSub'), href: '/42-incoming' });
+  // colleagues in your mail who aren't in the team yet (owner, 6 Nov): add them under someone, or skip
+  if (mailPeople.data) jobs.push({ key: 'mailPeople', kind: 'needs', icon: '👥', text: t('mailPeople', { count: mailPeople.data }), sub: t('mailPeopleSub'), href: '/61-build-team?mail=1' as Href });
   // ── tools: broken ones Saree3 keeps retrying (or that need your sign-in) ──
   for (const c of conns.data ?? []) {
     const cur = (c.cursor ?? {}) as Record<string, unknown>;

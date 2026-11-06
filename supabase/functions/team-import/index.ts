@@ -3,10 +3,12 @@
 // reviews as a tree in the app (screen 62) and confirms once.
 //   POST {action:'read', text?, file?: {name, mime, base64}}  → {draft}   (signed in)
 //   POST {action:'apply', draft_id, people}                     → {created, updated, failed, ids}
+//   POST {action:'from_mail', count_only?}                      → {draft} | {count, outside}  (people in your mail)
 // Everything runs as the caller (their JWT), so upsert_person's rules hold: people go only into the caller's branch,
 // no cycles, admin roles only by the super admin. Images and PDFs go to the model as they are; Excel / CSV are turned
 // into text first (SheetJS). Env: OPENAI_API_KEY, IMPORT_MODEL (default gpt-4.1: reads Arabic org charts well).
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
+import { peopleFromMail, rememberSkips } from '../_shared/mail-people.ts';
 import { phCapture } from '../_shared/posthog.ts';
 import { adminClient } from '../_shared/push.ts';
 import { readTeam, saudiPhone, undecided, type DraftPerson, type ReadInput } from '../_shared/team-reader.ts';
@@ -19,19 +21,22 @@ serve(async (req) => {
     test_as?: string;
     draft_id?: string;
     people?: DraftPerson[];
+    count_only?: boolean;
   };
   const cron = Deno.env.get('CRON_SECRET');
   const dry = !!cron && req.headers.get('x-cron-secret') === cron && !!body.test_as;
   const { db, profileId } = dry ? { db: adminClient(), profileId: body.test_as! } : await getCaller(req);
   if (dry && body.action !== 'read') throw new HttpError(400, 'Dry runs only read');
   if (body.action === 'apply') return json(await apply(db, profileId, body.draft_id ?? '', body.people ?? []));
+  // the people in what Muntej read for you (count_only: just how many, for the Home card)
+  if (body.action === 'from_mail') return json(await peopleFromMail(db, profileId, { countOnly: !!body.count_only }));
   if (body.action !== 'read') throw new HttpError(400, 'Unknown action');
   return json({ draft: await readTeam(db, profileId, { text: body.text, file: body.file, source: body.source, dry, model: body.model, effort: body.effort }) });
 });
 
 /** create / update everyone, managers first, as the caller; one failure never stops the rest */
 async function apply(db: Awaited<ReturnType<typeof getCaller>>['db'], profileId: string, draftId: string, people: DraftPerson[]) {
-  const { data: draft } = await db.from('team_drafts').select('id, status').eq('id', draftId).maybeSingle();
+  const { data: draft } = await db.from('team_drafts').select('id, status, source').eq('id', draftId).maybeSingle();
   if (!draft) throw new HttpError(404, 'Draft not found');
   if (draft.status === 'applied') throw new HttpError(409, 'Already confirmed');
   const ids: Record<string, string> = {};
@@ -93,6 +98,7 @@ async function apply(db: Awaited<ReturnType<typeof getCaller>>['db'], profileId:
     else created++;
   }
 
+  if (draft.source === 'mail') await rememberSkips(db, profileId, people);
   const result = { created, updated, failed, ids };
   await db.from('team_drafts').update({ status: 'applied', people, result, updated_at: new Date().toISOString() }).eq('id', draftId);
   await phCapture([{ distinctId: profileId, event: 'team_import_applied', properties: { created, updated, failed: failed.length } }]);
