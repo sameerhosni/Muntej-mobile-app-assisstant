@@ -77,6 +77,8 @@ export function TaskCard({
   const ownerName = owner ? personName(owner, lang) : task.owner_name;
   const helperName = helper ? personName(helper, lang).split(' ')[0] : task.helper_name;
   const pr = priorityStyle[task.priority];
+  // budget is optional (owner, 8 Nov): older messages may still list it
+  const missingNow = task.missing.filter((m) => m !== 'budget');
 
   const run = async () => {
     setWorking(true);
@@ -212,12 +214,12 @@ export function TaskCard({
             </Pill>
           )}
 
-          {task.missing.length > 0 && (
+          {missingNow.length > 0 && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
               <AppText variant="caption" weight="bold" color="amberStrong">
                 {t('missing')}
               </AppText>
-              {task.missing.map((m) => (
+              {missingNow.map((m) => (
                 <Pressable
                   key={m}
                   onPress={() => onMissing(m)}

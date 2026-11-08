@@ -510,7 +510,7 @@ export function mergeTask(snap: TaskSnapshot, live?: LiveTaskRow): CardTask {
   if (!live.owner_id) missing.push('owner');
   if (!live.due_at) missing.push('due');
   if (!live.definition_of_done) missing.push('definition_of_done');
-  if (!live.budget) missing.push('budget');
+  // budget is optional (owner, 8 Nov): never listed as missing
   return {
     id: snap.id,
     title: live.title,

@@ -98,9 +98,12 @@ export default function TeamReviewScreen() {
     setBusy(true);
     setError(null);
     try {
-      setResult(await applyDraft(id, forServer));
+      const r = await applyDraft(id, forServer);
+      setResult(r);
       // Home's "people in your mail" card counts again
       void qc.invalidateQueries({ queryKey: ['mailPeople'] });
+      // from your mail: the people you added are invited right away (owner, 8 Nov: "send invitation after adding")
+      if (isMail) await inviteAll(r);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -108,7 +111,8 @@ export default function TeamReviewScreen() {
     }
   };
 
-  const inviteAll = async () => {
+  const inviteAll = async (done: ApplyResult | null = result) => {
+    const result = done;
     if (!result) return;
     setBusy(true);
     // WhatsApp (a one-time join link) when there's a mobile, email otherwise
@@ -149,7 +153,7 @@ export default function TeamReviewScreen() {
             )}
             <TimedProgress active={inviting} expectedMs={Math.max(4000, list.length * 1500)} stages={[t('p_invite'), t('p_almost')]} />
             {invited === null ? (
-              forServer.some((p) => !p.existing_id && (p.phone || p.email) && !p.skip) && <Button label={t('inviteEmail')} onPress={inviteAll} loading={busy} />
+              forServer.some((p) => !p.existing_id && (p.phone || p.email) && !p.skip) && <Button label={t('inviteEmail')} onPress={() => void inviteAll()} loading={busy} />
             ) : (
               <AppText color="greenText" weight="semibold">
                 {t('invited', { n: n(invited), count: invited })}

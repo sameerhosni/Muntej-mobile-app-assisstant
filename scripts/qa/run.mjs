@@ -517,6 +517,8 @@ async function screens() {
         // the owner, 8 Nov: "one for current state and if any action required to be in different section"; and the
         // steps only on a tap ("make these steps by clicking on a button not auto")
         expect(/مطلوب منك/.test(text) && /أضف الموعد/.test(text), 'no «مطلوب منك» with «أضف الموعد» for the one who gave it (no due date)');
+        // owner, 8 Nov: "Budget should be optional"
+        expect(!/أضف الميزانية|حدد الميزانية/.test(text), 'the task asks for a budget');
         expect(/الحالة الآن/.test(text), 'no «الحالة الآن» section');
         await page.waitForTimeout(3000);
         const later = await page.evaluate(() => document.body.innerText);
@@ -576,8 +578,13 @@ async function screens() {
         expect((await page.getByRole('button', { name: /^أضفه QA/ }).count()) === 2, 'not every person has «أضفه»');
         await no.click();
         await page.getByText('تراجع').first().waitFor({ timeout: 10_000 });
+        // owner, 8 Nov: "Once added, let's choose under whom": Add asks who they go under, then adds them there
+        await page.getByRole('button', { name: /^أضفه QA Inside Person/ }).click();
+        await page.getByText('أضف QA Inside Person تحت:').first().waitFor({ timeout: 10_000 });
+        await page.getByText('فيصل', { exact: true }).first().click();
+        await page.getByText(/تحت: فيصل/).first().waitFor({ timeout: 10_000 });
         await page.screenshot({ path: join(OUT, 'mail_review.png') });
-        return 'Add / No on each, outside apart, No folds with Undo';
+        return 'Add asks under whom, No folds with Undo, outside apart';
       } finally {
         await sql(`delete from public.team_drafts where id = '${d.id}'`);
       }

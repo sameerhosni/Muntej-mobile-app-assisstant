@@ -360,6 +360,15 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
   } finally {
     await tidyMail();
   }
+  // owner, 8 Nov: "Budget should be optional": who, when and what "done" means make a task fully clear
+  await check('tasks', 'A task without a budget is fully clear', async () => {
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at, definition_of_done)
+      values ('QA budget optional', '${QA_BOSS}', '${QA_BOSS}', 'assigned', now() + interval '2 days', 'Sent to the client') returning id, clarity_score`);
+    await sql(`delete from public.tasks where id = '${t.id}'`);
+    expect(t.clarity_score === 100, `clarity ${t.clarity_score}% without a budget`);
+    return '100%';
+  });
+
   // ─── who sees a task, who may give one (owner, 8 Nov) ─────────────────────────
   // "Everyone should see his tasks and his team tasks only and other tasks he is mentioned in and tasks assigned from
   // his side to other teams, and can give tasks to his team and users in the same level of other teams" (admins: all).

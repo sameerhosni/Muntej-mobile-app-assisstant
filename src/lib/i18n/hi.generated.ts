@@ -4461,6 +4461,7 @@ export default {
   "mail": "आपके ईमेल और चैट्स से",
   "mailAddLeft": "{{n}} जोड़ें · निर्णय शेष: {{left}}",
   "mailAddN": "{{n}} जोड़ें",
+  "mailAddUnder": "{{name}} को इसके अंतर्गत जोड़ें:",
   "mailAdding": "जोड़ा जाएगा",
   "mailCounts": "आपकी कंपनी से {{inside}} · बाहर से {{outside}} · आपने {{done}} पर निर्णय लिया",
   "mailDecideFirst": "प्रत्येक व्यक्ति पर जोड़ें या नहीं टैप करें",

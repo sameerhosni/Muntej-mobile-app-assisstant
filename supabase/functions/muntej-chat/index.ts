@@ -401,7 +401,7 @@ function missingOf(t: Pick<TaskRow, 'owner_id' | 'due_at' | 'definition_of_done'
   if (!t.owner_id) m.push('owner');
   if (!t.due_at) m.push('due');
   if (!t.definition_of_done) m.push('definition_of_done');
-  if (!t.budget) m.push('budget');
+  // budget is optional (owner, 8 Nov): never asked for
   return m;
 }
 

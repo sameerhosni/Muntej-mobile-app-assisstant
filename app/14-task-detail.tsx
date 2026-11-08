@@ -149,15 +149,16 @@ export default function TaskDetailScreen() {
     ? { owner: !!d?.owner_id, due: !!d?.due_at, doneDef: !!d?.definition_of_done, budget: !!d?.budget }
     : { owner: true, due: true, doneDef: true, budget: false };
   // asking fills nothing in (Nouran, 8 Nov: two taps on «اسأل» made it 100%): an item is ✓ only when it's really there
-  const checks = (Object.keys(baseChecks) as CheckKey[]).map((k) => ({ key: k, ok: baseChecks[k] }));
+  // budget is optional (owner, 8 Nov): a live task is clear with who, when and what "done" means
+  const checks = (Object.keys(baseChecks) as CheckKey[]).filter((k) => !live || k !== 'budget').map((k) => ({ key: k, ok: baseChecks[k] }));
   const passing = checks.filter((c) => c.ok).length;
-  const baseScore = live ? d?.clarity_score || passing * 25 : 82;
-  const clarity = passing === 4 ? 100 : baseScore;
-  const missing = (['budget', 'doneDef', 'due'] as CheckKey[]).find((k) => !checks.find((c) => c.key === k)?.ok);
+  const baseScore = live ? Math.round((passing * 100) / checks.length) : 82;
+  const clarity = passing === checks.length ? 100 : baseScore;
+  const missing = (['doneDef', 'due'] as CheckKey[]).find((k) => !checks.find((c) => c.key === k)?.ok);
   // the person doing it asks the one who gave it; the one who gave it (or a manager) adds it themselves
   const meId = me.data?.id;
   const doing = live && !!meId && (d?.owner_id === meId || d?.helper_id === meId) && !!d?.assigner_id && d.assigner_id !== meId;
-  const allMissing = (['due', 'doneDef', 'budget'] as DetailKey[]).filter((k) => !checks.find((c) => c.key === k)?.ok);
+  const allMissing = (['due', 'doneDef'] as DetailKey[]).filter((k) => !checks.find((c) => c.key === k)?.ok);
   const askGiver = async (what: CheckKey | undefined = missing) => {
     if (!d || !what) return;
     setAsked((a) => ({ ...a, [what]: true }));

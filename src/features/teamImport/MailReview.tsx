@@ -25,7 +25,19 @@ export function MailReview({
   onChange: (ref: string, patch: Partial<DraftPerson>) => void;
 }) {
   const { t } = useScreenT(TEAM_IMPORT_NS);
+  // the "under whom?" sheet; adding = it opened from Add (owner, 8 Nov: "Once added, let's choose under whom"): picking
+  // someone adds the person there, closing it adds nobody
   const [picking, setPicking] = useState<DraftPerson | null>(null);
+  const [adding, setAdding] = useState(false);
+  const pick = (boss: string | null) => {
+    if (picking) onChange(picking.ref, { manager_id: boss, manager_ref: null, ...(adding ? { decided: 'yes' as const, ...(picking.maybe?.length ? { is_new: true } : null) } : null) });
+    setPicking(null);
+    setAdding(false);
+  };
+  const close = () => {
+    setPicking(null);
+    setAdding(false);
+  };
   const inside = people.filter((p) => !p.outside);
   const outside = people.filter((p) => p.outside);
   const bossName = (p: DraftPerson) => (p.manager_id ? (team.find((b) => b.id === p.manager_id)?.name ?? '…') : meName);
@@ -83,7 +95,10 @@ export function MailReview({
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Pressable
-            onPress={() => onChange(p.ref, { decided: 'yes', ...(p.maybe?.length ? { is_new: true } : null) })}
+            onPress={() => {
+              setAdding(true);
+              setPicking(p);
+            }}
             accessibilityRole="button"
             accessibilityLabel={`${t('mailYes')} ${p.full_name}`}
             style={({ pressed }) => ({ flex: 1, minHeight: sizes.touch, borderRadius: radius.pill, backgroundColor: colors.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: pressed ? 0.85 : 1 })}
@@ -125,29 +140,14 @@ export function MailReview({
       {outside.map(row)}
 
       {/* who they'll be under: you or someone in your team */}
-      <Modal visible={!!picking} transparent animationType="fade" onRequestClose={() => setPicking(null)}>
-        <Pressable onPress={() => setPicking(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}>
+      <Modal visible={!!picking} transparent animationType="fade" onRequestClose={close}>
+        <Pressable onPress={close} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}>
           <Pressable style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.screen, gap: spacing.md, maxHeight: '70%' }}>
-            <AppText weight="bold">{t('mailPickBoss')}</AppText>
+            <AppText weight="bold">{adding && picking ? t('mailAddUnder', { name: picking.full_name }) : t('mailPickBoss')}</AppText>
             <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, paddingBottom: spacing.lg }}>
-              <Chip
-                label={meName}
-                selected={!picking?.manager_id}
-                onPress={() => {
-                  if (picking) onChange(picking.ref, { manager_id: null, manager_ref: null });
-                  setPicking(null);
-                }}
-              />
+              <Chip label={meName} selected={!adding && !picking?.manager_id} onPress={() => pick(null)} />
               {team.map((b) => (
-                <Chip
-                  key={b.id}
-                  label={b.name}
-                  selected={picking?.manager_id === b.id}
-                  onPress={() => {
-                    if (picking) onChange(picking.ref, { manager_id: b.id, manager_ref: null });
-                    setPicking(null);
-                  }}
-                />
+                <Chip key={b.id} label={b.name} selected={!adding && picking?.manager_id === b.id} onPress={() => pick(b.id)} />
               ))}
             </ScrollView>
           </Pressable>

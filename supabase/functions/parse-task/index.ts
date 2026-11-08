@@ -42,7 +42,7 @@ Rules:
 - Resolve relative dates against the provided current time in Asia/Riyadh. The Saudi work week is Sunday–Thursday. "Before Thursday" means Thursday 17:00 unless a time is said. No time said → 17:00. Output ISO 8601 with +03:00.
 - priority: urgent only if the manager signals urgency (today, ASAP, ضروري, عاجل); high for client/exec deadlines within a week; else medium; low if they say no rush.
 - definition_of_done: one concrete, checkable sentence inferred from the request (e.g. "Deck sent to Ahmed"). goal: the business goal or client in 1–4 words, null if unclear.
-- missing: list the clarity items that are NOT known from the sentence (owner, due, definition_of_done, budget). Budget is missing unless money/resources are mentioned or clearly not needed.
+- missing: list the clarity items that are NOT known from the sentence (owner, due, definition_of_done). Budget is optional: never list it.
 - followup_plan, so the manager never chases: 3–5 steps, chronological, inside working hours (Sun–Thu 09:00–17:00 Riyadh, never after 21:00 or on Friday).
   1. kind "brief" now (current time) on whatsapp: brief the owner and ask for a confirm; mention the helper if any.
   2. one or two kind "check" steps spread before the due date: ask for progress.
@@ -134,6 +134,8 @@ serve(async (req) => {
   const result = ParsedTask.safeParse(raw);
   if (!result.success) throw new HttpError(502, 'Could not understand the task, try rephrasing');
   const parsed = result.data;
+  // budget is optional (owner, 8 Nov): never asked for, whatever the model says
+  parsed.missing = parsed.missing.filter((m) => m !== 'budget');
 
   // Guarantee the plan ends by collecting the deliverable on the due date.
   if (parsed.due_at && parsed.followup_plan.length && parsed.followup_plan.at(-1)!.kind !== 'collect') {
