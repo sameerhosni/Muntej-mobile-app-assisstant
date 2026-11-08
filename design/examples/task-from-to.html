@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task from and to</title>
+<style>
+  :root { --bg:#F3F6FB; --card:#FFFFFF; --muted:#5B6576; --line:#E2E8F2; --blue:#1F6FEB; --blueTint:#E8F0FE; --navy:#0B1B3F; --purpleTint:#EEEDFE; --purple:#3C3489; }
+  body { margin:0; padding:18px 16px 28px; background:var(--bg); font-family: Tahoma, "Segoe UI", sans-serif; color:var(--navy); width:390px; box-sizing:border-box; }
+  h2 { font-size:15px; color:var(--muted); font-weight:600; margin:6px 0 10px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:10px; }
+  .title { font-size:19px; font-weight:700; margin-bottom:12px; }
+  .row { display:flex; align-items:center; gap:8px; }
+  .box { flex:1; border-radius:12px; padding:8px; display:flex; align-items:center; gap:8px; }
+  .av { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; }
+  .lbl { font-size:11px; }
+  .name { font-size:14px; font-weight:700; }
+  .meta { font-size:12px; color:var(--muted); margin-top:9px; }
+  .chip { border-radius:999px; padding:5px 11px; font-size:13px; }
+  .list .t { font-size:14px; font-weight:700; }
+  .list .s { font-size:13px; color:var(--muted); margin-top:4px; }
+  .tag { display:inline-block; background:var(--navy); color:#fff; border-radius:8px; padding:2px 9px; font-size:13px; margin-left:6px; }
+</style>
+</head>
+<body>
+  <h2><span class="tag">أ</span>صف واضح «من ← إلى»</h2>
+  <div class="card">
+    <div class="title">متابعة شغلي وجلب مصمم UI/UX فريلانسر</div>
+    <div class="row">
+      <div class="box" style="background:#F3F6FB">
+        <div class="av" style="background:var(--purpleTint);color:var(--purple)">ن</div>
+        <div><div class="lbl" style="color:var(--muted)">من</div><div class="name">Nouranemira</div></div>
+      </div>
+      <div style="color:var(--muted);font-size:18px">←</div>
+      <div class="box" style="background:var(--blueTint)">
+        <div class="av" style="background:#B5D4F4;color:#0C447C">ن</div>
+        <div style="flex:1"><div class="lbl" style="color:var(--blue)">إلى</div><div class="name" style="color:#0C447C">N Emira</div></div>
+        <div style="color:var(--blue);font-size:15px">✏️</div>
+      </div>
+    </div>
+    <div class="meta">✉️ من إيميل · الجمعة 13 نوفمبر · 5 م</div>
+  </div>
+  <div class="card list">
+    <div class="t">متابعة العملاء القدام والتأكد من …</div>
+    <div class="s">من Nouranemira ← إلى N Emira · بدون موعد</div>
+  </div>
+
+  <h2 style="margin-top:22px"><span class="tag">ب</span>سطر واحد مختصر</h2>
+  <div class="card">
+    <div class="title">متابعة شغلي وجلب مصمم UI/UX فريلانسر</div>
+    <div class="row" style="flex-wrap:wrap;gap:6px">
+      <span class="chip" style="background:var(--purpleTint);color:var(--purple)">من Nouranemira</span>
+      <span style="color:var(--muted)">←</span>
+      <span class="chip" style="background:var(--blueTint);color:#0C447C;border:1px solid #85B7EB">إلى N Emira ▾</span>
+      <span style="font-size:12px;color:var(--muted)">· إيميل · الجمعة 5 م</span>
+    </div>
+  </div>
+  <div class="card list">
+    <div class="t">متابعة العملاء القدام والتأكد من …</div>
+    <div class="s">إلى N Emira · من Nouranemira</div>
+  </div>
+</body>
+</html>

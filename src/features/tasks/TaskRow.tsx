@@ -4,6 +4,7 @@
 //   a small red dot before the title = urgent / high priority
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { FromTag } from './FromTag';
+import { FROM_TO_NS, fromToLine } from './FromTo';
 import { router } from 'expo-router';
 import { Check, ChevronRight } from 'lucide-react-native';
 import { AppText, Card } from '@/components/ui';
@@ -21,6 +22,7 @@ import { NS } from './strings';
 /** `hideObjective` is kept for callers; objectives are no longer shown on the row. */
 export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolean }) {
   const { t } = useScreenT(NS);
+  const { t: tf } = useScreenT(FROM_TO_NS);
   const { lang, isRTL } = useDirection();
   const { toggle, canTick, busyId } = useCompleteTask();
   const me = useMyProfile();
@@ -51,6 +53,10 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
           : undefined
       : undefined;
 
+  // who it's from → who it's for (owner, 8 Nov, option A); the status line below then doesn't repeat the owner
+  const fromTo = fromToLine(tf, task, team.data ?? [], me.data?.id, lang);
+  const ownerInLine = fromTo ? null : ownerName;
+
   // the one line under the title
   const due = task.due_at ? formatDue(task.due_at, lang) : null;
   let line: string;
@@ -60,15 +66,15 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
     line = (reviewerName ? t('lookingMine', { name: reviewerName }) : t('lookingMineNoName')) + lateFinish;
     lineColor = lateFinish ? 'amberText' : 'greenText';
   } else if (task.status === 'submitted') {
-    line = `${ownerName ?? t('unassigned')} · ${t('s_submitted')}${lateFinish}`;
+    line = `${fromTo ? '' : `${ownerName ?? t('unassigned')} · `}${t('s_submitted')}${lateFinish}`;
     lineColor = lateFinish ? 'amberText' : 'purpleText';
   } else if (task.status === 'done') {
-    line = `${ownerName ? `${ownerName} · ` : ''}${t('doneMine')}${lateFinish}`;
+    line = `${ownerInLine ? `${ownerInLine} · ` : ''}${t('doneMine')}${lateFinish}`;
     lineColor = lateFinish ? 'amberText' : 'greenText';
   } else if (late) {
-    line = `${ownerName ? `${ownerName} · ` : ''}${t('lateLine', { when: due })}`;
+    line = `${ownerInLine ? `${ownerInLine} · ` : ''}${t('lateLine', { when: due })}`;
     lineColor = 'red';
-  } else line = `${ownerName ?? t('unassigned')} · ${due ?? t('noDue')}`;
+  } else line = fromTo ? (due ?? t('noDue')) : `${ownerName ?? t('unassigned')} · ${due ?? t('noDue')}`;
   const hot = !finished && !cancelled && (task.priority === 'urgent' || task.priority === 'high');
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
@@ -141,7 +147,13 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
               </View>
             )}
           </View>
-          {fromName !== undefined && <FromTag name={fromName} you={fromYou} />}
+          {fromTo ? (
+            <AppText variant="caption" weight="bold" color="purple" numberOfLines={1}>
+              {fromTo}
+            </AppText>
+          ) : (
+            fromName !== undefined && <FromTag name={fromName} you={fromYou} />
+          )}
           <AppText variant="caption" weight={late || mineWaiting ? 'semibold' : 'regular'} color={lineColor} numberOfLines={1}>
             {line}
           </AppText>

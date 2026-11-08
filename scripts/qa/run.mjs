@@ -456,6 +456,67 @@ async function screens() {
       }
     });
 
+    // the owner, 8 Nov: "In Google meet sync let's group every meeting tasks under one section group with mention of the
+    // meeting title and attendees then tasks to everyone" (design/examples/meeting-group.png, approved)
+    await check('screens', 'A meeting’s tasks show under its title, attendees and each person', async () => {
+      const body = [
+        'Google Meet meeting: QA weekly deliverables (2026-11-08T11:07:09Z → 2026-11-08T11:29:36Z)',
+        'Organiser: Ahmed QA',
+        'Invited: Meeting Room - QA (5), Ahmed QA, mbadawy.qa@gmail.com',
+        'Lines are "speaker: words". Whoever asks someone to do something is who assigned it.',
+        '',
+        'Ahmed QA: The content plan and the newsletter this week.',
+        'Mohamed Badawy: OK.',
+      ].join('\n');
+      const sug = (title, owner) =>
+        `jsonb_build_object('title', '${title}', 'owner_id', ${owner ? `'${owner}'` : 'null'}, 'owner_name', ${owner ? 'null' : `'Mohamed Badawy'`}, 'outside', ${!owner}, 'state', 'new', 'confidence', 0.8, 'priority', 'medium', 'quote', 'x', 'task_id', null, 'duplicate_of', null, 'due_at', null, 'definition_of_done', null, 'estimate_hours', null)`;
+      const [item] = await sql(`insert into public.incoming_items (owner_id, source, external_id, sender, subject, received_at, body, status, suggestions)
+        values ('${QA_BOSS}', 'meet', 'qa-meet-group', 'Ahmed QA', 'QA weekly deliverables', now(), '${body.replace(/'/g, "''")}', 'new',
+          jsonb_build_array(${sug('QA content plan')}, ${sug('QA newsletter')}, ${sug('QA approve budget', QA_BOSS)})) returning id`);
+      try {
+        // the messages themselves are on each tool's own page
+        await page.goto('http://localhost:8099/55-tool?tool=meet', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.getByText('QA weekly deliverables').first().waitFor({ timeout: 30_000 }).catch(async () => {
+          throw new Error(`not on the Meet page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
+        });
+        const text = await page.evaluate(() => document.body.innerText);
+        expect(/Mohamed Badawy/.test(text), 'the attendee isn’t shown');
+        expect(/أضف كل مهام الاجتماع/.test(text), 'no “add all the meeting’s tasks”');
+        expect(/مو في فريقك/.test(text), 'the person outside the team isn’t marked');
+        return 'grouped by person';
+      } finally {
+        await sql(`delete from public.incoming_items where id = '${item.id}'`);
+      }
+    });
+
+    // the owner, 8 Nov: "make it clear from where task came and to whom assigned... and make it easy to change". He
+    // picked option A: a "من … ← إلى …" row on the task page, "إلى" tappable, and the same line in the Tasks list
+    await check('screens', 'A task shows who it’s from and who it’s for, and “to” can be changed', async () => {
+      const [other] = await sql(`select id, full_name_ar, full_name from public.profiles where account_id = '${QA_ACCOUNT}' and id <> '${QA_BOSS}' and status = 'active' order by full_name limit 1`);
+      const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA from to', '${other.id}', '${QA_BOSS}', 'assigned') returning id`);
+      try {
+        await page.goto(`http://localhost:8099/14-task-detail?id=${task.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        const to = page.getByRole('button', { name: /^إلى/ });
+        await to.waitFor({ timeout: 30_000 });
+        const text = await page.evaluate(() => document.body.innerText);
+        const name = (other.full_name_ar || other.full_name).split(' ')[0];
+        expect(/من\s/.test(text) && text.includes(name), `no clear "from … to ${name}" on the page`);
+        await to.click();
+        await page.getByText('مين يسويها؟').waitFor({ timeout: 10_000 });
+        // someone else's task: on the Team tab
+        await page.goto('http://localhost:8099/38-tasks?filter=team', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.getByText('QA from to').first().waitFor({ timeout: 30_000 }).catch(async () => {
+          await page.screenshot({ path: join(OUT, 'flow_from_to_list.png') });
+          throw new Error(`not in the list: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
+        });
+        const row = await page.evaluate(() => document.body.innerText);
+        expect(new RegExp(`إلى ${name}`).test(row), 'the Tasks list doesn’t say who it’s for');
+        return `to ${name}, changeable`;
+      } finally {
+        await sql(`delete from public.tasks where id = '${task.id}'`);
+      }
+    });
+
     for (const route of ROUTES)
       await check('screens', `Open ${route}`, async () => {
         errors.length = 0;

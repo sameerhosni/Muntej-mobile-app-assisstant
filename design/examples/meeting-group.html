@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meeting tasks grouped</title>
+<style>
+  :root { --bg:#F3F6FB; --card:#FFFFFF; --muted:#5B6576; --line:#E2E8F2; --blue:#1F6FEB; --blueTint:#E8F0FE; --navy:#0B1B3F; --purpleTint:#EEEDFE; --purple:#3C3489; --greenTint:#E1F5EE; --green:#085041; }
+  body { margin:0; padding:18px 16px 28px; background:var(--bg); font-family: Tahoma, "Segoe UI", sans-serif; color:var(--navy); width:390px; box-sizing:border-box; }
+  h2 { font-size:15px; color:var(--muted); font-weight:600; margin:6px 0 10px; }
+  .tag { display:inline-block; background:var(--navy); color:#fff; border-radius:8px; padding:2px 9px; font-size:13px; margin-left:6px; }
+  .meeting { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:14px; margin-bottom:12px; }
+  .src { display:inline-block; background:var(--blueTint); color:var(--blue); border-radius:999px; padding:3px 10px; font-size:12px; font-weight:700; }
+  .mtitle { font-size:18px; font-weight:700; margin:8px 0 4px; }
+  .when { font-size:12px; color:var(--muted); }
+  .people { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 4px; }
+  .p { display:flex; align-items:center; gap:6px; background:#F3F6FB; border-radius:999px; padding:3px 10px 3px 4px; font-size:13px; }
+  .av { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+  .who { display:flex; align-items:center; gap:8px; margin:14px 0 6px; font-weight:700; font-size:15px; }
+  .count { background:var(--blueTint); color:var(--blue); border-radius:999px; padding:1px 8px; font-size:12px; }
+  .task { border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+  .task .t { flex:1; font-size:14px; font-weight:600; }
+  .btn { border-radius:999px; padding:6px 14px; font-size:13px; font-weight:700; }
+  .add { background:var(--blue); color:#fff; }
+  .x { border:1px solid var(--line); color:var(--muted); width:30px; height:30px; padding:0; display:flex; align-items:center; justify-content:center; }
+  .all { display:flex; gap:8px; margin-top:12px; }
+  .all div { flex:1; text-align:center; border-radius:999px; padding:10px; font-weight:700; font-size:14px; }
+  .note { font-size:12px; color:#854F0B; background:#FAEEDA; border-radius:8px; padding:6px 8px; margin-top:6px; }
+</style>
+</head>
+<body>
+  <h2>كل اجتماع في بطاقة وحدة، والمهام تحت كل شخص</h2>
+  <div class="meeting">
+    <span class="src">📹 قوقل ميت</span>
+    <div class="mtitle">Nizamy Marketing weekly deliverables</div>
+    <div class="when">الأحد 8 نوفمبر · 2:07 – 2:29 م</div>
+    <div class="people">
+      <div class="p"><div class="av" style="background:#EEEDFE;color:#3C3489">S</div>Sameer Hosni (أنت)</div>
+      <div class="p"><div class="av" style="background:#B5D4F4;color:#0C447C">M</div>Mohamed Badawy</div>
+    </div>
+
+    <div class="who"><div class="av" style="background:#B5D4F4;color:#0C447C">M</div>Mohamed Badawy <span class="count">6</span></div>
+    <div class="note">مو في فريقك · <b>+ أضفه</b> عشان توصله المهام</div>
+    <div class="task"><div class="t">Prepare social media content plan</div><div class="btn add">أضف</div><div class="btn x">✕</div></div>
+    <div class="task"><div class="t">Plan and build newsletter campaign</div><div class="btn add">أضف</div><div class="btn x">✕</div></div>
+    <div class="task"><div class="t">Produce promotional video</div><div class="btn add">أضف</div><div class="btn x">✕</div></div>
+    <div style="font-size:13px;color:var(--blue);margin:2px 0 4px">+ 3 مهام ثانية</div>
+
+    <div class="who"><div class="av" style="background:#EEEDFE;color:#3C3489">S</div>أنت <span class="count">1</span></div>
+    <div class="task"><div class="t">Approve the campaign budget</div><div class="btn add">أضف</div><div class="btn x">✕</div></div>
+
+    <div class="all"><div style="background:var(--blue);color:#fff">أضف كل مهام الاجتماع (7)</div><div style="border:1px solid var(--line);color:var(--muted)">تجاهل</div></div>
+  </div>
+</body>
+</html>

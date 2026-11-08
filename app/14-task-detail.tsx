@@ -23,7 +23,7 @@ import { qk, useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } 
 import { supabase } from '@/lib/supabase';
 import { ReviewBar } from '@/features/review/ReviewBar';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
-import { FromTag } from '@/features/tasks/FromTag';
+import { FromToRow } from '@/features/tasks/FromTo';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { ProofSection } from '@/features/proof/ProofSection';
 import { PlanAndHelp } from '@/features/task-detail/PlanAndHelp';
@@ -282,9 +282,10 @@ export default function TaskDetailScreen() {
                 )}
               </TourTarget>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <Avatar name={ownerName} size={18} gradient="avatarBlue" />
+                {/* who it's for is in the From → To row below; here only when (and priority) */}
+                {!live && <Avatar name={ownerName} size={18} gradient="avatarBlue" />}
                 <AppText variant="small" color="textMuted">
-                  {t('ownerDue', { name: ownerName, due })}
+                  {live ? due : t('ownerDue', { name: ownerName, due })}
                 </AppText>
                 <View style={{ backgroundColor: colors[pTone.bg], borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 1 }}>
                   <AppText variant="micro" weight="bold" color={pTone.fg}>
@@ -294,11 +295,9 @@ export default function TaskDetailScreen() {
               </View>
             </View>
           </View>
+          {/* who it's from → who it's for; "to" changes who does it (owner, 8 Nov, option A) */}
+          {live && d && <FromToRow task={d} me={me.data} team={team.data ?? []} />}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {/* who gave it, same style as the task lists */}
-            {live && !!d?.assigner_id && d.assigner_id !== d.owner_id && (
-              <FromTag name={d.assigner_id === me.data?.id ? null : assignerName} you={d.assigner_id === me.data?.id} />
-            )}
             <MetaChip
               bg="purpleTint"
               fg="purpleText"

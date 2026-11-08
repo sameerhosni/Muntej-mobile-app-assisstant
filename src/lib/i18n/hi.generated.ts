@@ -523,6 +523,20 @@ export default {
   "from": "{{name}} से",
   "fromYou": "आपसे"
  },
+ "fromTo": {
+  "change": "किसे करना है, बदलें",
+  "close": "बंद करें",
+  "failed": "इसे नहीं सौंपा जा सका: {{why}}",
+  "from": "से",
+  "fromTo": "{{from}} से → {{to}} को",
+  "moved": "{{name}} को सौंपा गया। उन्हें सूचना दी गई है।",
+  "nobody": "अभी तक कोई नहीं",
+  "pickWho": "यह किसे करना चाहिए?",
+  "to": "को",
+  "toOnly": "{{to}} को",
+  "undo": "पूर्ववत करें",
+  "you": "आप"
+ },
  "glance": {
   "direct": "आपकी डायरेक्ट टीम",
   "full": "पूरा डैशबोर्ड",
@@ -3905,9 +3919,11 @@ export default {
  "s42": {
   "accept": "जोड़ें",
   "acceptAll": "सभी जोड़ें ({{n}})",
+  "acceptMeeting": "सभी मीटिंग के टास्क जोड़ें ({{n}})",
   "actionError": "यह मेरी तरफ़ से नहीं चला। फिर से प्रयास करें?",
   "addEverything": "सभी जोड़ें ({{n}})",
   "addOutside": "+ अपनी टीम में {{name}} जोड़ें",
+  "addThem": "+ उन्हें जोड़ें ताकि टास्क उन तक पहुँचें",
   "added": "जोड़ दिया गया ✓",
   "autoAdded_one": "मैं {{n}} टास्क के बारे में निश्चित था, इसलिए मैंने खुद जोड़ा।",
   "autoAdded_other": "मैं {{n}} टास्क के बारे में निश्चित था, इसलिए मैंने खुद जोड़ दिए।",
@@ -3972,10 +3988,13 @@ export default {
   "maybe": "शायद एक टास्क",
   "minAgo": "{{n}} मिनट पहले",
   "more": "और",
+  "moreTasks_one": "+ {{count}} और टास्क",
+  "moreTasks_other": "+ {{count}} और टास्क",
   "newestFirst": "नवीनतम पहले",
   "noDue": "कोई तय तिथि नहीं",
   "noOwner": "अभी तक कोई ओनर नहीं",
   "nobody": "अभी तक कोई नहीं",
+  "notInTeam": "आपकी टीम में नहीं हैं",
   "oldestFirst": "सबसे पुराने पहले",
   "open": "खोलें",
   "outsideOwner": "{{name}} (Muntej में नहीं है)",
@@ -4023,7 +4042,8 @@ export default {
   "waiting_one": "{{n}} टास्क आपके ओके का इंतजार कर रहा है",
   "waiting_other": "{{n}} टास्क्स आपके ओके का इंतजार कर रहे हैं",
   "withGoogle": "Google के साथ जारी रखें",
-  "withMicrosoft": "Microsoft के साथ जारी रखें"
+  "withMicrosoft": "Microsoft के साथ जारी रखें",
+  "you": "आप"
  },
  "saree3Jobs": {
   "allGood": "सब सही चल रहा है, आपको कुछ नहीं करना है ☕",
