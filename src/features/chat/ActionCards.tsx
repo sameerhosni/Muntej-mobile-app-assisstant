@@ -226,7 +226,7 @@ export function UndoRow({ until, undone, onUndo }: { until: number; undone: bool
   };
   return (
     <View style={{ gap: spacing.xs, alignSelf: 'flex-start', minWidth: 140 }}>
-      <CardButton label={t('undo')} onPress={undo} busy={working}>
+      <CardButton stacked label={t('undo')} onPress={undo} busy={working}>
         <RotateCcw color={colors.textSoft} size={14} strokeWidth={2.2} />
       </CardButton>
       {!!error && <ErrorBox text={error} />}
@@ -299,16 +299,17 @@ export function PeopleCard({
       {!!error && <ErrorBox text={error} />}
       {open && (
         <View style={{ gap: spacing.sm }}>
-          <CardButton label={t('peopleEach', { n: ids.length })} onPress={() => pick('each', 'separate', ids)} busy={working === 'each'} tone="green" />
+          <CardButton stacked label={t('peopleEach', { n: ids.length })} onPress={() => pick('each', 'separate', ids)} busy={working === 'each'} tone="green" />
           {choice.can_share && (
             <CardButton
+              stacked
               label={t('peopleShared', { owner: first(choice.people[0].name), helper: first(choice.people[1].name) })}
               onPress={() => pick('shared', 'shared', ids)}
               busy={working === 'shared'}
             />
           )}
-          <CardButton label={t('peopleOnly', { name: first(choice.people[0].name) })} onPress={() => pick('only', 'separate', [ids[0]])} busy={working === 'only'} />
-          <CardButton label={t('dupCancel')} onPress={onReject} />
+          <CardButton stacked label={t('peopleOnly', { name: first(choice.people[0].name) })} onPress={() => pick('only', 'separate', [ids[0]])} busy={working === 'only'} />
+          <CardButton stacked label={t('dupCancel')} onPress={onReject} />
         </View>
       )}
     </Shell>
@@ -366,9 +367,9 @@ export function DuplicateCard({
       {!!error && <ErrorBox text={error} />}
       {open && (
         <View style={{ gap: spacing.sm }}>
-          {canUpdate && <CardButton label={t('dupUpdate')} onPress={() => run('update', onUpdate)} busy={working === 'update'} tone="green" />}
-          <CardButton label={t('dupNew')} onPress={() => run('new', onNew)} busy={working === 'new'} tone={canUpdate ? undefined : 'green'} />
-          <CardButton label={t('dupCancel')} onPress={onReject} />
+          {canUpdate && <CardButton stacked label={t('dupUpdate')} onPress={() => run('update', onUpdate)} busy={working === 'update'} tone="green" />}
+          <CardButton stacked label={t('dupNew')} onPress={() => run('new', onNew)} busy={working === 'new'} tone={canUpdate ? undefined : 'green'} />
+          <CardButton stacked label={t('dupCancel')} onPress={onReject} />
         </View>
       )}
     </Shell>

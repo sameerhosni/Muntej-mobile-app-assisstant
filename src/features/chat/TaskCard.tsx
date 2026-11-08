@@ -251,6 +251,7 @@ export function TaskCard({
           {left > 0 && !!onUndo && (
             <View style={{ gap: 4 }}>
               <CardButton
+                stacked
                 label={t('undoNow', { s: left })}
                 busy={undoing}
                 onPress={async () => {
@@ -509,6 +510,7 @@ export function CardButton({
   danger,
   tone,
   busy,
+  stacked,
   children,
 }: {
   label: string;
@@ -517,6 +519,9 @@ export function CardButton({
   /** filled green (Confirm) */
   tone?: 'green';
   busy?: boolean;
+  /** one under another (a column), not side by side. flex: 1 there grows the button DOWN: on Android the Undo button
+   *  became a screen-tall empty pill and the cards around it drew over other messages (owner's screenshots, 8 Nov). */
+  stacked?: boolean;
   children?: React.ReactNode;
 }) {
   const fill = danger ? colors.red : tone === 'green' ? colors.green : null;
@@ -528,7 +533,7 @@ export function CardButton({
       accessibilityLabel={label}
       accessibilityState={{ busy: !!busy }}
       style={({ pressed }) => ({
-        flex: 1,
+        ...(stacked ? { alignSelf: 'stretch' as const } : { flex: 1 }),
         minHeight: sizes.touch,
         borderRadius: radius.pill,
         borderWidth: 1,

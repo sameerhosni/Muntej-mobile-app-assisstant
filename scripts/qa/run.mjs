@@ -540,6 +540,7 @@ async function screens() {
         const to = page.getByRole('button', { name: /^إلى/ }).first();
         await to.waitFor({ timeout: 10_000 });
         const text = await page.evaluate(() => document.body.innerText);
+        if (!(/Faisal QA/.test(text) && /أنت/.test(text))) await page.screenshot({ path: join(OUT, 'found_from_to.png') });
         expect(/Faisal QA/.test(text) && /أنت/.test(text), 'no «من Faisal QA ← إلى أنت»');
         await to.click();
         await page.getByText('مين يسويها؟').first().waitFor({ timeout: 10_000 });
@@ -547,6 +548,27 @@ async function screens() {
       } finally {
         await sql(`delete from public.incoming_items where id = '${item.id}'`);
       }
+    });
+
+    // The owner's screenshots, 8 Nov: "Asked to make task completed and design crashed". On Android the Undo button under
+    // the card grew down into a screen-tall empty pill and the cards drew over other messages: a chat button made to share
+    // a row (flex: 1) stood in a column. The web doesn't show it, so the source is read: every chat button under another
+    // one must be `stacked`.
+    await check('screens', 'Chat buttons stacked one under another don’t stretch (Android)', async () => {
+      const bad = [];
+      for (const f of ['TaskCard.tsx', 'ActionCards.tsx', 'OrgProposalCard.tsx', 'ObjectiveProposalCard.tsx']) {
+        const lines = readFileSync(new URL(`../../src/features/chat/${f}`, import.meta.url), 'utf8').split('\n');
+        lines.forEach((l, i) => {
+          if (!/<CardButton\b/.test(l)) return;
+          let k = i - 1;
+          while (k >= 0 && !/<View\b/.test(lines[k])) k--;
+          const inRow = k >= 0 && /flexDirection: 'row'/.test(lines[k]);
+          const stacked = /<CardButton\s+stacked\b/.test(l) || (/<CardButton\s*$/.test(l) && /^\s*stacked\b/.test(lines[i + 1] ?? ''));
+          if (!inRow && !stacked) bad.push(`${f}:${i + 1}`);
+        });
+      }
+      expect(!bad.length, `a chat button in a column isn't stacked: ${bad.join(', ')}`);
+      return 'every column button is stacked';
     });
 
     for (const route of ROUTES)
