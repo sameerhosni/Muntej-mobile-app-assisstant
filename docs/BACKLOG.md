@@ -105,6 +105,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-08 · In testing: Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android) (server: team-import · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: Task page sections (needed from you / where it stands); From → To on found tasks; steps only on tap (server: muntej-chat · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: From → To on tasks with one-tap change; meeting tasks grouped by meeting and person; meeting and email tasks only for the right people (server: connect, intake, public-api, sync-sources, team-import, whatsapp · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI (server: admin-login, autopilot, connect, daily-summary, delete-account, intake, intercom-webhook, invite, localize-text, muntej-chat, onboarding-nudges, parse-task, phone-auth, public-api, quick-login, send-followups, speak, suggest-skills, suggest-steps, support-identity, sync-sources, team-alerts, team-import, transcribe, translate-task, verify-proof, webhook-dispatch, whatsapp · Muntej Test update 1.0.0)
