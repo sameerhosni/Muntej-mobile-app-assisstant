@@ -1,6 +1,6 @@
 {
-  "message": "Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI",
-  "group": "c78b30c3-eae8-4747-9433-580abcd35b6d",
-  "at": "2026-11-08T11:58:08.354Z",
-  "commit": "70c67e5df3a57302c63e279fe9896db0ef5b3a44"
+  "message": "Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI; From → To on tasks with one-tap change; meeting tasks grouped by meeting and person; meeting and email tasks only for the right people",
+  "group": "899599bb-c0d4-4bef-b5a4-56cb6e774797",
+  "at": "2026-11-08T14:28:07.553Z",
+  "commit": "3f1194c992ba0bbb30f24ebe5913ad2d864801a5"
 }
