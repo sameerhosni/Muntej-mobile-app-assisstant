@@ -581,7 +581,8 @@ async function screens() {
         // owner, 8 Nov: "Once added, let's choose under whom": Add asks who they go under, then adds them there
         await page.getByRole('button', { name: /^أضفه QA Inside Person/ }).click();
         await page.getByText('أضف QA Inside Person تحت:').first().waitFor({ timeout: 10_000 });
-        await page.getByText('فيصل', { exact: true }).first().click();
+        // Arabic text carries an invisible direction mark, so not an exact match; the sheet is the last thing drawn
+        await page.getByText(/^\W*فيصل\W*$/).last().click();
         await page.getByText(/تحت: فيصل/).first().waitFor({ timeout: 10_000 });
         await page.screenshot({ path: join(OUT, 'mail_review.png') });
         return 'Add asks under whom, No folds with Undo, outside apart';
