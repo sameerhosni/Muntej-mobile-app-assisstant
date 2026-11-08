@@ -105,6 +105,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-08 · In testing: Team from mail: Add asks under whom, then invitations go out; budget is optional everywhere; tasks load about 15x faster (server: muntej-chat, parse-task · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: Team from mail: Add or No on each person, outside people apart, never you; who sees and gives tasks: your team, tasks your team handed out, tasks naming you, give to your team and your level (admins see all) (server: connect, muntej-chat, team-import · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android) (server: team-import · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: Task page sections (needed from you / where it stands); From → To on found tasks; steps only on tap (server: muntej-chat · Muntej Test update 1.0.0)
