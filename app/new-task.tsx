@@ -17,6 +17,7 @@ import { invalidateTaskData } from '@/features/chat/api';
 import { homeRouteFor } from '@/features/screens/registry';
 import { track } from '@/lib/analytics';
 import { AI_NS } from '@/features/ai-consent/strings';
+import { useAssignable } from '@/features/tasks/assignable';
 
 const DAY = 86_400_000;
 type When = 'none' | 'today' | 'tomorrow' | 'in3' | 'week';
@@ -48,11 +49,11 @@ export default function NewTaskScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const meId = me.data?.id;
-  const giver = me.data?.role !== 'employee';
-  // a manager gives work to their team; an employee writes their own
+  // your team and people at your level in other teams (owner, 8 Nov); the database decides who that is
+  const mayGive = useAssignable();
   const people = useMemo(
-    () => (giver ? (team.data ?? []).filter((p) => p.id !== meId && p.status !== 'deleted') : []),
-    [giver, team.data, meId],
+    () => (team.data ?? []).filter((p) => p.id !== meId && p.status !== 'deleted' && mayGive(p.id)),
+    [team.data, meId, mayGive],
   );
   const back = () => (router.canGoBack() ? router.back() : router.replace(homeRouteFor(me.data?.role) as Href));
 
@@ -103,7 +104,7 @@ export default function NewTaskScreen() {
         <AppText variant="titleLg">{t('nTitle')}</AppText>
       </View>
       <TextField label={t('nWhat')} placeholder={t('nWhatPh')} value={title} onChangeText={setTitle} autoFocus />
-      {giver && (
+      {people.length > 0 && (
         <View style={{ gap: spacing.sm }}>
           <AppText variant="cardTitle">{t('nWho')}</AppText>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>

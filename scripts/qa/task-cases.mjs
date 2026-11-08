@@ -1,7 +1,7 @@
 // The owner's screenshot, 4 Nov: on a task, "Request proof" answered `column "account_id" does not exist`. The function
 // looked for a company on the task, and tasks have none; Postgres only finds that when the function runs, so it was
 // broken for every manager since 29 Oct. The last check finds this whole kind of mistake in every database function.
-export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc, insert }) {
+export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc, insert, get }) {
   const { QA_ACCOUNT, QA_BOSS } = ids;
   const QA_FAISAL = 'a0000000-0000-4000-b000-000000000011';
   const DEMO = 'c0000000-0000-4000-b000-000000000001';
@@ -360,6 +360,67 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
   } finally {
     await tidyMail();
   }
+  // ─── who sees a task, who may give one (owner, 8 Nov) ─────────────────────────
+  // "Everyone should see his tasks and his team tasks only and other tasks he is mentioned in and tasks assigned from
+  // his side to other teams, and can give tasks to his team and users in the same level of other teams" (admins: all).
+  // QA company: Ahmed (admin) → Faisal, Noura (managers), Saad; Faisal → Abdullah; Noura → Khalid.
+  {
+    const P = { FAISAL: QA_FAISAL, ABDULLAH: 'a0000000-0000-4000-b000-000000000012', NOURA: 'a0000000-0000-4000-b000-000000000013', KHALID: 'a0000000-0000-4000-b000-000000000014', SAAD: 'a0000000-0000-4000-b000-000000000015' };
+    const tokens = {};
+    const as = async (who) => (tokens[who] ??= await jwtFor(P[who], QA_ACCOUNT));
+    const give = async (who, owner, title) =>
+      insert('tasks', { title, owner_id: owner, assigner_id: P[who], status: 'assigned' }, await as(who)).then(() => 'ok', (e) => e);
+    const sees = async (who, title) => (await get(`tasks?select=id&title=eq.${encodeURIComponent(title)}`, await as(who))).length > 0;
+    const tidy = () => sql(`delete from public.tasks where title like 'QA rule %'`);
+    await tidy();
+    // while the rule is in testing only testers are held to it: these five are testers for the checks
+    const people = Object.values(P).map((x) => `'${x}'`).join(',');
+    const [{ was }] = await sql(`select coalesce(bool_or(tester), false) as was from public.profiles where id in (${people})`);
+    await sql(`update public.profiles set tester = true where id in (${people})`);
+    try {
+      await check('rules', 'You can give tasks to your team and to people at your level in other teams', async () => {
+        expect((await give('ABDULLAH', P.KHALID, 'QA rule same level')) === 'ok', 'Abdullah could not give Khalid (same level, other team) a task');
+        expect((await give('FAISAL', P.ABDULLAH, 'QA rule my team')) === 'ok', 'Faisal could not give his own Abdullah a task');
+        expect((await give('FAISAL', P.NOURA, 'QA rule peer manager')) === 'ok', 'Faisal could not give Noura (same level) a task');
+        return 'team and same level: allowed';
+      });
+      await check('rules', 'You can’t give tasks upward or to another level of another team', async () => {
+        const up = await give('ABDULLAH', P.FAISAL, 'QA rule upward');
+        expect(up instanceof Error && /your level|مستواك/.test(up.message), `Abdullah gave his manager a task: ${up?.message ?? 'allowed'}`);
+        const other = await give('FAISAL', P.KHALID, 'QA rule other level');
+        expect(other instanceof Error, 'Faisal gave Khalid (in Noura’s team, a level below) a task');
+        const [n] = await sql(`select count(*)::int as n from public.tasks where title in ('QA rule upward', 'QA rule other level')`);
+        expect(n.n === 0, `${n.n} refused tasks were saved anyway`);
+        return 'refused';
+      });
+      await check('rules', 'Your team’s tasks, tasks your team gave, tasks naming you: seen; others: not', async () => {
+        // Abdullah gave Khalid «QA rule same level»: Faisal (Abdullah's manager) and Noura (Khalid's) see it, Saad doesn't
+        expect(await sees('FAISAL', 'QA rule same level'), 'Faisal can’t see the task his team gave to another team');
+        expect(await sees('NOURA', 'QA rule same level'), 'Noura can’t see her team’s task');
+        expect(!(await sees('SAAD', 'QA rule same level')), 'Saad sees a task that is nothing to do with him');
+        await sql(`insert into public.tasks (title, description, owner_id, assigner_id, status)
+                   values ('QA rule mention', 'Check the numbers with Khalid QA first', '${P.SAAD}', '${QA_BOSS}', 'assigned')`);
+        expect(await sees('KHALID', 'QA rule mention'), 'Khalid can’t see a task that names him');
+        expect(!(await sees('ABDULLAH', 'QA rule mention')), 'Abdullah sees a task that doesn’t name him');
+        expect(await sees('SAAD', 'QA rule mention'), 'Saad can’t see his own task');
+        return 'right people only';
+      });
+      await check('rules', 'Admins still see everything', async () => {
+        expect((await get(`tasks?select=id&title=like.QA%20rule%25`, jwt)).length >= 4, 'the admin misses tasks');
+        return 'all';
+      });
+      await check('rules', 'The people pickers offer only who you may give a task to', async () => {
+        const ids = (await rpc('assignable_people', {}, await as('ABDULLAH'))).map((x) => x.assignable_people ?? x);
+        expect(ids.includes(P.KHALID) && ids.includes(P.ABDULLAH), 'Khalid or Abdullah himself missing');
+        expect(!ids.includes(P.FAISAL) && !ids.includes(QA_BOSS) && !ids.includes(P.NOURA), 'a manager is offered to Abdullah');
+        return `${ids.length} people`;
+      });
+    } finally {
+      await tidy();
+      if (!was) await sql(`update public.profiles set tester = false where id in (${people})`);
+    }
+  }
+
   await check('tasks', 'No database function points at a column or table that isn’t there', async () => {
     // plpgsql_check is installed only inside this block: the final raise rolls everything back, and carries the answer
     const r = await sql(`do $do$

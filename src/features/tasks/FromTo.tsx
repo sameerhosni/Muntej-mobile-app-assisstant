@@ -14,6 +14,7 @@ import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/api';
 import { invalidateTaskData } from '@/features/chat/api';
+import { useAssignable } from './assignable';
 
 const en = {
   from: 'From',
@@ -86,6 +87,7 @@ export function FromToRow({
   const { t } = useScreenT(FROM_TO_NS);
   const { lang, isRTL } = useDirection();
   const qc = useQueryClient();
+  const mayGive = useAssignable();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<{ text: string; undo?: string; error?: boolean } | null>(null);
   const owner = team.find((p) => p.id === task.owner_id);
@@ -174,7 +176,7 @@ export function FromToRow({
             </AppText>
             <ScrollView>
               {team
-                .filter((p) => p.id !== task.owner_id && p.status !== 'deleted')
+                .filter((p) => p.id !== task.owner_id && p.status !== 'deleted' && mayGive(p.id))
                 .map((p) => (
                   <Pressable
                     key={p.id}
@@ -224,6 +226,7 @@ export function FoundFromTo({
 }) {
   const { t } = useScreenT(FROM_TO_NS);
   const { lang, isRTL } = useDirection();
+  const mayGive = useAssignable();
   const [open, setOpen] = useState(false);
   const owner = team.find((p) => p.id === toId);
   const to = toId && toId === meId ? t('you') : (nameOf(owner, lang) ?? toName ?? t('nobody'));
@@ -274,7 +277,7 @@ export function FoundFromTo({
             </AppText>
             <ScrollView>
               {team
-                .filter((p) => p.id !== toId && p.status !== 'deleted')
+                .filter((p) => p.id !== toId && p.status !== 'deleted' && mayGive(p.id))
                 .map((p) => (
                   <Pressable
                     key={p.id}

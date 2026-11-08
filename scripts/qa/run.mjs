@@ -147,6 +147,13 @@ async function insert(table, row, jwt) {
   if (!r.ok) throw new Error(`${table} ${r.status}: ${(await r.text()).slice(0, 300)}`);
 }
 
+/** a REST read as someone (their row-level rules decide what comes back) */
+async function get(path, jwt) {
+  const r = await fetch(`${URL_}/rest/v1/${path}`, { headers: { Authorization: `Bearer ${jwt}`, apikey: ANON } });
+  if (!r.ok) throw new Error(`${path} ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  return r.json();
+}
+
 /** sign in as the QA manager through the test link → access token */
 async function signIn() {
   const token = await qaLinkToken();
@@ -685,7 +692,7 @@ expect(TOKEN, 'SUPABASE_ACCESS_TOKEN is not set (the same user env var db-apply 
 if (want('code')) await code();
 if (want('server') || want('ui') || want('screens') || want('cases') || want('invites') || want('tasks')) await server();
 if (JWT && (want('server') || want('cases') || want('tasks'))) {
-  await taskCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, insert, ids: { QA_ACCOUNT, QA_BOSS } });
+  await taskCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, insert, get, ids: { QA_ACCOUNT, QA_BOSS } });
 }
 if (JWT && (want('server') || want('cases') || want('invites'))) {
   await inviteCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, ids: { QA_ACCOUNT, QA_BOSS } });
