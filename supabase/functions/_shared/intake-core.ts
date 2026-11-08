@@ -144,6 +144,29 @@ export function sameName(a: string, b: string): boolean {
   return short.every((w) => long.some((l) => l === w || (w.length === 1 && l[0] === w) || (l.length === 1 && w[0] === l)));
 }
 
+/** mail, a chat or a meeting Muntej read for the user (from their connected tools, or pasted with its From: line), not
+ *  the user handing out work themself */
+export const readForUser = (connectionId: string | null | undefined, body: string) => !!connectionId || /^From: /m.test(body);
+
+/** everyone in a meeting but the user: who spoke ("Name: words"), then the organiser and invitees (names, or the name part
+ *  of an email when nobody by that name spoke). Meeting rooms are left out. */
+export function meetingPeople(body: string, myNames: string[]): string[] {
+  const [head, ...rest] = body.split('\n\n');
+  const spoke = [...new Set([...rest.join('\n').matchAll(/^([^:\n\[\]]{2,40}):\s/gm)].map((m) => m[1].trim()))];
+  const listed = (head.match(/^(?:Organiser|Invited):\s*(.+)$/gm) ?? [])
+    .flatMap((l) => l.replace(/^(?:Organiser|Invited):\s*/, '').split(','))
+    .map((x) => x.trim())
+    .filter((x) => x && !/room|قاعة|\(\d+\)/i.test(x))
+    .map((x) => (x.includes('@') ? x.split('@')[0].replace(/[._-]+|\d+/g, ' ').trim() : x));
+  // who spoke is who was really there (an invitee's email reads "mbadawy" while they speak as "Mohamed Badawy")
+  const others = (xs: string[]) => xs.filter((n) => !myNames.some((m) => sameName(m, n)));
+  const people: string[] = [];
+  for (const n of others(spoke).length ? others(spoke) : listed)
+    if (n && !myNames.some((m) => sameName(m, n)) && !people.some((p) => sameName(p, n) || p.toLowerCase().replace(/\s/g, '').includes(n.toLowerCase().replace(/\s/g, ''))))
+      people.push(n);
+  return people;
+}
+
 /** the one teammate with this name, or null when none or several match */
 function teammateByName(name: string, team: Person[]): string | null {
   const hits = team.filter((p) => [p.full_name, p.full_name_ar].some((n) => n && sameName(n, name)));
@@ -371,7 +394,9 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
         }).format(now)} (${now.toISOString()} UTC)`,
         user_id: input.profileId,
         only_tasks_for_user: onlyMine,
-        user_is_manager: !onlyMine,
+        // mail, chats and meetings read for the user: only work asked of them or of someone the message names, never
+        // handed to a teammate by role (owner, 8 Nov: "You should get only tasks for me or assigned to me")
+        user_is_manager: !onlyMine && !readForUser(input.connectionId, body),
         user_name: [me?.full_name, me?.full_name_ar].filter(Boolean).join(' / ') || null,
         is_group: isGroup,
         team: input.team.map((p) => ({ id: p.id, name: p.full_name, name_ar: p.full_name_ar, title: p.title ?? null, skills: p.skills ?? [] })),
@@ -402,23 +427,46 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const myNames = [me?.full_name, me?.full_name_ar].filter(Boolean) as string[];
   const dmWith = /^Google Chat · Direct message between: (.+)$/m.exec(body)?.[1].split(', ').find((n) => !myNames.some((x) => sameName(x, n))) ?? null;
   const dmId = dmWith ? teammateByName(dmWith, input.team) : null;
+  // a meeting: its work is only for the people in it (owner, 8 Nov: "any meeting you should read the attendees and get
+  // tasks for them not any other persons"). A teammate who wasn't there never gets it; with one other person in the
+  // meeting, it's theirs (in the team or not)
+  const meeting = input.source === 'meet' || /^Google Meet meeting/m.test(body) ? meetingPeople(body, myNames) : null;
+  const inMeeting = meeting ? new Set(meeting.map((m) => teammateByName(m, input.team)).filter((x): x is string => !!x)) : null;
+  const onlyOther = meeting?.length === 1 ? meeting[0] : null;
+  const onlyOtherId = onlyOther ? teammateByName(onlyOther, input.team) : null;
   const relevant = confident
     .map((t) => {
       // asked by the user, so it can't be the user's own work
       if (dmWith && t.asked_by_user && !t.asked_of_user && (t.owner_id === input.profileId || !t.owner_id))
         return { ...t, owner_id: dmId, owner_name: dmWith, outside: !dmId };
+      // a teammate who wasn't in the meeting, or someone named who wasn't there either
+      if (inMeeting && t.owner_id !== input.profileId) {
+        const ownerIn = t.owner_id ? inMeeting.has(t.owner_id) : !!t.owner_name && meeting!.some((m) => sameName(m, t.owner_name!));
+        if (!ownerIn)
+          return onlyOther
+            ? { ...t, owner_id: onlyOtherId, owner_name: onlyOther, outside: !onlyOtherId, asked_by_user: true }
+            : { ...t, owner_id: null, owner_name: null, outside: false };
+        if (!t.owner_id) return { ...t, asked_by_user: true };
+      }
       // named in the message, and on the team under a shorter name
       const byName = !t.owner_id && t.owner_name ? teammateByName(t.owner_name, input.team) : null;
       return byName ? { ...t, owner_id: byName, outside: false } : t;
     })
     .map((t) => (isChat && t.owner_id && t.owner_id !== input.profileId && !named(t.owner_id) && t.owner_id !== dmId && !t.owner_name ? { ...t, owner_id: null } : t))
+    // a message read for the user gives a teammate work only when it names them; work asked of the user stays theirs
+    // (owner, 8 Nov: an agent's report to him came back as tasks for Nouran, who isn't in it)
+    .map((t) =>
+      readForUser(input.connectionId, body) && !meeting && !dmWith && t.owner_id && t.owner_id !== input.profileId && !named(t.owner_id)
+        ? { ...t, owner_id: t.asked_of_user ? input.profileId : null, outside: false }
+        : t,
+    )
     .filter((t) => !(t.outside && !t.owner_id && !t.asked_by_user) && !(isChat && !t.owner_id && !t.asked_by_user))
     // reports, pitches, newsletters and alerts are never work for the user, whatever their "next steps" say
     .filter(() => st || ['request', 'conversation'].includes(found.kind))
     // only work someone asked of the user (task tools assign work, so theirs always is). What the user asked of others
     // in their own mail / chats is theirs to chase, not a task for them (owner, 4 Nov: "not even assigned to me"); it
     // still counts when they hand it to Saree3 directly (WhatsApp, a pasted note)
-    .filter((t) => st || t.asked_of_user || (t.asked_by_user && (!input.connectionId || (!!dmWith && t.owner_id !== input.profileId))));
+    .filter((t) => st || t.asked_of_user || (t.asked_by_user && (!input.connectionId || ((!!dmWith || !!meeting) && t.owner_id !== input.profileId))));
   const kept = onlyMine ? relevant.filter((t) => t.owner_id === input.profileId) : relevant;
   const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;

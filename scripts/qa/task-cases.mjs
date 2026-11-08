@@ -329,8 +329,9 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       const [p] = await sql(`select manager_id from public.profiles where lower(email) = '${REEM}'`);
       expect(p?.manager_id === QA_FAISAL, `Reem is under ${p?.manager_id ?? 'nobody'}`);
       const again = await fn('team-import', { action: 'from_mail', count_only: true }, jwt);
-      // other test mail may name more people: Reem (now in the team) and the client (skipped) must be the two gone
-      expect(again.count === before.count - 1 && again.outside === before.outside - 1, `before ${before.count} + ${before.outside} outside, after ${again.count} + ${again.outside}`);
+      // other test mail may name more people: Reem is now in the team, and everyone left out (all outside people start
+      // as "skip") is never asked about again
+      expect(again.count === before.count - 1 && again.outside === 0, `before ${before.count} + ${before.outside} outside, after ${again.count} + ${again.outside}`);
       return 'added, nothing asked twice';
     });
   } finally {

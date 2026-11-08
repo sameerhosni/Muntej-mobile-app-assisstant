@@ -71,6 +71,43 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(s.every((x) => x.owner_id === FAISAL), `went to ${s.map((x) => NAME[x.owner_id] ?? x.owner_name ?? (x.owner_id === QA_BOSS ? 'you' : 'nobody')).join(', ')}`);
     return s[0].title;
   });
+  // The owner, 8 Nov: "Still you are reading all emails regardless if it us task for me or not... You should get only
+  // tasks for me or assigned to me". An agent's report to him came back as tasks for a teammate it never names.
+  await check('inbox', 'A report to you never becomes a teammate’s task', async () => {
+    const mail = [
+      'From: sales muntej <sales@muntej.test>',
+      'To: qa-manager@qa.muntej.test',
+      '',
+      'Taplio LinkedIn drafts need scheduling. 3 drafts are ready in Taplio (account: Muntej).',
+      'Your one action: design the cover images for the 3 posts in Canva and schedule them into Sun 8, Tue 10 and Thu 12 at 9:30.',
+    ].join('\n');
+    const s = live(await ingest(mail, 'sales muntej', 'Taplio LinkedIn drafts need scheduling'));
+    const wrong = s.filter((x) => x.owner_id && x.owner_id !== QA_BOSS);
+    expect(!wrong.length, `went to ${wrong.map((x) => NAME[x.owner_id] ?? x.owner_id).join(', ')}, who the mail never names`);
+    return s.length ? `${s.length} for you` : 'nothing for anyone else';
+  });
+  // The owner, 8 Nov: "You set tasks in this meeting to nouran but this meeting was with Mohamed badawy... any meeting you
+  // should read the attendees and get tasks for them not any other persons".
+  await check('inbox', 'Meeting tasks go only to people in the meeting', async () => {
+    const meeting = [
+      'Google Meet meeting: QA marketing weekly (2026-11-08T11:07:09Z → 2026-11-08T11:29:36Z)',
+      'Organiser: Ahmed QA',
+      'Invited: Meeting Room - QA (5), Ahmed QA, mbadawy.qa@gmail.com',
+      'Lines are "speaker: words". Whoever asks someone to do something is who assigned it.',
+      '',
+      // real transcripts rarely say who: the work has to follow who was in the meeting
+      'Ahmed QA: This week I need the social media content plan for our pages.',
+      'Mohamed Badawy: OK.',
+      'Ahmed QA: And design the banners for the campaign, plus the newsletter for current clients.',
+      'Mohamed Badawy: Sure, I will send them by Thursday.',
+    ].join('\n');
+    const s = live(await ingest(meeting, 'Google Meet', 'QA marketing weekly'));
+    expect(s.length >= 1, 'no task from the meeting');
+    const wrong = s.filter((x) => x.owner_id && x.owner_id !== QA_BOSS);
+    expect(!wrong.length, `went to ${wrong.map((x) => NAME[x.owner_id] ?? x.owner_id).join(', ')}, who wasn't in the meeting`);
+    expect(s.every((x) => x.owner_id === QA_BOSS || /badawy|mohamed|محمد/i.test(x.owner_name ?? '')), `owners: ${s.map((x) => x.owner_name ?? NAME[x.owner_id] ?? 'nobody').join(', ')}`);
+    return `${s.length} for Mohamed`;
+  });
   await check('inbox', 'What they ask of you in a direct message stays yours', async () => {
     const s = live(await ingest(dm([`[2026-11-04T13:04:46Z] ${FAISAL_NAME}: ممكن تعتمد لي عرض السعر قبل بكرة؟`]), FAISAL_NAME, 'Direct message'));
     expect(s.length >= 1, 'no task');
