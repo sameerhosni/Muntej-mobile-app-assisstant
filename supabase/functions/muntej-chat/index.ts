@@ -436,7 +436,7 @@ serve(async (req) => {
     /** the turn came from Muntej's WhatsApp number (whatsapp function, as this user): short replies, tagged turns */
     channel?: string;
   };
-  const message = (body.message ?? '').trim();
+  const message = (body.message ?? '').replace(/\u0000/g, '').trim();
   const source = body.source === 'voice' ? 'voice' : 'text';
   const viaWhatsApp = body.channel === 'whatsapp';
   // a message goes to the model; taps on Confirm / Undo cards and opening the chat don't
@@ -932,7 +932,9 @@ serve(async (req) => {
       }
     }
     if (!got) throw lastError ?? new HttpError(502, 'Muntej got confused, try rephrasing');
-    parsed = got;
+    // an invisible NUL character in the model's words makes Postgres refuse the whole save ("unsupported Unicode
+    // escape sequence", QA 8 Nov): gone before anything is stored
+    parsed = JSON.parse(JSON.stringify(got).replace(/\\u0000/g, ''));
   }
 
   // ── act ──
