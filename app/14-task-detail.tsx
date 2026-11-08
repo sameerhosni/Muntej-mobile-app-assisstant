@@ -147,12 +147,28 @@ export default function TaskDetailScreen() {
   const baseChecks: Record<CheckKey, boolean> = live
     ? { owner: !!d?.owner_id, due: !!d?.due_at, doneDef: !!d?.definition_of_done, budget: !!d?.budget }
     : { owner: true, due: true, doneDef: true, budget: false };
-  const checks = (Object.keys(baseChecks) as CheckKey[]).map((k) => ({ key: k, ok: baseChecks[k] || !!asked[k] }));
+  // asking fills nothing in (Nouran, 8 Nov: two taps on «اسأل» made it 100%): an item is ✓ only when it's really there
+  const checks = (Object.keys(baseChecks) as CheckKey[]).map((k) => ({ key: k, ok: baseChecks[k] }));
   const passing = checks.filter((c) => c.ok).length;
-  const askedAny = Object.keys(asked).length > 0;
   const baseScore = live ? d?.clarity_score || passing * 25 : 82;
-  const clarity = passing === 4 ? 100 : askedAny ? Math.max(baseScore, passing * 25) : baseScore;
-  const missing = (['budget', 'doneDef', 'due', 'owner'] as CheckKey[]).find((k) => !checks.find((c) => c.key === k)?.ok);
+  const clarity = passing === 4 ? 100 : baseScore;
+  const missing = (['budget', 'doneDef', 'due'] as CheckKey[]).find((k) => !checks.find((c) => c.key === k)?.ok);
+  // the person doing it asks the one who gave it; the one who gave it (or a manager) adds it themselves
+  const meId = me.data?.id;
+  const doing = live && !!meId && (d?.owner_id === meId || d?.helper_id === meId) && !!d?.assigner_id && d.assigner_id !== meId;
+  const askGiver = async () => {
+    if (!d || !missing) return;
+    setAsked((a) => ({ ...a, [missing]: true }));
+    const { error } = await (supabase.rpc as unknown as (fn: string, args: object) => Promise<{ error: { message: string } | null }>)('ask_task_detail', {
+      p_task: d.id,
+      p_what: missing,
+    });
+    if (error) setAsked(({ [missing]: _gone, ...rest }) => rest);
+  };
+  const addIt = () => {
+    if (!id || !missing) return;
+    router.push({ pathname: '/02-capture', params: { mode: 'text', focus: id, draft: t('addDraft', { what: t(`checkWhat.${missing}`) }) } });
+  };
 
   const liveSubs: SubVM[] = (d?.subtasks ?? []).map((s) => ({
     id: s.id,
@@ -367,11 +383,14 @@ export default function TaskDetailScreen() {
                   {t('clearSooner')}
                 </AppText>
               </View>
-              {missing && (
+              {missing && live && (
                 <Pressable
-                  onPress={() => setAsked((a) => ({ ...a, [missing]: true }))}
+                  onPress={doing ? askGiver : addIt}
+                  disabled={doing && !!asked[missing]}
                   accessibilityRole="button"
-                  accessibilityLabel={t('askA11y', { name: assignerName, what: t(`checkWhat.${missing}`) })}
+                  accessibilityLabel={
+                    doing ? t('askA11y', { name: assignerName, what: t(`checkWhat.${missing}`) }) : t('add', { what: t(`checkWhat.${missing}`) })
+                  }
                   hitSlop={{ top: 6, bottom: 6 }}
                   style={({ pressed }) => ({
                     height: 32,
@@ -386,7 +405,7 @@ export default function TaskDetailScreen() {
                   })}
                 >
                   <AppText variant="caption" weight="bold" color="amberStrong">
-                    {t('ask', { name: assignerName })}
+                    {doing ? (asked[missing] ? t('asked', { name: assignerName }) : t('ask', { name: assignerName })) : t('add', { what: t(`checkWhat.${missing}`) })}
                   </AppText>
                 </Pressable>
               )}

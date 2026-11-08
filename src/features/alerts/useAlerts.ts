@@ -33,7 +33,8 @@ export type AlertKind =
   | 'support_reply'
   | 'idea_update'
   | 'member_joined'
-  | 'added_to_company';
+  | 'added_to_company'
+  | 'detail_asked';
 
 export type AlertItem = {
   id: string;

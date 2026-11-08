@@ -254,6 +254,24 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
   });
   // The owner, 6 Nov: "once we connect Google tools, saree3 should import all users email found in tasks and suggest to
   // add it to the account org structure under one of the existing users or skip the user".
+  // Nouran, 8 Nov: "This is a task assigned from me to sameer, why would I have cta 'send nouran' and when I click it
+  // twice why does it turn the task to 100%?". «اسأل» showed to the giver and only ticked the item on the screen.
+  await check('tasks', '“Ask” sends the giver a real question and fills nothing in', async () => {
+    const [mine] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA ask the giver', '${QA_BOSS}', '${them.id}', 'assigned') returning id`);
+    const [given] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA ask myself', '${them.id}', '${QA_BOSS}', 'assigned') returning id`);
+    try {
+      await rpc('ask_task_detail', { p_task: mine.id, p_what: 'budget' }, jwt);
+      const asked = await sql(`select title_ar from public.alerts where profile_id = '${them.id}' and task_id = '${mine.id}' and kind = 'detail_asked'`);
+      expect(asked.length === 1, `${asked.length} question(s) reached the one who gave it`);
+      const [t] = await sql(`select budget from public.tasks where id = '${mine.id}'`);
+      expect(t.budget == null, 'asking filled the budget in');
+      const self = await rpc('ask_task_detail', { p_task: given.id, p_what: 'budget' }, jwt).catch((e) => e);
+      expect(self instanceof Error, 'the one who gave the task could “ask” themselves');
+      return asked[0].title_ar;
+    } finally {
+      await sql(`delete from public.alerts where task_id in ('${mine.id}', '${given.id}'); delete from public.tasks where id in ('${mine.id}', '${given.id}')`);
+    }
+  });
   // The owner, 6 Nov: "Let's create a new version for testing before going live and once updates approved we can go
   // live". A feature in testing (features.testing) is only for testers, on the one live server.
   await check('testing', 'A feature in testing is hidden from people who aren’t testers', async () => {

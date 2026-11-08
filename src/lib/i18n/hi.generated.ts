@@ -2058,8 +2058,11 @@ export default {
   "title": "नोट टेकर"
  },
  "s14": {
+  "add": "{{what}} जोड़ें",
+  "addDraft": "{{what}}: ",
   "ask": "{{name}} से पूछें",
   "askA11y": "{{what}} के बारे में {{name}} से पूछें",
+  "asked": "{{name}} से पूछा ✓",
   "attach": "साक्ष्य संलग्न करें",
   "back": "वापस",
   "bigTask": "बड़ा टास्क · ~{{h}} घं.",
