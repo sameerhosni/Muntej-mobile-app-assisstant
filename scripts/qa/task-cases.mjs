@@ -275,16 +275,18 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
   // The owner, 6 Nov: "Let's create a new version for testing before going live and once updates approved we can go
   // live". A feature in testing (features.testing) is only for testers, on the one live server.
   await check('testing', 'A feature in testing is hidden from people who aren’t testers', async () => {
+    // put back exactly as it was: once live, a QA run must never take the feature away from everyone (8 Nov it did)
+    const [was] = await sql(`select testing from public.features where key = 'team_from_mail'`);
     await sql(`update public.features set testing = true where key = 'team_from_mail'`);
     const seen = async () => (await rpc('feature_on', { p_key: 'team_from_mail' }, jwt));
-    expect((await seen()) === true, 'the tester (QA manager) can’t see it');
-    await sql(`update public.profiles set tester = false where id = '${QA_BOSS}'`);
     try {
+      expect((await seen()) === true, 'the tester (QA manager) can’t see it');
+      await sql(`update public.profiles set tester = false where id = '${QA_BOSS}'`);
       expect((await seen()) === false, 'someone who isn’t a tester sees it');
       const r = await fn('team-import', { action: 'from_mail', count_only: true }, jwt).catch((e) => e);
       expect(r instanceof Error && /403/.test(r.message), `its server action answered ${r?.message ?? JSON.stringify(r)}`);
     } finally {
-      await sql(`update public.profiles set tester = true where id = '${QA_BOSS}'`);
+      await sql(`update public.profiles set tester = true where id = '${QA_BOSS}'; update public.features set testing = ${was?.testing === true} where key = 'team_from_mail'`);
     }
     return 'testers only';
   });
