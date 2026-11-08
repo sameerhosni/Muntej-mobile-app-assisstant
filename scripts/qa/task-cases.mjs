@@ -183,7 +183,9 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
   const INVITED = 'qa-invited@qa.muntej.test';
   const LOGIN = 'a0000000-0000-4000-b000-0000000000e1';
   const tidyInvited = () =>
-    sql(`delete from public.alerts where subject_id in (select id from public.profiles where lower(email) = '${INVITED}');
+    sql(`delete from public.alerts where subject_id in (select id from public.profiles where lower(email) = '${INVITED}')
+           or profile_id in (select id from public.profiles where lower(email) = '${INVITED}');
+         delete from public.tasks where owner_id in (select id from public.profiles where lower(email) = '${INVITED}');
          delete from public.profiles where lower(email) = '${INVITED}';
          delete from auth.users where id = '${LOGIN}';`);
   await tidyInvited();
@@ -209,11 +211,15 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
     });
     await check('invites', 'Their first sign-in makes them active and tells the manager', async () => {
       await sql(`update public.profiles set status = 'pending' where id = '${invited}'`);
+      // the owner, 8 Nov: "Notify me if anyone I invited joined the account and remind him of his tasks once joined"
+      await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA waiting for you', '${invited}', '${QA_BOSS}', 'assigned')`);
       await sql(`update auth.users set email_confirmed_at = now(), last_sign_in_at = now() where id = '${LOGIN}'`);
       const p = await seat();
       expect(p.status === 'active', `still "${p.status}"`);
       expect((await joinedAlerts()) === 1, 'the manager was not told');
-      return 'active';
+      const reminded = await sql(`select title_ar from public.alerts where profile_id = '${invited}' and dedupe_key = 'joined_tasks:${invited}'`);
+      expect(reminded.length === 1, 'the person who joined wasn’t reminded of the task waiting for them');
+      return `active, reminded: ${reminded[0].title_ar}`;
     });
   } finally {
     await tidyInvited();
@@ -290,7 +296,7 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
     }
     return 'testers only';
   });
-  const MAIL_IDS = ['qa-mail-1', 'qa-mail-2', 'qa-mail-3'];
+  const MAIL_IDS = ['qa-mail-1', 'qa-mail-2', 'qa-mail-3', 'qa-mail-4'];
   const REEM = 'qa-reem@qa.muntej.test';
   const CLIENT = 'buyer@client-co.test';
   const tidyMail = () =>
@@ -304,8 +310,10 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       sql(`insert into public.incoming_items (owner_id, source, external_id, sender, subject, received_at, body, status, suggestions)
            values ('${QA_BOSS}', 'gmail', '${id}', 'QA', 'QA mail', now(), ${`'Subject: QA mail\nFrom: ${from}\nTo: ${to}\n${cc ? `Cc: ${cc}\n` : ''}\n${words}'`}, 'nothing', '[]'::jsonb)`);
     await mail(MAIL_IDS[0], `"Reem Salem" <${REEM}>`, `"Ahmed QA" <qa-manager@qa.muntej.test>`, `"Faisal QA" <qa-faisal@qa.muntej.test>`, 'The sales sheet is ready');
-    await mail(MAIL_IDS[1], `"Faisal QA" <qa-faisal@qa.muntej.test>`, `"Reem Salem" <${REEM}>`, 'no-reply@notifications.qa.muntej.test', 'Thanks Reem, send it to the client');
-    await mail(MAIL_IDS[2], `"Client Buyer" <${CLIENT}>`, `"Ahmed QA" <qa-manager@qa.muntej.test>`, null, 'Please share the offer');
+    // a real exchange both ways (owner, 8 Nov: only people you actually deal with, not everyone on a Cc)
+    await mail(MAIL_IDS[1], `"Ahmed QA" <qa-manager@qa.muntej.test>`, `"Reem Salem" <${REEM}>`, `"Faisal QA" <qa-faisal@qa.muntej.test>, no-reply@notifications.qa.muntej.test`, 'Thanks Reem, send it to the client');
+    await mail(MAIL_IDS[2], `"Client Buyer" <${CLIENT}>`, `"Ahmed QA" <qa-manager@qa.muntej.test>`, '"Cc Only" <cc.only@qa.muntej.test>', 'Please share the offer');
+    await mail(MAIL_IDS[3], `"Client Buyer" <${CLIENT}>`, `"Ahmed QA" <qa-manager@qa.muntej.test>`, null, 'Any news on the offer?');
     let draft = null;
     let before = null;
     await check('team', 'People found in your mail are suggested for the team', async () => {

@@ -483,6 +483,9 @@ async function screens() {
         expect(/Mohamed Badawy/.test(text), 'the attendee isn’t shown');
         expect(/أضف كل مهام الاجتماع/.test(text), 'no “add all the meeting’s tasks”');
         expect(/مو في فريقك/.test(text), 'the person outside the team isn’t marked');
+        // the owner, 8 Nov: "Add assignee near each task and also from whom"
+        const tos = await page.getByRole('button', { name: /^إلى/ }).count();
+        expect(tos >= 3, `${tos} of 3 meeting tasks show who they're for`);
         return 'grouped by person';
       } finally {
         await sql(`delete from public.incoming_items where id = '${item.id}'`);
@@ -498,6 +501,9 @@ async function screens() {
         await page.goto(`http://localhost:8099/14-task-detail?id=${task.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
         const to = page.getByRole('button', { name: /^إلى/ });
         await to.waitFor({ timeout: 30_000 });
+        // the sections need who you are and the team, which can arrive a moment after the boxes
+        await page.getByText('الحالة الآن').first().waitFor({ timeout: 20_000 }).catch(() => {});
+        await page.waitForTimeout(1500);
         const text = await page.evaluate(() => document.body.innerText);
         const name = (other.full_name_ar || other.full_name).split(' ')[0];
         expect(/من\s/.test(text) && text.includes(name), `no clear "from … to ${name}" on the page`);

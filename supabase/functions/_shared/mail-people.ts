@@ -14,11 +14,15 @@ import { adminClient } from './push.ts';
 import { matchPeople, type Draft, type DraftPerson } from './team-reader.ts';
 
 const ITEMS = 300;
-const LOOKUPS = 10;
+// each lookup searches Gmail (about 10 calls): few, so the list comes quickly (owner, 8 Nov: "it still loading a lot")
+const LOOKUPS = 3;
 const PUBLIC = /^(gmail|googlemail|hotmail|outlook|live|yahoo|icloud|me|msn|aol|proton|protonmail)\.[a-z.]+$/;
 const ROBOT = /(^|[._-])(no-?reply|do-?not-?reply|notifications?|notify|mailer|bounces?|newsletter|news|alerts?|calendar|support|help|billing|invoice|marketing|info|hello|team)([._-]|@)|@(.*\.)?(google|googlemail|facebook|linkedin|slack|zoom|microsoft|notion|atlassian|github)\.com$/i;
 
-type Seen = { name: string | null; email: string | null; items: Set<string> };
+/** items: every message they're in (for who they work with); talks: the ones that were a real exchange with you */
+type Seen = { name: string | null; email: string | null; items: Set<string>; talks: Set<string>; direct: boolean };
+/** someone you really deal with: two real exchanges, or a direct chat */
+const TALKS = 2;
 
 const lower = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 export const nameKey = (s: string) => `name:${s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()}`;
@@ -36,24 +40,40 @@ function addresses(value: string): { name: string | null; email: string | null }
   return out;
 }
 
+/** how someone appears in a message: only some of these mean you really deal with them */
+type Role = 'from' | 'to' | 'cc' | 'meet' | 'dm' | 'group';
+type Found = { name: string | null; email: string | null; role: Role };
+
 /** everyone named in one item, from the lines the providers write (google.ts) */
-export function peopleInItem(source: string, body: string): { name: string | null; email: string | null }[] {
+export function peopleInItem(source: string, body: string): Found[] {
   const head = body.split('\n\n')[0] ?? '';
-  const out: { name: string | null; email: string | null }[] = [];
+  const out: Found[] = [];
   for (const line of head.split('\n')) {
     const m = /^(From|To|Cc|Organiser|Invited):\s*(.+)$/i.exec(line.trim());
     if (!m) continue;
+    const kind = m[1].toLowerCase();
+    const role: Role = kind === 'from' ? 'from' : kind === 'to' ? 'to' : kind === 'cc' ? 'cc' : 'meet';
     const found = addresses(m[2]);
     // Meet invitees can be plain names
-    if (!found.length && /organiser|invited/i.test(m[1])) for (const n of m[2].split(',')) if (clean(n)) out.push({ name: clean(n), email: null });
-    out.push(...found);
+    if (!found.length && role === 'meet') for (const n of m[2].split(',')) if (clean(n) && !/room|قاعة|\(\d+\)/i.test(n)) out.push({ name: clean(n), email: null, role });
+    out.push(...found.map((f) => ({ ...f, role })));
   }
   if (source === 'google_chat') {
     const dm = /Direct message between:\s*(.+)/.exec(body);
-    for (const n of dm?.[1].split(',') ?? []) if (clean(n)) out.push({ name: clean(n), email: null });
-    for (const m of body.matchAll(/^\[[^\]]*\]\s+([^:\n]{2,60}):/gm)) if (clean(m[1]) !== 'Someone') out.push({ name: clean(m[1]), email: null });
+    for (const n of dm?.[1].split(',') ?? []) if (clean(n)) out.push({ name: clean(n), email: null, role: 'dm' });
+    for (const m of body.matchAll(/^\[[^\]]*\]\s+([^:\n]{2,60}):/gm)) if (clean(m[1]) !== 'Someone') out.push({ name: clean(m[1]), email: null, role: dm ? 'dm' : 'group' });
   }
   return out;
+}
+
+/** a real exchange with them (owner, 8 Nov: "11 users... I didn't even speak to this number"): they wrote to you, you
+ *  wrote to them (one to three people, not a mailing), a meeting together or a direct chat. A Cc, a long To list or a
+ *  group chat line is not */
+function talked(f: Found, all: Found[], mine: Set<string>): boolean {
+  if (f.role === 'from' || f.role === 'meet' || f.role === 'dm') return true;
+  if (f.role !== 'to') return false;
+  const fromMe = all.some((x) => x.role === 'from' && !!x.email && mine.has(x.email));
+  return fromMe && all.filter((x) => x.role === 'to').length <= 3;
 }
 
 export async function peopleFromMail(db: SupabaseClient, profileId: string, opts: { countOnly?: boolean } = {}) {
@@ -91,9 +111,11 @@ export async function peopleFromMail(db: SupabaseClient, profileId: string, opts
       if (f.email && (mine.has(f.email) || teamEmail.has(f.email) || ROBOT.test(f.email))) continue;
       if (!f.email && !f.name) continue;
       const key = f.email ?? nameKey(f.name!);
-      const s = seen.get(key) ?? { name: null, email: f.email, items: new Set() };
+      const s = seen.get(key) ?? { name: null, email: f.email, items: new Set(), talks: new Set(), direct: false };
       if (f.name && (!s.name || f.name.length > s.name.length)) s.name = f.name;
       s.items.add(it.id as string);
+      if (talked(f, found, mine)) s.talks.add(it.id as string);
+      if (f.role === 'dm') s.direct = true;
       seen.set(key, s);
       const co = withTeam.get(key) ?? new Map<string, number>();
       for (const tid of here) co.set(tid, (co.get(tid) ?? 0) + 1);
@@ -106,9 +128,13 @@ export async function peopleFromMail(db: SupabaseClient, profileId: string, opts
     const twin = [...seen.values()].find((x) => x.email && x.name && nameKey(x.name) === key);
     if (twin) {
       s.items.forEach((i) => twin.items.add(i));
+      s.talks.forEach((i) => twin.talks.add(i));
+      twin.direct ||= s.direct;
       seen.delete(key);
     }
   }
+  // only people you really deal with
+  for (const [key, s] of [...seen]) if (!s.direct && s.talks.size < TALKS) seen.delete(key);
 
   // who you may put people under: you, and your branch (admins: anyone)
   const admin = me.role === 'admin' || me.role === 'super_admin';
@@ -148,6 +174,9 @@ export async function peopleFromMail(db: SupabaseClient, profileId: string, opts
       const boss = co[0]?.[1] ? co[0][0] : null;
       return {
         ...p,
+        // the email decides (owner, 8 Nov: "check email first and don't mention duplicates"): an address already in the
+        // team was left out above; any other address is someone new, so no "is this the same person?" question
+        ...(s.email ? { maybe: undefined, is_new: true } : {}),
         manager_id: boss,
         outside,
         seen_in: s.items.size,

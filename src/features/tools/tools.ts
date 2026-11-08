@@ -129,7 +129,7 @@ export function useToolItems(tool: Tool | undefined) {
   });
 }
 
-export type AddedTask = { id: string; title: string; status: string; owner_id: string | null; due_at: string | null };
+export type AddedTask = { id: string; title: string; status: string; owner_id: string | null; assigner_id: string | null; due_at: string | null };
 
 /** the tasks already added from this tool (the accepted suggestions of its messages) */
 export function useToolTasks(items: IncomingItem[] | undefined) {
@@ -138,7 +138,7 @@ export function useToolTasks(items: IncomingItem[] | undefined) {
     queryKey: ['tasks', 'fromTool', ids.join(',')],
     enabled: ids.length > 0,
     queryFn: async (): Promise<AddedTask[]> => {
-      const { data, error } = await supabase.from('tasks').select('id, title, status, owner_id, due_at, created_at').in('id', ids).order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('tasks').select('id, title, status, owner_id, assigner_id, due_at, created_at').in('id', ids).order('created_at', { ascending: false });
       if (error) throw new Error(error.message);
       return (data ?? []) as AddedTask[];
     },

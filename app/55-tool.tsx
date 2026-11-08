@@ -12,7 +12,8 @@ import { AppText, Button, Card, Chip, IconBadge, IconButton } from '@/components
 import { colors, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
-import { useTeam } from '@/lib/api';
+import { useMyProfile, useTeam } from '@/lib/api';
+import { FROM_TO_NS, fromToLine } from '@/features/tasks/FromTo';
 import { formatDue } from '@/features/capture/format';
 import { useIncomingActions } from '@/features/incoming/api';
 import { BulkProgress } from '@/features/incoming/BulkProgress';
@@ -47,6 +48,10 @@ export default function ToolScreen() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const onProgress = (done: number, total: number) => setProgress({ done, total });
   const [allAdded, setAllAdded] = useState(false);
+  // the pull-to-refresh spinner only while you pulled (it showed on every background reload and looked stuck)
+  const [pulling, setPulling] = useState(false);
+  const { t: tf } = useScreenT(FROM_TO_NS);
+  const meId = useMyProfile().data?.id;
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/42-incoming'));
   const header = (
@@ -93,9 +98,10 @@ export default function ToolScreen() {
     setBulk('add');
     try {
       await incoming.acceptEverything(waitingItems.map((it) => it.id), onProgress);
-      await items.refetch();
     } finally {
+      // done: the bar goes at once, the lists catch up behind it (owner, 8 Nov: "Loading all time")
       setBulk(null);
+      void items.refetch();
     }
   };
   const rejectAll = () => {
@@ -103,9 +109,9 @@ export default function ToolScreen() {
       setBulk('reject');
       try {
         await incoming.ignoreEverything(waitingItems.map((it) => it.id), onProgress);
-        await items.refetch();
       } finally {
         setBulk(null);
+        void items.refetch();
       }
     };
     const msg = t('rejectConfirm', { n: waiting, tool: t(`t_${tool.key}`) });
@@ -136,10 +142,10 @@ export default function ToolScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
-            refreshing={items.isRefetching}
+            refreshing={pulling}
             onRefresh={() => {
-              items.refetch();
-              conns.refetch();
+              setPulling(true);
+              Promise.all([items.refetch(), conns.refetch()]).finally(() => setPulling(false));
             }}
             tintColor={colors.primary}
           />
@@ -235,7 +241,11 @@ export default function ToolScreen() {
                 </AppText>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                   <Chip label={t(`s_${x.status}`)} tone={x.status === 'done' ? 'green' : 'primary'} />
-                  {!!firstName(x.owner_id) && <Chip label={`👤 ${firstName(x.owner_id)}`} />}
+                  {/* from whom → to whom, as on every task (owner, 8 Nov: they showed only "S" and looked like his) */}
+                  {(() => {
+                    const line = fromToLine(tf, x, team.data ?? [], meId, lang);
+                    return line ? <Chip label={line} /> : !!firstName(x.owner_id) && <Chip label={`👤 ${firstName(x.owner_id)}`} />;
+                  })()}
                   {!!x.due_at && <Chip label={`📅 ${formatDue(x.due_at, lang)}`} />}
                 </View>
               </Pressable>

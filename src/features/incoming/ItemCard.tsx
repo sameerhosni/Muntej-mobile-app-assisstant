@@ -251,6 +251,7 @@ function MeetingCard({
                 onAccept={(edit) => run(`s${i}`, () => actions.accept(item.id, i, edit))}
                 onIgnore={() => run(`s${i}`, () => actions.ignore(item.id, i))}
                 onAddOwner={() => router.push({ pathname: '/39-team', params: { add: '1', name: s.owner_name ?? '', item: item.id, index: String(i) } })}
+                onSetOwner={(ownerId) => run(`s${i}`, () => actions.setOwner(item.id, i, ownerId))}
               />
             ))}
             {more > 0 && !expanded[g.key] && (
@@ -344,12 +345,12 @@ function SuggestionRow({
         {s.title}
       </AppText>
       {/* who asked → who it's for, the same two boxes as every task; "To" picks someone (owner, 8 Nov) */}
-      {!compact &&
-        (onSetOwner && !done ? (
-          <FoundFromTo from={s.requested_by ?? from ?? null} toId={s.owner_id} toName={s.owner_name} team={people} meId={me.data?.id} onPick={onSetOwner} />
-        ) : (
-          <FromTag name={s.requested_by ?? from ?? null} />
-        ))}
+      {/* (in a meeting card too, under each person: owner, 8 Nov "Add assignee near each task and also from whom") */}
+      {onSetOwner && !done ? (
+        <FoundFromTo from={s.requested_by ?? from ?? null} toId={s.owner_id} toName={s.owner_name} team={people} meId={me.data?.id} onPick={onSetOwner} />
+      ) : (
+        !compact && <FromTag name={s.requested_by ?? from ?? null} />
+      )}
       {/* who · when · how urgent · what to send back · budget, as small chips you read at a glance */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {!compact && !(onSetOwner && !done) && <Chip label={`👤 ${ownerName ?? (s.owner_name ? t('outsideOwner', { name: s.owner_name }) : t('noOwner'))}`} />}

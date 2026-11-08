@@ -1,18 +1,18 @@
 // Screen 61 · Build your team — no mockup (replaces the AddTeam demo, screen 34). Owner, 26 Oct: building the org is
 // the hook, so many smart ways in: snap the org chart, upload Excel / CSV / PDF, write or paste a list (Saree3 reads
-// sentences too), connect a system (Microsoft / Google / Jisr, coming), or one person by hand. Every way ends on
+// sentences too), your mail and chats, or one person by hand ("Connect your system" removed, owner 8 Nov). Every way ends on
 // Review your team (screen 62).
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Camera, ChevronLeft, ClipboardPaste, FileSpreadsheet, Image as ImageIcon, Mail, PlugZap, UserPlus, type LucideProps } from 'lucide-react-native';
+import { Camera, ChevronLeft, ClipboardPaste, FileSpreadsheet, Image as ImageIcon, Mail, UserPlus, type LucideProps } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, IconBadge, IconButton, TextField, TimedProgress } from '@/components/ui';
 import { colors, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { Munti } from '@/features/munti/Munti';
-import { canFile, canPhoto, readDirectory, readFile, readMail, readPhoto, readText, type Draft } from '@/features/teamImport/api';
+import { canFile, canPhoto, readFile, readMail, readPhoto, readText, type Draft } from '@/features/teamImport/api';
 import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
 import { useConnections } from '@/features/sources/connections';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
@@ -26,7 +26,6 @@ export default function BuildTeamScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [text, setText] = useState('');
-  const [jisr, setJisr] = useState(false);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/39-team' as Href));
   // the people in what Muntej read for you: only once Google is connected (Home's "Needs you" card opens it with ?mail=1)
   const hasGoogle = (useConnections().data ?? []).some((c) => c.provider === 'google');
@@ -93,16 +92,6 @@ export default function BuildTeamScreen() {
               <TextField value={text} onChangeText={setText} placeholder={t('pastePh')} multiline style={{ minHeight: 120, textAlignVertical: 'top' }} />
               <Button label={t('read')} onPress={() => run(() => readText(text))} disabled={busy || text.trim().length < 3} loading={busy} />
             </View>
-          )}
-        </Way>
-        <Way Icon={PlugZap} bg="amberTint" fg={colors.amberText} title={t('connect')} sub={t('connectSub')} disabled={busy} onPress={() => setJisr((j) => !j)}>
-          <Chip label={t('ms')} onPress={() => run(async () => (await readDirectory('microsoft_directory'), null))} />
-          <Chip label={t('google')} onPress={() => run(async () => (await readDirectory('google_directory'), null))} />
-          <Chip label={t('jisrLabel')} onPress={() => setJisr(true)} />
-          {jisr && (
-            <AppText variant="caption" color="textSoft" style={{ width: '100%' }}>
-              {t('jisrHow')}
-            </AppText>
           )}
         </Way>
         {hasGoogle && (
