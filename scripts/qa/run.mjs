@@ -501,6 +501,13 @@ async function screens() {
         const text = await page.evaluate(() => document.body.innerText);
         const name = (other.full_name_ar || other.full_name).split(' ')[0];
         expect(/من\s/.test(text) && text.includes(name), `no clear "from … to ${name}" on the page`);
+        // the owner, 8 Nov: "one for current state and if any action required to be in different section"; and the
+        // steps only on a tap ("make these steps by clicking on a button not auto")
+        expect(/مطلوب منك/.test(text) && /أضف الموعد/.test(text), 'no «مطلوب منك» with «أضف الموعد» for the one who gave it (no due date)');
+        expect(/الحالة الآن/.test(text), 'no «الحالة الآن» section');
+        await page.waitForTimeout(3000);
+        const later = await page.evaluate(() => document.body.innerText);
+        expect(!/لو عليّ، أقسّمها كذا/.test(later) && /خلني أقسّمها/.test(later), 'steps were suggested without a tap');
         await to.click();
         await page.getByText('مين يسويها؟').waitFor({ timeout: 10_000 });
         // someone else's task: on the Team tab
@@ -514,6 +521,25 @@ async function screens() {
         return `to ${name}, changeable`;
       } finally {
         await sql(`delete from public.tasks where id = '${task.id}'`);
+      }
+    });
+    // the owner, 8 Nov, on a task found in a chat: "Here also should be from and to option"
+    await check('screens', 'A task found in a message shows from → to, and “to” can be changed', async () => {
+      const [item] = await sql(`insert into public.incoming_items (owner_id, source, external_id, sender, subject, received_at, body, status, suggestions)
+        values ('${QA_BOSS}', 'gmail', 'qa-found-from-to', 'Faisal QA', 'QA found from to', now(), 'From: Faisal QA <qa-faisal@qa.muntej.test>\n\nPlease send the price list', 'new',
+          jsonb_build_array(jsonb_build_object('title', 'QA send the price list', 'owner_id', '${QA_BOSS}', 'requested_by', 'Faisal QA', 'state', 'new', 'confidence', 0.8, 'priority', 'medium', 'quote', 'x', 'task_id', null, 'duplicate_of', null, 'due_at', null, 'definition_of_done', null, 'estimate_hours', null))) returning id`);
+      try {
+        await page.goto('http://localhost:8099/55-tool?tool=gmail', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.getByText('QA send the price list').first().waitFor({ timeout: 30_000 });
+        const to = page.getByRole('button', { name: /^إلى/ }).first();
+        await to.waitFor({ timeout: 10_000 });
+        const text = await page.evaluate(() => document.body.innerText);
+        expect(/Faisal QA/.test(text) && /أنت/.test(text), 'no «من Faisal QA ← إلى أنت»');
+        await to.click();
+        await page.getByText('مين يسويها؟').first().waitFor({ timeout: 10_000 });
+        return 'from Faisal → to you, changeable';
+      } finally {
+        await sql(`delete from public.incoming_items where id = '${item.id}'`);
       }
     });
 

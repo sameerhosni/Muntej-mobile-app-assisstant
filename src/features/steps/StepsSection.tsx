@@ -1,5 +1,5 @@
-// The task's steps (task page). Muntej suggests a breakdown (big / vague tasks by themselves, others on "Break it
-// down"; "like last time" when a similar task was done before); add more by typing (Enter keeps going), pasting a list
+// The task's steps (task page). Muntej suggests a breakdown when you tap "Break it down" ("like last time" when a
+// similar task was done before); add more by typing (Enter keeps going), pasting a list
 // (one step per line) or saying them; tap a step to give it a person / date or delete it. Progress follows the steps
 // (server trigger); Saree3 cheers each one, and when the last is ticked Muntej offers to mark the task finished.
 import { useMemo, useState } from 'react';
@@ -38,10 +38,10 @@ export function StepsSection({ task }: Props) {
   const [picked, setPicked] = useState<Record<number, boolean>>({});
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({});
 
-  // big or vague tasks get Muntej's breakdown by themselves; others on "Break it down"
-  const big = (task.estimate_hours ?? 0) > 4 || !task.definition_of_done?.trim();
+  // Muntej's breakdown only when you ask for it ("Break it down"), never by itself (owner, 8 Nov: "make these steps by
+  // clicking on a button not auto")
   const open = !isFinished(task.status) && task.status !== 'cancelled';
-  const suggestion = useStepSuggestion(task.id, open && steps.length === 0 && !dismissed && (big || asked));
+  const suggestion = useStepSuggestion(task.id, open && steps.length === 0 && !dismissed && asked);
 
   const first = (id: string | null) => {
     const p = id ? (team.data ?? []).find((x) => x.id === id) : undefined;
@@ -132,7 +132,8 @@ export function StepsSection({ task }: Props) {
 
   const doneCount = steps.filter((s) => optimistic[s.id] ?? s.done).length;
   const allDone = steps.length > 0 && doneCount === steps.length;
-  const sug = suggestion.data;
+  // (a breakdown read earlier stays cached: still shown only after the tap)
+  const sug = asked ? suggestion.data : undefined;
   const chosen = sug ? sug.steps.filter((_, i) => picked[i] !== false) : [];
 
   return (

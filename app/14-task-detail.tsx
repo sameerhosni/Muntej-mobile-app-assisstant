@@ -32,6 +32,7 @@ import { formatNumber } from '@/features/home/value';
 import { shortName } from '@/features/decisions/people';
 import { person, personLabel } from '@/features/demo/team';
 import { ClarityRing } from '@/features/task-detail/ClarityRing';
+import { TaskSections, type DetailKey } from '@/features/task-detail/TaskSections';
 import { useToggleSubtask } from '@/features/task-detail/useToggleSubtask';
 import { useTaskSeen } from '@/features/ladder/api';
 import { TASK_POINTS } from '@/features/tasks/useCompleteTask';
@@ -156,19 +157,23 @@ export default function TaskDetailScreen() {
   // the person doing it asks the one who gave it; the one who gave it (or a manager) adds it themselves
   const meId = me.data?.id;
   const doing = live && !!meId && (d?.owner_id === meId || d?.helper_id === meId) && !!d?.assigner_id && d.assigner_id !== meId;
-  const askGiver = async () => {
-    if (!d || !missing) return;
-    setAsked((a) => ({ ...a, [missing]: true }));
+  const allMissing = (['due', 'doneDef', 'budget'] as DetailKey[]).filter((k) => !checks.find((c) => c.key === k)?.ok);
+  const askGiver = async (what: CheckKey | undefined = missing) => {
+    if (!d || !what) return;
+    setAsked((a) => ({ ...a, [what]: true }));
     const { error } = await (supabase.rpc as unknown as (fn: string, args: object) => Promise<{ error: { message: string } | null }>)('ask_task_detail', {
       p_task: d.id,
-      p_what: missing,
+      p_what: what,
     });
-    if (error) setAsked(({ [missing]: _gone, ...rest }) => rest);
+    if (error) setAsked(({ [what]: _gone, ...rest }) => rest);
   };
-  const addIt = () => {
-    if (!id || !missing) return;
-    router.push({ pathname: '/02-capture', params: { mode: 'text', focus: id, draft: t('addDraft', { what: t(`checkWhat.${missing}`) }) } });
+  const addIt = (what: CheckKey | undefined = missing) => {
+    if (!id || !what) return;
+    router.push({ pathname: '/02-capture', params: { mode: 'text', focus: id, draft: t('addDraft', { what: t(`checkWhat.${what}`) }) } });
   };
+  // the finished task is mine to approve (the review bar at the bottom has the buttons)
+  const owner = (team.data ?? []).find((p) => p.id === d?.owner_id);
+  const reviewer = live && d?.status === 'submitted' && !!meId && d.owner_id !== meId && (d.assigner_id === meId || owner?.manager_id === meId);
 
   const liveSubs: SubVM[] = (d?.subtasks ?? []).map((s) => ({
     id: s.id,
@@ -346,8 +351,28 @@ export default function TaskDetailScreen() {
           </View>
         </View>
 
-        {/* clarity */}
-        <View style={{ paddingHorizontal: spacing.screen }}>
+        {/* what's needed from you, then where it stands (owner, 8 Nov: design/examples/task-sections.png) */}
+        {live && d && (
+          <View style={{ paddingHorizontal: spacing.screen }}>
+            <TaskSections
+              task={d as unknown as Parameters<typeof TaskSections>[0]['task']}
+              me={me.data}
+              team={team.data ?? []}
+              missing={allMissing}
+              clarity={clarity}
+              whatOf={(k) => t(`checkWhat.${k}`)}
+              doing={doing}
+              reviewer={reviewer}
+              asked={asked}
+              onAdd={(k) => addIt(k)}
+              onAsk={(k) => askGiver(k)}
+              onReview={() => router.push({ pathname: '/15-review', params: { id: d.id } })}
+            />
+          </View>
+        )}
+
+        {/* clarity (the prototype tour only; live tasks show it in "Where it stands") */}
+        {!live && <View style={{ paddingHorizontal: spacing.screen }}>
           <Card elevation="raised" padding={0} style={{ overflow: 'hidden', padding: spacing.xl, paddingStart: 18, gap: spacing.md }}>
             <Gradient name="avatarBlue" style={{ position: 'absolute', start: 0, top: 0, bottom: 0, width: 4 }} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xl }}>
@@ -384,7 +409,7 @@ export default function TaskDetailScreen() {
               </View>
               {missing && live && (
                 <Pressable
-                  onPress={doing ? askGiver : addIt}
+                  onPress={() => (doing ? askGiver() : addIt())}
                   disabled={doing && !!asked[missing]}
                   accessibilityRole="button"
                   accessibilityLabel={
@@ -410,7 +435,7 @@ export default function TaskDetailScreen() {
               )}
             </View>
           </Card>
-        </View>
+        </View>}
 
         {/* Muntej's follow-up plan + "Who should take it?" / "Too busy?" right where they're needed */}
         {live && d && (

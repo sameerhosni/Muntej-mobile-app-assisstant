@@ -12,6 +12,7 @@ import { useMyProfile, useTeam, type Profile } from '@/lib/api';
 import { formatDue } from '@/features/capture/format';
 import { contentDirection } from '@/features/chat/Bubbles';
 import { FromTag } from '@/features/tasks/FromTag';
+import { FoundFromTo } from '@/features/tasks/FromTo';
 import { useIncomingActions, type IncomingItem, type Suggestion, type SuggestionEdit } from './api';
 import { NS } from './strings';
 
@@ -80,6 +81,7 @@ export function ItemCard({ item }: { item: IncomingItem }) {
             onAccept={(edit) => run(`s${i}`, () => actions.accept(item.id, i, edit))}
             onIgnore={() => run(`s${i}`, () => actions.ignore(item.id, i))}
             onAddOwner={() => router.push({ pathname: '/39-team', params: { add: '1', name: s.owner_name ?? '', item: item.id, index: String(i) } })}
+            onSetOwner={(ownerId) => run(`s${i}`, () => actions.setOwner(item.id, i, ownerId))}
           />
         ))}
       </View>
@@ -296,6 +298,7 @@ function SuggestionRow({
   onAccept,
   onIgnore,
   onAddOwner,
+  onSetOwner,
 }: {
   s: Suggestion;
   /** inside a meeting card: the person heading the group already says who, so no owner or "from" chips */
@@ -307,10 +310,13 @@ function SuggestionRow({
   /** the message names someone not in Muntej: add them */
   onAddOwner: () => void;
   onIgnore: () => void;
+  /** give it to someone else on the team before adding it */
+  onSetOwner?: (ownerId: string) => void;
 }) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const team = useTeam();
+  const me = useMyProfile();
   const [editing, setEditing] = useState(false);
   const [more, setMore] = useState(false);
   const [title, setTitle] = useState(s.title);
@@ -337,11 +343,16 @@ function SuggestionRow({
       >
         {s.title}
       </AppText>
-      {/* who asked for it, in the same "From" style as every task */}
-      {!compact && <FromTag name={s.requested_by ?? from ?? null} />}
+      {/* who asked → who it's for, the same two boxes as every task; "To" picks someone (owner, 8 Nov) */}
+      {!compact &&
+        (onSetOwner && !done ? (
+          <FoundFromTo from={s.requested_by ?? from ?? null} toId={s.owner_id} toName={s.owner_name} team={people} meId={me.data?.id} onPick={onSetOwner} />
+        ) : (
+          <FromTag name={s.requested_by ?? from ?? null} />
+        ))}
       {/* who · when · how urgent · what to send back · budget, as small chips you read at a glance */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {!compact && <Chip label={`👤 ${ownerName ?? (s.owner_name ? t('outsideOwner', { name: s.owner_name }) : t('noOwner'))}`} />}
+        {!compact && !(onSetOwner && !done) && <Chip label={`👤 ${ownerName ?? (s.owner_name ? t('outsideOwner', { name: s.owner_name }) : t('noOwner'))}`} />}
         <Chip label={`📅 ${s.due_at ? formatDue(s.due_at, lang) : t('noDue')}`} />
         {(s.priority === 'urgent' || s.priority === 'high') && <Chip label={`${s.priority === 'urgent' ? '🔴' : '🟠'} ${t(`pr_${s.priority}`)}`} />}
         {!!s.proof_required && s.proof_required !== 'none' && <Chip label={`📎 ${t(`proof_${s.proof_required}`)}`} />}

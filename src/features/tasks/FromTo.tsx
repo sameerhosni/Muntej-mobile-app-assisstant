@@ -129,7 +129,7 @@ export function FromToRow({
         <AppText variant="micro" color={kind === 'to' ? 'primary' : 'textMuted'}>
           {t(kind)}
         </AppText>
-        <AppText weight="bold" numberOfLines={1} color={kind === 'to' ? 'navy' : 'text'}>
+        <AppText weight="bold" numberOfLines={2} color={kind === 'to' ? 'navy' : 'text'}>
           {label(p, id)}
         </AppText>
       </View>
@@ -193,6 +193,109 @@ export function FromToRow({
                     <Avatar name={nameOf(p, lang) ?? ''} size={34} />
                     <AppText weight="bold" style={{ flex: 1 }}>
                       {p.id === me?.id ? `${nameOf(p, lang)} (${t('you')})` : nameOf(p, lang)}
+                    </AppText>
+                  </Pressable>
+                ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+/** the same two boxes for a task Muntej found in a message, before it's added (owner, 8 Nov: "Here also should be from
+ *  and to option"): who asked → who it's for; "To" picks someone from the team */
+export function FoundFromTo({
+  from,
+  toId,
+  toName,
+  team,
+  meId,
+  onPick,
+}: {
+  from: string | null;
+  toId: string | null;
+  /** someone the message names who isn't in the team */
+  toName?: string | null;
+  team: Person[];
+  meId: string | undefined;
+  onPick: (id: string) => void;
+}) {
+  const { t } = useScreenT(FROM_TO_NS);
+  const { lang, isRTL } = useDirection();
+  const [open, setOpen] = useState(false);
+  const owner = team.find((p) => p.id === toId);
+  const to = toId && toId === meId ? t('you') : (nameOf(owner, lang) ?? toName ?? t('nobody'));
+  const Arrow = isRTL ? ArrowLeft : ArrowRight;
+  const box = (kind: 'from' | 'to', name: string) => (
+    <View
+      style={{
+        flex: 1,
+        minWidth: 0,
+        minHeight: 48,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        padding: spacing.sm,
+        borderRadius: radius.md,
+        backgroundColor: kind === 'to' ? colors.primaryTint : colors.surfaceMuted,
+      }}
+    >
+      <Avatar name={name} size={28} gradient={kind === 'to' ? 'avatarBlue' : undefined} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <AppText variant="micro" color={kind === 'to' ? 'primary' : 'textMuted'}>
+          {t(kind)}
+        </AppText>
+        <AppText variant="small" weight="bold" numberOfLines={2} color={kind === 'to' ? 'navy' : 'text'}>
+          {name}
+        </AppText>
+      </View>
+      {kind === 'to' && <Pencil color={colors.primary} size={14} strokeWidth={2.2} />}
+    </View>
+  );
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+      {!!from && box('from', from)}
+      {!!from && <Arrow color={colors.textMuted} size={16} strokeWidth={2} />}
+      <Pressable
+        onPress={() => setOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={`${t('to')} ${to}. ${t('change')}`}
+        style={({ pressed }) => ({ flex: 1, minWidth: 0, opacity: pressed ? 0.85 : 1 })}
+      >
+        {box('to', to)}
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable onPress={() => setOpen(false)} accessibilityLabel={t('close')} style={{ flex: 1, backgroundColor: 'rgba(11,27,63,0.35)', justifyContent: 'flex-end' }}>
+          <Pressable style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.screen, gap: spacing.sm, maxHeight: '70%' }}>
+            <AppText variant="cardTitle" weight="bold">
+              {t('pickWho')}
+            </AppText>
+            <ScrollView>
+              {team
+                .filter((p) => p.id !== toId && p.status !== 'deleted')
+                .map((p) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => {
+                      setOpen(false);
+                      onPick(p.id);
+                    }}
+                    accessibilityRole="button"
+                    style={({ pressed }) => ({
+                      minHeight: sizes.touch + 8,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: spacing.md,
+                      paddingVertical: spacing.xs,
+                      backgroundColor: pressed ? colors.primaryTint : 'transparent',
+                      borderRadius: radius.md,
+                    })}
+                  >
+                    <Avatar name={nameOf(p, lang) ?? ''} size={34} />
+                    <AppText weight="bold" style={{ flex: 1 }}>
+                      {p.id === meId ? `${nameOf(p, lang)} (${t('you')})` : nameOf(p, lang)}
                     </AppText>
                   </Pressable>
                 ))}
