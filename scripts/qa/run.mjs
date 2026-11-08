@@ -539,6 +539,8 @@ async function screens() {
         await page.getByText('QA send the price list').first().waitFor({ timeout: 30_000 });
         const to = page.getByRole('button', { name: /^إلى/ }).first();
         await to.waitFor({ timeout: 10_000 });
+        // "you" needs your profile, which can land a moment after the team's names
+        await page.getByRole('button', { name: /^إلى أنت/ }).first().waitFor({ timeout: 15_000 }).catch(() => {});
         const text = await page.evaluate(() => document.body.innerText);
         if (!(/Faisal QA/.test(text) && /أنت/.test(text))) await page.screenshot({ path: join(OUT, 'found_from_to.png') });
         expect(/Faisal QA/.test(text) && /أنت/.test(text), 'no «من Faisal QA ← إلى أنت»');
