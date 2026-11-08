@@ -32,6 +32,10 @@ export type DraftPerson = {
   is_new?: boolean;
   /** from your mail: outside your company's email domain (a client, a supplier), so left out unless you add them */
   outside?: boolean;
+  /** from your mail: what you said on this person (owner, 8 Nov: "approve or reject one by one") */
+  decided?: 'yes' | 'no';
+  /** not decided yet: left out this time, but asked again next time (never remembered as skipped) */
+  pending?: boolean;
 };
 /** a "maybe" nobody answered yet (the server won't add them either) */
 export const undecided = (p: DraftPerson) => !p.skip && !p.existing_id && !p.is_new && !!p.maybe?.length;

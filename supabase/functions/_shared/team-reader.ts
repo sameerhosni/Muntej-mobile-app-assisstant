@@ -32,6 +32,9 @@ export type DraftPerson = {
   maybe?: { id: string; name: string }[];
   /** the person adding said this is someone new, not one of `maybe` */
   is_new?: boolean;
+  /** from your mail: Add / No on each person; pending = not decided yet, left out now but asked again next time */
+  decided?: 'yes' | 'no';
+  pending?: boolean;
 };
 
 /** a "maybe" nobody answered yet: never created or linked until they say which */

@@ -16,6 +16,8 @@ import { formatNumber } from '@/features/home/value';
 import { useOrg, displayName } from '@/features/org/model';
 import { sendInvites } from '@/features/invite/api';
 import { TeamTree } from '@/features/teamImport/TeamTree';
+import { MailReview } from '@/features/teamImport/MailReview';
+import { useMyProfile } from '@/lib/api/hooks';
 import { applyDraft, draftPhoto, saveDraft, undecided, useDraft, type ApplyResult, type DraftPerson } from '@/features/teamImport/api';
 import { TEAM_IMPORT_NS } from '@/features/teamImport/strings';
 
@@ -25,6 +27,7 @@ export default function TeamReviewScreen() {
   const { id, error: back_error } = useLocalSearchParams<{ id?: string; error?: string }>();
   const draft = useDraft(id);
   const org = useOrg();
+  const me = useMyProfile();
   const qc = useQueryClient();
   const [people, setPeople] = useState<DraftPerson[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -75,7 +78,14 @@ export default function TeamReviewScreen() {
     );
 
   const list = people ?? [];
-  const kept = list.filter((p) => !p.skip);
+  // from your mail: Add / No on each person (owner, 8 Nov); only an Add is added, only a No is remembered
+  const isMail = draft.data?.source === 'mail';
+  const mailYes = list.filter((p) => p.decided === 'yes').length;
+  const mailLeft = list.filter((p) => !p.decided).length;
+  const forServer = isMail
+    ? list.map((p) => (p.decided === 'yes' ? { ...p, skip: false, pending: false } : p.decided === 'no' ? { ...p, skip: true, pending: false } : { ...p, skip: true, pending: true }))
+    : list;
+  const kept = forServer.filter((p) => !p.skip);
   const managers = kept.filter((p) => p.role === 'manager').length;
   const unsure = kept.filter((p) => p.unsure.length).length;
   const exists = kept.filter((p) => p.existing_id).length;
@@ -88,7 +98,7 @@ export default function TeamReviewScreen() {
     setBusy(true);
     setError(null);
     try {
-      setResult(await applyDraft(id, list));
+      setResult(await applyDraft(id, forServer));
       // Home's "people in your mail" card counts again
       void qc.invalidateQueries({ queryKey: ['mailPeople'] });
     } catch (e) {
@@ -103,7 +113,7 @@ export default function TeamReviewScreen() {
     setBusy(true);
     // WhatsApp (a one-time join link) when there's a mobile, email otherwise
     setInviting(true);
-    const ids = list.filter((p) => result.ids[p.ref] && !p.existing_id && !p.skip && (p.phone || p.email)).map((p) => result.ids[p.ref]);
+    const ids = forServer.filter((p) => result.ids[p.ref] && !p.existing_id && !p.skip && (p.phone || p.email)).map((p) => result.ids[p.ref]);
     const res = await sendInvites(ids, 'auto').catch(() => []);
     setInvited(res.filter((r) => r.whatsapp === 'sent' || r.email === 'invited' || r.app).length);
     setInviting(false);
@@ -139,22 +149,26 @@ export default function TeamReviewScreen() {
             )}
             <TimedProgress active={inviting} expectedMs={Math.max(4000, list.length * 1500)} stages={[t('p_invite'), t('p_almost')]} />
             {invited === null ? (
-              list.some((p) => !p.existing_id && (p.phone || p.email) && !p.skip) && <Button label={t('inviteEmail')} onPress={inviteAll} loading={busy} />
+              forServer.some((p) => !p.existing_id && (p.phone || p.email) && !p.skip) && <Button label={t('inviteEmail')} onPress={inviteAll} loading={busy} />
             ) : (
               <AppText color="greenText" weight="semibold">
                 {t('invited', { n: n(invited), count: invited })}
               </AppText>
             )}
-            {list.some((p) => result.ids[p.ref] && !p.existing_id && !p.skip && !p.phone && !p.email) && (
+            {forServer.some((p) => result.ids[p.ref] && !p.existing_id && !p.skip && !p.phone && !p.email) && (
               <AppText variant="small" color="amberText">
-                {t('resNoContact', { n: n(list.filter((p) => result.ids[p.ref] && !p.existing_id && !p.skip && !p.phone && !p.email).length) })}
+                {t('resNoContact', { n: n(forServer.filter((p) => result.ids[p.ref] && !p.existing_id && !p.skip && !p.phone && !p.email).length) })}
               </AppText>
             )}
             <Button label={t('seeTeam')} variant="outline" onPress={() => router.replace('/39-team' as Href)} />
           </Card>
         ) : (
           <>
-            <AppText color="textMuted">{t('rSub', { n: n(kept.length), count: kept.length })}</AppText>
+            <AppText color="textMuted">
+              {isMail
+                ? t('mailCounts', { inside: n(list.filter((p) => !p.outside).length), outside: n(list.filter((p) => p.outside).length), done: n(list.length - mailLeft) })
+                : t('rSub', { n: n(kept.length), count: kept.length })}
+            </AppText>
             {/* the photo it was read from: check the names side by side */}
             {!!photo && (
               <Pressable onPress={() => setBigPhoto(true)} accessibilityRole="imagebutton" accessibilityLabel={t('photoHint')} style={{ gap: 4 }}>
@@ -164,37 +178,60 @@ export default function TeamReviewScreen() {
                 </AppText>
               </Pressable>
             )}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            {!isMail && <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
               <Chip label={t('managers', { n: n(managers), count: managers })} tone="primary" />
               {!!unsure && <Chip label={t('unsureN', { n: n(unsure), count: unsure })} tone="amber" />}
               {!!exists && <Chip label={t('existsN', { n: n(exists), count: exists })} tone="green" />}
               {!!fresh && <Chip label={t('newN', { n: n(fresh) })} tone="purple" />}
-            </View>
+            </View>}
             {!!error && (
               <AppText variant="small" color="red">
                 {error}
               </AppText>
             )}
-            <Card style={{ paddingVertical: spacing.sm, gap: 0 }}>
-              <TeamTree
+            {isMail ? (
+              <MailReview
                 people={list}
-                team={(org.data ?? []).map((p) => ({ id: p.id, name: displayName(p, lang) }))}
-                existingName={existingName}
+                team={(org.data ?? []).filter((p) => p.id !== me.data?.id).map((p) => ({ id: p.id, name: displayName(p, lang) }))}
+                meName={t('mailYou')}
                 onChange={update}
               />
-            </Card>
+            ) : (
+              <Card style={{ paddingVertical: spacing.sm, gap: 0 }}>
+                <TeamTree
+                  people={list}
+                  team={(org.data ?? []).map((p) => ({ id: p.id, name: displayName(p, lang) }))}
+                  existingName={existingName}
+                  onChange={update}
+                />
+              </Card>
+            )}
           </>
         )}
       </ScrollView>
 
-      {!result && !!kept.length && (
+      {!result && (isMail ? list.length > 0 : !!kept.length) && (
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.screen, gap: spacing.sm, backgroundColor: colors.bg }}>
           <TimedProgress active={busy} expectedMs={Math.max(4000, kept.length * 1200)} stages={[t('p_add'), t('p_link'), t('p_almost')]} />
           <Button
-            label={busy ? t('saving') : asks ? t('askFirst', { n: n(asks) }) : t('confirmN', { n: n(kept.length), count: kept.length })}
+            label={
+              busy
+                ? t('saving')
+                : isMail
+                  ? mailYes
+                    ? mailLeft
+                      ? t('mailAddLeft', { n: n(mailYes), left: n(mailLeft) })
+                      : t('mailAddN', { n: n(mailYes) })
+                    : mailLeft < list.length
+                      ? t('mailSave')
+                      : t('mailDecideFirst')
+                  : asks
+                    ? t('askFirst', { n: n(asks) })
+                    : t('confirmN', { n: n(kept.length), count: kept.length })
+            }
             onPress={confirm}
             loading={busy}
-            disabled={!!asks}
+            disabled={isMail ? mailLeft === list.length : !!asks}
           />
         </View>
       )}

@@ -552,6 +552,30 @@ async function screens() {
       }
     });
 
+    // The owner's screenshot, 8 Nov: "Let's approve or reject one by one and keep emails out of the company domain and
+    // manager confirm or reject": each person from your mail has Add / No, outside people sit apart.
+    await check('screens', 'People from your mail: Add or No on each, outside people apart', async () => {
+      const person = (ref, name, email, outside) =>
+        `jsonb_build_object('ref','${ref}','full_name','${name}','full_name_ar',null,'title',null,'email','${email}','phone',null,'department',null,'manager_ref',null,'manager_id',null,'existing_id',null,'role','employee','confidence',0.7,'unsure','[]'::jsonb,'skip',${outside},'outside',${outside},'is_new',true)`;
+      const [d] = await sql(`insert into public.team_drafts (account_id, created_by, source, people, company_name)
+        values ((select account_id from public.profiles where id = '${QA_BOSS}'), '${QA_BOSS}', 'mail',
+          jsonb_build_array(${person('m1', 'QA Inside Person', 'inside@qa.muntej.test', false)}, ${person('m2', 'QA Client Person', 'buyer@client-co.test', true)}), null) returning id`);
+      try {
+        await page.goto(`http://localhost:8099/62-team-review?id=${d.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.getByText('QA Inside Person').first().waitFor({ timeout: 30_000 });
+        const text = await page.evaluate(() => document.body.innerText);
+        expect(/من برّا شركتك/.test(text), 'no «من برّا شركتك» section');
+        const no = page.getByRole('button', { name: /^لا QA Client Person/ });
+        expect((await page.getByRole('button', { name: /^أضفه QA/ }).count()) === 2, 'not every person has «أضفه»');
+        await no.click();
+        await page.getByText('تراجع').first().waitFor({ timeout: 10_000 });
+        await page.screenshot({ path: join(OUT, 'mail_review.png') });
+        return 'Add / No on each, outside apart, No folds with Undo';
+      } finally {
+        await sql(`delete from public.team_drafts where id = '${d.id}'`);
+      }
+    });
+
     // The owner's screenshots, 8 Nov: "Asked to make task completed and design crashed". On Android the Undo button under
     // the card grew down into a screen-tall empty pill and the cards drew over other messages: a chat button made to share
     // a row (flex: 1) stood in a column. The web doesn't show it, so the source is read: every chat button under another

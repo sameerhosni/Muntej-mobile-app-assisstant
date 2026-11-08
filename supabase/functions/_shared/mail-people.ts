@@ -248,6 +248,7 @@ export async function peopleFromMail(db: SupabaseClient, profileId: string, opts
 
 /** whoever was left out of a mail draft is never suggested again */
 export async function rememberSkips(db: SupabaseClient, profileId: string, people: (DraftPerson & { key?: string })[]) {
-  const keys = people.filter((p) => p.skip).map((p) => p.key ?? (p.email ? lower(p.email) : nameKey(p.full_name)));
+  // someone not decided yet (pending) comes back next time; only a "No" is remembered
+  const keys = people.filter((p) => p.skip && !p.pending).map((p) => p.key ?? (p.email ? lower(p.email) : nameKey(p.full_name)));
   if (keys.length) await db.from('team_mail_skips').upsert(keys.map((key) => ({ created_by: profileId, key })), { onConflict: 'created_by,key', ignoreDuplicates: true });
 }

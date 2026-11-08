@@ -334,18 +334,28 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       expect(!people.some((p) => /^(a\.? ?qa|ahmed qa)$/i.test((p.full_name ?? '').trim())), 'you were suggested to yourself, by the name a chat gives you');
       return `${people.length} found, Reem under Faisal`;
     });
-    await check('team', 'Confirming adds them, and skipped people aren’t asked again', async () => {
-      // the test company may already have a «ريم»: answer "someone new", as the manager would on the card
-      const people = draft.people.map((p) => (p.email === REEM ? { ...p, is_new: true } : p));
+    // owner, 8 Nov: "approve or reject one by one": Add adds, No is never asked again, and someone you didn't decide on
+    // yet is left out now but comes back next time (the app sends them as pending)
+    await check('team', 'Add adds them, someone not decided yet comes back next time', async () => {
+      const people = draft.people.map((p) =>
+        p.email === REEM ? { ...p, is_new: true, decided: 'yes', skip: false, pending: false } : p.decided ? p : { ...p, skip: true, pending: true },
+      );
       const r = await fn('team-import', { action: 'apply', draft_id: draft.id, people }, jwt);
       expect(r.created >= 1, `created ${r.created}: ${JSON.stringify(r.failed).slice(0, 120)}`);
       const [p] = await sql(`select manager_id from public.profiles where lower(email) = '${REEM}'`);
       expect(p?.manager_id === QA_FAISAL, `Reem is under ${p?.manager_id ?? 'nobody'}`);
       const again = await fn('team-import', { action: 'from_mail', count_only: true }, jwt);
-      // other test mail may name more people: Reem is now in the team, and everyone left out (all outside people start
-      // as "skip") is never asked about again
-      expect(again.count === before.count - 1 && again.outside === 0, `before ${before.count} + ${before.outside} outside, after ${again.count} + ${again.outside}`);
-      return 'added, nothing asked twice';
+      expect(again.count === before.count - 1 && again.outside === before.outside, `before ${before.count} + ${before.outside} outside, after ${again.count} + ${again.outside}: the undecided client didn't come back`);
+      return 'Reem added, the client asked again';
+    });
+    await check('team', 'A No is never asked again', async () => {
+      const r = await fn('team-import', { action: 'from_mail' }, jwt);
+      const people = r.draft.people.map((p) => (p.email === CLIENT ? { ...p, decided: 'no', skip: true, pending: false } : { ...p, skip: true, pending: true }));
+      expect(people.some((p) => p.email === CLIENT), 'the client is not in the list');
+      await fn('team-import', { action: 'apply', draft_id: r.draft.id, people }, jwt);
+      const again = await fn('team-import', { action: 'from_mail', count_only: true }, jwt);
+      expect(again.outside === 0, `the client you said No to is asked again (${again.outside} outside)`);
+      return 'not asked again';
     });
   } finally {
     await tidyMail();
