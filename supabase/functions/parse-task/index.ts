@@ -3,6 +3,7 @@
 // The team list comes from the caller's own RLS view, so Claude can only assign people they can see.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve } from '../_shared/http.ts';
+import { requireAi } from '../_shared/ai-consent.ts';
 
 const FollowupStep = z.object({
   at: z.string().describe('ISO 8601 datetime with +03:00 offset'),
@@ -54,6 +55,7 @@ Rules:
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
   const { db, profileId } = await getCaller(req);
+  await requireAi(profileId);
 
   const { text } = (await req.json().catch(() => ({}))) as { text?: string };
   const sentence = (text ?? '').trim();

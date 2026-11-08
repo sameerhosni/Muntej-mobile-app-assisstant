@@ -52,6 +52,8 @@ const MORE_SCREENS = [
   '61-build-team',
   '62-team-review',
   '63-setup-chat',
+  'ai-consent',
+  'new-task',
 ];
 
 SplashScreen.preventAutoHideAsync().catch(() => {});

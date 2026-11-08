@@ -5,6 +5,7 @@
 // Nothing is saved here: the form merges the suggestions and the user saves through upsert_person.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve } from '../_shared/http.ts';
+import { requireAi } from '../_shared/ai-consent.ts';
 
 const Skill = z.object({
   name: z.string(),
@@ -49,7 +50,8 @@ translating task wording when the tasks are in the other language; keep an exist
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
-  const { db } = await getCaller(req);
+  const { db, profileId } = await getCaller(req);
+  await requireAi(profileId);
 
   const body = (await req.json().catch(() => ({}))) as { person_id?: string; lang?: string };
   const personId = (body.person_id ?? '').trim();

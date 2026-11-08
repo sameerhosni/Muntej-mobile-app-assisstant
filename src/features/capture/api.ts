@@ -4,6 +4,7 @@ import { File } from 'expo-file-system';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import i18n from '@/lib/i18n';
+import '@/features/ai-consent/strings';
 import type { TaskPriority } from '@/lib/api';
 
 export type FollowupStep = {
@@ -38,6 +39,8 @@ export async function toError(error: unknown): Promise<Error> {
     try {
       // ours: { error }; the gateway's own (expired sign-in, function down): { message } / { msg }
       const body = (await error.context.json()) as { error?: string; message?: string; msg?: string };
+      // AI is off for this person (they chose "Not now"): say so in words, not the server's code
+      if (body?.error === 'ai_consent_required') return new Error(i18n.t('aiConsent.blocked'));
       if (body?.error) return new Error(body.error);
       if (body?.message || body?.msg) console.warn('[functions] gateway said', error.context.status, body.message ?? body.msg);
     } catch {

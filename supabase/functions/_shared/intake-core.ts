@@ -7,6 +7,7 @@
 import { z } from 'npm:zod@4.6.7';
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { HttpError, requireEnv } from './http.ts';
+import { AI_CONSENT_REQUIRED, aiAllowed } from './ai-consent.ts';
 import { buildPlan } from './followup-plan.ts';
 import { review } from './review.ts';
 
@@ -318,6 +319,8 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     .eq('external_id', externalId)
     .maybeSingle();
   if (existing.data && !input.rereadId) return { ...(existing.data as Item), duplicate_message: true };
+  // free text is read by the AI: only with the reader's permission (a task tool's ready-made task needs no AI)
+  if (!input.structured && !(await aiAllowed(input.profileId, admin))) throw new HttpError(403, AI_CONSENT_REQUIRED);
 
   const now = new Date();
   const st = input.structured;
@@ -546,7 +549,7 @@ const { $schema: _o, ...OWNERS_SCHEMA } = z.toJSONSchema(Owners) as Record<strin
  */
 export async function recheckOwners(admin: SupabaseClient, profileId: string): Promise<{ checked: number; changed: number }> {
   const { data: me } = await admin.from('profiles').select('id, role, account_id').eq('id', profileId).maybeSingle();
-  if (!me || me.role === 'employee') return { checked: 0, changed: 0 };
+  if (!me || me.role === 'employee' || !(await aiAllowed(profileId, admin))) return { checked: 0, changed: 0 };
   const { data: team } = await admin
     .from('profiles')
     .select('id, full_name, full_name_ar, title, skills')
@@ -624,7 +627,7 @@ export async function recheckOwners(admin: SupabaseClient, profileId: string): P
  *  by itself. Logged in activity_log. */
 export async function rereadWaiting(admin: SupabaseClient, profileId: string, only?: string[]): Promise<{ messages: number; before: number; after: number }> {
   const { data: me } = await admin.from('profiles').select('account_id').eq('id', profileId).maybeSingle();
-  if (!me) return { messages: 0, before: 0, after: 0 };
+  if (!me || !(await aiAllowed(profileId, admin))) return { messages: 0, before: 0, after: 0 };
   const { data: team } = await admin
     .from('profiles')
     .select('id, full_name, full_name_ar, title, skills')

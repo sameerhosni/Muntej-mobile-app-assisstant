@@ -202,6 +202,31 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     return `${db.late} late`;
   });
 
+  // ─── AI permission ──────────────────────────────────────────────────────────
+  // Apple, 8 Nov (5.1.1(i) / 5.1.2(i)): nothing of a person's may reach OpenAI before they allowed it in the app. The QA
+  // manager is a tester, so this is checked while the feature is in testing too.
+  await check('ai', 'Nothing goes to the AI before the person allows it', async () => {
+    const refused = async (name, body) => {
+      try {
+        await fn(name, body, jwt);
+        return false;
+      } catch (e) {
+        return /403/.test(String(e)) && /ai_consent_required/.test(String(e));
+      }
+    };
+    await sql(`update public.profiles set ai_consent = false where account_id = '${QA_ACCOUNT}'`);
+    try {
+      expect(await refused('parse-task', { text: 'Ask Faisal to send the report tomorrow' }), 'parse-task read it without permission');
+      expect(await refused('muntej-chat', { message: 'What is late today?', lang: 'en' }), 'the chat read it without permission');
+      expect(await refused('intake', { action: 'ingest', text: `Please send me the Q4 numbers by Sunday. [qa ${Date.now()}]`, sender: 'Faisal', subject: 'Q4' }), 'intake read it without permission');
+    } finally {
+      await sql(`update public.profiles set ai_consent = true where account_id = '${QA_ACCOUNT}'`);
+    }
+    const parsed = await fn('parse-task', { text: 'Ask Faisal to send the report tomorrow' }, jwt);
+    expect(parsed?.title, `after allowing, parse-task still refused: ${JSON.stringify(parsed).slice(0, 200)}`);
+    return 'refused before, works after';
+  });
+
   // ─── store review login ─────────────────────────────────────────────────────
   // The owner, 5 Nov: recording with this login showed no decisions. An admin can stay in the employee view, which
   // hides the Decisions tab, so the login must stay a manager with a decision to show.

@@ -7,6 +7,7 @@
 // Never blocks anything: a failed check just leaves ai_check empty. Model via PROOF_MODEL (default gpt-5-mini).
 import { z } from 'npm:zod@4.6.7';
 import { HttpError, json, requireEnv, serve } from '../_shared/http.ts';
+import { aiAllowed } from '../_shared/ai-consent.ts';
 import { adminClient, sendPush } from '../_shared/push.ts';
 
 const Check = z.object({
@@ -43,6 +44,8 @@ serve(async (req) => {
     admin.from('subtasks').select('title, done').eq('task_id', review.task_id).order('position'),
   ]);
   if (!task) return json({ skipped: 'no task' });
+  // the proof is the task owner's: without their permission the work still reaches the reviewer, just without a check
+  if (!(await aiAllowed(task.owner_id, admin))) return json({ skipped: 'ai_not_allowed' });
   const { data: reviewer } = review.reviewer_id
     ? await admin.from('profiles').select('locale').eq('id', review.reviewer_id).maybeSingle()
     : { data: null };

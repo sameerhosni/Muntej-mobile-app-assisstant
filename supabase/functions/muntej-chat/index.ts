@@ -22,6 +22,7 @@
 // When the owner's Muntej engine API is ready, this function is the one place to swap it in.
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve, type Caller } from '../_shared/http.ts';
+import { requireAi } from '../_shared/ai-consent.ts';
 import { readTeam } from '../_shared/team-reader.ts';
 import { adminClient } from '../_shared/push.ts';
 import { inviteByEmail, inviterInfo } from '../_shared/invite.ts';
@@ -438,6 +439,8 @@ serve(async (req) => {
   const message = (body.message ?? '').trim();
   const source = body.source === 'voice' ? 'voice' : 'text';
   const viaWhatsApp = body.channel === 'whatsapp';
+  // a message goes to the model; taps on Confirm / Undo cards and opening the chat don't
+  if (message) await requireAi(profileId);
 
   if (body.apply_org) return await applyOrg(db, profileId, body.apply_org.patch, body.lang === 'ar');
   if (body.apply_objective) return await applyObjective(db, profileId, body.apply_objective, body.lang === 'ar');
@@ -861,7 +864,8 @@ serve(async (req) => {
       account: null,
     };
   } else {
-    // ── ask the model ──
+    // ── ask the model ── (only with this person's permission; the message check above covers the rest)
+    await requireAi(profileId);
     // gpt-4.1: ~2-4 s replies with good Saudi Arabic; gpt-5-mini was 5-12 s (its reasoning step) for the same quality
     const model = Deno.env.get('CHAT_MODEL') ?? 'gpt-4.1';
     // a refusal or a reply in the wrong shape is usually a one-off: ask once more before telling the person (owner, 2 Nov:

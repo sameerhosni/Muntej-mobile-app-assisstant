@@ -8,6 +8,7 @@
 // no cycles, admin roles only by the super admin. Images and PDFs go to the model as they are; Excel / CSV are turned
 // into text first (SheetJS). Env: OPENAI_API_KEY, IMPORT_MODEL (default gpt-4.1: reads Arabic org charts well).
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
+import { requireAi } from '../_shared/ai-consent.ts';
 import { peopleFromMail, rememberSkips } from '../_shared/mail-people.ts';
 import { phCapture } from '../_shared/posthog.ts';
 import { adminClient } from '../_shared/push.ts';
@@ -28,6 +29,7 @@ serve(async (req) => {
   const { db, profileId } = dry ? { db: adminClient(), profileId: body.test_as! } : await getCaller(req);
   if (dry && body.action !== 'read') throw new HttpError(400, 'Dry runs only read');
   if (body.action === 'apply') return json(await apply(db, profileId, body.draft_id ?? '', body.people ?? []));
+  await requireAi(profileId);
   // the people in what Muntej read for you (count_only: just how many, for the Home card)
   if (body.action === 'from_mail') return json(await peopleFromMail(db, profileId, { countOnly: !!body.count_only }));
   if (body.action !== 'read') throw new HttpError(400, 'Unknown action');

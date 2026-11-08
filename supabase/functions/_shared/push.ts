@@ -75,7 +75,9 @@ export async function sendPush(profileIds: string[], msg: PushMessage, admin = a
   if (!tokens.length) return 0;
   // someone who chose Hindi reads it in Hindi, whoever wrote the message (Arabic and English are written by each sender)
   const { data: hindi } = await admin.from('profiles').select('id').in('id', ids).eq('locale', 'hi');
-  const hiPeople = new Set((hindi ?? []).map((p) => p.id as string));
+  // the translation is done by the AI: only for people who allowed it, the others read the original
+  const allowed = await Promise.all((hindi ?? []).map(async (p) => ((await admin.rpc('ai_allowed', { p_profile: p.id })).data === true ? (p.id as string) : null)));
+  const hiPeople = new Set(allowed.filter((x): x is string => !!x));
   const hiTokens = new Set((rows ?? []).filter((r) => hiPeople.has(r.profile_id as string)).map((r) => r.token as string));
   const [hiTitle, hiBody] = hiTokens.size ? await localizeTexts(admin, 'hi', [msg.title, msg.body]) : [msg.title, msg.body];
 

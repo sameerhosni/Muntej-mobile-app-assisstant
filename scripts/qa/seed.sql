@@ -44,6 +44,8 @@ begin
     manager_id = excluded.manager_id, status = 'active', deleted_batch = null, phone = null, locale = 'ar';
   -- the QA manager tests, so features in testing are checked too (and only the manager)
   update public.profiles set tester = (id = boss) where account_id = qa;
+  -- everyone here allowed AI (cases.mjs checks the "Not now" side on its own, then puts this back)
+  update public.profiles set ai_consent = true, ai_consent_at = now() where account_id = qa;
 
   -- nothing goes out from the test company
   insert into public.notification_prefs (profile_id, channels)

@@ -3,12 +3,13 @@
 // Provider: OpenAI (TTS_MODEL, default "gpt-4o-mini-tts"; TTS_VOICE, default "nova"). Arabic is read in a warm
 // Saudi dialect.
 import { corsHeaders, getCaller, HttpError, requireEnv, serve } from '../_shared/http.ts';
+import { requireAi } from '../_shared/ai-consent.ts';
 
 const MAX_CHARS = 1500;
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
-  await getCaller(req);
+  await requireAi((await getCaller(req)).profileId);
   const { text, lang } = (await req.json().catch(() => ({}))) as { text?: string; lang?: string };
   const say = String(text ?? '')
     .trim()

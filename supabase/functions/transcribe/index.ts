@@ -3,13 +3,15 @@
 // The audio is streamed to the STT provider and never stored.
 // Provider is configurable: STT_PROVIDER (default "openai"), STT_MODEL (default "gpt-4o-transcribe").
 import { getCaller, HttpError, json, requireEnv, serve } from '../_shared/http.ts';
+import { requireAi } from '../_shared/ai-consent.ts';
 import { adminClient } from '../_shared/push.ts';
 
 const MAX_BYTES = 25 * 1024 * 1024; // OpenAI limit
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
-  const { db, userId } = await getCaller(req);
+  const { db, userId, profileId } = await getCaller(req);
+  await requireAi(profileId);
 
   const form = await req.formData();
   const file = form.get('file');

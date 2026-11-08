@@ -2,6 +2,7 @@
 // Output: { texts: string[] }, same order. Called by the app for what it reads from the database (alerts, decisions, chat…)
 // and by scripts/i18n/hi.mjs (x-cron-secret) for the app's strings. See _shared/localize.ts.
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
+import { aiAllowed } from '../_shared/ai-consent.ts';
 import { localizeTexts, needsLocalizing } from '../_shared/localize.ts';
 import { adminClient } from '../_shared/push.ts';
 
@@ -13,8 +14,10 @@ serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
   const secret = Deno.env.get('CRON_SECRET');
   const trusted = !!secret && req.headers.get('x-cron-secret') === secret;
-  if (!trusted) await getCaller(req);
+  const profileId = trusted ? null : (await getCaller(req)).profileId;
   const { lang, texts } = (await req.json().catch(() => ({}))) as { lang?: string; texts?: unknown };
+  // the AI translates: without the reader's permission the texts come back as they are
+  if (profileId && !(await aiAllowed(profileId)) && Array.isArray(texts)) return json({ texts, failed: [] });
   if (!needsLocalizing(lang)) throw new HttpError(400, 'Language not supported');
   if (!Array.isArray(texts) || texts.some((t) => typeof t !== 'string')) throw new HttpError(400, 'texts needed');
   if (texts.length > (trusted ? MAX_FOR_THE_SCRIPT : MAX_FOR_A_PERSON)) throw new HttpError(400, 'Too many texts');

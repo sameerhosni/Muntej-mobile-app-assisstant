@@ -13,12 +13,12 @@ import { InviteLinkCard, type InviteLinkPayload } from '@/features/invite/Invite
 import { intlTag } from '@/lib/i18n/locale';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react-native';
-import { AppText, BrandSymbol, IconButton } from '@/components/ui';
+import { ChevronLeft, X } from 'lucide-react-native';
+import { AppText, BrandSymbol, IconButton, Screen } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -89,6 +89,9 @@ import {
 } from '@/features/chat/ActionCards';
 import { munti } from '@/features/munti/store';
 import { MUNTI_NS } from '@/features/munti/tips';
+import { useAiConsent } from '@/features/ai-consent/api';
+import { AiOffCard } from '@/features/ai-consent/AiDisclosure';
+import { AI_NS } from '@/features/ai-consent/strings';
 
 type Pending = {
   content: string;
@@ -106,7 +109,25 @@ const AUTO_STOP_MS = 2000;
 /** voice: nobody needs more than this for one message */
 const MAX_RECORD_MS = 120_000;
 
-export default function MuntejChatScreen() {
+/** someone who chose "Not now" on AI: the chat would send their words to OpenAI, so they get the hand-made form */
+export default function CaptureScreen() {
+  const ai = useAiConsent();
+  const { isRTL } = useDirection();
+  const { t } = useScreenT(AI_NS);
+  if (ai.aiOn) return <MuntejChatScreen />;
+  return (
+    <Screen>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <IconButton label={t('back')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/' as Href))}>
+          <ChevronLeft color={colors.text} size={22} strokeWidth={2} style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }} />
+        </IconButton>
+      </View>
+      <AiOffCard />
+    </Screen>
+  );
+}
+
+function MuntejChatScreen() {
   const { t } = useScreenT(NS);
   const { t: tg } = useTranslation();
   const { lang } = useDirection();

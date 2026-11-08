@@ -6,6 +6,7 @@
 // Model via STEPS_MODEL / PARSE_MODEL (default gpt-5-mini).
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve } from '../_shared/http.ts';
+import { requireAi } from '../_shared/ai-consent.ts';
 import { adminClient } from '../_shared/push.ts';
 
 const Suggested = z.object({ steps: z.array(z.string().describe('one short step, starts with a verb, in the task language')) });
@@ -74,7 +75,8 @@ const similar = (a: string, b: string) => {
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
-  const { db } = await getCaller(req);
+  const { db, profileId } = await getCaller(req);
+  await requireAi(profileId);
   const admin = adminClient();
   const body = (await req.json().catch(() => ({}))) as { action?: string; task_id?: string; text?: string };
   const { data: task } = await db.from('tasks').select('id, title, goal, definition_of_done, owner_id, due_at').eq('id', body.task_id ?? '').maybeSingle();

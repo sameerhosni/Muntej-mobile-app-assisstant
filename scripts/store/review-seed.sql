@@ -48,6 +48,11 @@ begin
   select id, demo from auth.users where email = 'play-review@muntej.app'
   on conflict (user_id) do update set account_id = excluded.account_id, updated_at = now();
 
+  -- the reviewer is asked about AI on every fresh review (Apple 5.1.2, 8 Nov); the sample team isn't real and has
+  -- allowed it, so proof checks and translations work in the demo
+  update public.profiles set ai_consent = null, ai_consent_at = null where lower(email) = 'play-review@muntej.app';
+  update public.profiles set ai_consent = true, ai_consent_at = now() where account_id = demo and id <> boss;
+
   -- nothing goes out from the demo company
   insert into public.notification_prefs (profile_id, channels)
   select id, '{"push": false, "email": false, "whatsapp": false, "teams": false}'::jsonb

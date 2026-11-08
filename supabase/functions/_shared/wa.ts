@@ -20,8 +20,12 @@ export const capture: { on: boolean; out: unknown[] } = { on: false, out: [] };
 /** does this number belong to someone who chose Hindi? */
 async function readsHindi(phone: string): Promise<boolean> {
   if (!phone) return false;
-  const { data } = await adminClient().from('profiles').select('id').eq('phone', phone.replace(/\D/g, '')).neq('status', 'deleted').eq('locale', 'hi').limit(1);
-  return !!data?.length;
+  const admin = adminClient();
+  const { data } = await admin.from('profiles').select('id').eq('phone', phone.replace(/\D/g, '')).neq('status', 'deleted').eq('locale', 'hi').limit(1);
+  if (!data?.length) return false;
+  // the translation is done by the AI: only for someone who allowed it, the others read the original
+  const { data: ok } = await admin.rpc('ai_allowed', { p_profile: data[0].id });
+  return ok === true;
 }
 
 /** Someone who chose Hindi reads every message in it, whoever wrote it (Arabic and English are written by each sender). */

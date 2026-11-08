@@ -6,6 +6,7 @@
 // Env: OPENAI_API_KEY, TRANSLATE_MODEL (default gpt-4.1: the good Saudi Arabic the chat uses).
 import { z } from 'npm:zod@4.6.7';
 import { getCaller, HttpError, json, requireEnv, serve } from '../_shared/http.ts';
+import { aiAllowed } from '../_shared/ai-consent.ts';
 import { adminClient } from '../_shared/push.ts';
 
 const LANGUAGES: Record<string, string> = { en: 'English', ar: 'Arabic', hi: 'Hindi' };
@@ -76,6 +77,9 @@ serve(async (req) => {
   }
 
   const admin = adminClient();
+  // whoever gave the task wrote its text: theirs goes to the AI only with their permission
+  const { data: giver } = await admin.from('tasks').select('assigner_id').eq('id', task_id).maybeSingle();
+  if (!(await aiAllowed(giver?.assigner_id, admin))) return json({ skipped: 'ai_not_allowed' });
   // someone else is on it: the claim told them to look again; a person opening it waits for their language
   let claimed = false;
   for (let i = 0; i < (asked ? 6 : 1) && !claimed; i++) {

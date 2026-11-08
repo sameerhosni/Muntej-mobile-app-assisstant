@@ -59,9 +59,12 @@ The current name, "Muntej ( Task Assisstant )", has a typo. Replace it with the 
     is in Arabic and English. Tap the microphone to say a task; Saree3 (the assistant) assigns it and follows up.
     There are no purchases in the app. The full user journey, screen by screen:
     https://nizamy-muntej.expo.app/journey.html
+    AI: right after signing in, the app asks "Can Muntej use AI on your data?" It lists what is sent and says it goes
+    to OpenAI. Nothing is sent before you tap Allow AI; with Not now the app works without AI. Change it anytime in
+    Settings → AI assistant (OpenAI).
     To delete an account: Settings → scroll down → Delete my account → Delete. You can test it with this demo login:
-    it signs you out, and the same login works again afterwards in the demo company. If the button is missing, close
-    and reopen the app once to load the latest update.
+    it signs you out, and the same login works again afterwards in the demo company.
+    Screen recording of account deletion on an iPhone: <PASTE THE RECORDING LINK>
     ```
   - Journey guide: page `support-web/journey.html`, PDF `store/journey/muntej-user-journey.pdf`. To refresh them, run
     `node scripts/store/journey.mjs`, then `node --use-system-ca scripts/store/journey-guide.mjs`, then deploy
@@ -81,6 +84,47 @@ The current name, "Muntej ( Task Assisstant )", has a typo. Replace it with the 
     company, Horizon Trading. Part 2 of the guide shows the employee screens.
 
     The screens are captured at iPhone size from the app's web build, using the same demo company.
+
+    Thank you.
+    ```
+  - Reply to Apple's 8 Nov review (5.1.1(i) / 5.1.2(i), 3.2, 5.1.1(v)), after the AI permission update is live:
+    ```
+    Hello,
+
+    Thank you for the review. Here is what we changed and the answers to your questions.
+
+    Guidelines 5.1.1(i) and 5.1.2(i), data sent to a third-party AI service
+    Muntej now asks before any personal data is sent to AI. Right after signing in, the app shows "Can Muntej use AI
+    on your data?". The screen lists what is sent:
+    - what the user types or says, including voice recordings;
+    - names, job titles and skills of their team;
+    - task details;
+    - proof photos and files they attach;
+    - org charts and lists they upload;
+    - and, only if they connect them, emails, chats and meetings from Gmail, Outlook, Teams or WhatsApp.
+    The screen names the receiver, OpenAI (USA), and links to the privacy policy. Nothing is sent until the user taps
+    "Allow AI". With "Not now", the app keeps working without AI: tasks are created by hand, and our server refuses
+    every AI request for that user. The choice can be changed anytime in Settings → AI assistant (OpenAI). The
+    privacy policy (https://nizamy-muntej.expo.app/privacy.html, section 4) explains the same data, how it is
+    collected, every use, and that OpenAI and our other providers protect it at least as well as our policy. You can
+    see the screen by signing in with the demo login.
+
+    Guideline 3.2, public audience
+    1. No. Muntej is not restricted to one company or organization.
+    2. No. It is not designed for a limited group of companies. Any company or organization can start using it,
+       with no invitation, contract or approval from us.
+    3. Everything in the app is for the general public. Anyone can download Muntej, sign up with their email and a
+       6-digit code, and start creating and following up tasks right away, on their own or with a team they invite.
+    4. Users sign up themselves in the app with their email; signing up creates their own company workspace, where
+       they are the admin. People can also join through an invitation from their manager (email or WhatsApp link).
+    5. No. There is no paid content. Muntej is free, with no purchases, subscriptions or paid features.
+
+    Guideline 5.1.1(v), account deletion
+    Account deletion is in the app: Settings → scroll down → Delete my account → Delete. The account is deleted
+    right away and the user is signed out. It works for every user, including company admins and the demo login.
+    Screen recording on a physical iPhone (sign in with the demo login, open Settings, delete the account, confirm):
+    <PASTE THE RECORDING LINK>
+    We also added the recording link to the Notes in App Review Information.
 
     Thank you.
     ```

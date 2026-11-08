@@ -2,6 +2,7 @@
 // Tokens never leave the server: AES-GCM with CONNECTIONS_KEY (base64, 32 bytes), stored in connection_secrets.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { requireEnv } from './http.ts';
+import { aiAllowed } from './ai-consent.ts';
 import { sendPush } from './push.ts';
 import { ingestMessage, OPEN, type Creator } from './intake-core.ts';
 import { microsoft } from './providers/microsoft.ts';
@@ -211,10 +212,16 @@ const sameDue = (a: string | null | undefined, b: string | null | undefined) =>
     !!b &&
     new Date(Date.parse(a) + 3 * 3_600_000).toISOString().slice(0, 10) === new Date(Date.parse(b) + 3 * 3_600_000).toISOString().slice(0, 10));
 
+/** tools whose items arrive as tasks already (no AI reading) */
+const TASK_TOOLS = ['clickup', 'jira', 'trello'];
+
 export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise<SyncResult> {
   const out: SyncResult = { read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0 };
   const provider = PROVIDERS[conn.provider];
   if (!provider) return { ...out, error: 'not available yet' };
+  // mail, chats and meetings are read by the AI: wait (cursor untouched) until the owner allows it; task tools aren't
+  if (!TASK_TOOLS.includes(conn.provider) && !(await aiAllowed(conn.profile_id, admin)))
+    return { ...out, error: 'AI is off: allow it in Settings so Muntej can read this tool' };
   const today = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
   const nowIso = () => new Date().toISOString();
   const name = TOOL_NAME[conn.provider];

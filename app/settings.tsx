@@ -46,6 +46,8 @@ import { HomeSectionsRow } from '@/features/prefs/HomeSectionsRow';
 import { IdeasRow } from '@/features/ideas/IdeasRow';
 import { NS as ALERTS_NS } from '@/features/alerts/strings';
 import { ReachMe } from '@/features/alerts/ReachMe';
+import { useAiConsent } from '@/features/ai-consent/api';
+import { AiSettingCard } from '@/features/ai-consent/AiDisclosure';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
@@ -61,6 +63,7 @@ export default function SettingsScreen() {
   const { t: ta } = useScreenT(ALERTS_NS);
   const { t: tl } = useScreenT(LAUNCH_NS);
   const muntiState = useMunti();
+  const ai = useAiConsent();
   // the real role (not the "View as" one) decides admin-only things
   const realRole = me?.actual_role ?? me?.role;
   const isAdmin = canSwitchView(realRole);
@@ -348,6 +351,9 @@ export default function SettingsScreen() {
           <Toggle value={muntiState.enabled} onValueChange={munti.setEnabled} accessibilityLabel={tm('settingTitle')} />
         </View>
       </Card>
+
+      {/* AI permission (Apple 5.1.2): what goes to OpenAI, on or off at any time */}
+      {ai.asked && <AiSettingCard />}
 
       <Card>
         <View style={{ gap: 4 }}>

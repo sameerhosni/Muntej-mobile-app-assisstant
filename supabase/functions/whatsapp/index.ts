@@ -14,6 +14,7 @@ import { corsHeaders } from '../_shared/http.ts';
 import { prefersArabic } from '../_shared/localize.ts';
 import { titleIn } from '../_shared/task-text.ts';
 import { adminClient } from '../_shared/push.ts';
+import { aiAllowed } from '../_shared/ai-consent.ts';
 import { createFromSuggestion, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 import {
   ACTION_TEMPLATE,
@@ -417,6 +418,13 @@ async function handle(m: WaMessage, dry = false) {
   // ── taps ──
   const tapped = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? (m.type === 'button' ? m.button?.payload : undefined);
   if (tapped) return void (await onTap(tapped));
+  // what they write or say goes to the AI: only once they allowed it in the app (Apple 5.1.2)
+  if (!(await aiAllowed(me.id, admin)))
+    return void (await say(
+      ar
+        ? 'قبل ما أقرأ رسايلك بالذكاء الاصطناعي أحتاج إذنك 🙏 افتح تطبيق منتج ← الإعدادات ← «مساعد الذكاء الاصطناعي (OpenAI)» واسمح له، وبعدها كلمني هنا.'
+        : 'Before I read your messages with AI I need your permission 🙏 Open the Muntej app → Settings → “AI assistant (OpenAI)” and allow it, then talk to me here.',
+    ));
   // the first message they send before setting up: Saree3 says hello and confirms what's filled in (once)
   if (setupOpen && !(await pendingKey(`obw:${me.id}`, 7 * 24 * 60))) return void (await obWelcome());
 
