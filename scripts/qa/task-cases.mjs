@@ -314,6 +314,10 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
     await mail(MAIL_IDS[1], `"Ahmed QA" <qa-manager@qa.muntej.test>`, `"Reem Salem" <${REEM}>`, `"Faisal QA" <qa-faisal@qa.muntej.test>, no-reply@notifications.qa.muntej.test`, 'Thanks Reem, send it to the client');
     await mail(MAIL_IDS[2], `"Client Buyer" <${CLIENT}>`, `"Ahmed QA" <qa-manager@qa.muntej.test>`, '"Cc Only" <cc.only@qa.muntej.test>', 'Please share the offer');
     await mail(MAIL_IDS[3], `"Client Buyer" <${CLIENT}>`, `"Ahmed QA" <qa-manager@qa.muntej.test>`, null, 'Any news on the offer?');
+    // the owner's screenshot, 8 Nov: "Sameer Hosni" (him, as a chat names him) was suggested to him. A chat gives only names:
+    // «A. QA» is the QA manager ("Ahmed QA") the way «Sameer Hosni» is "S Hosni"
+    await sql(`insert into public.incoming_items (owner_id, source, external_id, sender, subject, received_at, body, status, suggestions)
+         values ('${QA_BOSS}', 'google_chat', 'qa-mail-5', 'Reem Salem', 'QA chat', now(), 'Direct message between: A. QA, Reem Salem\n\n[10:00] Reem Salem: the sheet is ready\n[10:01] A. QA: thanks', 'nothing', '[]'::jsonb)`);
     let draft = null;
     let before = null;
     await check('team', 'People found in your mail are suggested for the team', async () => {
@@ -327,6 +331,7 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
       expect(reem.manager_id === QA_FAISAL && !reem.skip, `Reem goes under ${reem.manager_id ?? 'you'}${reem.skip ? ', skipped' : ''}, not Faisal, who mails with her`);
       expect(client?.skip && client.outside, `the client is ${client ? 'not set to skip' : 'missing'}`);
       expect(!people.some((p) => /qa-faisal|qa-manager|no-reply/.test(p.email ?? '')), 'you, a teammate or a no-reply address is in the list');
+      expect(!people.some((p) => /^(a\.? ?qa|ahmed qa)$/i.test((p.full_name ?? '').trim())), 'you were suggested to yourself, by the name a chat gives you');
       return `${people.length} found, Reem under Faisal`;
     });
     await check('team', 'Confirming adds them, and skipped people aren’t asked again', async () => {

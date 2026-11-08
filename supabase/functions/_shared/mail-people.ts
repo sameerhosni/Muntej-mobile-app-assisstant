@@ -82,7 +82,7 @@ export async function peopleFromMail(db: SupabaseClient, profileId: string, opts
   // in testing until the owner approves it (features.testing): only testers have it
   const { data: on } = await db.rpc('feature_on', { p_key: 'team_from_mail' });
   if (on === false) throw new HttpError(403, 'Not available yet');
-  const { data: me } = await db.from('profiles').select('id, account_id, email, role, manager_id').eq('id', profileId).single();
+  const { data: me } = await db.from('profiles').select('id, account_id, email, role, manager_id, full_name, full_name_ar').eq('id', profileId).single();
   if (!me) throw new HttpError(404, 'No profile');
   const [{ data: team }, { data: items }, { data: skips }, { data: conns }] = await Promise.all([
     db.from('profiles').select('id, full_name, full_name_ar, email, phone, manager_id, status').eq('account_id', me.account_id).neq('status', 'deleted'),
@@ -97,11 +97,28 @@ export async function peopleFromMail(db: SupabaseClient, profileId: string, opts
   // the company's own domains: the team's and yours (never gmail.com and the like, never Muntej's own sign-in domains)
   const domains = new Set([...teamEmail.keys(), ...mine].map(domainOf).filter((d) => d && !PUBLIC.test(d) && !/muntej\.(invalid|app)$/.test(d)));
 
+  // you, by name too (owner, 8 Nov: "you get my email which does not make sense"): a chat or meeting gives only a name,
+  // and "Sameer Hosni" there is "S Hosni" here. Your profile names, plus the names your own addresses carry in mail.
+  const myNames = new Set([me.full_name, me.full_name_ar].filter(Boolean).map((n) => nameKey(n as string)));
+  const parsed = (items ?? []).map((it) => ({ it, found: peopleInItem(it.source as string, (it.body as string) ?? '') }));
+  for (const { found } of parsed) for (const f of found) if (f.email && f.name && mine.has(f.email)) myNames.add(nameKey(f.name));
+  const words = (k: string) => k.slice(5).split(' ').filter(Boolean);
+  const isMe = (name: string | null) => {
+    if (!name) return false;
+    const k = nameKey(name);
+    if (myNames.has(k)) return true;
+    const w = words(k);
+    // same last name and the same first letter: "S Hosni" ≈ "Sameer Hosni"
+    return [...myNames].some((m) => {
+      const v = words(m);
+      return w.length >= 2 && v.length >= 2 && w.at(-1) === v.at(-1) && w[0][0] === v[0][0] && (w[0].length === 1 || v[0].length === 1 || w[0] === v[0]);
+    });
+  };
+
   // everyone, and who they appear with
   const seen = new Map<string, Seen>();
   const withTeam = new Map<string, Map<string, number>>();
-  for (const it of items ?? []) {
-    const found = peopleInItem(it.source as string, (it.body as string) ?? '');
+  for (const { it, found } of parsed) {
     const here = new Set<string>();
     for (const f of found) {
       const tid = f.email ? teamEmail.get(f.email) : undefined;
@@ -110,6 +127,7 @@ export async function peopleFromMail(db: SupabaseClient, profileId: string, opts
     for (const f of found) {
       if (f.email && (mine.has(f.email) || teamEmail.has(f.email) || ROBOT.test(f.email))) continue;
       if (!f.email && !f.name) continue;
+      if (isMe(f.name)) continue;
       const key = f.email ?? nameKey(f.name!);
       const s = seen.get(key) ?? { name: null, email: f.email, items: new Set(), talks: new Set(), direct: false };
       if (f.name && (!s.name || f.name.length > s.name.length)) s.name = f.name;

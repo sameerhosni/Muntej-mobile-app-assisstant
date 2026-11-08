@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team review one by one</title>
+<style>
+  :root { --bg:#F3F6FB; --card:#FFFFFF; --muted:#5B6576; --line:#E2E8F2; --blue:#1F6FEB; --blueTint:#E8F0FE; --navy:#0B1B3F; --amberTint:#FAEEDA; --amber:#854F0B; --greenTint:#E1F5EE; --green:#0B7A55; --redTint:#FCEBEB; --red:#C2352B; }
+  body { margin:0; padding:18px 16px 28px; background:var(--bg); font-family: Tahoma, "Segoe UI", sans-serif; color:var(--navy); width:390px; box-sizing:border-box; }
+  h2 { font-size:15px; color:var(--muted); font-weight:600; margin:6px 0 10px; }
+  .tag { display:inline-block; background:var(--navy); color:#fff; border-radius:8px; padding:2px 9px; font-size:13px; margin-left:6px; }
+  .title { font-size:22px; font-weight:800; margin:0 0 4px; }
+  .sub { font-size:13px; color:var(--muted); margin-bottom:12px; }
+  .sect { font-size:14px; font-weight:800; margin:14px 2px 8px; display:flex; align-items:center; gap:6px; }
+  .sect small { font-weight:400; color:var(--muted); font-size:12px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:12px; margin-bottom:8px; }
+  .top { display:flex; align-items:center; gap:10px; }
+  .av { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff; flex:none; }
+  .nm { font-weight:800; font-size:15px; }
+  .em { font-size:12px; color:var(--muted); direction:ltr; text-align:right; }
+  .mgr { font-size:12px; color:var(--muted); margin-top:2px; }
+  .mgr b { color:var(--blue); font-weight:700; }
+  .btns { display:flex; gap:8px; margin-top:10px; }
+  .btn { flex:1; border-radius:999px; padding:10px; font-size:14px; font-weight:800; text-align:center; }
+  .yes { background:var(--green); color:#fff; }
+  .no { background:#fff; border:1px solid var(--line); color:var(--muted); }
+  .done { display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--line); border-radius:14px; padding:9px 12px; margin-bottom:6px; font-size:13px; }
+  .done .av { width:28px; height:28px; font-size:12px; }
+  .done .s { flex:1; }
+  .undo { color:var(--blue); font-weight:700; font-size:12px; }
+  .ok { color:var(--green); font-weight:800; }
+  .x { color:var(--red); font-weight:800; }
+  .bar { height:6px; background:var(--line); border-radius:9px; margin:4px 0 14px; overflow:hidden; }
+  .bar div { height:100%; background:var(--blue); width:37%; }
+  .big { background:#fff; border:1px solid var(--line); border-radius:22px; padding:20px 16px; text-align:center; }
+  .big .av { width:64px; height:64px; font-size:24px; margin:0 auto 8px; }
+  .big .nm { font-size:19px; }
+  .why { background:var(--bg); border-radius:12px; padding:8px 10px; font-size:12px; color:var(--muted); margin:12px 0 4px; text-align:right; }
+  .pick { display:flex; align-items:center; justify-content:space-between; background:var(--blueTint); border-radius:12px; padding:9px 12px; margin-top:10px; font-size:13px; }
+  .out { background:var(--amberTint); color:var(--amber); border-radius:999px; padding:2px 9px; font-size:11px; font-weight:800; }
+  .bottom { background:linear-gradient(90deg,#1F6FEB,#2E9BF0); color:#fff; border-radius:999px; padding:14px; text-align:center; font-weight:800; margin-top:14px; }
+  hr { border:0; border-top:2px dashed #C9D3E3; margin:26px 0 18px; }
+</style>
+</head>
+<body>
+  <h2><span class="tag">١</span>القائمة: كل شخص له «أضفه» و«لا»</h2>
+  <div class="title">راجع فريقك</div>
+  <div class="sub">6 من شركتك · 2 من برّا · قرّرت في 2</div>
+
+  <div class="sect">من شركتك <small>(t2.sa · t2saas.sa)</small></div>
+  <div class="done"><div class="av" style="background:#F07B2B">M</div><div class="s"><b>Mohammed Essameldin</b> · تحت M Faisal</div><span class="ok">✓ بينضاف</span><span class="undo">تراجع</span></div>
+  <div class="done"><div class="av" style="background:#22B07D">A</div><div class="s"><b>Anas Ghurra</b></div><span class="x">✕ لا</span><span class="undo">تراجع</span></div>
+
+  <div class="card">
+    <div class="top"><div class="av" style="background:#F07B2B">K</div>
+      <div style="flex:1"><div class="nm">Khalil ibrahim</div><div class="em">k.ibrahim@t2.sa</div><div class="mgr">تحت: <b>أنت ✏️</b></div></div></div>
+    <div class="btns"><div class="btn yes">✓ أضفه</div><div class="btn no">✕ لا</div></div>
+  </div>
+  <div class="card">
+    <div class="top"><div class="av" style="background:#2F7BEA">M</div>
+      <div style="flex:1"><div class="nm">Mohammed Sadiq</div><div class="em">m.sadiq@t2.sa</div><div class="mgr">تحت: <b>أنت ✏️</b></div></div></div>
+    <div class="btns"><div class="btn yes">✓ أضفه</div><div class="btn no">✕ لا</div></div>
+  </div>
+
+  <div class="sect">من برّا شركتك <span class="out">ما ينضافون إلا لو قلت</span></div>
+  <div class="card">
+    <div class="top"><div class="av" style="background:#8DB8EE">R</div>
+      <div style="flex:1"><div class="nm">Rahma Hamouda</div><div class="em">rahma@client.com</div><div class="mgr">تحت: <b>M Faisal ✏️</b></div></div></div>
+    <div class="btns"><div class="btn yes">✓ أضفه</div><div class="btn no">✕ لا</div></div>
+  </div>
+  <div class="bottom">أضف 1 · باقي 4 تقرّر فيهم</div>
+
+  <hr>
+
+  <h2><span class="tag">٢</span>واحد واحد: شخص في الشاشة، تقرّر وتنتقل للي بعده</h2>
+  <div class="title">راجع فريقك</div>
+  <div class="sub">3 من 8 · من شركتك</div>
+  <div class="bar"><div></div></div>
+  <div class="big">
+    <div class="av" style="background:#F07B2B">K</div>
+    <div class="nm">Khalil ibrahim</div>
+    <div class="em" style="text-align:center">k.ibrahim@t2.sa</div>
+    <div class="why">📨 تراسلتوا 4 مرات · آخرها «عرض السعر للعميل»</div>
+    <div class="pick"><span>بيكون تحت</span><b style="color:var(--blue)">أنت ✏️</b></div>
+    <div class="btns" style="margin-top:16px"><div class="btn yes">✓ أضفه</div><div class="btn no">✕ لا</div></div>
+  </div>
+  <div style="text-align:center;font-size:13px;color:var(--blue);margin-top:12px;font-weight:700">↩ ارجع للي قبله</div>
+  <div style="font-size:12px;color:var(--muted);margin-top:14px;text-align:center">بعد اللي من شركتك، يجيك اللي من برّا واحد واحد وعليه «من برّا شركتك»</div>
+</body>
+</html>
