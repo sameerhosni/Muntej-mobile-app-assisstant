@@ -1,7 +1,6 @@
 {
-  "message": "Team from your mail; test-before-live releases",
-  "group": "0fa4058f-d4f1-4bb5-b6e8-d9ae56727919",
-  "at": "2026-11-06T13:56:10.895Z",
-  "commit": "6c8fa72e296f4eb50eb753a48e3031670db4462a",
-  "live_at": "2026-11-08T06:57:31.199Z"
+  "message": "Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI",
+  "group": "c78b30c3-eae8-4747-9433-580abcd35b6d",
+  "at": "2026-11-08T11:58:08.354Z",
+  "commit": "70c67e5df3a57302c63e279fe9896db0ef5b3a44"
 }
