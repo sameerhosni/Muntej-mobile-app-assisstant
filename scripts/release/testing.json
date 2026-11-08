@@ -1,6 +1,6 @@
 {
-  "message": "Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI; From → To on tasks with one-tap change; meeting tasks grouped by meeting and person; meeting and email tasks only for the right people; Task page sections (needed from you / where it stands); From → To on found tasks; steps only on tap; Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android)",
-  "group": "79680866-2c9f-49e8-8887-fb529fc00750",
-  "at": "2026-11-08T17:06:51.197Z",
-  "commit": "dc68f6e079e6071cd82a9e52659e06e31faaf1e6"
+  "message": "Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI; From → To on tasks with one-tap change; meeting tasks grouped by meeting and person; meeting and email tasks only for the right people; Task page sections (needed from you / where it stands); From → To on found tasks; steps only on tap; Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android); Team from mail: Add or No on each person, outside people apart, never you; who sees and gives tasks: your team, tasks your team handed out, tasks naming you, give to your team and your level (admins see all)",
+  "group": "2d097172-4456-4cc2-9b39-2c9f8bc1e892",
+  "at": "2026-11-08T18:24:08.438Z",
+  "commit": "0d53d113ebbe64fdd835562b6c555fe8ef81d633"
 }
