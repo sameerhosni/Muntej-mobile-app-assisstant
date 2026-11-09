@@ -1,7 +1,6 @@
 {
-  "message": "Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI; From → To on tasks with one-tap change; meeting tasks grouped by meeting and person; meeting and email tasks only for the right people; Task page sections (needed from you / where it stands); From → To on found tasks; steps only on tap; Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android); Team from mail: Add or No on each person, outside people apart, never you; who sees and gives tasks: your team, tasks your team handed out, tasks naming you, give to your team and your level (admins see all); Team from mail: Add asks under whom, then invitations go out; budget is optional everywhere; tasks load about 15x faster",
-  "group": "22e60727-f4ad-422b-9d66-658c6cb18bcd",
-  "at": "2026-11-08T19:21:51.291Z",
-  "commit": "e213defaaebad2445e324957b1f6a89bf77b8d6a",
-  "live_at": "2026-11-09T04:32:29.794Z"
+  "message": "One Cancel, split row with X, chat stops inventing cards",
+  "group": "f6490fa3-15ee-4c66-b169-041ef97fb08e",
+  "at": "2026-11-09T13:03:26.311Z",
+  "commit": "327b9a39f88c5a112d0c48c8df8f832a3dff2114"
 }

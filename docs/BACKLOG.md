@@ -9,6 +9,30 @@ Last updated: 2026-11-09
 
 ---
 
+## 0. Nouran's testing, 9 Nov (fix one by one, owner picks the order)
+| # | Item |
+|---|---|
+| N1 | ✅ Cancel / Delete → one Cancel, only whoever gave the task (shipping 9 Nov) |
+| N2 | Task page: only «غيرها مع منتج» → need Close / Send for review / Ask for more time / Comment to the owner (the button shows only after every step is ticked) |
+| N3 | Some tasks show «ارسلها للمراجعة»: confirm that the giver picks auto-close or review when making a task |
+| N4 | Busy flow writes an AI reply: let her write her own reason; check Sameer got it |
+| N5 | The 3 cards at the bottom of the task page make no sense |
+| N6 | Refused / busy task still in her tasks, still with Send for review; manager approved the busy and the dashboard still shows «استلمت» |
+| N7 | Thanks sent to Nouranemira: check it reached her |
+| N8 | Settings → Alerts «ارسل لي تجربة» says no phone registered (she expected app push) and didn't work |
+| N9 | Decisions: can't try; asking the chat for a manager approval should reach the manager (chat side fixed 9 Nov: no longer out of scope) |
+| N10 | Someone assigning her a task over the chat didn't reach her |
+| N11 | She gets alerts for her own actions (status change) |
+| N12 | Push doesn't arrive on the phone; she has to open the app |
+| N13 | Chat → tap المهام opens an empty screen until another tab is tapped; app freezes often |
+| N14 | Objective made in the chat: a task "under it" shows no link in the UI |
+| N15 | As Nouranemira: alert "task between N Emira and Sameer done" opens as hers, not N Emira's |
+| N16 | «ننتظر منهم» tab: a pending task can't be tapped |
+| N17 | Manager answered her question on WhatsApp; WhatsApp said done, nothing changed on her side |
+| N18 | «اسأل المدير عن موعد التسليم»: the manager got nothing on WhatsApp |
+| N19 | Sent for review: the manager got no WhatsApp review request |
+| N20 | Add a «يحتاجك» tab under المهام; her questions, due date ask and refusal don't show on the manager's side |
+
 ## 1. Needs the owner (accounts, keys, settings outside the app)
 
 | # | Item | What's left | Code status |
@@ -105,6 +129,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-09 · In testing: One Cancel, split row with X, chat stops inventing cards (server: muntej-chat, whatsapp · Muntej Test update 1.0.0)
 - 2026-11-09 · Live: Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI; From → To on tasks with one-tap change; meeting tasks grouped by meeting and person; meeting and email tasks only for the right people; Task page sections (needed from you / where it stands); From → To on found tasks; steps only on tap; Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android); Team from mail: Add or No on each person, outside people apart, never you; who sees and gives tasks: your team, tasks your team handed out, tasks naming you, give to your team and your level (admins see all); Team from mail: Add asks under whom, then invitations go out; budget is optional everywhere; tasks load about 15x faster (on for everyone: ai_consent, assign_rules)
 - 2026-11-08 · In testing: Team from mail: Add asks under whom, then invitations go out; budget is optional everywhere; tasks load about 15x faster (server: muntej-chat, parse-task · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: Team from mail: Add or No on each person, outside people apart, never you; who sees and gives tasks: your team, tasks your team handed out, tasks naming you, give to your team and your level (admins see all) (server: connect, muntej-chat, team-import · Muntej Test update 1.0.0)
