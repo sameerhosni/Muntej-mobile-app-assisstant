@@ -181,6 +181,11 @@ async function setup(o: {
     scopes?: string[];
   };
   out.scopes = scopes.scopes;
+  // which Meta app and kind of user the token belongs to (the webhook lives on that app), never the token itself
+  {
+    const d = (dbg.body as { data?: Record<string, unknown> }).data ?? {};
+    out.token_app = { app_id: d.app_id, application: d.application, type: d.type, is_valid: d.is_valid, expires_at: d.expires_at, user_id: d.user_id };
+  }
   const wabas = [...new Set((scopes.granular_scopes ?? []).filter((g) => g.scope.startsWith('whatsapp')).flatMap((g) => g.target_ids ?? []))];
   if (o.waba) wabas.push(o.waba);
   // a token with access to everything lists no ids: ask the business which WhatsApp accounts it has
