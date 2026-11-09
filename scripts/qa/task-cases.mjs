@@ -455,6 +455,18 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         await sql(`delete from public.decisions where task_id = '${t.id}'; delete from public.alerts where task_id = '${t.id}'`);
         return 'comment + more time with her reason';
       });
+      // The owner, 9 Nov (N11): "I get notifications for actions I did as well" (and the ask came twice)
+      await check('rules', 'One alert per action, never to yourself', async () => {
+        const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA rule one alert', '${P.ABDULLAH}', '${P.FAISAL}', 'assigned') returning id`);
+        await rpc('ask_task_detail', { p_task: t.id, p_what: 'due' }, await as('ABDULLAH'));
+        const [n] = await sql(`select count(*)::int n from public.alerts where task_id = '${t.id}' and profile_id = '${P.FAISAL}'`);
+        expect(n.n === 1, `Faisal got ${n.n} alerts for one question`);
+        await rpc('set_task_status', { p_task: t.id, p_status: 'in_progress' }, await as('ABDULLAH'));
+        const [self] = await sql(`select count(*)::int n from public.alerts where task_id = '${t.id}' and profile_id = '${P.ABDULLAH}'`);
+        expect(self.n === 0, `Abdullah got ${self.n} alert(s) for his own change`);
+        await sql(`delete from public.alerts where task_id = '${t.id}'`);
+        return 'one alert, none to yourself';
+      });
       // The owner, 9 Nov (N7): "I sent a thank you for nouranemira, need to check if it reflected" (it was a demo)
       await check('rules', 'A thank-you is saved and reaches the person thanked', async () => {
         const id = await rpc('send_kudos', { p_to: P.FAISAL, p_value: 'teamwork', p_message: 'شكراً على المساعدة في ملف العميل', p_points: 25 }, await as('ABDULLAH'));
