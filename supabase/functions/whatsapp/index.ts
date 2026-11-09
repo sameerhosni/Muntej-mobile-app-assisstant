@@ -270,6 +270,26 @@ async function signedByMeta(raw: string, header: string | null): Promise<boolean
 type Me = { id: string; user_id: string; account_id: string; locale: string | null; full_name: string };
 type ChatMsg = { id: string; content: string; action: string; payload: Record<string, unknown> | null };
 
+/** a thanks or a one-word OK: answered at once, so no steps */
+const SAYS_THANKS = /^(تم|تمام|شكرا|شكراً|مشكور|يعطيك العافية|اوكي|أوكي|ok|okay|thanks|thank you|👍|🙏|✅)[\s!.؟?]*$/i;
+
+/** the two lines Muntej shows while it works (option 2 of the owner's pick, 9 Nov): read it, then what it's doing */
+export function workingSteps(text: string, ar: boolean, forwarded = false): string {
+  const t = text.toLowerCase();
+  const step = forwarded
+    ? ['📨 أقرأ الرسالة المحوّلة وأطلّع المهام منها…', '📨 Reading the forwarded message for tasks…']
+    : SAYS_REPORT.test(text) || /تقرير|ملخص|report|summary/.test(t)
+      ? ['📊 أجهّز تقريرك…', '📊 Preparing your report…']
+      : SAYS_NEEDS.test(text)
+        ? ['🔔 أجمع اللي يحتاجك…', '🔔 Gathering what needs you…']
+        : /(^|\s)(وش|ايش|إيش|كم|مين|متى|وين|هل|what|how|who|when|which|status)|المتأخر|متأخر|late|[؟?]/.test(t)
+          ? ['📋 أشوف المهام…', '📋 Checking the tasks…']
+          : /ذكر|ذكّر|خل |خلي|اطلب|أرسل|ارسل|سو |سوي|جهز|جهّز|ابي|أبي|remind|ask|send|prepare|make|create|assign|give/.test(t)
+            ? ['📝 أسجّل المهمة…', '📝 Setting up the task…']
+            : ['🤔 أفكر في طلبك…', '🤔 Thinking about your request…'];
+  return ar ? `👀 قريت رسالتك\n${step[0]}` : `👀 Got your message\n${step[1]}`;
+}
+
 // the few words that skip the chat (Saudi and English ways of saying them)
 const SAYS_REPORT = /^(ملخص|الملخص|تقرير|التقرير|تقريري|report|my report|summary|brief)[\s؟?!.]*$/i;
 const SAYS_NEEDS = /^(وش يحتاجني|ايش يحتاجني|إيش يحتاجني|وش علي|وش عندي|what needs me|needs me|what's waiting|whats waiting)[\s؟?!.]*$/i;
@@ -455,7 +475,11 @@ async function handle(m: WaMessage, dry = false) {
   // ── what they said: a text, or a voice note written down ──
   let text = '';
   if (m.type === 'text') text = m.text?.body ?? '';
-  else if (m.type === 'audio' || m.type === 'voice') text = await transcribe((m.audio ?? m.voice)!.id, ar);
+  else if (m.type === 'audio' || m.type === 'voice') {
+    // writing a voice note down takes a few seconds: say so first
+    if (!dry) await say(ar ? '🎧 أسمع رسالتك…' : '🎧 Listening to your voice note…');
+    text = await transcribe((m.audio ?? m.voice)!.id, ar);
+  }
   else return void (await say(ar ? 'أرسل لي نص أو رسالة صوتية 🎤 وأنا أتصرف' : 'Send me a text or a voice note 🎤 and I’ll take it from there'));
   text = text.trim();
   if (!text) return void (await say(ar ? 'ما سمعت شي واضح في الرسالة 🤔 جرّب مرة ثانية؟' : 'I couldn’t hear anything clear 🤔 Try again?'));
@@ -494,6 +518,9 @@ async function handle(m: WaMessage, dry = false) {
   if (chosen && (await toolList())) return void (await applyPick(chosen));
 
   if (SAYS_HELP.test(text)) return void (await say(helpText(ar)));
+  // what Muntej is doing, in the chat itself (owner, 9 Nov: "Need more than typing in the chat itself, something like
+  // Claude in simple way"; he picked option 2): read it, then the step, before the work starts
+  if (!dry && !SAYS_THANKS.test(text)) await say(workingSteps(text, ar, !!(m.context?.forwarded || m.context?.frequently_forwarded)));
   if (SAYS_NEEDS.test(text)) return void (await needsYou(10));
   if (SAYS_REPORT.test(text)) return void (await report('auto'));
 
