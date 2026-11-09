@@ -1013,6 +1013,31 @@ serve(async (req) => {
   // one option (owner, 9 Nov): "delete" is cancel, and only the giver, their side above the owner, or an admin may
   const canCancel = (t: TaskRow) => canClose(t) || (!t.assigner_id && t.owner_id === profileId);
   if (parsed.action === 'delete') parsed.action = 'cancel';
+  // WHICH PERSON, decided here (the model guessed even when told not to): the owner it picked shares a first name with
+  // someone else, or someone is saved with only that initial ("N Emira" for Nouran, "F Qahtani" for Faisal) and the
+  // message names neither one's other names → ask (owner, 9 Nov: «نوران» went to the wrong Nouran)
+  if (parsed.action === 'create' && parsed.task?.owner_id && !body.apply_create && (parsed.task.each ?? []).length < 2) {
+    const picked = team.find((p) => p.id === parsed.task!.owner_id);
+    const firstEn = (p: PersonRow) => p.full_name.trim().split(/\s+/)[0].toLowerCase();
+    const firstAr = (p: PersonRow) => (p.full_name_ar ?? '').trim().split(/\s+/)[0];
+    const rest = (p: PersonRow) => [...p.full_name.split(/\s+/).slice(1), ...(p.full_name_ar ?? '').split(/\s+/).slice(1)].filter((w) => w.length > 1);
+    if (picked && picked.id !== profileId) {
+      const twins = team.filter((p) => {
+        if (p.id === picked.id || p.id === profileId) return false;
+        const same = firstEn(p) === firstEn(picked) || (!!firstAr(p) && firstAr(p) === firstAr(picked));
+        const initial = (q: PersonRow, other: PersonRow) => firstEn(q).length === 1 && firstEn(q) === firstEn(other)[0];
+        return same || initial(p, picked) || initial(picked, p);
+      });
+      const named = (p: PersonRow) => rest(p).some((w) => message.toLowerCase().includes(w.toLowerCase()));
+      if (twins.length && !named(picked) && !twins.some(named)) {
+        const all = [picked, ...twins].slice(0, 3);
+        parsed.action = 'none';
+        parsed.task = null;
+        parsed.reply = ar0 ? 'مين تقصد؟ عندي أكثر من واحد بهالاسم 👇' : 'Which one do you mean? More than one person fits 👇';
+        parsed.suggestions = all.map((p) => (ar0 ? `أقصد ${p.full_name}` : `I mean ${p.full_name}`));
+      }
+    }
+  }
   if (parsed.bulk?.change?.kind === 'delete') parsed.bulk.change.kind = 'cancel';
   const displayName = (id: string | null) => {
     const p = id ? everyone.find((x) => x.id === id) : null;

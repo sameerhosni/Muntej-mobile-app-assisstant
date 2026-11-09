@@ -426,7 +426,8 @@ async function screens() {
       const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA main button', '${QA_BOSS}', '${other.id}', 'assigned') returning id`);
       try {
         await page.goto(`http://localhost:8099/14-task-detail?id=${task.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
-        const button = page.getByRole('button', { name: /خلصتها، أرسلها|Done, send it/ });
+        // (the QA boss is an admin: his Done closes it, «خلصتها، قفّلها»; anyone else's sends it, «خلصتها، أرسلها»)
+        const button = page.getByRole('button', { name: /خلصتها، (أرسلها|قفّلها)|Done, (send it|close it)/ });
         await button.waitFor({ timeout: 30_000 });
         const under = await button.evaluate((el) => getComputedStyle(el.firstElementChild).backgroundColor);
         expect(!['transparent', 'rgba(0, 0, 0, 0)'].includes(under), `nothing solid under the white label (${under})`);
@@ -757,8 +758,12 @@ async function screens() {
     await check('flows', 'Send an idea', async () => {
       errors.length = 0;
       await page.goto('http://localhost:8099/59-ideas', { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(2500);
-      await page.getByPlaceholder(/وش اللي يخلي منتج أحسن لك/).fill('فكرة من الاختبار الآلي');
+      // wait for the box itself (a fixed wait sometimes typed before the screen was ready: the text was lost)
+      const box = page.getByPlaceholder(/وش اللي يخلي منتج أحسن لك/);
+      await box.waitFor({ timeout: 30_000 });
+      await page.waitForTimeout(800);
+      await box.fill('فكرة من الاختبار الآلي');
+      if (!(await box.inputValue()).trim()) await box.pressSequentially('فكرة من الاختبار الآلي');
       await page.getByRole('button', { name: 'أرسل' }).click();
       await page.getByText(/وصلت، شكرًا لك/).waitFor({ timeout: 20_000 });
       await page.screenshot({ path: join(OUT, 'flow_idea.png') });
