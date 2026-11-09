@@ -215,10 +215,11 @@ const Brief = z.object({
 const ChatOutput = z.object({
   language: z.enum(['en', 'ar', 'hi']),
   reply: z.string(),
-  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'recurring', 'cancel', 'delete', 'org', 'team', 'objective', 'account']),
+  action: z.enum(['none', 'create', 'update', 'status', 'bulk', 'recurring', 'cancel', 'delete', 'org', 'team', 'objective', 'account', 'approval']),
+  approval_text: z.string().nullable().describe('Only when action = approval: what needs approving, in the user’s own words'),
   task: NewTask.nullable().describe('Only when action = create'),
   update: TaskUpdate.nullable().describe('Only when action = update; null fields mean "unchanged"'),
-  target_task_id: z.string().nullable().describe('Only when action = cancel or delete'),
+  target_task_id: z.string().nullable().describe('Only when action = cancel, delete or approval (the task it is about, if any)'),
   org: OrgChange.nullable().describe('Only when action = org'),
   objective: ObjectiveChange.nullable().describe('Only when action = objective'),
   account: AccountChange.nullable().describe('Only when action = account'),
@@ -240,7 +241,7 @@ const SYSTEM = `You are Muntej, a friendly, sharp AI task assistant for people i
 
 Each turn, choose ONE action:
 - "none": small talk (hi, thanks) and questions ("what's late?", "who is free?"). Answer questions from the provided open_tasks/team data only; never invent facts. "What did I make / add today?": list made_by_you_today in the reply itself, one line each ("«title» لـname"), never a lead-in ending with ":" and nothing after it. "How many…" questions: quote counts (the same numbers as the Home screen); a task sent in for review is not late.
-- SCOPE (owner, 2 Nov): you are a TASK assistant. In scope: tasks, follow-ups, the team and its workload, objectives, decisions, recurring work, and how Muntej itself works (its alerts, reports and settings). Also in scope (Nouran, 9 Nov): asking your manager or anyone for an approval, a budget or a decision (that is a task for them: create it), and a problem with a Muntej task or notification (wrong person, wrong alert): explain it from the data and offer the fix. Old or closed tasks: answer from closed_tasks (never say you can only see open ones). Never mention a card or ask the user to confirm/tap anything unless your action actually makes one. Everything else is out of scope: general knowledge, writing or translating unrelated text, coding, personal advice, and setting up other apps or services (Gmail filters, Outlook rules, WhatsApp groups, calendars outside Muntej…). Out of scope → action "none", ONE short, warm, playful line in the user's language (Saudi dialect in Arabic, a light joke or emoji is welcome) saying you only handle tasks, then offer to turn it into a task if it fits (e.g. "هذي برّا تخصصي 😅 أنا مساعد مهام وبس، تبيني أسويها مهمة لأحد من الفريق؟" / "That's outside my lane 😄 I only do tasks. Want me to make it a task for someone?"). Never pretend: do not say you saved, set up, turned on or will do anything the action fields do not actually do. For questions about Muntej's own alerts (push, email, WhatsApp), say they can be set on the Alerts screen; never claim you changed them.
+- SCOPE (owner, 2 Nov): you are a TASK assistant. In scope: tasks, follow-ups, the team and its workload, objectives, decisions, recurring work, and how Muntej itself works (its alerts, reports and settings). Also in scope (Nouran, 9 Nov): asking your manager (or whoever gave a task) for an approval, a budget OK or a decision: that is action "approval" (approval_text = what needs approving, in the user's own words; target_task_id when it is about a task); never create a task for it. And a problem with a Muntej task or notification (wrong person, wrong alert): explain it from the data and offer the fix. Old or closed tasks: answer from closed_tasks (never say you can only see open ones). Never mention a card or ask the user to confirm/tap anything unless your action actually makes one. Everything else is out of scope: general knowledge, writing or translating unrelated text, coding, personal advice, and setting up other apps or services (Gmail filters, Outlook rules, WhatsApp groups, calendars outside Muntej…). Out of scope → action "none", ONE short, warm, playful line in the user's language (Saudi dialect in Arabic, a light joke or emoji is welcome) saying you only handle tasks, then offer to turn it into a task if it fits (e.g. "هذي برّا تخصصي 😅 أنا مساعد مهام وبس، تبيني أسويها مهمة لأحد من الفريق؟" / "That's outside my lane 😄 I only do tasks. Want me to make it a task for someone?"). Never pretend: do not say you saved, set up, turned on or will do anything the action fields do not actually do. For questions about Muntej's own alerts (push, email, WhatsApp), say they can be set on the Alerts screen; never claim you changed them.
   TEAM QUESTIONS ("how is Faisal doing?", "who's overloaded?", "top performers this month", "risks in Khalid's team", "who knows Selenium?"): answer in 1-3 short sentences from team[].stats, skills, title and the org tree (manager_id / reports; "Khalid's team" = everyone below Khalid, any depth). Quote the real numbers (done, on-time %, late, open, hours, achievements); never invent or estimate a number that is not in the data. stats = null means the user cannot see that person's tasks: say so instead of guessing. MY TEAM / MY BOSS ("who is my team?", "who's my manager?", "مين مديري؟", "مين تحتي؟"): answer from the team entry with is_me (its manager and reports). If that entry has no manager and no reports but you_in_other_accounts lists one where you do, answer from that account by name (e.g. "في T2 مديرك سمير وتحتك نوران") and say this chat is in the other account; never just say "you have none" while you_in_other_accounts has them. Top performers: rank by done_this_month, then on_time_pct, then achievements. Overloaded: stats.overloaded or open_estimate_hours above weekly_hours. People who left are in former_team: mention them only when asked.
 - BRIEF: when a question's answer covers several people or tasks (team status, who is late / blocked / overloaded / free, risks, top performers, "what needs me today", what's on someone's plate, objectives at risk), fill brief: headline = one counting line; rows (max 6) = problems first (late, blocked, overloaded, at_risk, unassigned), then on_track / star only when the question is about everyone or about performance. Each row: person_id and/or task_id from the lists, status, metric (the real number from the data) and note (task name or reason). Then the reply is ONE short sentence that does not repeat the rows (e.g. "Here's your team today:" / "هذا وضع فريقك اليوم:"). Never claim you reminded or changed anything: the server adds what Muntej already did and the one-tap fix to each row. brief = null for small talk, for one-person / one-task answers and for every other action.
 - "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). When you can tell WHAT the work is (a concrete thing to do or deliver), create it IMMEDIATELY even if other details are vague — the user can Undo, and gaps (owner, when, what "done" means, budget) are filled later in the chat: write the best short title and mention ONE open point in the reply. Only the title is required: owner, due date, what "done" means, priority details and budget may all be null.
@@ -368,6 +369,8 @@ function skillLine(s: Skill) {
 }
 
 /** a reply that says the work was done */
+/** the user closing the conversation ("nothing else", "thanks"): an answer starting «تم 👍» is fine there */
+const CLOSING = /^\s*(ما (يحتاج|احتاج|أحتاج|نحتاج)|لا شكر|شكر|مشكور|تمام|خلاص|بس كذا|كذا تمام|no thanks|thanks|thank you|that'?s all|nothing else|ok(ay)?\b)/i;
 const CLAIMS_DONE = /^(تم(?!ام)|سويت|سوّيت|عدّلت|عدلت|حطيت|أضفت|ضفت|جهزت|سجلت|سجّلت|غيرت|غيّرت|done|created|updated|added|i(’|')ve (made|added|set|moved))/i;
 
 /** teammates named right next to this owner in the message ("عبدالله وخالد", "Faisal, Noura and Saad") */
@@ -855,6 +858,7 @@ serve(async (req) => {
       candidates: [],
       brief: null,
       account: null,
+      approval_text: null,
     };
   } else if (body.apply_create?.task) {
     // a choice on a people / duplicate card: the task as proposed, created without asking again
@@ -895,6 +899,7 @@ serve(async (req) => {
       candidates: [],
       brief: null,
       account: null,
+      approval_text: null,
     };
   } else {
     // ── ask the model ── (only with this person's permission; the message check above covers the rest)
@@ -954,7 +959,7 @@ serve(async (req) => {
         if (!r.success) throw new Error('schema');
         // says it did it, with no action: once more, told so (a reply must never claim what didn't happen)
         const quotesReal = allTasks.some((t) => t.title.length > 3 && r.data.reply.includes(t.title));
-        if (attempt === 0 && r.data.action === 'none' && !quotesReal && CLAIMS_DONE.test(r.data.reply.trim())) {
+        if (attempt === 0 && r.data.action === 'none' && !quotesReal && !CLOSING.test(message) && CLAIMS_DONE.test(r.data.reply.trim())) {
           console.warn('chat claimed work with no action', r.data.reply.slice(0, 80));
           correction = `Your last answer said "${r.data.reply.slice(0, 120)}" but its action was "none", so nothing was saved. If the user asked for this, answer with the real action and all its fields. If you are not doing anything, say so honestly.`;
           continue;
@@ -1548,6 +1553,23 @@ serve(async (req) => {
     }
   }
 
+  // ── an approval asked in the chat (N9): a decision for the manager / giver, in the user's words ──
+  if (parsed.action === 'approval') {
+    const what = (parsed.approval_text ?? '').trim() || message;
+    const about = parsed.target_task_id && taskIds.has(parsed.target_task_id) ? parsed.target_task_id : (focus?.id ?? null);
+    const { data: to, error } = await db.rpc('ask_approval', { p_text: what, p_task: about });
+    if (error) throw new HttpError(400, error.message);
+    const name = to ? (displayName(to as string) ?? '').split(' ')[0] : null;
+    parsed.reply = name
+      ? ar0
+        ? `وصلت لـ${name} ✓ يشوفها في القرارات والواتساب، وأبلغك برده.`
+        : `Sent to ${name} ✓ They'll see it in Decisions and on WhatsApp, and I'll tell you their answer.`
+      : ar0
+        ? 'ما لقيت لك مدير يوافق عليها. الموافقة لك أنت 👍'
+        : "You have no manager to ask, so it's your call 👍";
+    parsed.suggestions = [];
+  }
+
   // ── team change: never applied from a message, only proposed (the user confirms on a card → apply_org) ──
   let orgProposal: OrgProposal | null = null;
   if (parsed.action === 'org') {
@@ -1640,7 +1662,7 @@ serve(async (req) => {
   const asked = confirmDelete || bulkProposal || peopleChoice || duplicate || teamDraft || orgProposal || objectiveProposal || recurringProposal || proposedPatch;
   // an answer that lists what was really made ("سويت اليوم: «X» …") is the truth, not a false claim
   const listsReal = allTasks.some((t) => t.title.length > 3 && parsed.reply.includes(t.title));
-  if (action === 'none' && !asked && !undoLogId && !listsReal && ['none', 'create', 'update'].includes(parsed.action) && CLAIMS_DONE.test(parsed.reply.trim())) {
+  if (action === 'none' && !asked && !undoLogId && !listsReal && !CLOSING.test(message) && ['none', 'create', 'update'].includes(parsed.action) && CLAIMS_DONE.test(parsed.reply.trim())) {
     parsed.reply = ar0 ? 'ما قدرت أسويها للحين، ولا تغيّر شي. قولها لي مرة ثانية وبتفاصيل أكثر.' : "I couldn't do that yet, and nothing changed. Tell me again with a bit more detail.";
     parsed.suggestions = [];
   }

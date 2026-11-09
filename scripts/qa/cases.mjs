@@ -365,7 +365,11 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     const r = await fn('muntej-chat', { message: 'أنا عايزة موافقة من مديري بصرف الميزانية قبل موعدها بخمس أيام.', source: 'text', lang: 'ar' }, await jwtFor(FAISAL, QA_ACCOUNT));
     const said = r.messages?.at(-1)?.content ?? '';
     expect(!/برّا تخصصي|برا تخصصي|outside my lane/i.test(said), `called it out of scope: «${said.slice(0, 90)}»`);
-    await sql(`delete from public.tasks where assigner_id = '${FAISAL}' and created_at > now() - interval '3 minutes'; delete from public.chat_messages where profile_id = '${FAISAL}' and created_at > now() - interval '3 minutes'`);
+    // N9 (owner, 9 Nov): "I thought I would ask over the chat for an approval from my manager so it would reach"
+    const [d] = await sql(`select manager_id, recommendation_reason from public.decisions where requested_by = '${FAISAL}' and type = 'approval_request' and created_at > now() - interval '3 minutes'`);
+    expect(d?.manager_id === QA_BOSS, 'no approval request reached his manager');
+    expect(/الميزانية/.test(d.recommendation_reason ?? ''), `the request isn't in his words: «${d.recommendation_reason}»`);
+    await sql(`delete from public.alerts where subject_id = '${FAISAL}' and kind = 'decision_waiting' and created_at > now() - interval '3 minutes'; delete from public.decisions where requested_by = '${FAISAL}' and type = 'approval_request' and created_at > now() - interval '3 minutes'; delete from public.tasks where assigner_id = '${FAISAL}' and created_at > now() - interval '3 minutes'; delete from public.chat_messages where profile_id = '${FAISAL}' and created_at > now() - interval '3 minutes'`);
     return said.slice(0, 80);
   });
   // The owner, 9 Nov: "I asked the chat who is my team and who is my boss, and he said you don't have any". Nouran's

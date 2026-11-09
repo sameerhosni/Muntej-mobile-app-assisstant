@@ -2114,6 +2114,7 @@ export type Database = {
         | "ambiguous_reply"
         | "reassignment"
         | "priority_question"
+        | "approval_request"
       evidence_type: "file" | "image" | "voice" | "link"
       followup_channel: "push" | "in_app" | "whatsapp" | "email"
       followup_status:
@@ -2298,6 +2299,7 @@ export const Constants = {
         "ambiguous_reply",
         "reassignment",
         "priority_question",
+        "approval_request",
       ],
       evidence_type: ["file", "image", "voice", "link"],
       followup_channel: ["push", "in_app", "whatsapp", "email"],

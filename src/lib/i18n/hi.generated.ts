@@ -1536,6 +1536,7 @@ export default {
   "timeValue": "~{{min}} मिनट · एसएआर {{sar}}",
   "type": {
    "ambiguous_reply": "अस्पष्ट उत्तर",
+   "approval_request": "मंजूरी",
    "delay_risk": "संभवतः देरी",
    "extension_request": "विस्तार",
    "priority_question": "प्राथमिकता",
