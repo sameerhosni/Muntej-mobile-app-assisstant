@@ -417,3 +417,7 @@ Last updated: 2026-11-09.
 ### R93 · A new status is handled everywhere it can show, and in the generated types
 - **Why:** 9 Nov, second reviewer pass: decision status `finished` was handled in the triggers but the asker's Home (MyRequests) read it as "declined" («ما وافق هالمرة»), and `database.types.ts` didn't list it.
 - **Check:** a new decision / task / review status → every screen that labels decided items (MyRequests, NeedsYou, task page, Decisions) has a branch for it, and `src/lib/api/database.types.ts` lists it.
+
+### R94 · Closing or cancelling a task resolves every other open decision on it
+- **Why:** 9 Nov, third reviewer pass: «✓ خلصت أصلاً» closed the task but left a second pending card (busy / more time) on it; approving that later would move a done task's date or owner.
+- **Check:** any path that closes or cancels a task also resolves the task's other `pending` decisions (and tells their askers once).
