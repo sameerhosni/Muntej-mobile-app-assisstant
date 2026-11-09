@@ -315,9 +315,29 @@ async function whoseTap(m: WaMessage, people: { id: string; account_id: string }
   return people.find((p) => acct.has(p.account_id))?.id ?? null;
 }
 
+/** blue ticks and "typing…" on their message while Muntej works on the answer (owner, 9 Nov: "I need some indication here
+ *  that WhatsApp is working or thinking or reading"). Meta shows typing for up to 25 s or until the reply lands. Best
+ *  effort: a failure here never stops the answer. */
+async function showWorking(messageId: string) {
+  const token = Deno.env.get('WHATSAPP_TOKEN');
+  const phone = Deno.env.get('WHATSAPP_PHONE_ID');
+  if (!token || !phone || !messageId) return;
+  try {
+    const r = await fetch(`${GRAPH}/${phone}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', status: 'read', message_id: messageId, typing_indicator: { type: 'text' } }),
+    });
+    if (!r.ok) console.warn('whatsapp typing', r.status, (await r.text()).slice(0, 200));
+  } catch (e) {
+    console.warn('whatsapp typing', String(e));
+  }
+}
+
 async function handle(m: WaMessage, dry = false) {
   const admin = adminClient();
   const from = m.from.replace(/\D/g, '');
+  if (!dry) await showWorking(m.id);
   // signing in from the app ("دخول منتج #K7F3QX", sent with one tap): approve that key for whoever this number is
   const login = m.type === 'text' ? (m.text?.body ?? '').match(/#([A-Z0-9]{6})\b/i) : null;
   if (login) {

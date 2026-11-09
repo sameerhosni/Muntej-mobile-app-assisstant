@@ -326,6 +326,15 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     }
     return 'no greeting has two names side by side';
   });
+  // The owner's screenshot, 9 Nov: "I need some indication here that WhatsApp is working or thinking or reading": every
+  // message gets blue ticks and "typing…" before Muntej starts on the answer
+  await check('invites', 'WhatsApp shows read and typing while Muntej works', async () => {
+    const src = readFileSync(new URL('../../supabase/functions/whatsapp/index.ts', import.meta.url), 'utf8');
+    const body = src.slice(src.indexOf('async function handle('), src.indexOf('async function handle(') + 400);
+    expect(/status: 'read'[\s\S]{0,80}typing_indicator/.test(src), 'no read + typing call to Meta');
+    expect(/showWorking\(m\.id\)/.test(body), 'handle() does not show read + typing first');
+    return 'read + typing first';
+  });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
     const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
     const r = await fn('whatsapp', { template_status: true }, null, { 'x-cron-secret': s });
