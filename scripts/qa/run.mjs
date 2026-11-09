@@ -445,12 +445,13 @@ async function screens() {
     // The owner, 9 Nov: "if task already done so let the user finish it from this page, not assign then transfer it to
     // the tasks page then approve it"
     await check('flows', 'Decisions: «خلصت أصلاً» closes the task from the card', async () => {
-      const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA already done', null, '${QA_BOSS}', 'draft') returning id`);
-      await sql(`insert into public.decisions (task_id, manager_id, type, title, title_ar, recommendation, recommendation_ar) values ('${task.id}', '${QA_BOSS}', 'reassignment', 'QA already done has no owner', '«QA already done» للحين بدون مسؤول', 'Give it to someone', 'عطها أحد')`);
+      // Arabic text throughout: an English title gets translated on screen and can't be found again
+      const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('مهمة فحص منتهية', null, '${QA_BOSS}', 'draft') returning id`);
+      await sql(`insert into public.decisions (task_id, manager_id, type, title, title_ar, recommendation, recommendation_ar) values ('${task.id}', '${QA_BOSS}', 'reassignment', '«مهمة فحص منتهية» للحين بدون مسؤول', '«مهمة فحص منتهية» للحين بدون مسؤول', 'عطها أحد', 'عطها أحد')`);
       try {
         await page.goto('http://localhost:8099/04-decisions', { waitUntil: 'domcontentloaded', timeout: 120_000 });
         // (the title is shown in the reader's language: «QA already done» can read «تم عمل الـ QA»)
-        await page.getByText(/QA.*للحين بدون مسؤول/).first().waitFor({ timeout: 30_000 }).catch(async (e) => {
+        await page.getByText(/مهمة فحص منتهية/).first().waitFor({ timeout: 30_000 }).catch(async (e) => {
           await page.screenshot({ path: join(OUT, 'flow_already_done.png'), fullPage: true });
           throw new Error(`${e.message.split('\n')[0]} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
         });
