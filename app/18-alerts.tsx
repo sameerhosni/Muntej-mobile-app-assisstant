@@ -39,6 +39,7 @@ import {
   TriangleAlert,
   Users,
   UserPen,
+  ThumbsUp,
   type LucideProps,
 } from 'lucide-react-native';
 import { AppText, Button, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, TimedProgress, Toggle } from '@/components/ui';
@@ -104,6 +105,7 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   added_to_company: { Icon: UserPlus, bg: 'primary' },
   detail_asked: { Icon: MessageCircle, bg: 'amberText' },
   task_comment: { Icon: MessageCircle, bg: 'primary' },
+  kudos_received: { Icon: ThumbsUp, bg: 'orange' },
 };
 
 function RecentAlerts() {

@@ -30,9 +30,10 @@ export function demoPeople(lang: string): KudosPerson[] {
   });
 }
 
-export function livePeople(team: Profile[], lang: string): KudosPerson[] {
+/** anyone in the company but you (N7: thanks are real now, so managers can be thanked too) */
+export function livePeople(team: Profile[], lang: string, meId?: string): KudosPerson[] {
   return team
-    .filter((p) => p.role === 'employee')
+    .filter((p) => p.id !== meId && p.status !== 'deleted' && !p.hidden)
     .map((p) => {
       const name = ((lang === 'ar' && p.full_name_ar ? p.full_name_ar : p.full_name).split(' ')[0] ?? '').trim();
       return { id: p.id, name, gradient: avatarGradientFor(p.full_name), key: (p.full_name.split(' ')[0] ?? '').toLowerCase() };

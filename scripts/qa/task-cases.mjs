@@ -455,6 +455,18 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         await sql(`delete from public.decisions where task_id = '${t.id}'; delete from public.alerts where task_id = '${t.id}'`);
         return 'comment + more time with her reason';
       });
+      // The owner, 9 Nov (N7): "I sent a thank you for nouranemira, need to check if it reflected" (it was a demo)
+      await check('rules', 'A thank-you is saved and reaches the person thanked', async () => {
+        const id = await rpc('send_kudos', { p_to: P.FAISAL, p_value: 'teamwork', p_message: 'شكراً على المساعدة في ملف العميل', p_points: 25 }, await as('ABDULLAH'));
+        const [k] = await sql(`select to_id, points from public.kudos where id = '${id}'`);
+        expect(k?.to_id === P.FAISAL && k.points === 25, 'the thank-you wasn’t saved');
+        const [a] = await sql(`select count(*)::int n from public.alerts where profile_id = '${P.FAISAL}' and kind = 'kudos_received' and dedupe_key = 'kudos:${id}'`);
+        expect(a.n === 1, 'Faisal got no alert');
+        const seen = await get(`kudos?select=id&id=eq.${id}`, await as('SAAD'));
+        expect(seen.length === 1, 'the team wall doesn’t show it to a teammate');
+        await sql(`delete from public.alerts where dedupe_key = 'kudos:${id}'; delete from public.kudos where id = '${id}'`);
+        return 'saved, Faisal alerted, on the wall';
+      });
       // The owner, 9 Nov (N6): "I said I was busy, the manager approved, and it's still on my tasks with «استلمت»"
       await check('rules', 'Agreeing to “busy” takes the task back off her list', async () => {
         const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA rule busy', '${P.ABDULLAH}', '${P.FAISAL}', 'assigned') returning id`);

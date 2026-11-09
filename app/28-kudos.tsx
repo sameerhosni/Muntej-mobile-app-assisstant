@@ -1,8 +1,8 @@
 // Screen 28 · Kudos — see design/v2/html/Kudos.dc.html (Arabic: KudosAR.dc.html)
 // Manager screen. People: live team employees (useTeam); loading → spinner; none → empty card with "Show me an
 // example" (the design's team, drafts and wall, marked Sample). Draft: built from the person's latest done task
-// (useTasks), else a generic thank-you. No kudos table yet → the Team wall is this session's sends (+ the example's).
-// Points go to the wallet only when the recipient is the signed-in user.
+// (useTasks), else a generic thank-you. Send = send_kudos (saved; the person thanked gets an alert), and the Team
+// wall is the company's real thanks (N7, owner 9 Nov). The example (Sample) never writes anything.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
@@ -15,7 +15,9 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTasks, useTeam } from '@/lib/api';
 import { formatNumber } from '@/features/home/value';
-import { PTS_PER_SAR, wallet } from '@/features/rewards/wallet';
+import { PTS_PER_SAR } from '@/features/rewards/wallet';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import {
   AMOUNTS,
   demoPeople,
@@ -43,9 +45,32 @@ export default function KudosScreen() {
 
   const [sample, setSample] = useState(false);
   const people = useMemo(() => {
-    const live = livePeople(team.data ?? [], lang);
+    const live = livePeople(team.data ?? [], lang, me.data?.id);
     return live.length > 0 ? live : sample ? demoPeople(lang) : [];
-  }, [team.data, lang, sample]);
+  }, [team.data, lang, sample, me.data?.id]);
+  const isLive = people.length > 0 && !people[0].id.startsWith('demo-');
+  // N7 (owner, 9 Nov): the company's real thanks, newest first
+  const wallQ = useQuery({
+    queryKey: ['kudosWall', me.data?.account_id],
+    enabled: !!me.data,
+    queryFn: async () => {
+      const { data, error } = await (supabase as unknown as { from: (t: string) => any })
+        .from('kudos')
+        .select('id, from_id, to_id, value, message, points, created_at')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as { id: string; from_id: string; to_id: string; value: KudosValue; message: string; points: number }[];
+    },
+  });
+  const nameOf = (id: string) => {
+    if (id === me.data?.id) return myName;
+    const p = (team.data ?? []).find((x) => x.id === id);
+    return p ? ((lang === 'ar' && p.full_name_ar) || p.full_name).split(' ')[0] : '…';
+  };
+  const qc = useQueryClient();
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const loading = team.isLoading && !sample;
   const latest = useMemo(() => latestDoneByOwner(done.data ?? []), [done.data]);
 
@@ -68,17 +93,43 @@ export default function KudosScreen() {
     setJustSent(false);
   };
 
-  const send = () => {
+  const send = async () => {
     if (!sel) return;
-    setSent((s) => [{ id: `${Date.now()}`, from: myName, to: sel.name, valueKey: val, msg: t('justNow', { msg: firstSentence(draft) }), pts: amt }, ...s]);
-    if (me.data && sel.id === me.data.id) wallet.earn(`kudos:${Date.now()}`, amt);
-    setJustSent(true);
+    // the example never writes anything
+    if (!isLive) {
+      setSent((s) => [{ id: `${Date.now()}`, from: myName, to: sel.name, valueKey: val, msg: t('justNow', { msg: firstSentence(draft) }), pts: amt }, ...s]);
+      setJustSent(true);
+      return;
+    }
+    setSending(true);
+    setSendError(null);
+    try {
+      const { error } = await (supabase.rpc as unknown as (fn: string, args: object) => Promise<{ error: { message: string } | null }>)('send_kudos', {
+        p_to: sel.id,
+        p_value: val,
+        p_message: draft,
+        p_points: amt,
+      });
+      if (error) throw new Error(error.message);
+      setJustSent(true);
+      void qc.invalidateQueries({ queryKey: ['kudosWall'] });
+    } catch (e) {
+      setSendError((e as Error).message);
+    } finally {
+      setSending(false);
+    }
   };
 
-  const wall = [
-    ...sent.map((s) => ({ id: s.id, from: s.from, to: s.to, value: t(`values.${s.valueKey}`), msg: s.msg, pts: s.pts })),
-    ...(sample ? demoWall(t) : []),
-  ].slice(0, 3);
+  const wall = isLive
+    ? (wallQ.data ?? []).slice(0, 3).map((k) => ({
+        id: k.id,
+        from: nameOf(k.from_id),
+        to: nameOf(k.to_id),
+        value: t(`values.${k.value}`),
+        msg: firstSentence(k.message),
+        pts: k.points,
+      }))
+    : [...sent.map((s) => ({ id: s.id, from: s.from, to: s.to, value: t(`values.${s.valueKey}`), msg: s.msg, pts: s.pts })), ...(sample ? demoWall(t) : [])].slice(0, 3);
 
   const sar = amt / PTS_PER_SAR;
 
@@ -245,8 +296,9 @@ export default function KudosScreen() {
                 </AppText>
               </View>
             ) : (
-              <Button label={t('send', { n: n(amt) })} onPress={send} disabled={!sel} />
+              <Button label={t('send', { n: n(amt) })} onPress={send} loading={sending} disabled={!sel} />
             )}
+            {!!sendError && <AppText color="red">{sendError}</AppText>}
           </Card>
           )}
 
