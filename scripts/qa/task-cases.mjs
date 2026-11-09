@@ -500,6 +500,11 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         const rb = await rpc('set_task_status', { p_task: b.id, p_status: 'done' }, await as('ABDULLAH'));
         expect(ra === 'submitted', `the review task became ${ra}`);
         expect(rb === 'done', `the self-closing task became ${rb}`);
+        // the owner, 9 Nov: "why should I send it to review? why not review in the same step?" — a task given by
+        // someone below you closes on your Done
+        const [c] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA rule above giver', '${P.FAISAL}', '${P.ABDULLAH}', 'in_progress') returning id`);
+        const rc = await rpc('set_task_status', { p_task: c.id, p_status: 'done' }, await as('FAISAL'));
+        expect(rc === 'done', `Faisal's task from Abdullah (below him) became ${rc}, not done`);
         // the giver can switch it: «أراجعها أنا» ↔ «تنقفل لحالها»
         await rpc('set_task_status', { p_task: a.id, p_status: 'reopen' }, await as('ABDULLAH'));
         return 'review → submitted, closes by itself → done';

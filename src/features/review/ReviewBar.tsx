@@ -58,7 +58,18 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
   const reviewerId = review?.reviewer_id ?? (task.assigner_id !== task.owner_id ? task.assigner_id : ownerManager);
   const isReviewer = !isOwner && task.status === 'submitted' && !!meId && (reviewerId === meId || ownerManager === meId);
   // at the top of the tree with your own task: nobody to send it to
-  const closesDirectly = isOwner && ((task.assigner_id === meId && !me?.manager_id) || !!task.closes_itself);
+  // the giver is below me (or I'm an admin): my Done closes it, nobody below me reviews my work (owner, 9 Nov)
+  const giverBelowMe = (() => {
+    let cur = person(task.assigner_id)?.manager_id ?? null;
+    for (let i = 0; cur && i < 20; i++) {
+      if (cur === meId) return true;
+      cur = person(cur)?.manager_id ?? null;
+    }
+    return false;
+  })();
+  const adminMe = me?.role === 'admin' || me?.role === 'super_admin';
+  const closesDirectly =
+    isOwner && ((task.assigner_id === meId && !me?.manager_id) || !!task.closes_itself || adminMe || (task.assigner_id !== meId && giverBelowMe));
 
   const refresh = () =>
     Promise.all([qc.invalidateQueries({ queryKey: ['task', task.id] }), qc.invalidateQueries({ queryKey: ['decisions'] }), invalidateTaskData(qc)]);

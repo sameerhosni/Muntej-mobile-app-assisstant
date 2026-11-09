@@ -287,6 +287,10 @@ export async function createFromSuggestion(admin: SupabaseClient, profileId: str
   if (s.description) extra.description = s.description;
   if (s.proof_required && s.proof_required !== 'none') extra.proof_required = s.proof_required;
   if (s.budget) extra.budget = s.budget;
+  // who sent it in the tool (owner, 9 Nov: "many tasks with no assignee, from where you get it?"): the task page says
+  // «من: Mohammed Sadiq · إيميل» instead of «لسه ما أحد»
+  const sender = ((item as Item & { sender?: string | null }).sender ?? '').trim();
+  if (sender && !/^(direct message|google chat|group|space|unknown)$/i.test(sender)) extra.external_from = sender.slice(0, 120);
   if (Object.keys(extra).length) await admin.from('tasks').update(extra).eq('id', taskId);
   return taskId;
 }

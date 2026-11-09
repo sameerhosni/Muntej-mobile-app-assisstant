@@ -21,6 +21,7 @@ const en = {
   to: 'To',
   you: 'You',
   nobody: 'Nobody yet',
+  srcEmail: 'Email',
   fromTo: 'From {{from}} → to {{to}}',
   toOnly: 'To {{to}}',
   change: 'Change who does it',
@@ -35,6 +36,7 @@ const ar: typeof en = {
   to: 'إلى',
   you: 'أنت',
   nobody: 'لسه ما أحد',
+  srcEmail: 'إيميل',
   fromTo: 'من {{from}} ← إلى {{to}}',
   toOnly: 'إلى {{to}}',
   change: 'غيّر مين يسويها',
@@ -80,7 +82,7 @@ export function FromToRow({
   me,
   team,
 }: {
-  task: { id: string; owner_id: string | null; assigner_id: string | null };
+  task: { id: string; owner_id: string | null; assigner_id: string | null; external_from?: string | null; source?: string | null };
   me: Person | undefined;
   team: Person[];
 }) {
@@ -93,6 +95,12 @@ export function FromToRow({
   const owner = team.find((p) => p.id === task.owner_id);
   const giver = task.assigner_id && task.assigner_id !== task.owner_id ? team.find((p) => p.id === task.assigner_id) : undefined;
   const label = (p: Person | undefined, id: string | null) => (id && id === me?.id ? t('you') : (nameOf(p, lang) ?? t('nobody')));
+  // nobody in Muntej gave it: who sent it in the tool, else the tool, else you made it yourself (owner, 9 Nov: "why many
+  // tasks with no assignee, from where you get it")
+  const TOOL_NAMES: Record<string, string> = { email: t('srcEmail'), google_chat: 'Google Chat', teams: 'Teams', slack: 'Slack', whatsapp: 'WhatsApp', jira: 'Jira' };
+  const tool = task.source ? TOOL_NAMES[task.source] : undefined;
+  const outside = task.external_from ? (tool ? `${task.external_from} · ${tool}` : task.external_from) : tool;
+  const fromLabel = (p: Person | undefined, id: string | null) => (id ? label(p, id) : (outside ?? (task.assigner_id ? t('you') : t('nobody'))));
   const movable = canMove(task, me, team);
   const Arrow = isRTL ? ArrowLeft : ArrowRight;
 
@@ -126,13 +134,13 @@ export function FromToRow({
         backgroundColor: kind === 'to' ? colors.primaryTint : colors.surfaceMuted,
       }}
     >
-      <Avatar name={label(p, id)} size={32} gradient={kind === 'to' ? 'avatarBlue' : undefined} />
+      <Avatar name={kind === 'from' ? fromLabel(p, id) : label(p, id)} size={32} gradient={kind === 'to' ? 'avatarBlue' : undefined} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <AppText variant="micro" color={kind === 'to' ? 'primary' : 'textMuted'}>
           {t(kind)}
         </AppText>
         <AppText weight="bold" numberOfLines={2} color={kind === 'to' ? 'navy' : 'text'}>
-          {label(p, id)}
+          {kind === 'from' ? fromLabel(p, id) : label(p, id)}
         </AppText>
       </View>
       {kind === 'to' && movable && <Pencil color={colors.primary} size={16} strokeWidth={2.2} />}

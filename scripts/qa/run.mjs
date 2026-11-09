@@ -441,6 +441,18 @@ async function screens() {
       }
     });
 
+    // The owner, 9 Nov: "why many tasks with no assignee, from where you get it" — a task from a tool says who sent it
+    await check('screens', 'A task from email says who sent it, not «لسه ما أحد»', async () => {
+      const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, source, external_from) values ('QA from sender', '${QA_BOSS}', '${QA_BOSS}', 'assigned', 'email', 'QA Sender') returning id`);
+      try {
+        await page.goto(`http://localhost:8099/14-task-detail?id=${task.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.getByText('QA Sender · إيميل').first().waitFor({ timeout: 30_000 });
+        return 'QA Sender · إيميل';
+      } finally {
+        await sql(`delete from public.tasks where id = '${task.id}'`);
+      }
+    });
+
     // Nouran, 9 Nov (N20): "add a tab under المهام called يحتاجك… her questions, the due date ask and the refusal didn't
     // show on the manager's side"
     await check('screens', 'Tasks opens on «يحتاجك» with what waits on you', async () => {
