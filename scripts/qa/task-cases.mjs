@@ -477,6 +477,10 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         // a second open card on the same task (3rd review): it must close too
         const [d2] = await sql(`insert into public.decisions (task_id, manager_id, requested_by, type, title, recommendation)
                                 values ('${t.id}', '${P.FAISAL}', '${P.ABDULLAH}', 'priority_question', 'QA finish busy', 'Take it') returning id`);
+        // someone else with two open cards on it (4th review): both close, they hear it once
+        const twoMore = await sql(`insert into public.decisions (task_id, manager_id, requested_by, type, title, recommendation)
+                                   values ('${t.id}', '${P.FAISAL}', '${P.NOURA}', 'approval_request', 'QA finish a', 'Yes'),
+                                          ('${t.id}', '${P.FAISAL}', '${P.NOURA}', 'approval_request', 'QA finish b', 'Yes') returning id`);
         const r = await rpc('finish_from_decision', { p_decision: d.id }, await as('FAISAL'));
         expect(r === 'finished', `finish returned ${r}`);
         const [after] = await sql(`select status, due_at from public.tasks where id = '${t.id}'`);
@@ -487,6 +491,10 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         expect(alerts.some((a) => /قفّل/.test(a.title_ar ?? '')), 'he wasn’t told it was closed');
         const [s2] = await sql(`select status from public.decisions where id = '${d2.id}'`);
         expect(s2.status === 'finished', `the other card on the task is still ${s2.status}`);
+        const open = await sql(`select count(*)::int n from public.decisions where task_id = '${t.id}' and status = 'pending'`);
+        expect(open[0].n === 0, `${open[0].n} card(s) still open on the closed task`);
+        const [nA] = await sql(`select count(*)::int n from public.alerts where profile_id = '${P.NOURA}' and task_id = '${t.id}'`);
+        expect(nA.n === 1, `Noura (two cards) got ${nA.n} alerts`);
         // one tap, one alert (2nd review: the generic "changed for you" came too)
         expect(alerts.length === 1, `he got ${alerts.length} alerts for one tap`);
         // a "no owner" card: the closed task is credited to whoever closed it; another company's admin is refused
@@ -496,7 +504,8 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         const [oa] = await sql(`select status, owner_id from public.tasks where id = '${o.id}'`);
         expect(oa.status === 'done' && oa.owner_id === P.FAISAL, `no-owner task: ${oa.status}, owner ${oa.owner_id ?? 'nobody'}`);
         await sql(`delete from public.decisions where id = '${od.id}'`);
-        await sql(`delete from public.alerts where task_id = '${t.id}'; delete from public.decisions where id in ('${d.id}', '${d2.id}')`);
+        await sql(`delete from public.alerts where task_id = '${t.id}'; delete from public.decisions where task_id = '${t.id}'`);
+        void twoMore;
         return 'closed, date kept, told the truth';
       });
       // The owner, 9 Nov (N7): "I sent a thank you for nouranemira, need to check if it reflected" (it was a demo)

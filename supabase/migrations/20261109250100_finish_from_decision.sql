@@ -56,13 +56,14 @@ begin
   -- every other open card on the same task closes with it (3rd review, R94): none is left to move a done task's
   -- date or owner later; each asker hears the same line
   insert into public.alerts (profile_id, kind, subject_id, task_id, title, body, title_ar, body_ar, dedupe_key)
+  -- one alert per person, however many cards they had (4th review)
   select o.requested_by, 'request_answered', me, t.id,
          left(format('%s closed "%s"', who_en, t.title), 200), 'It was already done. Nothing more needed from you.',
          left(format('قفّل %s «%s»', who_ar, t.title), 200), 'كانت خالصة أصلاً، ما يحتاج منك شي.',
-         'finished:' || o.id
-    from public.decisions o
-   where o.task_id = t.id and o.status = 'pending' and o.id <> d.id
-     and o.requested_by is not null and o.requested_by <> me
+         'finished:' || d.id || ':' || o.requested_by
+    from (select distinct requested_by from public.decisions
+           where task_id = t.id and status = 'pending' and id <> d.id) o
+   where o.requested_by is not null and o.requested_by <> me
      and o.requested_by is distinct from d.requested_by
   on conflict (dedupe_key) do nothing;
   update public.decisions set status = 'finished', resolved_by = me, resolved_at = now()
