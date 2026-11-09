@@ -455,6 +455,19 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         await sql(`delete from public.decisions where task_id = '${t.id}'; delete from public.alerts where task_id = '${t.id}'`);
         return 'comment + more time with her reason';
       });
+      // The owner, 9 Nov (N6): "I said I was busy, the manager approved, and it's still on my tasks with «استلمت»"
+      await check('rules', 'Agreeing to “busy” takes the task back off her list', async () => {
+        const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA rule busy', '${P.ABDULLAH}', '${P.FAISAL}', 'assigned') returning id`);
+        const [d] = await sql(`insert into public.decisions (task_id, manager_id, requested_by, type, title, recommendation, recommendation_reason)
+                               values ('${t.id}', '${P.FAISAL}', '${P.ABDULLAH}', 'priority_question', 'QA busy', 'عندي تسليم', 'عندي تسليم') returning id`);
+        await sql(`update public.decisions set status = 'approved', resolved_by = '${P.FAISAL}', resolved_at = now() where id = '${d.id}'`);
+        const [after] = await sql(`select owner_id, status from public.tasks where id = '${t.id}'`);
+        expect(after.owner_id === P.FAISAL, 'the task is still hers after the giver agreed');
+        const [a] = await sql(`select title_ar from public.alerts where profile_id = '${P.ABDULLAH}' and kind = 'request_answered' and task_id = '${t.id}'`);
+        expect(/أخذها منك/.test(a?.title_ar ?? ''), `she heard «${a?.title_ar ?? 'nothing'}»`);
+        await sql(`delete from public.alerts where task_id = '${t.id}'; delete from public.decisions where id = '${d.id}'`);
+        return 'back with the giver, she was told';
+      });
       // The owner, 9 Nov (N3): "when you create a task you get to choose if it is auto close or sent for review"
       await check('rules', '“Closes by itself” closes on the doer’s Done; otherwise it goes for review', async () => {
         const [a] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA rule review', '${P.ABDULLAH}', '${P.FAISAL}', 'in_progress') returning id`);
