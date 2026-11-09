@@ -444,6 +444,22 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(/verb === 'cm'/.test(wa) && /key', `cm:\$\{me\.id\}`[\s\S]{0,600}add_task_comment/.test(wa), 'the answer after «رد عليه» isn’t posted to the task');
     return 'reply button + answer as a comment';
   });
+  // The owner, 9 Nov: "tasks to non added users should be still on their side till they be active and remind them"
+  await check('invites', 'Someone invited but not active, with a task, is reminded until they join', async () => {
+    const [{ id: p }] = await sql(`insert into public.profiles (account_id, full_name, role, status, manager_id, email) values ('${QA_ACCOUNT}', 'QA Waiting Person', 'employee', 'pending', '${QA_BOSS}', 'qa.waiting@qa.muntej.test') returning id`);
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA waits for them', '${p}', '${QA_BOSS}', 'assigned') returning id`);
+    try {
+      const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
+      const r = await fn('onboarding-nudges', { dry: true }, null, { 'x-cron-secret': s });
+      const line = (r.waiting ?? []).find((x) => x.startsWith('QA Waiting Person'));
+      expect(line, `not on the reminder list: ${(r.waiting ?? []).length} others`);
+      const [still] = await sql(`select owner_id from public.tasks where id = '${t.id}'`);
+      expect(still.owner_id === p, 'the task left them');
+      return line;
+    } finally {
+      await sql(`delete from public.tasks where id = '${t.id}'; delete from public.profiles where id = '${p}'`);
+    }
+  });
   // N21 (owner, 9 Nov): review requests sent at 2:48 pm waited for Asr and arrived together at 3:12. "Send them at once."
   await check('invites', 'Work waiting on someone isn’t held for prayer time', async () => {
     const notify = readFileSync(new URL('../../supabase/functions/_shared/notify.ts', import.meta.url), 'utf8');

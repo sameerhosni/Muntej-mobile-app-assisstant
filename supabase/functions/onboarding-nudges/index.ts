@@ -136,5 +136,55 @@ serve(async (req) => {
     }
   }
 
-  return json({ dry, ...out });
+  // ── 3) invited, not active yet, with work waiting: reminded every 2 days until they join (owner, 9 Nov: "tasks to
+  //    non added users should be still on their side till they be active and remind them") ──
+  const waiting: string[] = [];
+  const { data: pendingPeople } = await admin
+    .from('profiles')
+    .select('id, full_name, full_name_ar, email, phone, user_id, locale, account_id, status, hidden, manager_id, accounts(name, name_ar)')
+    .eq('status', 'pending')
+    .eq('hidden', false);
+  for (const p of (pendingPeople ?? []) as unknown as (InvitePerson & { hidden: boolean | null; manager_id: string | null; accounts: { name: string; name_ar: string | null } | null })[]) {
+    const { count } = await admin.from('tasks').select('id', { count: 'exact', head: true }).eq('owner_id', p.id).in('status', ['draft', 'assigned', 'in_progress', 'blocked', 'returned']);
+    if (!count) continue;
+    const key = `waiting:${p.id}:${Math.floor(now / (2 * DAY))}`;
+    const { data: seen } = await admin.from('alerts').select('id').eq('dedupe_key', key).maybeSingle();
+    if (seen) continue;
+    if (dry) {
+      waiting.push(`${p.full_name}: ${count} waiting (would remind)`);
+      continue;
+    }
+    const company = p.accounts?.name ?? 'Muntej';
+    const companyAr = p.accounts?.name_ar ?? company;
+    // with a login (in Muntej for another company): an alert, pushed to their phone; without one: the invite again
+    await admin.from('alerts').insert({
+      profile_id: p.id,
+      kind: 'task_assigned',
+      title: `📋 ${count} task${count === 1 ? '' : 's'} waiting for you in ${company}`,
+      body: 'Open Muntej and join to see them.',
+      title_ar: `📋 ${count === 1 ? 'مهمة تنتظرك' : `${count} مهام تنتظرك`} في ${companyAr}`,
+      body_ar: 'افتح منتج وانضم عشان تشوفها.',
+      dedupe_key: key,
+    });
+    let how = 'alert';
+    if (!p.user_id && (p.email || p.phone)) {
+      const by = p.manager_id ?? null;
+      if (by) {
+        const r = await sendInvite(admin, p, by, await inviterInfo(by));
+        how = `invite (WhatsApp: ${r.whatsapp ?? 'no'}, email: ${r.email ?? 'no'})`;
+      }
+    }
+    await admin.from('activity_log').insert({
+      actor_type: 'muntej',
+      subject_id: p.id,
+      action: 'waiting_reminder',
+      summary: `Reminded ${p.full_name}: ${count} task(s) waiting until they join (${how})`,
+      summary_ar: `ذكّرت ${p.full_name_ar ?? p.full_name}: ${count} مهام تنتظره لين ينضم`,
+      reason: 'invited, not active yet, with work waiting',
+      undoable: false,
+    });
+    waiting.push(`${p.full_name}: ${count} waiting, ${how}`);
+  }
+
+  return json({ dry, ...out, waiting });
 });
