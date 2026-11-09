@@ -441,6 +441,14 @@ async function screens() {
       }
     });
 
+    // Nouran, 9 Nov (N16): "tab تنتظر منهم is showing a task that is pending, but unclickable"
+    await check('screens', '«تنتظر منهم» cards open their task', async () => {
+      const src = readFileSync(new URL('../../app/09-reverse-followup.tsx', import.meta.url), 'utf8');
+      const card = src.slice(src.indexOf('function WaitCard('));
+      expect(/<Pressable[\s\S]{0,200}14-task-detail[\s\S]{0,80}item\.taskId/.test(card), 'a waiting card still can’t be tapped');
+      return 'tap opens the task';
+    });
+
     // Nouran, 9 Nov (N13): "when I am in the chat and click on المهام it redirects to an empty screen". A list Saree3
     // opened on a few tasks (?ids=) stuck to the tab.
     await check('screens', 'The Tasks tab opens fresh, not on an old filtered list', async () => {

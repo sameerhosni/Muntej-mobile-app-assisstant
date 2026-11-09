@@ -273,7 +273,14 @@ function WaitCard({ item, done, onNudge }: { item: WaitItem; done: boolean; onNu
   const { t } = useScreenT(NS);
   return (
     <Card padding={0} style={{ paddingVertical: spacing.lg, paddingHorizontal: spacing.xl, gap: spacing.sm, borderRadius: radius.card }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
+      {/* tap opens the task (Nouran, 9 Nov, N16: "a task that is pending, but unclickable") */}
+      <Pressable
+        disabled={!item.taskId || item.sample}
+        onPress={() => item.taskId && router.push({ pathname: '/14-task-detail', params: { id: item.taskId } })}
+        accessibilityRole={item.taskId && !item.sample ? 'link' : undefined}
+        accessibilityLabel={item.taskId ? item.what : undefined}
+        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.lg, minHeight: sizes.touch, opacity: pressed ? 0.8 : 1 })}
+      >
         {item.gradient ? (
           <Avatar name={item.who} size={40} gradient={item.gradient} />
         ) : (
@@ -309,7 +316,7 @@ function WaitCard({ item, done, onNudge }: { item: WaitItem; done: boolean; onNu
             {item.wait}
           </AppText>
         </View>
-      </View>
+      </Pressable>
 
       {done ? (
         <View style={{ backgroundColor: colors.greenTint, borderStartWidth: 3, borderStartColor: colors.green, borderRadius: 12, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, gap: 2 }}>
