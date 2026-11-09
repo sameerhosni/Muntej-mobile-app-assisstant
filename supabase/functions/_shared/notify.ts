@@ -98,6 +98,8 @@ export const EXCEPTION_KINDS = new Set<AlertKind>([
   'task_comment',
   'kudos_received',
 ]);
+/** someone is waiting on the reader: sent through prayer time (not after hours / Friday) */
+export const PRAYER_SKIP_KINDS = new Set<AlertKind>(['new_submission', 'detail_asked', 'task_comment', 'decision_waiting', 'escalated', 'request_answered']);
 /** these go out at once too when the task is high or urgent priority */
 export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk', 'no_reply']);
 export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
@@ -340,7 +342,10 @@ export async function deliverPending(
       continue;
     }
     if (!opts.ignoreQuiet) {
-      const until = quietUntil(p?.quiet_hours, now);
+      // work waiting on someone (a review, a question, a decision, a call for help) doesn't wait for prayer time
+      // (owner, 9 Nov, N21: "send them at once"); after hours and Friday still hold it
+      const actNow = PRAYER_SKIP_KINDS.has(a.kind);
+      const until = quietUntil(actNow && p?.quiet_hours ? { ...p.quiet_hours, prayer_times: false } : p?.quiet_hours, now);
       if (until) {
         await admin.from('alerts').update({ deliver_after: until.toISOString() }).eq('id', a.id);
         out.held++;

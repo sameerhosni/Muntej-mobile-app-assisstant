@@ -431,6 +431,14 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(/verb === 'cm'/.test(wa) && /key', `cm:\$\{me\.id\}`[\s\S]{0,600}add_task_comment/.test(wa), 'the answer after «رد عليه» isn’t posted to the task');
     return 'reply button + answer as a comment';
   });
+  // N21 (owner, 9 Nov): review requests sent at 2:48 pm waited for Asr and arrived together at 3:12. "Send them at once."
+  await check('invites', 'Work waiting on someone isn’t held for prayer time', async () => {
+    const notify = readFileSync(new URL('../../supabase/functions/_shared/notify.ts', import.meta.url), 'utf8');
+    const kinds = /PRAYER_SKIP_KINDS = new Set<AlertKind>\(\[([^\]]+)\]\)/.exec(notify)?.[1] ?? '';
+    expect(['new_submission', 'detail_asked', 'decision_waiting'].every((k) => kinds.includes(`'${k}'`)), `prayer-skip kinds: ${kinds || 'none'}`);
+    expect(/actNow && p\?\.quiet_hours \? \{ \.\.\.p\.quiet_hours, prayer_times: false \}/.test(notify), 'the prayer hold still applies to them');
+    return 'reviews, questions and decisions go through prayer time';
+  });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
     const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
     const r = await fn('whatsapp', { template_status: true }, null, { 'x-cron-secret': s });
