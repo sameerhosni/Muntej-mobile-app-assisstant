@@ -194,6 +194,8 @@ export function DecisionCard({ card, outcome, raised, candidates, onResolve }: P
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 {card.suggested && <Button size="md" variant="ghost" label={t('cancel')} onPress={() => setPicking(false)} style={{ flex: 1 }} />}
                 {card.owner && <Button size="md" variant="outline" label={t('keep', { name: ownerName })} onPress={() => onResolve('kept')} style={{ flex: 1 }} />}
+                {/* already done: close it here (also when there's nobody to suggest) */}
+                {!!card.raw?.task_id && <Button size="md" variant="outline" label={t('alreadyDone')} onPress={() => onResolve('finished')} style={{ flex: 1 }} />}
               </View>
             </View>
           ) : (

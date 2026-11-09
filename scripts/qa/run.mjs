@@ -449,7 +449,11 @@ async function screens() {
       await sql(`insert into public.decisions (task_id, manager_id, type, title, title_ar, recommendation, recommendation_ar) values ('${task.id}', '${QA_BOSS}', 'reassignment', 'QA already done has no owner', '«QA already done» للحين بدون مسؤول', 'Give it to someone', 'عطها أحد')`);
       try {
         await page.goto('http://localhost:8099/04-decisions', { waitUntil: 'domcontentloaded', timeout: 120_000 });
-        await page.getByText('«QA already done» للحين بدون مسؤول').first().waitFor({ timeout: 30_000 });
+        // (the title is shown in the reader's language: «QA already done» can read «تم عمل الـ QA»)
+        await page.getByText(/QA.*للحين بدون مسؤول/).first().waitFor({ timeout: 30_000 }).catch(async (e) => {
+          await page.screenshot({ path: join(OUT, 'flow_already_done.png'), fullPage: true });
+          throw new Error(`${e.message.split('\n')[0]} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
+        });
         // the header (owner, 9 Nov, option 1): «القرارات · N», one line, no "follow-ups saved" pills
         const head = await page.evaluate(() => document.body.innerText);
         expect(/القرارات · /.test(head) && !/ملاحقات/.test(head), 'the old Decisions header is still there');
@@ -786,7 +790,10 @@ async function screens() {
       await box.fill('فكرة من الاختبار الآلي');
       if (!(await box.inputValue()).trim()) await box.pressSequentially('فكرة من الاختبار الآلي');
       await page.getByRole('button', { name: 'أرسل' }).click();
-      await page.getByText(/وصلت، شكرًا لك/).waitFor({ timeout: 20_000 });
+      await page.getByText(/وصلت، شكرًا لك/).waitFor({ timeout: 20_000 }).catch(async (e) => {
+        await page.screenshot({ path: join(OUT, 'flow_idea_failed.png'), fullPage: true });
+        throw new Error(`${e.message.split('\n')[0]} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
+      });
       await page.screenshot({ path: join(OUT, 'flow_idea.png') });
       return 'sent and thanked';
     });
