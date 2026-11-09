@@ -273,22 +273,44 @@ type ChatMsg = { id: string; content: string; action: string; payload: Record<st
 /** a thanks or a one-word OK: answered at once, so no steps */
 const SAYS_THANKS = /^(تم|تمام|شكرا|شكراً|مشكور|يعطيك العافية|اوكي|أوكي|ok|okay|thanks|thank you|👍|🙏|✅)[\s!.؟?]*$/i;
 
-/** the two lines Muntej shows while it works (option 2 of the owner's pick, 9 Nov): read it, then what it's doing */
+// Saree3's voice while he works (owner, 9 Nov: "Make it more funny like saree3 and keep the user attracted till you get
+// the results"; he approved these lines): a playful "got it", what he's doing, and one more line if it takes a while
+const anyOf = (xs: string[]) => xs[Math.floor(Math.random() * xs.length)];
+const GOT_IT = {
+  ar: ['👀 وصلت! سريع على الخط ⚡', '🏃‍♂️ قريتها… سريع بدأ يركض', '😎 تم الاستلام، خلّها علي'],
+  en: ['👀 Got it! Saree3 is on it ⚡', '🏃‍♂️ Read it… Saree3 is off and running', '😎 Received. Leave it to me'],
+};
+const STEP = {
+  forwarded: ['📨 أقرأ الرسالة وأطلّع منها الشغل…', '📨 Reading the message and pulling out the work…'],
+  report: ['📊 أجمع لك الزبدة…', '📊 Boiling it down for you…'],
+  needs: ['🔔 أجمع اللي يحتاجك…', '🔔 Rounding up what needs you…'],
+  check: ['🕵️‍♂️ أفتّش في المهام واحد واحد…', '🕵️‍♂️ Going through the tasks one by one…'],
+  create: ['✍️ أكتبها وأحطها في مكانها…', '✍️ Writing it up and putting it in place…'],
+  think: ['🤔 أفكّر فيها صح…', '🤔 Giving it a proper think…'],
+};
+export const LISTENING = { ar: '🎧 أذني معك… أسمع وأكتب', en: '🎧 All ears… listening and writing it down' };
+export const STILL_WORKING = {
+  ar: ['⏳ شوي بس… سريع ما يتأخر 😅', '☕ صبّ لك قهوة، دقيقة وأرجع لك', '🔍 قربت… لقيت أطراف الخيط'],
+  en: ['⏳ Just a bit… Saree3 is never late 😅', '☕ Grab a coffee, back in a minute', '🔍 Almost there… found the thread'],
+};
+
+/** the lines Muntej shows while it works (option 2 of the owner's pick, 9 Nov): got it, then what it's doing */
 export function workingSteps(text: string, ar: boolean, forwarded = false): string {
   const t = text.toLowerCase();
   const step = forwarded
-    ? ['📨 أقرأ الرسالة المحوّلة وأطلّع المهام منها…', '📨 Reading the forwarded message for tasks…']
+    ? STEP.forwarded
     : SAYS_REPORT.test(text) || /تقرير|ملخص|report|summary/.test(t)
-      ? ['📊 أجهّز تقريرك…', '📊 Preparing your report…']
+      ? STEP.report
       : SAYS_NEEDS.test(text)
-        ? ['🔔 أجمع اللي يحتاجك…', '🔔 Gathering what needs you…']
+        ? STEP.needs
         : /(^|\s)(وش|ايش|إيش|كم|مين|متى|وين|هل|what|how|who|when|which|status)|المتأخر|متأخر|late|[؟?]/.test(t)
-          ? ['📋 أشوف المهام…', '📋 Checking the tasks…']
+          ? STEP.check
           : /ذكر|ذكّر|خل |خلي|اطلب|أرسل|ارسل|سو |سوي|جهز|جهّز|ابي|أبي|remind|ask|send|prepare|make|create|assign|give/.test(t)
-            ? ['📝 أسجّل المهمة…', '📝 Setting up the task…']
-            : ['🤔 أفكر في طلبك…', '🤔 Thinking about your request…'];
-  return ar ? `👀 قريت رسالتك\n${step[0]}` : `👀 Got your message\n${step[1]}`;
+            ? STEP.create
+            : STEP.think;
+  return ar ? `${anyOf(GOT_IT.ar)}\n${step[0]}` : `${anyOf(GOT_IT.en)}\n${step[1]}`;
 }
+export const stillWorking = (ar: boolean) => anyOf(ar ? STILL_WORKING.ar : STILL_WORKING.en);
 
 // the few words that skip the chat (Saudi and English ways of saying them)
 const SAYS_REPORT = /^(ملخص|الملخص|تقرير|التقرير|تقريري|report|my report|summary|brief)[\s؟?!.]*$/i;
@@ -477,7 +499,7 @@ async function handle(m: WaMessage, dry = false) {
   if (m.type === 'text') text = m.text?.body ?? '';
   else if (m.type === 'audio' || m.type === 'voice') {
     // writing a voice note down takes a few seconds: say so first
-    if (!dry) await say(ar ? '🎧 أسمع رسالتك…' : '🎧 Listening to your voice note…');
+    if (!dry) await say(ar ? LISTENING.ar : LISTENING.en);
     text = await transcribe((m.audio ?? m.voice)!.id, ar);
   }
   else return void (await say(ar ? 'أرسل لي نص أو رسالة صوتية 🎤 وأنا أتصرف' : 'Send me a text or a voice note 🎤 and I’ll take it from there'));
@@ -532,10 +554,22 @@ async function handle(m: WaMessage, dry = false) {
 
   // ─── helpers (they share me / from / lang) ───
 
+  /** one more Saree3 line if the work takes over 6 s, always sent before the answer (never after it) */
+  async function patiently<T>(work: Promise<T>): Promise<T> {
+    let late = null as Promise<unknown> | null;
+    const timer = dry ? null : setTimeout(() => (late = say(stillWorking(ar)).catch(() => null)), 6_000);
+    try {
+      return await work;
+    } finally {
+      if (timer) clearTimeout(timer);
+      if (late) await late;
+    }
+  }
+
   async function chat(body: Record<string, unknown>) {
     try {
       const token = await userToken(admin, me.user_id);
-      const out = await callAs<{ messages: ChatMsg[] }>(token, 'muntej-chat', { ...body, lang, channel: 'whatsapp' });
+      const out = await patiently(callAs<{ messages: ChatMsg[] }>(token, 'muntej-chat', { ...body, lang, channel: 'whatsapp' }));
       const bot = [...(out.messages ?? [])].reverse().find((x) => x && (x as { role?: string }).role !== 'user') ?? out.messages?.at(-1);
       if (bot) await render(bot);
     } catch (e) {
