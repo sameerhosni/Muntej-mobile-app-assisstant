@@ -13,10 +13,10 @@ Last updated: 2026-11-09
 | # | Item |
 |---|---|
 | N1 | ✅ Cancel / Delete → one Cancel, only whoever gave the task (shipping 9 Nov) |
-| N2 | Task page: only «غيرها مع منتج» → need Close / Send for review / Ask for more time / Comment to the owner (the button shows only after every step is ticked) |
-| N3 | Some tasks show «ارسلها للمراجعة»: confirm that the giver picks auto-close or review when making a task |
-| N4 | Busy flow writes an AI reply: let her write her own reason; check Sameer got it |
-| N5 | The 3 cards at the bottom of the task page make no sense |
+| N2 | ✅ (built 9 Nov, shipping) Task page: only «غيرها مع منتج» → need Close / Send for review / Ask for more time / Comment to the owner (the button shows only after every step is ticked) |
+| N3 | ✅ (built 9 Nov, shipping) Some tasks show «ارسلها للمراجعة»: confirm that the giver picks auto-close or review when making a task |
+| N4 | ✅ (built 9 Nov, shipping) Busy flow writes an AI reply: let her write her own reason; check Sameer got it |
+| N5 | ✅ (built 9 Nov, shipping) The 3 cards at the bottom of the Busy screen make no sense: removed |
 | N6 | Refused / busy task still in her tasks, still with Send for review; manager approved the busy and the dashboard still shows «استلمت» |
 | N7 | Thanks sent to Nouranemira: check it reached her |
 | N8 | Settings → Alerts «ارسل لي تجربة» says no phone registered (she expected app push) and didn't work |
@@ -32,6 +32,7 @@ Last updated: 2026-11-09
 | N18 | «اسأل المدير عن موعد التسليم»: the manager got nothing on WhatsApp |
 | N19 | Sent for review: the manager got no WhatsApp review request |
 | N20 | Add a «يحتاجك» tab under المهام; her questions, due date ask and refusal don't show on the manager's side |
+| N21 | WhatsApp (manager's side, Nouran's screenshot 9 Nov): the review requests all arrived at once; the last one («يسأل Nouranemira عن الموعد / عن تعريف الإنجاز») needs an answer but doesn't say how to send it |
 
 ## 1. Needs the owner (accounts, keys, settings outside the app)
 
