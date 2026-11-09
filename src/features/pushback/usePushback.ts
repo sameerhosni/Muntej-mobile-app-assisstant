@@ -112,10 +112,14 @@ export function usePushbackModel(lang: string, taskId?: string) {
     const newHours = newest.estimate_hours ?? DEFAULT_ESTIMATE;
     const capacity = profile.weekly_capacity_hours || 40;
     const perDay = capacity / 5;
+    // whoever gave it hears it (owner, 9 Nov, N4); your own task goes to your manager
+    const giverId = newest.assigner_id && newest.assigner_id !== profile.id ? newest.assigner_id : base.managerId;
+    const giver = team.data?.find((p) => p.id === giverId) ?? null;
     return {
       ...base,
       live: true,
-      managerName: base.managerName ?? nameOf(team.data?.find((p) => p.id === newest.assigner_id), lang),
+      managerId: giverId,
+      managerName: nameOf(giver, lang) ?? base.managerName,
       newTask: { id: newest.id, title: newest.title, dueAt: newest.due_at, priority: newest.priority, hours: Math.round(newHours) },
       items,
       loadHours,

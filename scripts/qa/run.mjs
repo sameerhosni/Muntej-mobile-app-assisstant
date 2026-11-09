@@ -441,6 +441,28 @@ async function screens() {
       }
     });
 
+    // Nouran, 9 Nov (N4): "I tried the busy flow, it wrote auto reply from the AI, I want to be able to write in my own
+    // words". Her words go to whoever gave the task.
+    await check('flows', 'Busy: your own reason reaches whoever gave the task', async () => {
+      const [giver] = await sql(`select id from public.profiles where account_id = '${QA_ACCOUNT}' and id <> '${QA_BOSS}' and status = 'active' order by full_name limit 1`);
+      const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA busy words', '${QA_BOSS}', '${giver.id}', 'assigned') returning id`);
+      const words = 'عندي تسليم كبير هالأسبوع، أبدأ فيها الأحد';
+      try {
+        await page.goto(`http://localhost:8099/08-pushback?task=${task.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.getByRole('button', { name: /مشغول، خلني أبلّغه/ }).click({ timeout: 30_000 });
+        await page.getByLabel('السبب بكلامك…').fill(words);
+        await page.getByRole('button', { name: /^أرسل$/ }).click();
+        await page.waitForTimeout(2500);
+        const [d] = await sql(`select manager_id, recommendation_reason from public.decisions where task_id = '${task.id}'`);
+        expect(d, 'no request was saved');
+        expect(d.manager_id === giver.id, 'it went to someone other than whoever gave the task');
+        expect(d.recommendation_reason === words, `sent «${d.recommendation_reason}», not her words`);
+        return 'her words, to the giver';
+      } finally {
+        await sql(`delete from public.decisions where task_id = '${task.id}'; delete from public.tasks where id = '${task.id}'`);
+      }
+    });
+
     // the owner, 5 Nov: "Everything takes time to be applied". The card sat on a spinner through every save; it must
     // answer the tap at once and only come back if the save fails (the save is held, then refused: nothing changes).
     await check('screens', 'A decision answers the tap at once, and comes back if the save fails', async () => {

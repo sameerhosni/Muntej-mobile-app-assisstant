@@ -6,7 +6,7 @@
 // Points pill = demo wallet.
 import { useEffect, useState, type ReactNode } from 'react';
 import { intlTag } from '@/lib/i18n/locale';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -26,6 +26,7 @@ import {
   Avatar,
   Button,
   Card,
+  Chip,
   EmptyCard,
   Gradient,
   Hero,
@@ -36,7 +37,7 @@ import {
   SampleTag,
   StatTile,
 } from '@/components/ui';
-import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
+import { colors, fontFamily, fontSize, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
 import i18n, { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
@@ -63,6 +64,8 @@ export default function PushbackScreen() {
   const send = useSendPushback();
   const [step, setStep] = useState<Step>('ask');
   const [sample, setSample] = useState(false);
+  // the reason, in her own words (N4)
+  const [own, setOwn] = useState('');
   // real tasks always win over the sample
   const isSample = !model.live && sample;
   const loading = isLoading && !model.live;
@@ -148,9 +151,10 @@ export default function PushbackScreen() {
         taskId: model.newTask.id,
         title: en.title,
         titleAr: ar.title,
-        recommendation: en.recommendation,
-        recommendationAr: ar.recommendation,
-        reason: en.reason,
+        // her words are the request; the numbers only back it up when she is really over
+        recommendation: own.trim(),
+        recommendationAr: own.trim(),
+        reason: own.trim(),
         details: {
           kind: 'polite_pushback',
           load_hours: model.total,
@@ -158,8 +162,9 @@ export default function PushbackScreen() {
           new_task: { id: model.newTask.id, title: en.task, estimate_hours: model.newTask.hours, due_at: model.newTask.dueAt },
           current: model.items.map((it) => ({ id: it.key, title: it.label, hours: it.hours })),
           slip_days: over ? model.slipDays : 0,
-          message: `${en.body} ${en.question}`,
-          message_ar: `${ar.body} ${ar.question}`,
+          message: own.trim(),
+          message_ar: own.trim(),
+          ...(over ? { facts: en.body, facts_ar: ar.body } : {}),
         },
       },
       {
@@ -378,21 +383,45 @@ export default function PushbackScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <ShieldCheck color={colors.purple} size={14} strokeWidth={2.2} />
                 <AppText variant="small" weight="semibold" color="purple">
-                  {t('sentBy')}
+                  {t('sentBy', { name: managerName ?? t('demo.manager') })}
                 </AppText>
               </View>
-              <Card padding={spacing.xl} style={{ flexDirection: 'row', gap: spacing.md, borderBottomStartRadius: 6 }}>
-                <Gradient name="heroEmployee" style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }}>
-                  <Sparkles color={colors.onDark} size={16} strokeWidth={2} />
-                </Gradient>
-                <AppText style={{ flex: 1, lineHeight: 22 }}>
-                  {preview.body}
-                  {'\n'}
-                  <AppText weight="extrabold">{preview.question}</AppText>
-                </AppText>
+              {/* her own words (owner, 9 Nov, N4: "I want to be able to write in my own words my delay justification") */}
+              <Card padding={spacing.lg} style={{ gap: spacing.sm }}>
+                <TextInput
+                  value={own}
+                  onChangeText={setOwn}
+                  placeholder={t('ownPh')}
+                  placeholderTextColor={colors.textFaint}
+                  multiline
+                  maxLength={1000}
+                  accessibilityLabel={t('ownPh')}
+                  style={{
+                    minHeight: 80,
+                    borderWidth: 1.5,
+                    borderColor: colors.purple,
+                    borderRadius: radius.md,
+                    padding: spacing.md,
+                    fontFamily: fontFamily[lang === 'ar' ? 'ar' : lang === 'hi' ? 'hi' : 'en'].regular,
+                    fontSize: fontSize.body,
+                    color: colors.text,
+                    textAlign: isRTL ? 'right' : 'left',
+                    textAlignVertical: 'top',
+                  }}
+                />
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {(['ownWeek', 'ownOther', 'ownWhich'] as const).map((k) => (
+                    <Chip key={k} label={t(k)} onPress={() => setOwn(t(k))} />
+                  ))}
+                </View>
+                {over && (
+                  <AppText variant="caption" color="textMuted">
+                    {`📊 ${preview.body}`}
+                  </AppText>
+                )}
               </Card>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <Button label={t('send')} tone="purple" onPress={onSend} loading={send.isPending} style={{ flex: 1 }} />
+                <Button label={t('send')} tone="purple" onPress={onSend} loading={send.isPending} disabled={!own.trim()} style={{ flex: 1 }} />
                 <Button
                   label={t('cancel')}
                   variant="outline"
