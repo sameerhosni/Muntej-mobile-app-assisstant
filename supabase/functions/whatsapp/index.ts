@@ -193,6 +193,17 @@ async function setup(o: {
   out.wabas = wabas;
   // let Meta deliver the number's messages to this app's webhook
   out.subscribed = await Promise.all(wabas.map((w) => call(`${w}/subscribed_apps`, { method: 'POST' }).then((r) => ({ waba: w, ...r }))));
+  // why Meta may refuse that (owner, 9 Nov, WhatsApp still not receiving): the account's own state, its health (it
+  // names what blocks it) and which apps are linked now. Read-only.
+  if (o.template_status)
+    out.waba_state = await Promise.all(
+      wabas.map(async (w) => ({
+        waba: w,
+        info: (await call(`${w}?fields=id,name,account_review_status,ownership_type,business_verification_status,health_status,is_enabled_for_insights`)).body,
+        apps: (await call(`${w}/subscribed_apps`)).body,
+        numbers: (await call(`${w}/phone_numbers?fields=id,display_phone_number,status,platform_type`)).body,
+      })),
+    );
   // register the number on the Cloud API (it shows "connected" after this)
   o.pin ??= Deno.env.get('WHATSAPP_PIN') ?? undefined;
   if (o.pin && !o.templates && !o.template_status) out.register = await call(`${phone}/register`, { method: 'POST', body: JSON.stringify({ messaging_product: 'whatsapp', pin: o.pin }) });
