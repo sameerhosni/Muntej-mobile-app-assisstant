@@ -22,14 +22,18 @@ begin
   if not public.feature_on('decision_finish') then raise exception 'Not available yet'; end if;
   select * into d from public.decisions where id = p_decision;
   if d.id is null then raise exception 'Decision not found'; end if;
-  if d.manager_id <> me and not public.is_admin() then raise exception 'This decision isn''t yours to make'; end if;
+  -- yours, or an admin's of the same company (reviewer, 9 Nov: an admin of any company could close it)
+  if d.manager_id <> me and not (public.is_admin() and public.same_account(d.manager_id)) then
+    raise exception 'This decision isn''t yours to make';
+  end if;
   if d.status <> 'pending' then return d.status::text; end if;
   if d.task_id is null then raise exception 'Nothing to close: this decision has no task'; end if;
   select * into t from public.tasks where id = d.task_id;
 
   update public.decisions set status = 'finished', resolved_by = me, resolved_at = now() where id = d.id;
   if t.status not in ('done', 'cancelled') then
-    update public.tasks set status = 'done', closed_at = now(), progress = 100 where id = t.id;
+    -- a task nobody owned is credited to whoever closed it (reviewer, 9 Nov: it showed «لسه ما أحد»)
+    update public.tasks set status = 'done', closed_at = now(), progress = 100, owner_id = coalesce(owner_id, me) where id = t.id;
     update public.followups set status = 'cancelled' where task_id = t.id and status = 'scheduled';
     update public.reviews set decision = 'approved', decided_at = now(), reviewer_id = coalesce(reviewer_id, me)
      where task_id = t.id and decision is null;

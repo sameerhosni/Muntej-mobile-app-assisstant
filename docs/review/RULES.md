@@ -413,3 +413,7 @@ Last updated: 2026-11-09.
 ### R92 · A new action gets its own status, never one whose triggers mean something else
 - **Why:** 9 Nov, first reviewer run: «✓ خلصت أصلاً» saved decisions as `approved`, so a "more time" card moved the due date and told the doer "gave you more time", and a "busy" card took the task back (fixed with `finish_from_decision` + status `finished`).
 - **Check:** a new outcome / button that writes an existing status (decisions.status, tasks.status, reviews.decision…) must be checked against every trigger on that table; if any trigger means something else, add a status or a dedicated RPC.
+
+### R93 · A new status is handled everywhere it can show, and in the generated types
+- **Why:** 9 Nov, second reviewer pass: decision status `finished` was handled in the triggers but the asker's Home (MyRequests) read it as "declined" («ما وافق هالمرة»), and `database.types.ts` didn't list it.
+- **Check:** a new decision / task / review status → every screen that labels decided items (MyRequests, NeedsYou, task page, Decisions) has a branch for it, and `src/lib/api/database.types.ts` lists it.

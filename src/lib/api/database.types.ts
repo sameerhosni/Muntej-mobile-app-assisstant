@@ -2107,7 +2107,7 @@ export type Database = {
       actor_type: "muntej" | "user" | "agent"
       agent_autonomy: "ask_first" | "always_run"
       agent_run_status: "running" | "success" | "failed" | "dry_run"
-      decision_status: "pending" | "approved" | "declined" | "expired"
+      decision_status: "pending" | "approved" | "declined" | "expired" | "finished"
       decision_type:
         | "extension_request"
         | "delay_risk"
@@ -2292,7 +2292,7 @@ export const Constants = {
       actor_type: ["muntej", "user", "agent"],
       agent_autonomy: ["ask_first", "always_run"],
       agent_run_status: ["running", "success", "failed", "dry_run"],
-      decision_status: ["pending", "approved", "declined", "expired"],
+      decision_status: ["pending", "approved", "declined", "expired", "finished"],
       decision_type: [
         "extension_request",
         "delay_risk",

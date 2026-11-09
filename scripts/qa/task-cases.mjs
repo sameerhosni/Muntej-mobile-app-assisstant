@@ -482,6 +482,15 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         const alerts = await sql(`select title_ar from public.alerts where profile_id = '${P.ABDULLAH}' and task_id = '${t.id}'`);
         expect(!alerts.some((a) => /وقت زيادة|أخذها منك|وافق/.test(a.title_ar ?? '')), `he heard «${alerts.map((a) => a.title_ar).join(' / ')}»`);
         expect(alerts.some((a) => /قفّل/.test(a.title_ar ?? '')), 'he wasn’t told it was closed');
+        // one tap, one alert (2nd review: the generic "changed for you" came too)
+        expect(alerts.length === 1, `he got ${alerts.length} alerts for one tap`);
+        // a "no owner" card: the closed task is credited to whoever closed it; another company's admin is refused
+        const [o] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA rule finish nobody', null, '${P.FAISAL}', 'draft') returning id`);
+        const [od] = await sql(`insert into public.decisions (task_id, manager_id, type, title, recommendation) values ('${o.id}', '${P.FAISAL}', 'reassignment', 'QA finish nobody', 'Give it') returning id`);
+        await rpc('finish_from_decision', { p_decision: od.id }, await as('FAISAL'));
+        const [oa] = await sql(`select status, owner_id from public.tasks where id = '${o.id}'`);
+        expect(oa.status === 'done' && oa.owner_id === P.FAISAL, `no-owner task: ${oa.status}, owner ${oa.owner_id ?? 'nobody'}`);
+        await sql(`delete from public.decisions where id = '${od.id}'`);
         await sql(`delete from public.alerts where task_id = '${t.id}'; delete from public.decisions where id = '${d.id}'`);
         return 'closed, date kept, told the truth';
       });
