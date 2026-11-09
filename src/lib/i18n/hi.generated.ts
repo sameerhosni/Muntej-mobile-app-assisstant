@@ -1529,7 +1529,7 @@ export default {
    "all": "सभी",
    "extensions": "विस्तार",
    "other": "अन्य",
-   "reassign": "पुनः असाइन करें",
+   "reassign": "कोई मालिक नहीं",
    "risks": "जोखिम"
   },
   "freeHours": "{{h}} घं फ्री",
@@ -1537,6 +1537,8 @@ export default {
   "headlineNone": "सब तय हो गया ☕",
   "headlineOne": "1 निर्णय बाकी",
   "headlineTwo": "बस 2 निर्णय",
+  "heroSub": "यहाँ आप निर्णय लें, बाकी मैं कर दूँगा · यह आपको लगभग {{h}} घंटे बचाता है",
+  "heroTitle": "निर्णय · {{n}}",
   "keep": "{{name}} बनाए रखें",
   "leaveIt": "अभी के लिए छोड़ दें",
   "loadHours": "{{h}} घं इस सप्ताह",

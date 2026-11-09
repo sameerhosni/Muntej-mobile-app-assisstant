@@ -2,6 +2,8 @@ import { registerStrings } from '@/lib/i18n/register';
 
 const en = {
   headlineNone: 'All decided ☕',
+  heroTitle: 'Decisions · {{n}}',
+  heroSub: 'You decide here, I do the rest · saves you ~{{h}} h',
   headlineOne: '1 decision left',
   headlineTwo: 'Just 2 decisions',
   headlineMany: 'Just {{count}} decisions',
@@ -60,7 +62,7 @@ const en = {
     all: 'All',
     extensions: 'Extensions',
     risks: 'Risks',
-    reassign: 'Reassign',
+    reassign: 'No owner',
     other: 'Other',
   },
   nothingHere: 'Nothing here',
@@ -77,6 +79,8 @@ const en = {
 
 const ar: typeof en = {
   headlineNone: 'ولا قرار باقي ☕',
+  heroTitle: 'القرارات · {{n}}',
+  heroSub: 'تقرّر هنا وأنا أكمّل الباقي · يوفّر عليك ~{{h}} ساعات',
   headlineOne: 'باقي قرار واحد',
   headlineTwo: 'بس قرارين',
   headlineMany: 'بس {{count}} قرارات',
@@ -135,7 +139,7 @@ const ar: typeof en = {
     all: 'الكل',
     extensions: 'تمديد',
     risks: 'مخاطر',
-    reassign: 'إعادة توزيع',
+    reassign: 'بدون مسؤول',
     other: 'غيرها',
   },
   nothingHere: 'ما فيه شي هنا',

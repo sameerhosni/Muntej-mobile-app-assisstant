@@ -143,27 +143,50 @@ export default function DecisionsScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        <Hero overlap={36}>
-          <View style={{ gap: spacing.md }}>
-            <AppText variant="titleLg" color="onDark" style={{ fontSize: 28, lineHeight: 36 }}>
-              {loading ? ' ' : headline}
+        {/* one clean header (owner, 9 Nov, option 1): title + count, one line of what it saves, and only the filters
+            that have something; room on the end side for Saree3's floating button so nothing covers the title */}
+        <Hero overlap={20}>
+          <View style={{ gap: spacing.sm, paddingEnd: 56 }}>
+            <AppText variant="titleLg" color="onDark" style={{ fontSize: 26, lineHeight: 34 }}>
+              {loading ? ' ' : left === 0 ? headline : t('heroTitle', { n: formatNumber(left, lang) })}
             </AppText>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-              <HeroPill
-                bg="orange"
-                icon={<Hand color={colors.onDark} size={13} strokeWidth={2.2} />}
-                label={t('savesFollowups', { n: formatNumber(followups, lang) })}
-              />
-              <HeroPill
-                bg="primaryLight"
-                icon={<Clock color={colors.onDark} size={13} strokeWidth={2.2} />}
-                label={t('timeValue', { min: formatNumber(minutes, lang), sar: formatNumber(Math.round((minutes / 60) * HOURLY_COST_SAR), lang) })}
-              />
-            </View>
+            {!loading && left > 0 && (
+              <AppText variant="small" color="onDarkMuted">
+                {t('heroSub', { h: formatNumber(Math.max(1, Math.round(minutes / 60)), lang), sar: formatNumber(Math.round((minutes / 60) * HOURLY_COST_SAR), lang) })}
+              </AppText>
+            )}
           </View>
+          {cards.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: spacing.md }}>
+              {filterOptions
+                .filter((f) => f.key === 'all' || f.count > 0)
+                .map((f) => {
+                  const on = filter === f.key;
+                  return (
+                    <Pressable
+                      key={f.key}
+                      onPress={() => setFilter(f.key)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      style={{
+                        minHeight: 38,
+                        paddingHorizontal: spacing.lg,
+                        borderRadius: radius.pill,
+                        justifyContent: 'center',
+                        backgroundColor: on ? colors.surface : 'rgba(255,255,255,0.16)',
+                      }}
+                    >
+                      <AppText variant="small" weight="extrabold" color={on ? 'primary' : 'onDark'}>
+                        {`${f.label} ${formatNumber(f.count, lang)}`}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+            </ScrollView>
+          )}
         </Hero>
 
-        <View style={{ paddingHorizontal: spacing.screen, marginTop: -36, gap: spacing.lg }}>
+        <View style={{ paddingHorizontal: spacing.screen, marginTop: -20, gap: spacing.lg }}>
           <SetupBar />
           {loading && (
             <Card elevation="raised" style={{ alignItems: 'center', paddingVertical: 28 }}>
@@ -202,7 +225,6 @@ export default function DecisionsScreen() {
             </Card>
           )}
 
-          {cards.length > 0 && <FilterChips options={filterOptions} value={filter} onChange={setFilter} />}
 
           {cards.length > 0 && shown.length === 0 && (
             <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.lg }}>

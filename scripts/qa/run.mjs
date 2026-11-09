@@ -450,6 +450,9 @@ async function screens() {
       try {
         await page.goto('http://localhost:8099/04-decisions', { waitUntil: 'domcontentloaded', timeout: 120_000 });
         await page.getByText('«QA already done» للحين بدون مسؤول').first().waitFor({ timeout: 30_000 });
+        // the header (owner, 9 Nov, option 1): «القرارات · N», one line, no "follow-ups saved" pills
+        const head = await page.evaluate(() => document.body.innerText);
+        expect(/القرارات · /.test(head) && !/ملاحقات/.test(head), 'the old Decisions header is still there');
         await page.getByRole('button', { name: '✓ خلصت أصلاً' }).first().click();
         await page.waitForTimeout(4000);
         const [after] = await sql(`select status, owner_id from public.tasks where id = '${task.id}'`);

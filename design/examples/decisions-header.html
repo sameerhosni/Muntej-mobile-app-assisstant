@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decisions header</title>
+<style>
+  body { margin:0; padding:16px; background:#F3F6FB; font-family: Tahoma, "Segoe UI", sans-serif; color:#0B1B3F; width:390px; box-sizing:border-box; }
+  .lbl { font-size:14px; font-weight:800; color:#5B6576; margin:6px 2px 8px; }
+  .tag { display:inline-block; background:#0B1B3F; color:#fff; border-radius:8px; padding:2px 9px; font-size:13px; margin-left:6px; }
+  .a { background:linear-gradient(135deg,#1F4FD8,#2E9BF0); border-radius:22px; padding:16px; color:#fff; }
+  .row { display:flex; align-items:center; gap:10px; }
+  .back { width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .t { font-size:24px; font-weight:800; }
+  .s { font-size:13px; opacity:.9; margin-top:4px; }
+  .chips { display:flex; gap:6px; margin-top:12px; overflow:hidden; }
+  .c { white-space:nowrap; border-radius:999px; padding:7px 12px; font-size:12.5px; font-weight:800; background:rgba(255,255,255,.16); }
+  .c.on { background:#fff; color:#1F4FD8; }
+  .b { background:#fff; border:1px solid #E2E8F2; border-radius:20px; padding:14px; }
+  .big { font-size:34px; font-weight:800; color:#1F6FEB; line-height:1; }
+  .sub { font-size:12.5px; color:#5B6576; }
+  .seg { display:flex; background:#E9EEF6; border-radius:999px; padding:3px; gap:3px; margin-top:12px; }
+  .seg div { flex:1; text-align:center; padding:8px 2px; border-radius:999px; font-size:12px; font-weight:800; color:#5B6576; }
+  .seg .on { background:#fff; color:#1F6FEB; box-shadow:0 1px 4px rgba(11,42,91,.12); }
+  .note { font-size:12px; color:#5B6576; margin:8px 4px 0; }
+  hr { border:0; border-top:2px dashed #C9D3E3; margin:18px 0 14px; }
+</style>
+</head>
+<body>
+  <div class="lbl"><span class="tag">١</span>نفس الأزرق، أنظف (أنصح فيه)</div>
+  <div class="a">
+    <div class="row"><div class="back">›</div><div style="flex:1"><div class="t">القرارات · 10</div><div class="s">تقرّر هنا وأنا أكمّل الباقي · يوفّر عليك ~5 ساعات</div></div></div>
+    <div class="chips"><div class="c on">الكل 10</div><div class="c">بدون مسؤول 8</div><div class="c">تمديد 1</div><div class="c">موافقات 1</div></div>
+  </div>
+  <div class="note">زر الرجوع ما يغطي العنوان، سطر واحد بدل بطاقتين، والفلاتر اللي فيها شي بس (الصفر يختفي).</div>
+
+  <hr>
+  <div class="lbl"><span class="tag">٢</span>أبيض بسيط بدون الأزرق</div>
+  <div class="b">
+    <div class="row"><div class="back" style="background:#F3F6FB;color:#0B1B3F">›</div><div style="flex:1"><div class="sub">ينتظر قرارك</div><div class="big">10</div></div><div class="sub" style="text-align:left">~5 ساعات<br>توفّرها</div></div>
+    <div class="seg"><div class="on">الكل</div><div>بدون مسؤول 8</div><div>تمديد 1</div><div>موافقات 1</div></div>
+  </div>
+</body>
+</html>
