@@ -108,6 +108,19 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(s.every((x) => x.owner_id === QA_BOSS || /badawy|mohamed|محمد/i.test(x.owner_name ?? '')), `owners: ${s.map((x) => x.owner_name ?? NAME[x.owner_id] ?? 'nobody').join(', ')}`);
     return `${s.length} for Mohamed`;
   });
+  // The owner, 9 Nov: "you already suggested nouran and did not assign it… distribute tasks accurately more than 90%".
+  // His DM to Nouran went to the look-alike "Nouranemira" login. In a DM, what you ask goes to the other person.
+  await check('inbox', 'A direct message goes to the person in it, not a look-alike login', async () => {
+    const [{ id: twin }] = await sql(`insert into public.profiles (account_id, full_name, role, status, manager_id) values ('${QA_ACCOUNT}', '${FAISAL_NAME.replace(/\s+/g, '')}', 'employee', 'active', '${QA_BOSS}') returning id`);
+    try {
+      const s = live(await ingest(dm([`[2026-11-09T13:42:10Z] ${BOSS_NAME}: ابعتلي تفاصيل الدخول على النظام الجديد لو سمحت`]), BOSS_NAME, 'Direct message'));
+      expect(s.length >= 1, 'no task');
+      expect(s.every((x) => x.owner_id === FAISAL), `went to ${s.map((x) => (x.owner_id === twin ? 'the look-alike login' : NAME[x.owner_id] ?? x.owner_id ?? 'nobody')).join(', ')}`);
+      return s[0].title;
+    } finally {
+      await sql(`delete from public.profiles where id = '${twin}'`);
+    }
+  });
   await check('inbox', 'What they ask of you in a direct message stays yours', async () => {
     const s = live(await ingest(dm([`[2026-11-04T13:04:46Z] ${FAISAL_NAME}: ممكن تعتمد لي عرض السعر قبل بكرة؟`]), FAISAL_NAME, 'Direct message'));
     expect(s.length >= 1, 'no task');

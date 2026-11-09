@@ -266,7 +266,8 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
       const { data: team } = await admin
         .from('profiles')
         .select('id, full_name, full_name_ar, title, skills')
-        .eq('status', 'active')
+        // invited but not signed in yet (pending) still get their work (owner, 9 Nov: Badawy's tasks came with no owner)
+        .neq('status', 'deleted')
         .eq('hidden', false)
         .eq('account_id', owner?.account_id);
       const teamIds = (team ?? []).map((p) => p.id as string);

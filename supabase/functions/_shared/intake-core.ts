@@ -440,9 +440,15 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const onlyOtherId = onlyOther ? teammateByName(onlyOther, input.team) : null;
   const relevant = confident
     .map((t) => {
-      // asked by the user, so it can't be the user's own work
-      if (dmWith && t.asked_by_user && !t.asked_of_user && (t.owner_id === input.profileId || !t.owner_id))
-        return { ...t, owner_id: dmId, owner_name: dmWith, outside: !dmId };
+      // asked by the user in a direct message: it's the other person's, whoever the model picked, unless the line names
+      // someone else on the team (owner, 9 Nov: «اعطيني تفاصيل الدخول» to Nouran went to the "Nouranemira" test login)
+      if (dmWith && t.asked_by_user && !t.asked_of_user) {
+        const picked = t.owner_id ? input.team.find((p) => p.id === t.owner_id) : undefined;
+        const namedElse = !!picked && picked.id !== dmId && picked.id !== input.profileId && [picked.full_name, picked.full_name_ar].some((n) => n && n.split(' ').every((w) => w.length > 1 && (t.quote ?? '').toLowerCase().includes(w.toLowerCase())));
+        if (!namedElse) return { ...t, owner_id: dmId, owner_name: dmWith, outside: !dmId };
+      }
+      // asked of the user in a direct message by the other person: the user's own
+      if (dmWith && t.asked_of_user && !t.asked_by_user && t.owner_id !== input.profileId) return { ...t, owner_id: input.profileId, outside: false };
       // a teammate who wasn't in the meeting, or someone named who wasn't there either
       if (inMeeting && t.owner_id !== input.profileId) {
         const ownerIn = t.owner_id ? inMeeting.has(t.owner_id) : !!t.owner_name && meeting!.some((m) => sameName(m, t.owner_name!));
