@@ -31,6 +31,8 @@ type TaskLike = {
   assigner_id: string | null;
   helper_id?: string | null;
   due_at?: string | null;
+  /** the giver chose «تنقفل لحالها»: the doer's Done closes it (N3) */
+  closes_itself?: boolean | null;
   reviews?: Review[];
 };
 
@@ -56,7 +58,7 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
   const reviewerId = review?.reviewer_id ?? (task.assigner_id !== task.owner_id ? task.assigner_id : ownerManager);
   const isReviewer = !isOwner && task.status === 'submitted' && !!meId && (reviewerId === meId || ownerManager === meId);
   // at the top of the tree with your own task: nobody to send it to
-  const closesDirectly = isOwner && task.assigner_id === meId && !me?.manager_id;
+  const closesDirectly = isOwner && ((task.assigner_id === meId && !me?.manager_id) || !!task.closes_itself);
 
   const refresh = () =>
     Promise.all([qc.invalidateQueries({ queryKey: ['task', task.id] }), qc.invalidateQueries({ queryKey: ['decisions'] }), invalidateTaskData(qc)]);

@@ -333,7 +333,13 @@ export type LiveTask = Pick<
   'id' | 'title' | 'owner_id' | 'helper_id' | 'due_at' | 'priority' | 'definition_of_done' | 'budget' | 'goal' | 'status'
 >;
 
-export type LiveTaskRow = LiveTask & { assigner_id: string };
+export type LiveTaskRow = LiveTask & { assigner_id: string; closes_itself?: boolean };
+
+/** N3: what happens when it's finished — the giver's choice (false = «أراجعها أنا», true = «تنقفل لحالها») */
+export async function setClosesItself(taskId: string, value: boolean): Promise<void> {
+  const { error } = await untyped.from('tasks').update({ closes_itself: value }).eq('id', taskId);
+  if (error) throw new Error(error.message);
+}
 /** gone = task ids the chat mentions that no longer exist (deleted) */
 export type ChatData = { messages: ChatMessage[]; tasks: Record<string, LiveTaskRow>; gone: string[] };
 
@@ -353,13 +359,13 @@ async function fetchChat(): Promise<ChatData> {
   const tasks: Record<string, LiveTaskRow> = {};
   let gone: string[] = [];
   if (ids.length) {
-    const res = await supabase
+    const res = await untyped
       .from('tasks')
-      .select('id, title, owner_id, helper_id, assigner_id, due_at, priority, definition_of_done, budget, goal, status')
+      .select('id, title, owner_id, helper_id, assigner_id, due_at, priority, definition_of_done, budget, goal, status, closes_itself')
       .in('id', ids);
     // live state is a nice-to-have: the cards fall back to their snapshot if this fails
     if (!res.error) {
-      for (const t of res.data) tasks[t.id] = t;
+      for (const t of (res.data ?? []) as LiveTaskRow[]) tasks[t.id] = t;
       gone = ids.filter((id) => !tasks[id]);
     }
   }
@@ -501,6 +507,7 @@ export type CardTask = {
   status: TaskStatus;
   assigner_id: string | null;
   missing: MissingItem[];
+  closes_itself?: boolean;
 };
 
 export function mergeTask(snap: TaskSnapshot, live?: LiveTaskRow): CardTask {
@@ -527,5 +534,6 @@ export function mergeTask(snap: TaskSnapshot, live?: LiveTaskRow): CardTask {
     status: live.status,
     assigner_id: live.assigner_id,
     missing,
+    closes_itself: !!live.closes_itself,
   };
 }

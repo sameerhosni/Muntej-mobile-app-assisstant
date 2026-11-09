@@ -31,6 +31,8 @@ type Props = {
   /** the user asked to cancel / delete it in the chat → open with the confirmation */
   askCancel?: boolean;
   onCancel: () => Promise<void>;
+  /** N3: whoever gave it picks «أراجعها أنا» / «تنقفل لحالها»; absent = not theirs to pick */
+  onCloseMode?: (closesItself: boolean) => Promise<void>;
   onMissing: (item: MissingItem) => void;
   /** lock the chat on this task */
   onTalkAbout?: () => void;
@@ -54,6 +56,7 @@ export function TaskCard({
   canCancel,
   askCancel,
   onCancel,
+  onCloseMode,
   onMissing,
   onTalkAbout,
   estimateHours,
@@ -69,6 +72,14 @@ export function TaskCard({
   const [confirm, setConfirm] = useState(!!askCancel && canCancel);
   const [working, setWorking] = useState(false);
   const undone = state !== 'active';
+  // N3: shown at once, saved behind it; back if the save fails
+  const [selfClose, setSelfClose] = useState<boolean | null>(null);
+  const closesItself = selfClose ?? !!task.closes_itself;
+  const pickClose = (v: boolean) => {
+    if (!onCloseMode || v === closesItself) return;
+    setSelfClose(v);
+    onCloseMode(v).catch(() => setSelfClose(null));
+  };
 
   const owner = team.find((p) => p.id === task.owner_id);
   const helper = team.find((p) => p.id === task.helper_id);
@@ -244,6 +255,43 @@ export function TaskCard({
                   </AppText>
                 </Pressable>
               ))}
+            </View>
+          )}
+
+          {/* N3 (owner, 9 Nov): what happens when it's finished, the giver's choice */}
+          {!!onCloseMode && task.status !== 'done' && task.status !== 'submitted' && (
+            <View style={{ gap: 6 }}>
+              <AppText variant="small" weight="bold">
+                {t('whenDone')}
+              </AppText>
+              <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', backgroundColor: colors.chip, borderRadius: radius.pill, padding: 3, gap: 3 }}>
+                {[false, true].map((v) => {
+                  const on = closesItself === v;
+                  return (
+                    <Pressable
+                      key={String(v)}
+                      onPress={() => pickClose(v)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: on }}
+                      style={{
+                        flex: 1,
+                        minHeight: 40,
+                        borderRadius: radius.pill,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: on ? colors.surface : colors.transparent,
+                      }}
+                    >
+                      <AppText variant="small" weight="extrabold" color={on ? 'primary' : 'textMuted'}>
+                        {v ? t('closesItself') : t('iReview')}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <AppText variant="caption" color="textMuted">
+                {closesItself ? t('closesItselfNote') : t('iReviewNote')}
+              </AppText>
             </View>
           )}
 

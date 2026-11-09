@@ -455,6 +455,18 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         await sql(`delete from public.decisions where task_id = '${t.id}'; delete from public.alerts where task_id = '${t.id}'`);
         return 'comment + more time with her reason';
       });
+      // The owner, 9 Nov (N3): "when you create a task you get to choose if it is auto close or sent for review"
+      await check('rules', '“Closes by itself” closes on the doer’s Done; otherwise it goes for review', async () => {
+        const [a] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA rule review', '${P.ABDULLAH}', '${P.FAISAL}', 'in_progress') returning id`);
+        const [b] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, closes_itself) values ('QA rule selfclose', '${P.ABDULLAH}', '${P.FAISAL}', 'in_progress', true) returning id`);
+        const ra = await rpc('set_task_status', { p_task: a.id, p_status: 'done' }, await as('ABDULLAH'));
+        const rb = await rpc('set_task_status', { p_task: b.id, p_status: 'done' }, await as('ABDULLAH'));
+        expect(ra === 'submitted', `the review task became ${ra}`);
+        expect(rb === 'done', `the self-closing task became ${rb}`);
+        // the giver can switch it: «أراجعها أنا» ↔ «تنقفل لحالها»
+        await rpc('set_task_status', { p_task: a.id, p_status: 'reopen' }, await as('ABDULLAH'));
+        return 'review → submitted, closes by itself → done';
+      });
     } finally {
       await tidy();
       if (!was) await sql(`update public.profiles set tester = false where id in (${people})`);

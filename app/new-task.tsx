@@ -13,7 +13,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile, useTeam } from '@/lib/api';
 import type { TaskPriority } from '@/lib/api/types';
 import { createTask, type FollowupStep, type ParsedTask } from '@/features/capture/api';
-import { invalidateTaskData } from '@/features/chat/api';
+import { invalidateTaskData, setClosesItself } from '@/features/chat/api';
 import { homeRouteFor } from '@/features/screens/registry';
 import { track } from '@/lib/analytics';
 import { AI_NS } from '@/features/ai-consent/strings';
@@ -46,6 +46,8 @@ export default function NewTaskScreen() {
   const [owner, setOwner] = useState<string | null>(null);
   const [when, setWhen] = useState<When>('tomorrow');
   const [priority, setPriority] = useState<TaskPriority>('medium');
+  // N3 (owner, 9 Nov): what happens when it's finished; only for a task given to someone else
+  const [closesItself, setClosesItselfChoice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const meId = me.data?.id;
@@ -86,6 +88,7 @@ export default function NewTaskScreen() {
     };
     try {
       const id = await createTask(task, 'text');
+      if (owner && closesItself) await setClosesItself(id, true);
       track('task_created_by_hand', { assigned: !!owner });
       await invalidateTaskData(qc);
       router.replace({ pathname: '/14-task-detail', params: { id } } as Href);
@@ -136,6 +139,15 @@ export default function NewTaskScreen() {
           ))}
         </View>
       </View>
+      {!!owner && (
+        <View style={{ gap: spacing.sm }}>
+          <AppText variant="cardTitle">{t('nWhenDone')}</AppText>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            <Chip label={t('nIReview')} selected={!closesItself} onPress={() => setClosesItselfChoice(false)} />
+            <Chip label={t('nClosesItself')} selected={closesItself} onPress={() => setClosesItselfChoice(true)} />
+          </View>
+        </View>
+      )}
       {!!error && <AppText color="red">{error}</AppText>}
       <Button label={t('nSave')} size="lg" loading={busy} onPress={save} />
     </Screen>

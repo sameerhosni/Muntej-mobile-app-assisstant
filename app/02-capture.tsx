@@ -50,6 +50,7 @@ import {
   orgProposal,
   sendChat,
   cancelTask,
+  setClosesItself,
   undoNewTask,
   taskSnapshot,
   useChat,
@@ -750,6 +751,14 @@ function MuntejChatScreen() {
                 canCancel={canCancel}
                 askCancel={!!snap.confirm_delete && m.id === lastAssistantId}
                 onCancel={() => end(task.id)}
+                onCloseMode={
+                  !!meId && task.assigner_id === meId && task.owner_id !== meId
+                    ? async (v) => {
+                        await setClosesItself(task.id, v);
+                        void qc.invalidateQueries({ queryKey: chatKey });
+                      }
+                    : undefined
+                }
                 onMissing={fillMissing}
                 onTalkAbout={focusTaskId === task.id ? undefined : () => talkAbout(task.id)}
                 estimateHours={snap.estimate_hours}
