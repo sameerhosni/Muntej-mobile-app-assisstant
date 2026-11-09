@@ -6,7 +6,9 @@ import { jsonNum, jsonStr, shortName } from './people';
 
 export type Person = Pick<Profile, 'id' | 'full_name' | 'full_name_ar'>;
 export type DecisionType = Enum<'decision_type'>;
-export type Outcome = 'approved' | 'declined' | 'moved' | 'kept';
+/** finished: it's already done, closed from the card (owner, 9 Nov: "if task already done so let the user finish it from
+ *  this page not to assign then transfer it to tasks page then approve it") */
+export type Outcome = 'approved' | 'declined' | 'moved' | 'kept' | 'finished';
 
 export type ChipVM = {
   label: string;

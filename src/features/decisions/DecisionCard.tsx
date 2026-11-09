@@ -55,6 +55,8 @@ export function DecisionCard({ card, outcome, raised, candidates, onResolve }: P
         return t('doneMoved');
       case 'kept':
         return t('doneKept', { name: ownerName });
+      case 'finished':
+        return t('doneFinished');
       default:
         return '';
     }
@@ -206,13 +208,22 @@ export function DecisionCard({ card, outcome, raised, candidates, onResolve }: P
                 />
                 <Button size="md" variant="outline" label={ownerName ? t('keep', { name: ownerName }) : t('leaveIt')} onPress={() => onResolve('kept')} style={{ flex: 1, minHeight: 48 }} />
               </View>
-              {others.length > 1 && (
-                <Pressable onPress={() => setPicking(true)} accessibilityRole="button" style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center', marginVertical: -spacing.sm }}>
-                  <AppText variant="caption" weight="bold" color="primary">
-                    {t('someoneElse')}
-                  </AppText>
-                </Pressable>
-              )}
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, marginVertical: -spacing.sm }}>
+                {others.length > 1 && (
+                  <Pressable onPress={() => setPicking(true)} accessibilityRole="button" style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center' }}>
+                    <AppText variant="caption" weight="bold" color="primary">
+                      {t('someoneElse')}
+                    </AppText>
+                  </Pressable>
+                )}
+                {!!card.raw?.task_id && (
+                  <Pressable onPress={() => onResolve('finished')} accessibilityRole="button" style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center' }}>
+                    <AppText variant="caption" weight="bold" color="greenText">
+                      {t('alreadyDone')}
+                    </AppText>
+                  </Pressable>
+                )}
+              </View>
             </>
           )}
         </View>

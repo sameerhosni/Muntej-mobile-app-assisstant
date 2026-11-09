@@ -442,6 +442,24 @@ async function screens() {
       }
     });
 
+    // The owner, 9 Nov: "if task already done so let the user finish it from this page, not assign then transfer it to
+    // the tasks page then approve it"
+    await check('flows', 'Decisions: «خلصت أصلاً» closes the task from the card', async () => {
+      const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA already done', null, '${QA_BOSS}', 'draft') returning id`);
+      await sql(`insert into public.decisions (task_id, manager_id, type, title, title_ar, recommendation, recommendation_ar) values ('${task.id}', '${QA_BOSS}', 'reassignment', 'QA already done has no owner', '«QA already done» للحين بدون مسؤول', 'Give it to someone', 'عطها أحد')`);
+      try {
+        await page.goto('http://localhost:8099/04-decisions', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.getByText('«QA already done» للحين بدون مسؤول').first().waitFor({ timeout: 30_000 });
+        await page.getByRole('button', { name: '✓ خلصت أصلاً' }).first().click();
+        await page.waitForTimeout(4000);
+        const [after] = await sql(`select status, owner_id from public.tasks where id = '${task.id}'`);
+        expect(after.status === 'done', `the task is ${after.status}, not done`);
+        return 'closed from the card';
+      } finally {
+        await sql(`delete from public.decisions where task_id = '${task.id}'; delete from public.tasks where id = '${task.id}'`);
+      }
+    });
+
     // The owner, 9 Nov: "why many tasks with no assignee, from where you get it" — a task from a tool says who sent it
     await check('screens', 'A task from email says who sent it, not «لسه ما أحد»', async () => {
       const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, source, external_from) values ('QA from sender', '${QA_BOSS}', '${QA_BOSS}', 'assigned', 'email', 'QA Sender') returning id`);

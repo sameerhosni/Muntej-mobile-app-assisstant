@@ -27,6 +27,8 @@ import {
   type Person,
 } from '@/features/decisions/model';
 import { useResolveDecision, useTaskOwners } from '@/features/decisions/useResolveDecision';
+import { useQueryClient } from '@tanstack/react-query';
+import { invalidateTaskData, setTaskStatus } from '@/features/chat/api';
 import { NS } from '@/features/decisions/strings';
 
 const DECISIONS_STEPS = [{ target: 'decisions.card', key: 'decisionsCard', demo: 'approve' as const }];
@@ -68,7 +70,8 @@ export default function DecisionsScreen() {
 
   const candidates: Person[] = sample
     ? DEMO_TEAM.filter((p) => p.role === 'employee').map((p) => ({ id: p.id, full_name: p.name, full_name_ar: p.nameAr }))
-    : teamList.filter((p) => p.role === 'employee');
+    : // anyone you may give work to, managers too (Nouran Emira, a manager, wasn't offered)
+      teamList.filter((p) => p.id !== me.data?.id && (p as { status?: string }).status !== 'deleted');
 
   const left = cards.filter((c) => !outcomes[c.id]).length;
   const followups = left * FOLLOWUPS_PER_DECISION;
@@ -76,6 +79,8 @@ export default function DecisionsScreen() {
   const headline =
     left === 0 ? t('headlineNone') : left === 1 ? t('headlineOne') : left === 2 ? t('headlineTwo') : t('headlineMany', { count: left });
   const loading = decisions.isLoading && !sample;
+  const [pulled, setPulled] = useState(false);
+  const qc = useQueryClient();
 
   const onResolve = (card: CardVM, outcome: Outcome, moveTo?: Person) => {
     setFailed(false);
@@ -90,6 +95,19 @@ export default function DecisionsScreen() {
     // the card answers the tap at once while the saves run behind it, and comes back only if they fail
     setKept((k) => ({ ...k, [card.id]: card }));
     setOutcomes((o) => ({ ...o, [card.id]: outcome }));
+    // already done: it becomes yours and closes, all from this card (owner, 9 Nov)
+    if (outcome === 'finished') {
+      const meP = { id: me.data.id, full_name: me.data.full_name, full_name_ar: me.data.full_name_ar };
+      resolve
+        .mutateAsync({ decision: card.raw, outcome: 'approved', meId: me.data.id, moveTo: card.owner ? null : meP, ownerId: card.owner?.id ?? null })
+        .then(() => setTaskStatus(card.raw!.task_id!, 'done'))
+        .then(() => invalidateTaskData(qc))
+        .catch(() => {
+          setOutcomes(({ [card.id]: _gone, ...rest }) => rest);
+          setFailed(true);
+        });
+      return;
+    }
     resolve.mutate(
       {
         decision: card.raw,
@@ -111,7 +129,18 @@ export default function DecisionsScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={<RefreshControl refreshing={decisions.isRefetching} onRefresh={() => decisions.refetch()} tintColor={colors.primary} />}
+        // the spinner only for a pull: a tap's save refreshes quietly behind the card (owner, 9 Nov: "loading again for
+        // seconds after assigning")
+        refreshControl={
+          <RefreshControl
+            refreshing={pulled && decisions.isRefetching}
+            onRefresh={() => {
+              setPulled(true);
+              void decisions.refetch().finally(() => setPulled(false));
+            }}
+            tintColor={colors.primary}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
         <Hero overlap={36}>
