@@ -440,6 +440,21 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         await sql(`delete from public.chat_messages where profile_id = '${P.ABDULLAH}' and created_at > now() - interval '5 minutes'`);
         return 'owner refused, giver allowed';
       });
+      // The owner, 9 Nov (N2): "ask for deadline extension, or add a comment to the owner", in her own words
+      await check('rules', 'The doer’s comment and “more time” reach whoever gave the task', async () => {
+        const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA rule comment', '${P.ABDULLAH}', '${P.FAISAL}', 'in_progress', now() + interval '1 day') returning id`);
+        await rpc('add_task_comment', { p_task: t.id, p_body: 'محتاج ملف العميل قبل ما أبدأ' }, await as('ABDULLAH'));
+        const [a] = await sql(`select count(*)::int n from public.alerts where profile_id = '${P.FAISAL}' and kind = 'task_comment' and task_id = '${t.id}'`);
+        expect(a.n === 1, 'Faisal got no alert for the comment');
+        const [c] = await sql(`select body from public.task_comments where task_id = '${t.id}'`);
+        expect(c?.body === 'محتاج ملف العميل قبل ما أبدأ', 'the comment wasn’t saved in her words');
+        const sent = await rpc('request_more_time', { p_task: t.id, p_new_due: new Date(Date.now() + 4 * 86_400_000).toISOString(), p_reason: 'العميل تأخر بالملف' }, await as('ABDULLAH'));
+        expect(sent === true, 'more time was not sent');
+        const [d] = await sql(`select manager_id, details->>'reason' reason from public.decisions where task_id = '${t.id}' and type = 'extension_request' and status = 'pending'`);
+        expect(d?.manager_id === P.FAISAL && d.reason === 'العميل تأخر بالملف', `the ask went to ${d?.manager_id ?? 'nobody'} with «${d?.reason}»`);
+        await sql(`delete from public.decisions where task_id = '${t.id}'; delete from public.alerts where task_id = '${t.id}'`);
+        return 'comment + more time with her reason';
+      });
     } finally {
       await tidy();
       if (!was) await sql(`update public.profiles set tester = false where id in (${people})`);

@@ -426,10 +426,15 @@ async function screens() {
       const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA main button', '${QA_BOSS}', '${other.id}', 'assigned') returning id`);
       try {
         await page.goto(`http://localhost:8099/14-task-detail?id=${task.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
-        const button = page.getByRole('button', { name: /أرسلها للمراجعة|Send for review/ });
+        const button = page.getByRole('button', { name: /خلصتها، أرسلها|Done, send it/ });
         await button.waitFor({ timeout: 30_000 });
         const under = await button.evaluate((el) => getComputedStyle(el.firstElementChild).backgroundColor);
         expect(!['transparent', 'rgba(0, 0, 0, 0)'].includes(under), `nothing solid under the white label (${under})`);
+        // owner, 9 Nov (N2): the doer also asks for more time or comments, in their own words, right from the page
+        const bar = await page.evaluate(() => document.body.innerText);
+        expect(/أبي وقت أكثر/.test(bar) && /أكتب تعليق/.test(bar) && /قل لمنتج يعدّلها/.test(bar), 'the doer has no «أبي وقت أكثر» / «أكتب تعليق» / «قل لمنتج يعدّلها»');
+        await page.getByRole('button', { name: 'أبي وقت أكثر' }).click();
+        await page.getByText('الموعد الجديد:').waitFor({ timeout: 5_000 });
         return under;
       } finally {
         await sql(`delete from public.tasks where id = '${task.id}'`);
@@ -530,7 +535,10 @@ async function screens() {
         await page.reload({ waitUntil: 'domcontentloaded' });
         await to.waitFor({ timeout: 30_000 });
         await page.waitForTimeout(2500);
-        expect(!/خلني أقسّمها/.test(await page.evaluate(() => document.body.innerText)), '«خلني أقسّمها» came back after ✕');
+        const after = await page.evaluate(() => document.body.innerText);
+        expect(!/خلني أقسّمها/.test(after), '«خلني أقسّمها» came back after ✕');
+        // owner, 9 Nov (N2): whoever gave it closes or cancels it from the page; the chat button says what it does
+        expect(/قفّلها، خلصت/.test(after) && /ألغها/.test(after) && /قل لمنتج يعدّلها/.test(after), 'the giver has no «قفّلها» / «ألغها» / «قل لمنتج يعدّلها»');
         await to.click();
         await page.getByText('مين يسويها؟').waitFor({ timeout: 10_000 });
         // someone else's task: on the Team tab

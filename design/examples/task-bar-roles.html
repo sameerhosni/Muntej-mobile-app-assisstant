@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task bar roles</title>
+<style>
+  body { margin:0; padding:18px 16px 24px; background:#F3F6FB; font-family: Tahoma, "Segoe UI", sans-serif; color:#0B1B3F; width:390px; box-sizing:border-box; }
+  h2 { font-size:14px; color:#5B6576; font-weight:700; margin:14px 2px 8px; }
+  .tag { display:inline-block; background:#0B1B3F; color:#fff; border-radius:8px; padding:2px 9px; font-size:13px; margin-left:6px; }
+  .bar { background:#fff; border:1px solid #E2E8F2; border-radius:20px; padding:12px; }
+  .main { background:linear-gradient(90deg,#1F6FEB,#2E9BF0); color:#fff; border-radius:999px; padding:13px; text-align:center; font-weight:800; font-size:15px; }
+  .main.green { background:#0B7A55; }
+  .row { display:flex; gap:6px; margin-top:8px; }
+  .pill { flex:1; border:1px solid #E2E8F2; border-radius:999px; padding:9px 4px; text-align:center; font-size:12.5px; font-weight:700; color:#33415C; background:#fff; }
+  .note { font-size:12px; color:#5B6576; margin:6px 2px 0; }
+  .sheet { background:#fff; border:1px solid #E2E8F2; border-radius:18px; padding:12px; margin-top:8px; }
+  .sheet b { font-size:14px; }
+  .box { border:1px solid #CFE0FB; border-radius:12px; padding:10px; color:#8A94A6; font-size:13px; margin:8px 0; min-height:38px; }
+  .chips span { display:inline-block; background:#E8F0FE; color:#1F6FEB; border-radius:999px; padding:5px 10px; font-size:12px; font-weight:700; margin:0 0 4px 4px; }
+  .send { background:#1F6FEB; color:#fff; border-radius:999px; padding:10px; text-align:center; font-weight:800; font-size:14px; }
+</style>
+</head>
+<body>
+  <h2><span class="tag">١</span>أنت اللي تسويها (نوران)</h2>
+  <div class="bar">
+    <div class="main">📤 أرسلها لسمير يراجعها</div>
+    <div class="row"><div class="pill">⏰ أبي وقت أكثر</div><div class="pill">💬 علّق لسمير</div><div class="pill">✨ منتج</div></div>
+  </div>
+  <div class="note">إذا اللي عطاك اختار «تنقفل لحالها»: الزر الأخضر «✓ خلصتها». يظهر دايم، مو بس بعد ما تخلص الخطوات.</div>
+
+  <h2><span class="tag">٢</span>أنت اللي عطيتها (سمير)</h2>
+  <div class="bar">
+    <div class="main green">✓ قفلها، خلصت</div>
+    <div class="row"><div class="pill">💬 علّق لنوران</div><div class="pill">⊘ ألغها</div><div class="pill">✨ منتج</div></div>
+  </div>
+  <div class="note">لما توصلك للمراجعة: «✓ اعتمدها» و«↩ رجّعها» زي الحين.</div>
+
+  <h2>لما تضغط «⏰ أبي وقت أكثر» أو «💬 علّق» — بكلامك أنت</h2>
+  <div class="sheet">
+    <b>⏰ أبي وقت أكثر</b>
+    <div class="chips"><span>+يوم</span><span>+يومين</span><span>+أسبوع</span><span>📅 تاريخ</span></div>
+    <div class="box">اكتب السبب بكلامك… (اختياري)</div>
+    <div class="send">أرسل لسمير</div>
+  </div>
+  <div class="note">يوصل لسمير في التطبيق والواتساب: «نوران تبي يومين زيادة: …» مع «موافق» / «لا». والتعليق يوصله كذلك ويظهر في صفحة المهمة تحت «التعليقات».</div>
+</body>
+</html>

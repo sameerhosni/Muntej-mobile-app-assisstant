@@ -22,6 +22,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { qk, useMyProfile, useTask, useTeam, type Evidence, type TaskPriority } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { ReviewBar } from '@/features/review/ReviewBar';
+import { CommentsSection } from '@/features/review/CommentsSection';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { FromToRow } from '@/features/tasks/FromTo';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
@@ -456,7 +457,13 @@ export default function TaskDetailScreen() {
               />
             </TourTarget>
           </Spotlight>
-        ) : (
+        ) : null}
+        {live && d && (
+          <View style={{ paddingHorizontal: spacing.screen }}>
+            <CommentsSection taskId={d.id} team={team.data ?? []} meId={me.data?.id} />
+          </View>
+        )}
+        {live && d ? null : (
           <View style={{ paddingHorizontal: spacing.screen, gap: spacing.sm }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <AppText variant="section">{t('subtasks')}</AppText>

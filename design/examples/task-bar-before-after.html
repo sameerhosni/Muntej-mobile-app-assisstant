@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task bar before after</title>
+<style>
+  body { margin:0; padding:16px; background:#E9EEF6; font-family: Tahoma, "Segoe UI", sans-serif; color:#0B1B3F; width:390px; box-sizing:border-box; }
+  .lbl { font-size:15px; font-weight:800; margin:4px 2px 8px; }
+  .lbl.bad { color:#C2352B; } .lbl.good { color:#0B7A55; }
+  .phone { background:#F3F6FB; border:1px solid #D5DDEA; border-radius:22px; overflow:hidden; margin-bottom:16px; }
+  .top { padding:12px 14px; }
+  .t { font-weight:800; font-size:16px; }
+  .meta { font-size:12px; color:#5B6576; margin-top:3px; }
+  .bottom { background:#fff; border-top:1px solid #E2E8F2; padding:10px 12px 14px; }
+  .main { background:linear-gradient(90deg,#1F6FEB,#2E9BF0); color:#fff; border-radius:999px; padding:12px; text-align:center; font-weight:800; font-size:15px; }
+  .row { display:flex; gap:6px; margin-top:7px; }
+  .pill { flex:1; border:1px solid #E2E8F2; border-radius:999px; padding:9px 2px; text-align:center; font-size:12.5px; font-weight:700; color:#33415C; }
+  .only { border:1.5px solid #1F6FEB; color:#1F6FEB; border-radius:999px; padding:12px; text-align:center; font-weight:800; }
+  .why { font-size:12.5px; color:#5B6576; margin:6px 4px 0; }
+</style>
+</head>
+<body>
+  <div class="lbl bad">الحين ❌</div>
+  <div class="phone">
+    <div class="top"><div class="t">تجربة تطبيق الجوال</div><div class="meta">من N Emira ← إلى نوران · الخميس</div></div>
+    <div class="bottom"><div class="only">💬 غيّرها مع منتج</div></div>
+  </div>
+  <div class="why">زر واحد بس، ويوديك للشات.</div>
+
+  <div class="lbl good" style="margin-top:14px">بعد ✅ (نفس الصفحة، تحت)</div>
+  <div class="phone">
+    <div class="top"><div class="t">تجربة تطبيق الجوال</div><div class="meta">من N Emira ← إلى نوران · الخميس</div></div>
+    <div class="bottom">
+      <div class="main">📤 خلصتها، أرسلها للمراجعة</div>
+      <div class="row"><div class="pill">⏰ أبي وقت أكثر</div><div class="pill">💬 أكتب تعليق</div><div class="pill">✨ منتج</div></div>
+    </div>
+  </div>
+  <div class="why">كل شي بضغطة من الصفحة نفسها: تسلّمها، تطلب وقت، أو تكتب للي عطاك بكلامك.</div>
+</body>
+</html>

@@ -34,7 +34,8 @@ export type AlertKind =
   | 'idea_update'
   | 'member_joined'
   | 'added_to_company'
-  | 'detail_asked';
+  | 'detail_asked'
+  | 'task_comment';
 
 export type AlertItem = {
   id: string;

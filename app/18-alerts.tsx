@@ -103,6 +103,7 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   member_joined: { Icon: UserPlus, bg: 'green' },
   added_to_company: { Icon: UserPlus, bg: 'primary' },
   detail_asked: { Icon: MessageCircle, bg: 'amberText' },
+  task_comment: { Icon: MessageCircle, bg: 'primary' },
 };
 
 function RecentAlerts() {

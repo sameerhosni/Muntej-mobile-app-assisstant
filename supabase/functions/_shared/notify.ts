@@ -41,7 +41,9 @@ export type AlertKind =
   // someone with a login was added to one more company (tell_added_person): heard where they are now, also by email
   | 'added_to_company'
   // the person doing your task asks for a missing detail (ask_task_detail): budget, definition of done or due date
-  | 'detail_asked';
+  | 'detail_asked'
+  // a comment on a task from the other side (add_task_comment): doer ↔ giver
+  | 'task_comment';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -72,6 +74,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   member_joined: null,
   added_to_company: null,
   detail_asked: null,
+  task_comment: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
@@ -89,6 +92,7 @@ export const EXCEPTION_KINDS = new Set<AlertKind>([
   'idea_update',
   'added_to_company',
   'detail_asked',
+  'task_comment',
 ]);
 /** these go out at once too when the task is high or urgent priority */
 export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk', 'no_reply']);
