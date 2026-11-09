@@ -148,11 +148,14 @@ export default function DecisionsScreen() {
         <Hero overlap={20}>
           <View style={{ gap: spacing.sm, paddingEnd: 56 }}>
             <AppText variant="titleLg" color="onDark" style={{ fontSize: 26, lineHeight: 34 }}>
-              {loading ? ' ' : left === 0 ? headline : t('heroTitle', { n: formatNumber(left, lang) })}
+              {loading ? t('heroPlain') : left === 0 ? headline : t('heroTitle', { n: formatNumber(left, lang) })}
             </AppText>
-            {!loading && left > 0 && (
+            {/* shown while the cards load too (their translation can take a few seconds) */}
+            {(loading || left > 0) && (
               <AppText variant="small" color="onDarkMuted">
-                {t('heroSub', { h: formatNumber(Math.max(1, Math.round(minutes / 60)), lang), sar: formatNumber(Math.round((minutes / 60) * HOURLY_COST_SAR), lang) })}
+                {loading
+                  ? t('heroTag')
+                  : t('heroSub', { h: formatNumber(Math.max(1, Math.round(minutes / 60)), lang), sar: formatNumber(Math.round((minutes / 60) * HOURLY_COST_SAR), lang) })}
               </AppText>
             )}
           </View>

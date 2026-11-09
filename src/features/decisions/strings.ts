@@ -3,6 +3,8 @@ import { registerStrings } from '@/lib/i18n/register';
 const en = {
   headlineNone: 'All decided ☕',
   heroTitle: 'Decisions · {{n}}',
+  heroPlain: 'Decisions',
+  heroTag: 'You decide here, I do the rest of the follow-up for you',
   heroSub: 'You decide here, I do the rest · saves you ~{{h}} h',
   headlineOne: '1 decision left',
   headlineTwo: 'Just 2 decisions',
@@ -80,6 +82,8 @@ const en = {
 const ar: typeof en = {
   headlineNone: 'ولا قرار باقي ☕',
   heroTitle: 'القرارات · {{n}}',
+  heroPlain: 'القرارات',
+  heroTag: 'تقرّر هنا، وأنا أكمّل الباقي من المتابعة عنك',
   heroSub: 'تقرّر هنا وأنا أكمّل الباقي · يوفّر عليك ~{{h}} ساعات',
   headlineOne: 'باقي قرار واحد',
   headlineTwo: 'بس قرارين',

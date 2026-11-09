@@ -457,7 +457,8 @@ async function screens() {
         });
         // the header (owner, 9 Nov, option 1): «القرارات · N», one line, no "follow-ups saved" pills
         const head = await page.evaluate(() => document.body.innerText);
-        expect(/القرارات · /.test(head) && !/ملاحقات/.test(head), 'the old Decisions header is still there');
+        // («ملاحقات» is still on each card's chip; the old header's own pills were «دقيقة ·» and «بس N قرارات»)
+        expect(/القرارات · /.test(head) && !/دقيقة · /.test(head) && !/بس \d+ قرار/.test(head), 'the old Decisions header is still there');
         await page.getByRole('button', { name: '✓ خلصت أصلاً' }).first().click();
         await page.waitForTimeout(4000);
         const [after] = await sql(`select status, owner_id from public.tasks where id = '${task.id}'`);
@@ -788,8 +789,9 @@ async function screens() {
       const box = page.getByPlaceholder(/وش اللي يخلي منتج أحسن لك/);
       await box.waitFor({ timeout: 30_000 });
       await page.waitForTimeout(800);
-      await box.fill('فكرة من الاختبار الآلي');
-      if (!(await box.inputValue()).trim()) await box.pressSequentially('فكرة من الاختبار الآلي');
+      // typed key by key: fill() can set the box without the app seeing it (it then sent an empty idea and failed)
+      await box.click();
+      await box.pressSequentially('فكرة من الاختبار الآلي', { delay: 15 });
       await page.getByRole('button', { name: 'أرسل' }).click();
       await page.getByText(/وصلت، شكرًا لك/).waitFor({ timeout: 20_000 }).catch(async (e) => {
         await page.screenshot({ path: join(OUT, 'flow_idea_failed.png'), fullPage: true });
