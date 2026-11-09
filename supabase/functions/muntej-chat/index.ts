@@ -1936,6 +1936,18 @@ serve(async (req) => {
 
   if (estimateNote && (action === 'created' || action === 'updated')) parsed.reply = `${parsed.reply} ${estimateNote}`;
   if (upwardNote) parsed.reply = upwardNote;
+  // "who is my boss / team" from an empty seat: the answer comes from the data, not the model's mood (QA, 9 Nov)
+  const aboutMe = /مديري|مديرتي|فريقي|تحتي|مين الفريق|my (boss|manager|team)|who.*(report|under) me/i.test(message);
+  const emptyHere = !meRow?.manager_id && !team.some((p) => p.manager_id === profileId);
+  const there = otherSeats.find((s) => s.manager || s.reports.length);
+  if (aboutMe && emptyHere && there && parsed.action === 'none') {
+    const firstN = (n: string) => n.split(' ')[0];
+    const boss = there.manager ? firstN(there.manager) : null;
+    const under = there.reports.map(firstN).join(ar0 ? '، ' : ', ');
+    parsed.reply = ar0
+      ? `هنا ما لك مدير ولا أحد تحتك. بس في «${there.account}»${boss ? ` مديرك ${boss}` : ''}${boss && under ? ' و' : ''}${under ? `تحتك ${under}` : ''}. بدّل الحساب لـ«${there.account}» وتشوفهم.`
+      : `Here you have no manager or team. In “${there.account}”${boss ? ` your manager is ${boss}` : ''}${boss && under ? ' and' : ''}${under ? ` ${under} report to you` : ''}. Switch to “${there.account}” to see them.`;
+  }
 
   // ── save both messages (user first, so ordering is stable) ──
   // a Confirm tap / card choice has no user message of its own
