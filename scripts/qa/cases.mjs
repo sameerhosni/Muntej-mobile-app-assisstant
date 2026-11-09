@@ -372,6 +372,24 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     await sql(`delete from public.alerts where subject_id = '${FAISAL}' and kind = 'decision_waiting' and created_at > now() - interval '3 minutes'; delete from public.decisions where requested_by = '${FAISAL}' and type = 'approval_request' and created_at > now() - interval '3 minutes'; delete from public.tasks where assigner_id = '${FAISAL}' and created_at > now() - interval '3 minutes'; delete from public.chat_messages where profile_id = '${FAISAL}' and created_at > now() - interval '3 minutes'`);
     return said.slice(0, 80);
   });
+  // N10/N15 (owner, 9 Nov): «نوران» went to "Nouranemira" while Sameer meant "N Emira" (her first name is Nouran)
+  await check('chat', 'A name that fits two people is asked, not guessed', async () => {
+    const [{ id: twin }] = await sql(
+      `insert into public.profiles (account_id, full_name, role, status, manager_id) values ('${QA_ACCOUNT}', 'F Qahtani', 'employee', 'active', '${QA_BOSS}') returning id`,
+    );
+    try {
+      const before = await sql(`select count(*)::int n from public.tasks where assigner_id = '${QA_BOSS}'`);
+      const r = await fn('muntej-chat', { message: 'عط فيصل مهمة تجهيز تقرير المبيعات الشهري', source: 'text', lang: 'ar' }, jwt);
+      const said = r.messages?.at(-1)?.content ?? '';
+      const after = await sql(`select count(*)::int n from public.tasks where assigner_id = '${QA_BOSS}'`);
+      const peopleCard = !!r.messages?.at(-1)?.payload?.people_choice;
+      expect(after[0].n === before[0].n || peopleCard, `it guessed and made the task: «${said.slice(0, 80)}»`);
+      expect(peopleCard || /مين|which|أي واحد/i.test(said), `it didn't ask which Faisal: «${said.slice(0, 80)}»`);
+      return said.slice(0, 70);
+    } finally {
+      await sql(`delete from public.tasks where owner_id = '${twin}'; delete from public.profiles where id = '${twin}'`);
+    }
+  });
   // The owner, 9 Nov: "I asked the chat who is my team and who is my boss, and he said you don't have any". Nouran's
   // login has an empty seat in another account; the chat answered from it. Faisal gets the same empty seat in Demo.
   await check('chat', 'Who is my boss? from an empty seat names the boss in the other account', async () => {
