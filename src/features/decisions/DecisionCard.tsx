@@ -18,6 +18,8 @@ type Props = {
   /** Teammates the task can move to (live: team employees; sample: demo team). */
   candidates: Person[];
   onResolve: (outcome: Outcome, moveTo?: Person) => void;
+  /** «✓ خلصت أصلاً» is switched on for this person (testers first) */
+  canFinish?: boolean;
 };
 
 const chipTone: Record<ChipVM['tone'], { bg: ColorToken; fg: ColorToken }> = {
@@ -33,7 +35,7 @@ const badgeTone = {
   primary: { bg: 'primaryTint', fg: 'primary' },
 } as const;
 
-export function DecisionCard({ card, outcome, raised, candidates, onResolve }: Props) {
+export function DecisionCard({ card, outcome, raised, candidates, onResolve, canFinish = false }: Props) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const [voiceHint, setVoiceHint] = useState(false);
@@ -195,7 +197,7 @@ export function DecisionCard({ card, outcome, raised, candidates, onResolve }: P
                 {card.suggested && <Button size="md" variant="ghost" label={t('cancel')} onPress={() => setPicking(false)} style={{ flex: 1 }} />}
                 {card.owner && <Button size="md" variant="outline" label={t('keep', { name: ownerName })} onPress={() => onResolve('kept')} style={{ flex: 1 }} />}
                 {/* already done: close it here (also when there's nobody to suggest) */}
-                {!!card.raw?.task_id && <Button size="md" variant="outline" label={t('alreadyDone')} onPress={() => onResolve('finished')} style={{ flex: 1 }} />}
+                {canFinish && !!card.raw?.task_id && <Button size="md" variant="outline" label={t('alreadyDone')} onPress={() => onResolve('finished')} style={{ flex: 1 }} />}
               </View>
             </View>
           ) : (
@@ -218,7 +220,7 @@ export function DecisionCard({ card, outcome, raised, candidates, onResolve }: P
                     </AppText>
                   </Pressable>
                 )}
-                {!!card.raw?.task_id && (
+                {canFinish && !!card.raw?.task_id && (
                   <Pressable onPress={() => onResolve('finished')} accessibilityRole="button" style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center' }}>
                     <AppText variant="caption" weight="bold" color="greenText">
                       {t('alreadyDone')}

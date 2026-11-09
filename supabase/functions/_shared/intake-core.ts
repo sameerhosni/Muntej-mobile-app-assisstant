@@ -612,7 +612,8 @@ export async function recheckOwners(admin: SupabaseClient, profileId: string): P
     .from('profiles')
     .select('id, full_name, full_name_ar, title, skills')
     .eq('account_id', me.account_id)
-    .eq('status', 'active')
+    // invited people not active yet still own their work (owner, 9 Nov)
+    .neq('status', 'deleted')
     .eq('hidden', false);
   const people = (team ?? []) as Person[];
   const ids = new Set(people.map((p) => p.id));
@@ -690,7 +691,8 @@ export async function rereadWaiting(admin: SupabaseClient, profileId: string, on
     .from('profiles')
     .select('id, full_name, full_name_ar, title, skills')
     .eq('account_id', me.account_id)
-    .eq('status', 'active')
+    // invited people not active yet still own their work (owner, 9 Nov)
+    .neq('status', 'deleted')
     .eq('hidden', false);
   const ids = (team ?? []).map((p) => p.id as string);
   const { data: open } = await admin.from('tasks').select('id, title, owner_id').in('status', OPEN).in('owner_id', ids.length ? ids : [profileId]);

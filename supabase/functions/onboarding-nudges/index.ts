@@ -162,7 +162,7 @@ serve(async (req) => {
       kind: 'task_assigned',
       title: `📋 ${count} task${count === 1 ? '' : 's'} waiting for you in ${company}`,
       body: 'Open Muntej and join to see them.',
-      title_ar: `📋 ${count === 1 ? 'مهمة تنتظرك' : `${count} مهام تنتظرك`} في ${companyAr}`,
+      title_ar: `📋 ${tasksAr(count)} في ${companyAr}`,
       body_ar: 'افتح منتج وانضم عشان تشوفها.',
       dedupe_key: key,
     });
@@ -179,7 +179,7 @@ serve(async (req) => {
       subject_id: p.id,
       action: 'waiting_reminder',
       summary: `Reminded ${p.full_name}: ${count} task(s) waiting until they join (${how})`,
-      summary_ar: `ذكّرت ${p.full_name_ar ?? p.full_name}: ${count} مهام تنتظره لين ينضم`,
+      summary_ar: `ذكّرت ${p.full_name_ar ?? p.full_name}: ${tasksAr(count).replace('تنتظرك', 'تنتظره')} لين ينضم`,
       reason: 'invited, not active yet, with work waiting',
       undoable: false,
     });
@@ -188,3 +188,11 @@ serve(async (req) => {
 
   return json({ dry, ...out, waiting });
 });
+
+/** «مهمة تنتظرك» / «مهمتين تنتظرك» / «3 مهام تنتظرك» / «11 مهمة تنتظرك» (reviewer, 9 Nov: «2 مهام») */
+function tasksAr(n: number): string {
+  if (n === 1) return 'مهمة تنتظرك';
+  if (n === 2) return 'مهمتين تنتظرك';
+  if (n >= 3 && n <= 10) return `${n} مهام تنتظرك`;
+  return `${n} مهمة تنتظرك`;
+}

@@ -127,6 +127,19 @@ async function test() {
   const changed = git('diff', '--name-only', since, 'HEAD').split('\n').filter(Boolean);
   console.log(`Testing ${changed.length} changed file(s) since ${since.slice(0, 7)}: ${message}`);
 
+  // ─── 1b. the reviewer accepted this exact code (owner, 9 Nov: "auto reviewer… rerun till it's accepted") ────
+  // docs/review/ACCEPTED.md: one line per accepted review, "<commit> · <date> · ACCEPT · <what>". Only the review files
+  // and the backlog may change after the accepted commit.
+  {
+    const log = existsSync(join(ROOT, 'docs', 'review', 'ACCEPTED.md')) ? readFileSync(join(ROOT, 'docs', 'review', 'ACCEPTED.md'), 'utf8') : '';
+    const last = [...log.matchAll(/^- `?([0-9a-f]{7,40})`? · .* · ACCEPT/gm)].at(-1)?.[1];
+    if (!last) fail('No accepted review yet: run the muntej-reviewer agent and record its ACCEPT in docs/review/ACCEPTED.md');
+    const after = git('diff', '--name-only', last, 'HEAD').split('\n').filter(Boolean);
+    const unreviewed = after.filter((f) => !f.startsWith('docs/review/') && f !== 'docs/BACKLOG.md');
+    if (unreviewed.length) fail(`Changed since the last accepted review (${last.slice(0, 7)}): ${unreviewed.slice(0, 8).join(', ')}${unreviewed.length > 8 ? '…' : ''}. Run the muntej-reviewer agent again.`);
+    console.log(`  ✓ reviewed and accepted at ${last.slice(0, 7)}`);
+  }
+
   // ─── 2. QA ──────────────────────────────────────────────────────────────────
   say('QA robot');
   if (run('node', ['scripts/qa/run.mjs']).code !== 0) fail('QA failed, see qa-out/report.md');

@@ -27,8 +27,10 @@ import {
   type Person,
 } from '@/features/decisions/model';
 import { useResolveDecision, useTaskOwners } from '@/features/decisions/useResolveDecision';
-import { useQueryClient } from '@tanstack/react-query';
-import { invalidateTaskData, setTaskStatus } from '@/features/chat/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { invalidateTaskData } from '@/features/chat/api';
+import { supabase } from '@/lib/supabase';
+import { useAssignable } from '@/features/tasks/assignable';
 import { NS } from '@/features/decisions/strings';
 
 const DECISIONS_STEPS = [{ target: 'decisions.card', key: 'decisionsCard', demo: 'approve' as const }];
@@ -68,10 +70,21 @@ export default function DecisionsScreen() {
   }));
   const shown = cards.filter((c) => matchesDecisionFilter(c, filter));
 
+  const mayGive = useAssignable();
+  // «✓ خلصت أصلاً»: testers first, everyone once it goes live (the server checks the same switch)
+  const finishOn = useQuery({
+    queryKey: ['featureOn', 'decision_finish', me.data?.id],
+    enabled: !!me.data?.id,
+    queryFn: async () => {
+      const { data } = await (supabase.rpc as unknown as (fn: string, a: object) => Promise<{ data: boolean | null }>)('feature_on', { p_key: 'decision_finish' });
+      return data === true;
+    },
+  }).data === true;
   const candidates: Person[] = sample
     ? DEMO_TEAM.filter((p) => p.role === 'employee').map((p) => ({ id: p.id, full_name: p.name, full_name_ar: p.nameAr }))
-    : // anyone you may give work to, managers too (Nouran Emira, a manager, wasn't offered)
-      teamList.filter((p) => p.id !== me.data?.id && (p as { status?: string }).status !== 'deleted');
+    : // anyone you may give work to, managers too (Nouran Emira, a manager, wasn't offered) — but only them: your own
+      // boss or another team's manager would be refused by the database after the tap (reviewer, 9 Nov)
+      teamList.filter((p) => p.id !== me.data?.id && (p as { status?: string }).status !== 'deleted' && mayGive(p.id));
 
   const left = cards.filter((c) => !outcomes[c.id]).length;
   const followups = left * FOLLOWUPS_PER_DECISION;
@@ -97,11 +110,16 @@ export default function DecisionsScreen() {
     setOutcomes((o) => ({ ...o, [card.id]: outcome }));
     // already done: it becomes yours and closes, all from this card (owner, 9 Nov)
     if (outcome === 'finished') {
-      const meP = { id: me.data.id, full_name: me.data.full_name, full_name_ar: me.data.full_name_ar };
-      resolve
-        .mutateAsync({ decision: card.raw, outcome: 'approved', meId: me.data.id, moveTo: card.owner ? null : meP, ownerId: card.owner?.id ?? null })
-        .then(() => setTaskStatus(card.raw!.task_id!, 'done'))
-        .then(() => invalidateTaskData(qc))
+      // its own server action and decision status (reviewer, 9 Nov): reusing 'approved' fired the "more time" /
+      // "took it back" triggers, and closing as owner sent a manager with a boss into a review
+      (supabase.rpc as unknown as (fn: string, a: object) => Promise<{ data: string | null; error: { message: string } | null }>)('finish_from_decision', {
+        p_decision: card.raw.id,
+      })
+        .then(({ error }) => {
+          if (error) throw new Error(error.message);
+          void qc.invalidateQueries({ queryKey: ['decisions'] });
+          return invalidateTaskData(qc);
+        })
         .catch(() => {
           setOutcomes(({ [card.id]: _gone, ...rest }) => rest);
           setFailed(true);
@@ -155,7 +173,8 @@ export default function DecisionsScreen() {
               <AppText variant="small" color="onDarkMuted">
                 {loading
                   ? t('heroTag')
-                  : t('heroSub', { h: formatNumber(Math.max(1, Math.round(minutes / 60)), lang), sar: formatNumber(Math.round((minutes / 60) * HOURLY_COST_SAR), lang) })}
+                  : // Arabic counts by plural form: ساعة / ساعتين / 3 ساعات / 11 ساعة (reviewer, 9 Nov: «~1 ساعات»)
+                    t('heroSub', { count: Math.max(1, Math.round(minutes / 60)) })}
               </AppText>
             )}
           </View>
@@ -172,11 +191,11 @@ export default function DecisionsScreen() {
                       accessibilityRole="button"
                       accessibilityState={{ selected: on }}
                       style={{
-                        minHeight: 38,
+                        minHeight: sizes.touch,
                         paddingHorizontal: spacing.lg,
                         borderRadius: radius.pill,
                         justifyContent: 'center',
-                        backgroundColor: on ? colors.surface : 'rgba(255,255,255,0.16)',
+                        backgroundColor: on ? colors.surface : colors.glass,
                       }}
                     >
                       <AppText variant="small" weight="extrabold" color={on ? 'primary' : 'onDark'}>
@@ -246,6 +265,7 @@ export default function DecisionsScreen() {
                 raised={i === 0}
                 outcome={outcomes[c.id]}
                 candidates={candidates}
+                canFinish={finishOn}
                 onResolve={(o, p) => onResolve(c, o, p)}
               />
             );

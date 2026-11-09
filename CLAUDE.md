@@ -36,3 +36,10 @@ Read before any work:
 3. After each feature: list what changed, how to test it on the phone, then `git commit` with a clear message.
 4. If something in the BRD is unclear, ask me ONE question instead of guessing.
 5. Never put secrets in the app code. Never delete data without asking.
+6. **Consultant first** (owner, 9 Nov): every new owner request starts with the `muntej-consultant` agent. Show its
+   "to complete the journey" checklist; build only the items the owner approves (✓), drop the ones he rejects (✕).
+7. **Reviewer before every release** (owner, 9 Nov): after building, run the `muntej-reviewer` agent with the owner's
+   request and the range (`testing..HEAD`). Fix every finding and run it again until it says ACCEPT, then add the line to
+   `docs/review/ACCEPTED.md` and commit. `scripts/ship.mjs` refuses code changed after the last accepted commit.
+8. **Every complaint teaches both**: a QA case in `scripts/qa/` (as before) and a rule in `docs/review/RULES.md`
+   (next free R number, with the incident). The reviewer's "NEW RULE?" line goes in there too.

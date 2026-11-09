@@ -467,6 +467,24 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         await sql(`delete from public.alerts where task_id = '${t.id}'`);
         return 'one alert, none to yourself';
       });
+      // Reviewer, 9 Nov: «✓ خلصت أصلاً» saved the decision as 'approved', so on a "more time" card it moved the date and
+      // told the doer "he gave you more time"; and a manager with a boss got "sent for review" instead of closed
+      await check('rules', '«Already done» on a decision closes the task, nothing else (manager with a boss)', async () => {
+        const due = new Date(Date.now() + 2 * 86_400_000).toISOString();
+        const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA rule finish', '${P.ABDULLAH}', '${P.FAISAL}', 'in_progress', '${due}') returning id, due_at`);
+        const [d] = await sql(`insert into public.decisions (task_id, manager_id, requested_by, type, title, recommendation, details)
+                               values ('${t.id}', '${P.FAISAL}', '${P.ABDULLAH}', 'extension_request', 'QA finish', 'Move it', jsonb_build_object('new_due_at', now() + interval '9 days')) returning id`);
+        const r = await rpc('finish_from_decision', { p_decision: d.id }, await as('FAISAL'));
+        expect(r === 'finished', `finish returned ${r}`);
+        const [after] = await sql(`select status, due_at from public.tasks where id = '${t.id}'`);
+        expect(after.status === 'done', `the task is ${after.status}, not done (Faisal has a boss: no review for him)`);
+        expect(Date.parse(after.due_at) === Date.parse(t.due_at), 'the due date moved: it was treated as "more time"');
+        const alerts = await sql(`select title_ar from public.alerts where profile_id = '${P.ABDULLAH}' and task_id = '${t.id}'`);
+        expect(!alerts.some((a) => /وقت زيادة|أخذها منك|وافق/.test(a.title_ar ?? '')), `he heard «${alerts.map((a) => a.title_ar).join(' / ')}»`);
+        expect(alerts.some((a) => /قفّل/.test(a.title_ar ?? '')), 'he wasn’t told it was closed');
+        await sql(`delete from public.alerts where task_id = '${t.id}'; delete from public.decisions where id = '${d.id}'`);
+        return 'closed, date kept, told the truth';
+      });
       // The owner, 9 Nov (N7): "I sent a thank you for nouranemira, need to check if it reflected" (it was a demo)
       await check('rules', 'A thank-you is saved and reaches the person thanked', async () => {
         const id = await rpc('send_kudos', { p_to: P.FAISAL, p_value: 'teamwork', p_message: 'شكراً على المساعدة في ملف العميل', p_points: 25 }, await as('ABDULLAH'));
