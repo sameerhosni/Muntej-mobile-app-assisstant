@@ -16,6 +16,7 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatNumber } from '@/features/home/value';
 import { FILTERS, MORE_FILTERS, TABS, useTaskList, type SortMode, type TaskListFilter } from '@/features/tasks/model';
+import { NEEDS_NS, NeedsYouList, useNeedsYou } from '@/features/tasks/NeedsYou';
 import { SortToggle } from '@/features/tasks/SortToggle';
 import { TaskRow } from '@/features/tasks/TaskRow';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
@@ -75,6 +76,17 @@ export default function TasksScreen() {
     setFilter('mine');
     setSearch('');
   };
+  // «يحتاجك» (N20): opens there once when something waits on you, unless a filter / ids were asked for
+  const { t: tn } = useScreenT(NEEDS_NS);
+  const needs = useNeedsYou();
+  const [needsTab, setNeedsTab] = useState(false);
+  const [needsPicked, setNeedsPicked] = useState(false);
+  useEffect(() => {
+    if (needsPicked || needs.loading || wanted || onlyIds) return;
+    setNeedsPicked(true);
+    if (needs.rows.length > 0) setNeedsTab(true);
+  }, [needsPicked, needs.loading, needs.rows.length, wanted, onlyIds]);
+  const showNeeds = needsTab && !onlyIds && !moreActive && !search;
 
   const header = (
     <View style={{ gap: spacing.lg, marginBottom: spacing.sm }}>
@@ -145,12 +157,43 @@ export default function TasksScreen() {
       ) : (
         // the three tabs
         <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: colors.chip, borderRadius: radius.pill, padding: 3 }}>
+          {/* N20 (owner, 9 Nov): «يحتاجك» first, with how many things wait on you */}
+          <Pressable
+            onPress={() => setNeedsTab(true)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: needsTab }}
+            style={{
+              flex: 1.2,
+              minHeight: sizes.touch - 4,
+              borderRadius: radius.pill,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: 4,
+              backgroundColor: needsTab ? colors.surface : colors.transparent,
+              boxShadow: needsTab ? shadows.tile : undefined,
+            }}
+          >
+            {needs.rows.length > 0 && (
+              <View style={{ minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.red, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
+                <AppText variant="micro" weight="extrabold" color="onDark">
+                  {formatNumber(needs.rows.length, lang)}
+                </AppText>
+              </View>
+            )}
+            <AppText weight="bold" color={needsTab ? (role === 'employee' ? 'purple' : 'primary') : 'textMuted'}>
+              {tn('tab')}
+            </AppText>
+          </Pressable>
           {tabs.map((x) => {
-            const on = filter === x;
+            const on = !needsTab && filter === x;
             return (
               <Pressable
                 key={x}
-                onPress={() => setFilter(x)}
+                onPress={() => {
+                  setNeedsTab(false);
+                  setFilter(x);
+                }}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
                 style={{
@@ -214,7 +257,7 @@ export default function TasksScreen() {
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
       <FlatList
-        data={rows}
+        data={showNeeds ? [] : rows}
         keyExtractor={(x) => x.id}
         renderItem={({ item, index }) =>
           // the first row is the one Saree3's walkthrough lights up ("tap the circle when it's done")
@@ -227,7 +270,7 @@ export default function TasksScreen() {
           )
         }
         ListHeaderComponent={header}
-        ListEmptyComponent={empty}
+        ListEmptyComponent={showNeeds ? <NeedsYouList /> : empty}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingTop: 20, paddingBottom: 32 }}
         keyboardShouldPersistTaps="handled"

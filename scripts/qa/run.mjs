@@ -441,6 +441,22 @@ async function screens() {
       }
     });
 
+    // Nouran, 9 Nov (N20): "add a tab under المهام called يحتاجك… her questions, the due date ask and the refusal didn't
+    // show on the manager's side"
+    await check('screens', 'Tasks opens on «يحتاجك» with what waits on you', async () => {
+      const [doer] = await sql(`select id from public.profiles where account_id = '${QA_ACCOUNT}' and id <> '${QA_BOSS}' and status = 'active' order by full_name limit 1`);
+      const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA needs you review', '${doer.id}', '${QA_BOSS}', 'submitted') returning id`);
+      try {
+        await page.goto('http://localhost:8099/38-tasks', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        await page.getByText('QA needs you review').first().waitFor({ timeout: 30_000 });
+        const text = await page.evaluate(() => document.body.innerText);
+        expect(/يحتاجك/.test(text) && /تنتظر اعتمادك/.test(text), 'no «يحتاجك» tab with the review waiting');
+        return 'review waiting, on its row';
+      } finally {
+        await sql(`delete from public.tasks where id = '${task.id}'`);
+      }
+    });
+
     // Nouran, 9 Nov (N16): "tab تنتظر منهم is showing a task that is pending, but unclickable"
     await check('screens', '«تنتظر منهم» cards open their task', async () => {
       const src = readFileSync(new URL('../../app/09-reverse-followup.tsx', import.meta.url), 'utf8');
