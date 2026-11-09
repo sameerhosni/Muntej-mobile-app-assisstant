@@ -51,6 +51,7 @@ const en = {
   link: 'Link',
   submit: 'Submit for review',
   changeWithMuntej: 'Change with Muntej',
+  underObjective: '🎯 Under objective: {{title}} ›',
   notFound: 'Couldn’t load this task.',
   saveFailed: 'Couldn’t save that. Try again.',
   demoSubs: {
@@ -120,6 +121,7 @@ const ar: typeof en = {
   link: 'رابط',
   submit: 'أرسلها للمراجعة',
   changeWithMuntej: 'غيّرها مع منتج',
+  underObjective: '🎯 تحت هدف: {{title}} ›',
   notFound: 'ما قدرنا نجيب المهمة.',
   saveFailed: 'ما انحفظت. جرّب مرة ثانية.',
   demoSubs: {

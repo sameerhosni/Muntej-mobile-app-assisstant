@@ -1959,6 +1959,17 @@ serve(async (req) => {
 
   if (estimateNote && (action === 'created' || action === 'updated')) parsed.reply = `${parsed.reply} ${estimateNote}`;
   if (upwardNote) parsed.reply = upwardNote;
+  // N14 (owner, 9 Nov): a task "under" an objective that was never saved (its card not confirmed) must not read as linked
+  // (only a clear "under the objective", not «الهدف منها» = the task's goal)
+  if (parsed.action === 'create' && /(تحت|ضمن|في|على|حطها في|اربطها ب)\s*(ال)?هدف|under (the |an )?objective|to (the |an )?objective|linked to (the )?objective|تحت هدف «/i.test(`${message} ${parsed.reply}`)) {
+    const want = parsed.task?.objective_id ?? null;
+    const linked = !!want && liveObjectives.some((o) => o.id === want && o.status === 'active');
+    if (!linked) {
+      parsed.reply = ar0
+        ? `سويت المهمة، بس ما ربطتها بهدف: ما لقيت هدف محفوظ بهالاسم. لو طلبته قبل، أكّده من بطاقته أول 👆 وبعدين قل لي أربطها.`
+        : `I made the task, but it isn't under an objective: I found no saved objective by that name. If you asked for one, confirm its card first 👆, then tell me to link it.`;
+    }
+  }
   // "who is my boss / team" from an empty seat: the answer comes from the data, not the model's mood (QA, 9 Nov)
   const aboutMe = /مديري|مديرتي|فريقي|تحتي|مين الفريق|my (boss|manager|team)|who.*(report|under) me/i.test(message);
   const emptyHere = !meRow?.manager_id && !team.some((p) => p.manager_id === profileId);

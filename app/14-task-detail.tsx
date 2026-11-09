@@ -6,7 +6,7 @@
 // "Change with Muntej" (bottom bar) opens the chat locked on this task — the one place changes are made.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { intlTag } from '@/lib/i18n/locale';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { lacksTranslation } from '@/lib/api/taskText';
 import { ActivityIndicator, Linking, Pressable, ScrollView, View } from 'react-native';
 import { TOOL_LABEL, useTaskTools } from '@/features/tasks/toolTags';
@@ -14,7 +14,7 @@ import { StepsSection } from '@/features/steps/StepsSection';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AlertTriangle, Check, ChevronLeft, Clock, Languages, Link2, Mic, MessageSquare, Plus, Send, Sparkles } from 'lucide-react-native';
+import { AlertTriangle, Check, ChevronLeft, Clock, Languages, Link2, Mic, MessageSquare, Plus, Send, Sparkles, Target } from 'lucide-react-native';
 import { AppText, Avatar, BottomCTA, BOTTOM_CTA_SPACE, Card, Gradient, IconBadge, IconButton, PointsCoin } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -99,6 +99,16 @@ export default function TaskDetailScreen() {
   // the owner opened it: the hand-off reached them (value ladder M2 / E1)
   useTaskSeen(task.data?.id, !!me.data?.id && task.data?.owner_id === me.data.id, !!(task.data as { seen_at?: string | null } | undefined)?.seen_at);
   const toggle = useToggleSubtask();
+  // N14: the objective this task is under (RLS: only one the person can see)
+  const objectiveId = (task.data as { objective_id?: string | null } | undefined)?.objective_id ?? null;
+  const objective = useQuery({
+    queryKey: ['taskObjective', objectiveId],
+    enabled: !!objectiveId,
+    queryFn: async () => {
+      const { data } = await (supabase as unknown as { from: (t: string) => any }).from('objectives').select('id, title, title_ar').eq('id', objectiveId).maybeSingle();
+      return (data ?? null) as { id: string; title: string; title_ar: string | null } | null;
+    },
+  });
 
   const [asked, setAsked] = useState<Partial<Record<CheckKey, boolean>>>({});
   const [splitting, setSplitting] = useState(false);
@@ -327,6 +337,21 @@ export default function TaskDetailScreen() {
                   fg="primary"
                   icon={<Link2 color={colors.primary} size={14} strokeWidth={2} />}
                   label={`${TOOL_LABEL[tool.provider] ?? tool.provider}${tool.url ? ' ↗' : ''}`}
+                />
+              </Pressable>
+            )}
+            {/* the objective it belongs to (owner, 9 Nov, N14: "nothing in the UI shows that this task belongs to this objective") */}
+            {!!objective.data && (
+              <Pressable
+                onPress={() => router.push({ pathname: '/41-objective', params: { id: objective.data!.id } })}
+                accessibilityRole="link"
+                hitSlop={{ top: 8, bottom: 8 }}
+              >
+                <MetaChip
+                  bg="purpleTint"
+                  fg="purple"
+                  icon={<Target color={colors.purple} size={14} strokeWidth={2} />}
+                  label={t('underObjective', { title: (lang === 'ar' && objective.data.title_ar) || objective.data.title })}
                 />
               </Pressable>
             )}

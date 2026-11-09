@@ -2249,6 +2249,7 @@ export default {
   "subtasks": "सबटास्क",
   "translatedFrom": "{{lang}} से अनुवादित",
   "unassigned": "असाइन नहीं किया गया",
+  "underObjective": "🎯 उद्देश्य के अंतर्गत: {{title}} ›",
   "voiceShort": "वॉयस"
  },
  "s15": {

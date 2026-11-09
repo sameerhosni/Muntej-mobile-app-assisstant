@@ -372,6 +372,16 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     await sql(`delete from public.alerts where subject_id = '${FAISAL}' and kind = 'decision_waiting' and created_at > now() - interval '3 minutes'; delete from public.decisions where requested_by = '${FAISAL}' and type = 'approval_request' and created_at > now() - interval '3 minutes'; delete from public.tasks where assigner_id = '${FAISAL}' and created_at > now() - interval '3 minutes'; delete from public.chat_messages where profile_id = '${FAISAL}' and created_at > now() - interval '3 minutes'`);
     return said.slice(0, 80);
   });
+  // N14 (owner, 9 Nov): "I asked him to create it and he said he did, but I asked to create a task under it and nothing
+  // in the UI shows that this task belongs to this objective" (the objective was never saved)
+  await check('chat', 'A task “under” an objective that doesn’t exist is never claimed linked', async () => {
+    const r = await fn('muntej-chat', { message: 'سو لسعد مهمة تجهيز خطة الحملة تحت هدف «إطلاق منتج الشتاء QA»', source: 'text', lang: 'ar' }, jwt);
+    const said = r.messages?.at(-1)?.content ?? '';
+    expect(!/وحطيتها تحت هدف|added to objective/i.test(said), `claimed it's under the objective: «${said.slice(0, 90)}»`);
+    expect(/ما ربطتها|isn't under an objective|أكّد/.test(said), `didn't say the objective isn't saved: «${said.slice(0, 90)}»`);
+    await sql(`delete from public.tasks where assigner_id = '${QA_BOSS}' and title ilike '%حملة%' and created_at > now() - interval '3 minutes'`);
+    return said.slice(0, 70);
+  });
   // N10/N15 (owner, 9 Nov): «نوران» went to "Nouranemira" while Sameer meant "N Emira" (her first name is Nouran)
   await check('chat', 'A name that fits two people is asked, not guessed', async () => {
     const [{ id: twin }] = await sql(
