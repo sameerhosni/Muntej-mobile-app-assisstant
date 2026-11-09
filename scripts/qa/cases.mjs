@@ -330,9 +330,10 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
   // message gets blue ticks and "typing…" before Muntej starts on the answer
   await check('invites', 'WhatsApp shows read and typing while Muntej works', async () => {
     const src = readFileSync(new URL('../../supabase/functions/whatsapp/index.ts', import.meta.url), 'utf8');
-    const body = src.slice(src.indexOf('async function handle('), src.indexOf('async function handle(') + 400);
-    expect(/status: 'read'[\s\S]{0,80}typing_indicator/.test(src), 'no read + typing call to Meta');
-    expect(/showWorking\(m\.id\)/.test(body), 'handle() does not show read + typing first');
+    const wa = readFileSync(new URL('../../supabase/functions/_shared/wa.ts', import.meta.url), 'utf8');
+    const body = src.slice(src.indexOf('async function handle('), src.indexOf('async function handle(') + 500);
+    expect(/status: 'read'[\s\S]{0,80}typing_indicator/.test(wa), 'no read + typing call to Meta');
+    expect(/waTyping\(m\.id\)/.test(body), 'handle() does not show read + typing first');
     return 'read + typing first';
   });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
