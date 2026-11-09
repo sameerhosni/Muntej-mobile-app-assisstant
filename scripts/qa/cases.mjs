@@ -342,7 +342,9 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     // the owner, 9 Nov: "Make it more funny like saree3 and keep the user attracted till you get the results"
     expect(/أفتّش في المهام/.test(src) && /أكتبها وأحطها/.test(src) && /أجمع لك الزبدة/.test(src), 'a Saree3 step line is missing');
     expect(/patiently\(callAs[^\n]*'muntej-chat'/.test(src) && /6_000/.test(src), 'no "still working" line when Saree3 takes long');
-    return 'read + typing, Saree3 lines, a line if slow';
+    // the owner, 9 Nov: allowed AI on T2, but WhatsApp answered as his other login (same number) and kept asking
+    expect(/people\.length > 1 && !tappedAny && !\(await aiAllowed\(pick, admin\)\)/.test(src), 'one number in two logins doesn’t prefer the profile that allowed AI');
+    return 'read + typing, Saree3 lines, a line if slow, the AI-allowed profile';
   });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
     const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
