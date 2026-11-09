@@ -2,9 +2,10 @@
 // similar task was done before); add more by typing (Enter keeps going), pasting a list
 // (one step per line) or saying them; tap a step to give it a person / date or delete it. Progress follows the steps
 // (server trigger); Saree3 cheers each one, and when the last is ticked Muntej offers to mark the task finished.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, TextInput, View } from 'react-native';
-import { Check, Mic, Sparkles, Square } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Check, Mic, Sparkles, Square, X } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, TextField } from '@/components/ui';
 import { colors, fontFamily, fontSize, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -35,6 +36,22 @@ export function StepsSection({ task }: Props) {
   const [editing, setEditing] = useState<Step | null>(null);
   const [asked, setAsked] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  // ✕ on the split row (owner, 9 Nov: "make it optional"): gone for this task, remembered on this phone
+  const hideKey = `steps.noSplit.${task.id}`;
+  const [noSplit, setNoSplit] = useState(true);
+  useEffect(() => {
+    let live = true;
+    AsyncStorage.getItem(hideKey)
+      .then((v) => live && setNoSplit(v === '1'))
+      .catch(() => live && setNoSplit(false));
+    return () => {
+      live = false;
+    };
+  }, [hideKey]);
+  const hideSplit = () => {
+    setNoSplit(true);
+    AsyncStorage.setItem(hideKey, '1').catch(() => undefined);
+  };
   const [picked, setPicked] = useState<Record<number, boolean>>({});
   const [optimistic, setOptimistic] = useState<Record<string, boolean>>({});
 
@@ -235,29 +252,42 @@ export function StepsSection({ task }: Props) {
       )}
 
       {/* Muntej's breakdown */}
-      {open && steps.length === 0 && !dismissed && (
+      {open && steps.length === 0 && !dismissed && !sug && !suggestion.isFetching && !noSplit && (
+        // one simple white row (owner, 9 Nov: "b but design should be simpler")
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: colors.surface,
+            borderWidth: 1,
+            borderColor: colors.border,
+            borderRadius: radius.md,
+            paddingStart: spacing.md,
+          }}
+        >
+          <Pressable
+            onPress={() => setAsked(true)}
+            accessibilityRole="button"
+            style={({ pressed }) => ({ flex: 1, minHeight: sizes.touch, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, opacity: pressed ? 0.7 : 1 })}
+          >
+            <Sparkles color={colors.purple} size={16} strokeWidth={2} />
+            <AppText weight="bold" color="purple">
+              {t('breakDown')}
+            </AppText>
+          </Pressable>
+          <Pressable
+            onPress={hideSplit}
+            accessibilityRole="button"
+            accessibilityLabel={t('noSplit')}
+            style={{ width: sizes.touch, height: sizes.touch, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <X color={colors.textMuted} size={18} strokeWidth={2} />
+          </Pressable>
+        </View>
+      )}
+      {open && steps.length === 0 && !dismissed && (asked && (suggestion.isFetching || !!sug)) && (
         <Card style={{ gap: spacing.md, borderWidth: 1, borderColor: colors.purpleBorder }}>
-          {!sug && !suggestion.isFetching ? (
-            <Pressable
-              onPress={() => setAsked(true)}
-              accessibilityRole="button"
-              style={({ pressed }) => ({
-                minHeight: sizes.touch,
-                borderRadius: radius.pill,
-                backgroundColor: colors.purpleTint,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: spacing.sm,
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <Sparkles color={colors.purple} size={16} strokeWidth={2} />
-              <AppText weight="bold" color="purple">
-                {t('breakDown')}
-              </AppText>
-            </Pressable>
-          ) : suggestion.isFetching ? (
+          {suggestion.isFetching ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
               <ActivityIndicator color={colors.purple} />
               <AppText color="textMuted">{t('thinking')}</AppText>

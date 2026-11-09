@@ -595,7 +595,6 @@ async function handle(m: WaMessage, dry = false) {
       no();
     } else if (p.confirm_delete && p.id) {
       await act(ar ? '🛑 ألغها' : '🛑 Cancel it', { rpc: 'cancel_task', args: { p_task: p.id }, done: ar ? 'ألغيتها 🛑 ووقفت متابعتها' : 'Cancelled 🛑 and stopped its follow-ups' });
-      await act(ar ? '🗑 احذفها' : '🗑 Delete it', { rpc: 'delete_task', args: { p_task: p.id }, done: ar ? 'حذفتها 🗑' : 'Deleted 🗑' });
       no();
     } else if (Array.isArray(p.candidates)) {
       const rows: WaRow[] = [];

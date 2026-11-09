@@ -26,12 +26,11 @@ type Props = {
   action: ChatAction;
   team: Profile[];
   state: CardState;
-  /** only the person who assigned it (or the owner's manager) may delete; the server checks too */
-  canDelete: boolean;
-  /** the user asked to delete it in the chat → open with the delete confirmation */
-  askDelete?: boolean;
+  /** one option, Cancel (owner, 9 Nov): only whoever gave it, the owner's manager or an admin; the server checks too */
+  canCancel: boolean;
+  /** the user asked to cancel / delete it in the chat → open with the confirmation */
+  askCancel?: boolean;
   onCancel: () => Promise<void>;
-  onDelete: () => Promise<void>;
   onMissing: (item: MissingItem) => void;
   /** lock the chat on this task */
   onTalkAbout?: () => void;
@@ -52,10 +51,9 @@ export function TaskCard({
   action,
   team,
   state,
-  canDelete,
-  askDelete,
+  canCancel,
+  askCancel,
   onCancel,
-  onDelete,
   onMissing,
   onTalkAbout,
   estimateHours,
@@ -68,7 +66,7 @@ export function TaskCard({
   const [undoing, setUndoing] = useState(false);
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
-  const [confirm, setConfirm] = useState<'cancel' | 'delete' | null>(askDelete && canDelete ? 'delete' : null);
+  const [confirm, setConfirm] = useState(!!askCancel && canCancel);
   const [working, setWorking] = useState(false);
   const undone = state !== 'active';
 
@@ -83,8 +81,8 @@ export function TaskCard({
   const run = async () => {
     setWorking(true);
     try {
-      await (confirm === 'delete' ? onDelete() : onCancel());
-      setConfirm(null);
+      await onCancel();
+      setConfirm(false);
     } finally {
       setWorking(false);
     }
@@ -276,24 +274,24 @@ export function TaskCard({
           {confirm ? (
             <View style={{ gap: spacing.sm, backgroundColor: colors.redTint, borderRadius: radius.md, padding: spacing.md }}>
               <AppText variant="small" weight="bold" color="red">
-                {t(confirm === 'delete' ? 'confirmDelete' : 'confirmCancel')}
+                {t('confirmCancel')}
               </AppText>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <CardButton label={t('keep')} onPress={() => setConfirm(null)} />
-                <CardButton label={t(confirm === 'delete' ? 'yesDelete' : 'yesCancel')} onPress={run} busy={working} danger />
+                <CardButton label={t('keep')} onPress={() => setConfirm(false)} />
+                <CardButton label={t('yesCancel')} onPress={run} busy={working} danger />
               </View>
             </View>
           ) : (
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              <CardButton label={t('cancelTask')} onPress={() => setConfirm('cancel')}>
-                <Ban color={colors.textSoft} size={15} strokeWidth={2.1} />
-              </CardButton>
-              {canDelete && (
-                <CardButton label={t('delete')} onPress={() => setConfirm('delete')}>
-                  <Trash2 color={colors.red} size={15} strokeWidth={2.1} />
+            canCancel && (
+              <View style={{ gap: 4 }}>
+                <CardButton stacked label={t('cancelTask')} onPress={() => setConfirm(true)}>
+                  <Ban color={colors.textSoft} size={15} strokeWidth={2.1} />
                 </CardButton>
-              )}
-            </View>
+                <AppText variant="caption" color="textMuted">
+                  {t('cancelNote')}
+                </AppText>
+              </View>
+            )
           )}
 
           {!!onTalkAbout && (

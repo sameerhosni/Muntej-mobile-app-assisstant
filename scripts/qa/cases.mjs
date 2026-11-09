@@ -346,6 +346,28 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(/people\.length > 1 && !tappedAny && !\(await aiAllowed\(pick, admin\)\)/.test(src), 'one number in two logins doesn’t prefer the profile that allowed AI');
     return 'read + typing, Saree3 lines, a line if slow, the AI-allowed profile';
   });
+  // The owner's screenshot, 9 Nov: "start hallucinating?". Nouran's chat: closed tasks "can't be shown", a "yes" told
+  // to "press Confirm on the card" with no card, and asking her manager for a budget approval called out of scope.
+  await check('chat', 'Closed tasks are answered, and no card is mentioned when there is none', async () => {
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, closed_at) values ('QA closed quarterly report', '${QA_BOSS}', '${QA_BOSS}', 'done', now()) returning id`);
+    try {
+      const a = await talk('عطني كل مهامي حتى القديمة والمقفلة');
+      expect(/QA closed quarterly report/.test(a.said), `closed task not listed: «${a.said.slice(0, 110)}»`);
+      expect(!/المفتوحة بس|بس المفتوحة|only (show )?open/i.test(a.said), `said it can only show open tasks: «${a.said.slice(0, 90)}»`);
+      const b = await talk('ايه');
+      expect(!/بطاقة|card/i.test(b.said) || Object.keys(b.payload).some((k) => /proposal|choice|duplicate|confirm/.test(k)), `talked about a card that isn't there: «${b.said.slice(0, 90)}»`);
+      return 'listed, no phantom card';
+    } finally {
+      await sql(`delete from public.tasks where id = '${t.id}'`);
+    }
+  });
+  await check('chat', 'Asking your manager for a budget approval is in scope', async () => {
+    const r = await fn('muntej-chat', { message: 'أنا عايزة موافقة من مديري بصرف الميزانية قبل موعدها بخمس أيام.', source: 'text', lang: 'ar' }, await jwtFor(FAISAL, QA_ACCOUNT));
+    const said = r.messages?.at(-1)?.content ?? '';
+    expect(!/برّا تخصصي|برا تخصصي|outside my lane/i.test(said), `called it out of scope: «${said.slice(0, 90)}»`);
+    await sql(`delete from public.tasks where assigner_id = '${FAISAL}' and created_at > now() - interval '3 minutes'; delete from public.chat_messages where profile_id = '${FAISAL}' and created_at > now() - interval '3 minutes'`);
+    return said.slice(0, 80);
+  });
   // The owner, 9 Nov: "I asked the chat who is my team and who is my boss, and he said you don't have any". Nouran's
   // login has an empty seat in another account; the chat answered from it. Faisal gets the same empty seat in Demo.
   await check('chat', 'Who is my boss? from an empty seat names the boss in the other account', async () => {

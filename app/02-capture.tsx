@@ -50,7 +50,6 @@ import {
   orgProposal,
   sendChat,
   cancelTask,
-  deleteTask,
   undoNewTask,
   taskSnapshot,
   useChat,
@@ -472,13 +471,13 @@ function MuntejChatScreen() {
     if (focusTaskId && goneIds?.includes(focusTaskId)) setFocusTaskId(null);
   }, [focusTaskId, goneIds]);
 
-  const end = async (taskId: string, how: 'cancelled' | 'deleted') => {
+  const end = async (taskId: string) => {
     try {
-      await (how === 'deleted' ? deleteTask(taskId) : cancelTask(taskId));
-      setEnded((e) => ({ ...e, [taskId]: how }));
+      await cancelTask(taskId);
+      setEnded((e) => ({ ...e, [taskId]: 'cancelled' }));
       await Promise.all([qc.invalidateQueries({ queryKey: chatKey }), invalidateTaskData(qc)]);
     } catch {
-      setNotice(t(how === 'deleted' ? 'deleteFailed' : 'cancelFailed'));
+      setNotice(t('cancelFailed'));
     }
   };
 
@@ -737,7 +736,10 @@ function MuntejChatScreen() {
             const state: CardState =
               ended[task.id] ?? (gone.has(task.id) ? 'deleted' : task.status === 'cancelled' ? 'cancelled' : 'active');
             const owner = (team.data ?? []).find((p) => p.id === task.owner_id);
-            const canDelete = !!meId && (task.assigner_id === meId || owner?.manager_id === meId);
+            // one option, Cancel (owner, 9 Nov): only whoever gave it, the owner's manager or an admin; the server checks too
+            const amAdmin = me.data?.role === 'admin' || me.data?.role === 'super_admin';
+            const canCancel =
+              !!meId && (task.assigner_id === meId || owner?.manager_id === meId || amAdmin || (!task.assigner_id && task.owner_id === meId));
             card = (
               <TaskCard
                 key={`${task.id}-${m.id}`}
@@ -745,10 +747,9 @@ function MuntejChatScreen() {
                 action={m.action}
                 team={team.data ?? []}
                 state={state}
-                canDelete={canDelete}
-                askDelete={!!snap.confirm_delete && m.id === lastAssistantId}
-                onCancel={() => end(task.id, 'cancelled')}
-                onDelete={() => end(task.id, 'deleted')}
+                canCancel={canCancel}
+                askCancel={!!snap.confirm_delete && m.id === lastAssistantId}
+                onCancel={() => end(task.id)}
                 onMissing={fillMissing}
                 onTalkAbout={focusTaskId === task.id ? undefined : () => talkAbout(task.id)}
                 estimateHours={snap.estimate_hours}

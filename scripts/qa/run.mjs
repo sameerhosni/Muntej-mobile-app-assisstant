@@ -523,6 +523,14 @@ async function screens() {
         await page.waitForTimeout(3000);
         const later = await page.evaluate(() => document.body.innerText);
         expect(!/لو عليّ، أقسّمها كذا/.test(later) && /خلني أقسّمها/.test(later), 'steps were suggested without a tap');
+        // owner, 9 Nov: "خليني اقسمها, let's make it optional" (one white row with ✕; gone for this task after ✕)
+        await page.getByRole('button', { name: 'ما أحتاجها' }).click();
+        await page.waitForTimeout(500);
+        expect(!/خلني أقسّمها/.test(await page.evaluate(() => document.body.innerText)), '✕ did not hide «خلني أقسّمها»');
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await to.waitFor({ timeout: 30_000 });
+        await page.waitForTimeout(2500);
+        expect(!/خلني أقسّمها/.test(await page.evaluate(() => document.body.innerText)), '«خلني أقسّمها» came back after ✕');
         await to.click();
         await page.getByText('مين يسويها؟').waitFor({ timeout: 10_000 });
         // someone else's task: on the Team tab

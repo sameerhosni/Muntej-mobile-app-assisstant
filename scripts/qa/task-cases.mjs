@@ -424,6 +424,22 @@ export async function taskCases({ check, expect, fn, sql, jwt, ids, jwtFor, rpc,
         expect(!ids.includes(P.FAISAL) && !ids.includes(QA_BOSS) && !ids.includes(P.NOURA), 'a manager is offered to Abdullah');
         return `${ids.length} people`;
       });
+      // The owner, 9 Nov: "I should not be able to cancel a task I didn't create" and "make it only one option"
+      await check('rules', 'Only whoever gave a task (or above) can cancel it; the chat says who', async () => {
+        const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA rule cancel', '${P.ABDULLAH}', '${P.FAISAL}', 'assigned') returning id`);
+        const mine = await rpc('cancel_task', { p_task: t.id }, await as('ABDULLAH')).then(() => 'ok', (e) => e);
+        expect(mine instanceof Error, 'Abdullah cancelled a task Faisal gave him');
+        const r = await fn('muntej-chat', { message: 'ألغ مهمة QA rule cancel', focus_task_id: t.id, source: 'text', lang: 'ar' }, await as('ABDULLAH'));
+        const last = r.messages?.at(-1) ?? {};
+        expect(!last.payload?.confirm_delete, 'the chat offered Abdullah a Cancel button');
+        expect(/فيصل|Faisal/.test(last.content ?? ''), `the chat didn't say only Faisal can: «${(last.content ?? '').slice(0, 90)}»`);
+        const [still] = await sql(`select status from public.tasks where id = '${t.id}'`);
+        expect(still.status !== 'cancelled', 'it was cancelled anyway');
+        const giver = await rpc('cancel_task', { p_task: t.id }, await as('FAISAL')).then(() => 'ok', (e) => e);
+        expect(giver === 'ok', `Faisal couldn't cancel his own task: ${giver?.message}`);
+        await sql(`delete from public.chat_messages where profile_id = '${P.ABDULLAH}' and created_at > now() - interval '5 minutes'`);
+        return 'owner refused, giver allowed';
+      });
     } finally {
       await tidy();
       if (!was) await sql(`update public.profiles set tester = false where id in (${people})`);
