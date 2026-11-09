@@ -100,7 +100,10 @@ export function TabBar({ state, navigation, role, badges = {} }: Props) {
             onPress={() => {
               const route = state.routes.find((r) => r.name === item.name);
               const event = navigation.emit({ type: 'tabPress', target: route?.key ?? item.name, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) navigation.navigate(item.name);
+              // a tab tap opens the tab fresh: a list Saree3 opened earlier on a few tasks (?ids=) or a filter must not
+              // stick, or Tasks opens empty (Nouran, 9 Nov, N13: "it redirects to an empty screen")
+              const stale = !!route?.params && Object.keys(route.params as object).length > 0;
+              if ((!focused || stale) && !event.defaultPrevented) navigation.navigate(item.name, {});
             }}
             accessibilityRole="tab"
             accessibilityState={{ selected: focused }}

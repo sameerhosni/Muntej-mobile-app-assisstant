@@ -441,6 +441,17 @@ async function screens() {
       }
     });
 
+    // Nouran, 9 Nov (N13): "when I am in the chat and click on المهام it redirects to an empty screen". A list Saree3
+    // opened on a few tasks (?ids=) stuck to the tab.
+    await check('screens', 'The Tasks tab opens fresh, not on an old filtered list', async () => {
+      await page.goto('http://localhost:8099/38-tasks?ids=00000000-0000-4000-8000-000000000000', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+      await page.getByRole('tab', { name: 'المهام' }).first().waitFor({ timeout: 30_000 });
+      await page.getByRole('tab', { name: 'المهام' }).first().click();
+      await page.waitForTimeout(1500);
+      expect(!/ids=/.test(page.url()), `still filtered after tapping the tab (${page.url()})`);
+      return 'fresh';
+    });
+
     // Nouran, 9 Nov (N4): "I tried the busy flow, it wrote auto reply from the AI, I want to be able to write in my own
     // words". Her words go to whoever gave the task.
     await check('flows', 'Busy: your own reason reaches whoever gave the task', async () => {
