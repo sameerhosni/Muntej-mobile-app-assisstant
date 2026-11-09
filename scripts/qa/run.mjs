@@ -450,6 +450,8 @@ async function screens() {
       try {
         await page.goto(`http://localhost:8099/08-pushback?task=${task.id}`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
         await page.getByRole('button', { name: /مشغول، خلني أبلّغه/ }).click({ timeout: 30_000 });
+        // N5 (owner, 9 Nov): the 3 fixed design tiles ("30 s", "awkward talks", "protected") don't make sense: gone
+        expect(!/حميت |إحراج/.test(await page.evaluate(() => document.body.innerText)), 'the 3 design tiles are still on the Busy screen');
         await page.getByLabel('السبب بكلامك…').fill(words);
         await page.getByRole('button', { name: /^أرسل$/ }).click();
         await page.waitForTimeout(2500);

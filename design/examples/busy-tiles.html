@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Busy tiles</title>
+<style>
+  body { margin:0; padding:16px; background:#F3F6FB; font-family: Tahoma, "Segoe UI", sans-serif; color:#0B1B3F; width:390px; box-sizing:border-box; }
+  .lbl { font-size:15px; font-weight:800; margin:6px 2px 8px; } .bad { color:#C2352B; } .good { color:#0B7A55; }
+  .screen { background:#fff; border:1px solid #E2E8F2; border-radius:20px; padding:14px; }
+  .h { font-weight:800; font-size:17px; } .s { font-size:12px; color:#5B6576; margin-bottom:10px; }
+  .task { background:#F6F8FC; border-radius:14px; padding:10px; font-size:13px; margin-bottom:10px; }
+  .btn { background:#6B4FD8; color:#fff; border-radius:999px; padding:11px; text-align:center; font-weight:800; margin-bottom:6px; }
+  .btn2 { border:1px solid #D9D0FA; color:#6B4FD8; border-radius:999px; padding:11px; text-align:center; font-weight:800; }
+  .tiles { display:flex; gap:6px; margin-top:12px; }
+  .tile { flex:1; background:#fff; border:2px solid #C2352B; border-radius:14px; padding:8px 4px; text-align:center; }
+  .tile b { display:block; font-size:16px; } .tile span { font-size:11px; color:#5B6576; }
+  .x { color:#C2352B; font-size:12px; font-weight:800; margin-top:6px; text-align:center; }
+  hr { border:0; border-top:2px dashed #C9D3E3; margin:18px 0 14px; }
+</style>
+</head>
+<body>
+  <div class="lbl bad">الحين ❌ شاشة «مشغول؟» — تحت</div>
+  <div class="screen">
+    <div class="h">مهمة جديدة</div><div class="s">قل "لا" بدون إحراج</div>
+    <div class="task">📝 متابعة شغلي وجلب مصمم UI/UX<br>من نورانإميرة · الخميس</div>
+    <div class="btn">مشغول، خلني أبلّغه</div>
+    <div class="btn2">أبشر، آخذها</div>
+    <div class="tiles">
+      <div class="tile"><b>⏱ 30 ث</b><span>وتعتذر</span></div>
+      <div class="tile"><b>✋ 0</b><span>إحراج</span></div>
+      <div class="tile"><b>🛡 0 ي</b><span>حميت شغلك الثاني</span></div>
+    </div>
+    <div class="x">↑ هذي الـ3 بطاقات: أرقام ثابتة من التصميم، مو من شغلك</div>
+  </div>
+
+  <hr>
+  <div class="lbl good">بعد ✅ (بدونها)</div>
+  <div class="screen">
+    <div class="h">مهمة جديدة</div><div class="s">قل "لا" بدون إحراج</div>
+    <div class="task">📝 متابعة شغلي وجلب مصمم UI/UX<br>من نورانإميرة · الخميس</div>
+    <div class="btn">مشغول، خلني أبلّغه</div>
+    <div class="btn2">أبشر، آخذها</div>
+  </div>
+</body>
+</html>

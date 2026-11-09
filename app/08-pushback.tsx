@@ -511,17 +511,7 @@ export default function PushbackScreen() {
           </>
           )}
 
-          {/* Value tiles (design figures; "protected" uses the live slip estimate) */}
-          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
-            <StatTile icon={<Clock color={colors.primary} size={15} strokeWidth={2} />} iconBg="primaryTint" value={t('tiles.fast')} label={t('tiles.fastLabel')} />
-            <StatTile icon={<Hand color={colors.orange} size={15} strokeWidth={2} />} iconBg="orangeTint" value={n(0)} label={t('tiles.awkward')} />
-            <StatTile
-              icon={<ShieldCheck color={colors.purple} size={15} strokeWidth={2} />}
-              iconBg="purpleTint"
-              value={t('tiles.protectedValue', { n: n(over ? model.slipDays : 0) })}
-              label={t('tiles.protectedLabel', { top: topTitle })}
-            />
-          </View>
+          {/* the 3 value tiles (fixed design figures) are gone: owner, 9 Nov (N5) "doesn't make any sense" */}
         </View>
       </ScrollView>
     </View>
