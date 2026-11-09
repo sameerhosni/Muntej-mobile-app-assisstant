@@ -506,6 +506,27 @@ async function handle(m: WaMessage, dry = false) {
   text = text.trim();
   if (!text) return void (await say(ar ? 'ما سمعت شي واضح في الرسالة 🤔 جرّب مرة ثانية؟' : 'I couldn’t hear anything clear 🤔 Try again?'));
 
+  // «💬 رد عليه»: this message is the answer, a comment on the task to the other side (N17)
+  const { data: answer } = await admin
+    .from('wa_pending')
+    .select('body')
+    .eq('key', `cm:${me.id}`)
+    .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
+    .maybeSingle();
+  if (answer) {
+    await admin.from('wa_pending').delete().eq('key', `cm:${me.id}`);
+    const taskId = (answer.body as { task_id: string }).task_id;
+    const db = userDb(await userToken(admin, me.user_id));
+    const { error } = await db.rpc('add_task_comment', { p_task: taskId, p_body: text });
+    return void (await say(
+      error
+        ? (ar ? `ما قدرت أوصله 😕 ${error.message}` : `I couldn’t pass it on 😕 ${error.message}`)
+        : ar
+          ? 'وصل ✓ يشوفه في صفحة المهمة، وجاه تنبيه 👍'
+          : 'Sent ✓ They see it on the task page and got an alert 👍',
+    ));
+  }
+
   // "send it back": the next message is what needs changing
   const { data: note } = await admin
     .from('wa_pending')
@@ -735,6 +756,11 @@ async function handle(m: WaMessage, dry = false) {
     if (verb === 'ack') return void (await say(ar ? 'تمام 👍 أنا ماسك الباقي. اسألني أي وقت عن مهامك أو فريقك.' : 'Great 👍 I’ve got the rest. Ask me anytime about your tasks or team.'));
     if (verb === 'd') return void (await decide(rest[0] as 'ok' | 'no' | 'mv', rest[1]));
     if (verb === 'r') return void (await review(rest[0] as 'ok' | 'back', rest[1]));
+    // «💬 رد عليه» under a question / comment / call for help: the next message is the answer (N17)
+    if (verb === 'cm' && rest[0]) {
+      await admin.from('wa_pending').upsert({ key: `cm:${me.id}`, profile_id: me.id, body: { task_id: rest[0] }, created_at: new Date().toISOString() });
+      return void (await say(ar ? 'اكتب ردك ✍️ أو سجّله صوت، وأوصله له على طول' : 'Type your answer ✍️ or say it, and I’ll pass it on right away'));
+    }
     if (verb === 'h') return void (await checkin(rest[0], rest[1]));
     if (verb === 'ok' || verb === 'no') return void (await suggestion(verb, rest[0], Number(rest[1])));
     // the setup on WhatsApp: right / something's wrong / remind my team

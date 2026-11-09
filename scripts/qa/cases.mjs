@@ -421,6 +421,16 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
       await sql(`delete from public.chat_messages where profile_id = '${seat}'; delete from public.alerts where profile_id = '${seat}' or subject_id = '${seat}'; delete from public.invites where profile_id = '${seat}'; delete from public.profiles where id = '${seat}'; update public.account_sessions set account_id = '${QA_ACCOUNT}' where user_id = ${login}`);
     }
   });
+  // Nouran, 9 Nov (N17/N21): "I tried to answer it over WhatsApp, WhatsApp confirmed it is done but nothing changed on
+  // the employee side" and the last message "doesn't say how to answer". Questions come with «💬 رد عليه»; the next
+  // message is a comment on the task to the person who asked.
+  await check('invites', 'A question on WhatsApp has «💬 رد عليه», and the answer reaches who asked', async () => {
+    const notify = readFileSync(new URL('../../supabase/functions/_shared/notify.ts', import.meta.url), 'utf8');
+    const wa = readFileSync(new URL('../../supabase/functions/whatsapp/index.ts', import.meta.url), 'utf8');
+    expect(/REPLYABLE = new Set<AlertKind>\(\['detail_asked', 'task_comment', 'escalated'\]\)/.test(notify) && /id: `cm:\$\{a\.task_id\}`/.test(notify), 'questions go out without a reply button');
+    expect(/verb === 'cm'/.test(wa) && /key', `cm:\$\{me\.id\}`[\s\S]{0,600}add_task_comment/.test(wa), 'the answer after «رد عليه» isn’t posted to the task');
+    return 'reply button + answer as a comment';
+  });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
     const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
     const r = await fn('whatsapp', { template_status: true }, null, { 'x-cron-secret': s });

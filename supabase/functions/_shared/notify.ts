@@ -483,7 +483,15 @@ async function whatsAppAlert(
   for (const c of cards.slice(0, 3)) ok = (await waButtons(person.phone, c.body, c.buttons)) && ok;
   const carded = (a: PendingAlert) =>
     cards.length > 0 && (a.kind === 'decision_waiting' || (a.kind === 'new_submission' && cards.some((c) => c.taskId === a.task_id)));
-  const rest = m.alerts.filter((a) => !carded(a));
+  // a question / comment / call for help about a task comes with «💬 رد عليه»: the next message goes back to them
+  // (Nouran, 9 Nov, N17/N21: "I tried to answer it over WhatsApp… nothing changed on the employee side")
+  const REPLYABLE = new Set<AlertKind>(['detail_asked', 'task_comment', 'escalated']);
+  const replyable = m.alerts.filter((a) => REPLYABLE.has(a.kind) && !!a.task_id && !carded(a)).slice(0, 3);
+  for (const a of replyable) {
+    const body = `*${(ar ? a.title_ar : null) ?? a.title}*\n${(ar ? a.body_ar : null) ?? a.body ?? ''}`.trim();
+    ok = (await waButtons(person.phone, body, [{ id: `cm:${a.task_id}`, title: ar ? '💬 رد عليه' : '💬 Reply' }])) && ok;
+  }
+  const rest = m.alerts.filter((a) => !carded(a) && !replyable.includes(a));
   if (rest.length) {
     const line = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
     const text = rest.length === m.alerts.length ? `*${m.title}*\n${m.body}` : rest.length === 1 ? `*${line(rest[0])}*\n${(ar ? rest[0].body_ar : null) ?? rest[0].body}` : rest.map(line).join('\n');
