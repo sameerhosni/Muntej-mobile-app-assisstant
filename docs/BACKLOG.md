@@ -23,7 +23,7 @@ Last updated: 2026-11-09
 | N9 | Decisions: can't try; asking the chat for a manager approval should reach the manager (chat side fixed 9 Nov: no longer out of scope) |
 | N10 | Someone assigning her a task over the chat didn't reach her |
 | N11 | She gets alerts for her own actions (status change) |
-| N12 | Push doesn't arrive on the phone; she has to open the app |
+| N12 | Push doesn't arrive on the phone; she has to open the app. **Cause found 9 Nov: no APNs push key in Expo for sa.muntej.app (every iPhone push fails "InvalidCredentials"; Android fine). Owner: Apple Developer → Keys → + APNs → download .p8 → expo.dev → Credentials → iOS → Push key. No new build needed.** (N8's "no phone" was a test before her iPhone registered.) |
 | N13 | Chat → tap المهام opens an empty screen until another tab is tapped; app freezes often |
 | N14 | Objective made in the chat: a task "under it" shows no link in the UI |
 | N15 | As Nouranemira: alert "task between N Emira and Sameer done" opens as hers, not N Emira's |
@@ -130,6 +130,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-09 · In testing: Task page buttons (N2) + close or review choice (N3) (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts · Muntej Test update 1.0.0)
 - 2026-11-09 · In testing: One Cancel, split row with X, chat stops inventing cards (server: muntej-chat, whatsapp · Muntej Test update 1.0.0)
 - 2026-11-09 · Live: Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI; From → To on tasks with one-tap change; meeting tasks grouped by meeting and person; meeting and email tasks only for the right people; Task page sections (needed from you / where it stands); From → To on found tasks; steps only on tap; Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android); Team from mail: Add or No on each person, outside people apart, never you; who sees and gives tasks: your team, tasks your team handed out, tasks naming you, give to your team and your level (admins see all); Team from mail: Add asks under whom, then invitations go out; budget is optional everywhere; tasks load about 15x faster (on for everyone: ai_consent, assign_rules)
 - 2026-11-08 · In testing: Team from mail: Add asks under whom, then invitations go out; budget is optional everywhere; tasks load about 15x faster (server: muntej-chat, parse-task · Muntej Test update 1.0.0)
