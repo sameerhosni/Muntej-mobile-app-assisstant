@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-11-08
+Last updated: 2026-11-09
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -105,6 +105,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-09 · Live: Ask sends a real question; small language menu on sign-in; AI permission before anything goes to OpenAI; From → To on tasks with one-tap change; meeting tasks grouped by meeting and person; meeting and email tasks only for the right people; Task page sections (needed from you / where it stands); From → To on found tasks; steps only on tap; Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android); Team from mail: Add or No on each person, outside people apart, never you; who sees and gives tasks: your team, tasks your team handed out, tasks naming you, give to your team and your level (admins see all); Team from mail: Add asks under whom, then invitations go out; budget is optional everywhere; tasks load about 15x faster (on for everyone: ai_consent, assign_rules)
 - 2026-11-08 · In testing: Team from mail: Add asks under whom, then invitations go out; budget is optional everywhere; tasks load about 15x faster (server: muntej-chat, parse-task · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: Team from mail: Add or No on each person, outside people apart, never you; who sees and gives tasks: your team, tasks your team handed out, tasks naming you, give to your team and your level (admins see all) (server: connect, muntej-chat, team-import · Muntej Test update 1.0.0)
 - 2026-11-08 · In testing: Team from mail: real contacts only, email decides, faster; joined people reminded of their tasks; meeting tasks show from → to; tool page loaders stop; Connect your system removed; chat no longer breaks after marking a task done (Android) (server: team-import · Muntej Test update 1.0.0)
