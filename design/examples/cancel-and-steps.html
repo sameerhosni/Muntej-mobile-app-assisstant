@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cancel and steps</title>
+<style>
+  :root { --bg:#F3F6FB; --line:#E2E8F2; --muted:#5B6576; --blue:#1F6FEB; --blueTint:#E8F0FE; --navy:#0B1B3F; --greenTint:#E1F5EE; --green:#0B7A55; --redTint:#FCEBEB; --red:#C2352B; --purple:#6B4FD8; --purpleTint:#EEEAFD; --purpleBorder:#D9D0FA; }
+  body { margin:0; padding:18px 16px 28px; background:var(--bg); font-family: Tahoma, "Segoe UI", sans-serif; color:var(--navy); width:390px; box-sizing:border-box; }
+  h2 { font-size:15px; color:var(--muted); font-weight:600; margin:6px 0 10px; }
+  .tag { display:inline-block; background:var(--navy); color:#fff; border-radius:8px; padding:2px 9px; font-size:13px; margin-left:6px; }
+  .who { font-size:12px; color:var(--muted); margin:10px 2px 6px; font-weight:700; }
+  .card { background:#fff; border:1px solid #CFE0FB; border-right:4px solid var(--blue); border-radius:16px; padding:12px; margin-bottom:8px; }
+  .lbl { color:var(--green); font-size:11px; font-weight:800; }
+  .tt { font-weight:800; font-size:16px; margin:4px 0 8px; }
+  .pills span { display:inline-block; background:var(--blueTint); border-radius:999px; padding:3px 9px; font-size:12px; margin-left:4px; }
+  .btn { border:1px solid var(--line); border-radius:999px; padding:9px; font-size:14px; font-weight:800; text-align:center; color:var(--muted); margin-top:10px; background:#fff; }
+  .note { font-size:12px; color:var(--muted); margin-top:8px; }
+  .old { opacity:.55; }
+  .old .btns { display:flex; gap:8px; } .old .btn { flex:1; }
+  .x { text-decoration:line-through; }
+  .sect { display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:16px; margin:6px 2px 8px; }
+  .link { color:var(--purple); font-size:13px; font-weight:700; }
+  .empty { background:#fff; border:1px solid var(--line); border-radius:14px; padding:12px; font-size:13px; color:var(--muted); }
+  .big { background:#fff; border:1px solid var(--purpleBorder); border-radius:16px; padding:12px; }
+  .pbtn { background:var(--purpleTint); color:var(--purple); border-radius:999px; padding:11px; text-align:center; font-weight:800; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .close { color:var(--muted); font-size:18px; padding:0 6px; }
+  hr { border:0; border-top:2px dashed #C9D3E3; margin:22px 0 16px; }
+</style>
+</head>
+<body>
+  <h2><b>أ) إلغاء المهمة في الشات</b> — زر واحد بدل «ألغِ» و«احذف»</h2>
+
+  <div class="who">قبل (الكل يشوف الزرين):</div>
+  <div class="card old">
+    <div class="lbl">✓ تعدّلت</div><div class="tt">تحديث عرض العميل</div>
+    <div class="btns"><div class="btn">⊘ ألغِ المهمة</div><div class="btn" style="color:var(--red)">🗑 احذف</div></div>
+  </div>
+
+  <div class="who">بعد — أنت اللي سويتها (أو مدير صاحبها):</div>
+  <div class="card">
+    <div class="lbl">✓ تعدّلت</div><div class="tt">تحديث عرض العميل</div>
+    <div class="pills"><span>📅 الخميس</span><span>نوران</span></div>
+    <div class="btn">⊘ ألغِ المهمة</div>
+    <div class="note">تختفي من القوائم وتوقف المتابعة، وتبقى في السجل.</div>
+  </div>
+
+  <div class="who">بعد — مهمة جاتك من غيرك:</div>
+  <div class="card">
+    <div class="lbl">✓ تعدّلت</div><div class="tt">تجهيز تقرير المبيعات</div>
+    <div class="pills"><span>📅 الأحد</span><span>من سمير</span></div>
+    <div class="note">ما فيه زر إلغاء. لو كتبت «ألغها» يرد: «هذي من سمير، بس هو يقدر يلغيها. أقول له؟»</div>
+  </div>
+
+  <hr>
+  <h2><b>ب) «خلني أقسّمها» اختيارية</b> — اختر شكل</h2>
+
+  <div class="who">الحين: بطاقة بنفسجية كبيرة في كل مهمة ما لها خطوات</div>
+  <div class="sect">الخطوات</div>
+  <div class="big old"><div class="pbtn">✨ خلني أقسّمها</div></div>
+
+  <div class="who" style="margin-top:16px"><span class="tag">١</span>رابط صغير جنب العنوان، بدون بطاقة (أنصح فيه)</div>
+  <div class="sect">الخطوات <span class="link">✨ قسّمها لي</span></div>
+  <div class="empty">ما فيه خطوات. تقدر تكتبها أو تقولها، أو خلها كذا.</div>
+
+  <div class="who" style="margin-top:16px"><span class="tag">٢</span>نفس البطاقة مع ✕ «ما أحتاجها» وتختفي لهذي المهمة</div>
+  <div class="sect">الخطوات</div>
+  <div class="big"><div class="row"><div class="pbtn" style="flex:1">✨ خلني أقسّمها</div><div class="close">✕</div></div></div>
+</body>
+</html>

@@ -346,6 +346,27 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(/people\.length > 1 && !tappedAny && !\(await aiAllowed\(pick, admin\)\)/.test(src), 'one number in two logins doesn’t prefer the profile that allowed AI');
     return 'read + typing, Saree3 lines, a line if slow, the AI-allowed profile';
   });
+  // The owner, 9 Nov: "I asked the chat who is my team and who is my boss, and he said you don't have any". Nouran's
+  // login has an empty seat in another account; the chat answered from it. Faisal gets the same empty seat in Demo.
+  await check('chat', 'Who is my boss? from an empty seat names the boss in the other account', async () => {
+    const DEMO = 'c0000000-0000-4000-b000-000000000001';
+    const [{ id: seat }] = await sql(
+      `insert into public.profiles (account_id, user_id, full_name, role, status, ai_consent, ai_consent_at)
+       select '${DEMO}', user_id, 'QA Faisal Seat', 'employee', 'active', true, now() from public.profiles where id = '${FAISAL}' returning id`,
+    );
+    const login = `(select user_id from public.profiles where id = '${FAISAL}')`;
+    try {
+      const theirs = await jwtFor(seat, DEMO);
+      await sql(`insert into public.account_sessions (user_id, account_id) select ${login}, '${DEMO}' on conflict (user_id) do update set account_id = excluded.account_id`);
+      const r = await fn('muntej-chat', { message: 'مين مديري ومين فريقي؟', source: 'text', lang: 'ar' }, theirs);
+      const said = r.messages?.at(-1)?.content ?? '';
+      const boss = BOSS_NAME.split(' ')[0];
+      expect(said.includes(boss) || said.includes('أحمد'), `said «${said.slice(0, 120)}» (wanted his boss ${boss} from the QA company)`);
+      return said.slice(0, 90);
+    } finally {
+      await sql(`delete from public.chat_messages where profile_id = '${seat}'; delete from public.alerts where profile_id = '${seat}' or subject_id = '${seat}'; delete from public.invites where profile_id = '${seat}'; delete from public.profiles where id = '${seat}'; update public.account_sessions set account_id = '${QA_ACCOUNT}' where user_id = ${login}`);
+    }
+  });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
     const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
     const r = await fn('whatsapp', { template_status: true }, null, { 'x-cron-secret': s });

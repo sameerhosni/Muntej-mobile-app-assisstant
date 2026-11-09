@@ -241,7 +241,7 @@ const SYSTEM = `You are Muntej, a friendly, sharp AI task assistant for people i
 Each turn, choose ONE action:
 - "none": small talk (hi, thanks) and questions ("what's late?", "who is free?"). Answer questions from the provided open_tasks/team data only; never invent facts. "What did I make / add today?": list made_by_you_today in the reply itself, one line each ("«title» لـname"), never a lead-in ending with ":" and nothing after it. "How many…" questions: quote counts (the same numbers as the Home screen); a task sent in for review is not late.
 - SCOPE (owner, 2 Nov): you are a TASK assistant. In scope: tasks, follow-ups, the team and its workload, objectives, decisions, recurring work, and how Muntej itself works (its alerts, reports and settings). Everything else is out of scope: general knowledge, writing or translating unrelated text, coding, personal advice, and setting up other apps or services (Gmail filters, Outlook rules, WhatsApp groups, calendars outside Muntej…). Out of scope → action "none", ONE short, warm, playful line in the user's language (Saudi dialect in Arabic, a light joke or emoji is welcome) saying you only handle tasks, then offer to turn it into a task if it fits (e.g. "هذي برّا تخصصي 😅 أنا مساعد مهام وبس، تبيني أسويها مهمة لأحد من الفريق؟" / "That's outside my lane 😄 I only do tasks. Want me to make it a task for someone?"). Never pretend: do not say you saved, set up, turned on or will do anything the action fields do not actually do. For questions about Muntej's own alerts (push, email, WhatsApp), say they can be set on the Alerts screen; never claim you changed them.
-  TEAM QUESTIONS ("how is Faisal doing?", "who's overloaded?", "top performers this month", "risks in Khalid's team", "who knows Selenium?"): answer in 1-3 short sentences from team[].stats, skills, title and the org tree (manager_id / reports; "Khalid's team" = everyone below Khalid, any depth). Quote the real numbers (done, on-time %, late, open, hours, achievements); never invent or estimate a number that is not in the data. stats = null means the user cannot see that person's tasks: say so instead of guessing. Top performers: rank by done_this_month, then on_time_pct, then achievements. Overloaded: stats.overloaded or open_estimate_hours above weekly_hours. People who left are in former_team: mention them only when asked.
+  TEAM QUESTIONS ("how is Faisal doing?", "who's overloaded?", "top performers this month", "risks in Khalid's team", "who knows Selenium?"): answer in 1-3 short sentences from team[].stats, skills, title and the org tree (manager_id / reports; "Khalid's team" = everyone below Khalid, any depth). Quote the real numbers (done, on-time %, late, open, hours, achievements); never invent or estimate a number that is not in the data. stats = null means the user cannot see that person's tasks: say so instead of guessing. MY TEAM / MY BOSS ("who is my team?", "who's my manager?", "مين مديري؟", "مين تحتي؟"): answer from the team entry with is_me (its manager and reports). If that entry has no manager and no reports but you_in_other_accounts lists one where you do, answer from that account by name (e.g. "في T2 مديرك سمير وتحتك نوران") and say this chat is in the other account; never just say "you have none" while you_in_other_accounts has them. Top performers: rank by done_this_month, then on_time_pct, then achievements. Overloaded: stats.overloaded or open_estimate_hours above weekly_hours. People who left are in former_team: mention them only when asked.
 - BRIEF: when a question's answer covers several people or tasks (team status, who is late / blocked / overloaded / free, risks, top performers, "what needs me today", what's on someone's plate, objectives at risk), fill brief: headline = one counting line; rows (max 6) = problems first (late, blocked, overloaded, at_risk, unassigned), then on_track / star only when the question is about everyone or about performance. Each row: person_id and/or task_id from the lists, status, metric (the real number from the data) and note (task name or reason). Then the reply is ONE short sentence that does not repeat the rows (e.g. "Here's your team today:" / "هذا وضع فريقك اليوم:"). Never claim you reminded or changed anything: the server adds what Muntej already did and the one-tap fix to each row. brief = null for small talk, for one-person / one-task answers and for every other action.
 - "create": the message asks for work to be done ("I need someone to…", "we have to…", "remind me to…", "خل أحد…"). When you can tell WHAT the work is (a concrete thing to do or deliver), create it IMMEDIATELY even if other details are vague — the user can Undo, and gaps (owner, when, what "done" means, budget) are filled later in the chat: write the best short title and mention ONE open point in the reply. Only the title is required: owner, due date, what "done" means, priority details and budget may all be null.
 - CLARIFY FIRST (owner, 2 Nov: "ask until you understand, but keep it sharp, not a conversation"): when the work itself is too general to act on — you could only write a placeholder title like "Task about the new project", "Follow up on the thing", "Something for Faisal", "مهمة تخص المشروع", "شغل على العميل" — do NOT create. Use action "none", reply with ONE short direct question about the missing core (what exactly should be done or delivered; for several people, what each one does), at most ~12 words, no greeting, no restating. Fill suggestions with 2-3 concrete likely answers written as the user would send them (e.g. "فيصل يجهز عرض السعر، نورة تراجع العقد" / "Faisal drafts the plan, Noura the budget"). Ask only about WHAT, never about dates, priority or budget (those come after). Ask at most once per request: if the next answer is still general, create with the best title you can and the open point in the reply. Never clarify a task that is already clear.
@@ -405,9 +405,34 @@ function missingOf(t: Pick<TaskRow, 'owner_id' | 'due_at' | 'definition_of_done'
   return m;
 }
 
+/** this login's seats in its other accounts: the account, its manager and its reports (names only) */
+async function seatsElsewhere(userId: string, profileId: string) {
+  const admin = adminClient();
+  const { data: seats } = await admin
+    .from('profiles')
+    .select('id, account_id, role, manager_id, accounts(name)')
+    .eq('user_id', userId)
+    .neq('id', profileId)
+    .neq('status', 'deleted');
+  const out: { account: string; role: string; manager: string | null; reports: string[] }[] = [];
+  for (const s of (seats ?? []) as unknown as { id: string; role: string; manager_id: string | null; accounts: { name: string } | null }[]) {
+    const [{ data: boss }, { data: reports }] = await Promise.all([
+      s.manager_id ? admin.from('profiles').select('full_name').eq('id', s.manager_id).maybeSingle() : Promise.resolve({ data: null }),
+      admin.from('profiles').select('full_name').eq('manager_id', s.id).neq('status', 'deleted').eq('hidden', false).limit(30),
+    ]);
+    out.push({
+      account: s.accounts?.name ?? '',
+      role: s.role,
+      manager: (boss as { full_name: string } | null)?.full_name ?? null,
+      reports: ((reports ?? []) as { full_name: string }[]).map((r) => r.full_name),
+    });
+  }
+  return out;
+}
+
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
-  const { db, profileId } = await getCaller(req);
+  const { db, profileId, userId } = await getCaller(req);
 
   const body = (await req.json().catch(() => ({}))) as {
     message?: string;
@@ -477,6 +502,8 @@ serve(async (req) => {
   // accounts this login can work in (my_accounts: all of them for the super admin)
   const { data: accountRows } = await db.rpc('my_accounts');
   const myAccounts = (accountRows ?? []) as MyAccount[];
+  // the same login's seats in other accounts (Nouran, 9 Nov: "who is my boss?" answered "none" from her empty seat)
+  const otherSeats = myAccounts.length > 1 ? await seatsElsewhere(userId, profileId) : [];
   const recurring = (recurringRows ?? []) as RecurringRow[];
   // everyone (incl. people who left) for names and org changes; `team` = people who can still get work
   const everyone = (people ?? []) as PersonRow[];
@@ -722,6 +749,7 @@ serve(async (req) => {
         .map((t) => t.title),
       stats: statsOf(p),
     })),
+    you_in_other_accounts: otherSeats,
     former_team: everyone
       .filter((p) => p.status === 'deleted')
       .slice(0, 30)
