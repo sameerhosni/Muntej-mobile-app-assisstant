@@ -547,8 +547,13 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     me?.full_name_ar,
     ...myAddrs.map((a) => a.split('@')[0].replace(/[._-]+/g, ' ').trim()).filter((x) => x.length > 2),
   ].filter(Boolean) as string[];
-  const dmWith = /^Google Chat · Direct message between: (.+)$/m.exec(body)?.[1].split(', ').find((n) => !myNames.some((x) => sameName(x, n))) ?? null;
-  const dmId = dmWith ? teammateByName(dmWith, input.team) : null;
+  // the other person in a direct message: the header name that isn't the user. When a teammate shares the user's first
+  // name, both names "fit" the user: then the other one is the name that isn't exactly one of theirs (reviewer, 10 Nov)
+  const dmNames = /^Google Chat · Direct message between: (.+)$/m.exec(body)?.[1].split(', ') ?? [];
+  const exactlyMe = (n: string) => myNames.some((x) => x.trim().toLowerCase() === n.trim().toLowerCase());
+  const dmWith = dmNames.find((n) => !myNames.some((x) => sameName(x, n))) ?? (dmNames.length === 2 ? (dmNames.find((n) => !exactlyMe(n)) ?? null) : null);
+  // matched among the others only: the user's own row must not make the name ambiguous
+  const dmId = dmWith ? teammateByName(dmWith, input.team.filter((p) => p.id !== input.profileId)) : null;
   // a meeting: its work is only for the people in it (owner, 8 Nov: "any meeting you should read the attendees and get
   // tasks for them not any other persons"). A teammate who wasn't there never gets it; with one other person in the
   // meeting, it's theirs (in the team or not)

@@ -556,3 +556,7 @@ Last updated: 2026-11-09.
 ### R128 · A "must not be treated as" QA case uses data that really trips the matcher
 - **Why:** 10 Nov, reviewer: the same-first-name case used «Ahmed Twin», which never fit the user's names, so it passed without the fix.
 - **Check:** the case's names / data fit the matcher it guards (here both the user and the teammate), and it fails on the code before the fix.
+
+### R129 · A direct message still finds the other person when they share the user's first name
+- **Why:** 10 Nov, reviewer: with «Ahmed QA, Ahmed» both names fit the user, so the other person came out empty and the direct-message rules stopped applying.
+- **Check:** when every header name fits the user, the other one is the name that isn't exactly theirs, matched among teammates other than the user.
