@@ -17,3 +17,4 @@ Line format: ``- `<commit>` · <date> · ACCEPT · <what was reviewed>``
 - `426a828` · 2026-11-10 · ACCEPT · QA only: «ايه هي؟» branch steps match the task by its tag. 1 pass.
 - `9c15b49` · 2026-11-10 · ACCEPT · Tools cards say who asked (a person, never a place), when, where, their words, the due date and who it's for; QA closed-list check looks for the list. 2 passes: 2 → 0 findings; rules R118–R119.
 - `b0b7054` · 2026-11-10 · ACCEPT · QA run fixes: own sent mail listed as hand-offs, settled step order, false-claim check skips only real question words, idea flow reports page errors, raw answer error logged. 2 passes: 1 → 0 findings; rule R120.
+- `4ba1b24` · 2026-11-10 · ACCEPT · WhatsApp tools list as a drop-down (rows with who · when · due, a tap opens the card, pages keep their numbers), due-date buttons never repeat. 3 passes: 4 → 4 → 0 findings; rules R121–R124.
