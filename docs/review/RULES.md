@@ -42,10 +42,9 @@ Last updated: 2026-11-09.
 - **Why:** 19 Oct: the transcriber invented names and sentences from silence. 22 Oct: noise turned into four "Contact X" steps that were added without asking (bc34012, 3a51794).
 - **Check:** voice input shows "I heard: …" and waits for OK before writing. Very short recordings are dropped, and transcripts that only echo the name hints are rejected.
 
-### R9 · Nothing goes to OpenAI before the person allows it
-- **Why:** 8 Nov, Apple 5.1.1(i)/5.1.2(i): an AI permission screen was added, and every OpenAI path checks it (ebffb28).
-- **Check:** every new or changed edge-function path that calls OpenAI checks `ai_consent` and returns 403 `ai_consent_required` (or skips). Add a QA line to "Nothing goes to the AI before the person allows it". The app never calls OpenAI directly.
-
+### R9 · AI is on unless the person turned it off; the iPhone app asks once first
+- **Why:** 8 Nov, Apple 5.1.1(i)/5.1.2(i): an AI permission screen was added, and every OpenAI path checks it (ebffb28). 10 Nov, the owner: "AI should be allowed by default … no need to ask for permissions except the user stopped it so give him clear notification of this"; he picked "ask once on iPhone only" (migration 20261110140000).
+- **Check:** every new or changed edge-function path that calls OpenAI checks `ai_allowed` (on unless `ai_consent = false`) and returns 403 `ai_consent_required` (or skips) when it is off; the iPhone app keeps its assistant off until the person answers the one-time screen; turning it off sends the one `ai_off` notice. The app never calls OpenAI directly.
 ### R10 · Send the AI only the person's own account
 - **Why:** 22 Oct privacy fix: tool syncs gave the AI every company's people and open tasks (0111c68).
 - **Check:** queries that build prompts are scoped to the caller's account and visibility, never a service-role select across accounts.
@@ -461,3 +460,7 @@ Last updated: 2026-11-09.
 ### R104 · Alert text is the person's words or Muntej's own sentence, never an internal note
 - **Why:** 10 Nov: Nouran's WhatsApp showed "Owner, 9 Nov: the chat sent «نوران» to Nouranemira…" and "N is at 4 h of 40 h this week.": `activity_log.reason` became the alert body.
 - **Check:** `notify_subject_of_change` (and any new alert from the log) shows `reason` only for the person's own note (`sent_back`); `reason` is for the log, written for the team.
+
+### R105 · An automatic close or hand-off decided by the AI goes through the same path as a person's tap, and the person can undo it
+- **Why:** 10 Nov, reviewer: the tools reader first closed "already answered" tasks with a direct service-role status update: no review rules, other decisions left pending, not undoable.
+- **Check:** AI-decided closes use `close_by_reply` (or the status RPC a tap uses): own work only, other pending decisions resolved, the owner told, logged undoable by them (`undo_task_changes` allows 7 days for `closed_by_reply`). Never `update tasks set status` from a function.

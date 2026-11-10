@@ -43,7 +43,8 @@ type What = 'due' | 'doneDef' | 'budget';
 const WHAT_AR: Record<What, string> = { due: 'الموعد', doneDef: 'تعريف الإنجاز', budget: 'الميزانية' };
 const WHAT_EN: Record<What, string> = { due: 'due date', doneDef: 'definition of done', budget: 'budget' };
 /** "there's none": closes a budget / definition-of-done question without filling it */
-const NONE = /^(ما\s*(فيه|في|له|لها|عندها)|مافي|ماله|لا يوجد|بدون|no( budget)?|none|nothing|n\/a)\b/i;
+// (no \b: without the u flag JS sees Arabic letters as non-word, so «ما فيه ميزانية» never matched — reviewer, 10 Nov)
+const NONE = /^(ما\s*(فيه|في|له|لها|عندها)|مافي|ماله|لا يوجد|بدون|no( budget)?|none|nothing|n\/a)(?=\s|$|[،.!؟,])/i;
 import { newPin, sessionFor, sha256 } from '../_shared/phone-session.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
@@ -1175,7 +1176,20 @@ async function handle(m: WaMessage, dry = false) {
     await admin.from('wa_pending').delete().eq('key', `da:${me.id}`);
     const db = userDb(await userToken(admin, me.user_id));
     const { error } = await db.rpc('answer_task_detail', { p_task: taskId, p_what: what, p_text: v.text ?? null, p_due: v.due ?? null, p_none: !!v.none });
-    if (error) return void (await say(ar ? `ما قدرت أحفظها 😕 ${error.message}` : `I couldn’t save it 😕 ${error.message}`));
+    // the database's reasons in plain words, never its raw message (reviewer, 10 Nov, R7)
+    if (error) {
+      const m = error.message;
+      const why = /Only who gave/.test(m)
+        ? ar ? 'بس اللي عطى المهمة يقدر يجاوب على هذا 🙏' : 'Only whoever gave the task can answer that 🙏'
+        : /Task not found/.test(m)
+          ? ar ? 'ما لقيت المهمة، يمكن انحذفت 🤔' : 'I couldn’t find that task, maybe it was deleted 🤔'
+          : /Which date|needs a due date/.test(m)
+            ? ar ? 'أحتاج تاريخ واضح 📅 اكتبه مرة ثانية، مثل: الخميس الساعة 3' : 'I need a clear date 📅 Write it again, e.g. Thursday at 3'
+            : /Nothing to save/.test(m)
+              ? ar ? 'ما وصلني شي أحفظه ✍️ اكتبه مرة ثانية' : 'Nothing came through to save ✍️ Write it again'
+              : ar ? 'ما قدرت أحفظها الحين 😕 جرّب مرة ثانية أو افتح المهمة في منتج' : 'I couldn’t save it just now 😕 Try again, or open the task in Muntej';
+      return void (await say(why));
+    }
     const shown = v.none ? (ar ? 'ما فيه' : 'none') : what === 'due' ? whenText(v.due!, ar) : v.text!.slice(0, 120);
     await say(
       ar

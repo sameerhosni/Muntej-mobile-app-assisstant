@@ -269,6 +269,7 @@ export const google: Provider = {
               .slice(0, 8000),
             sender: from.replace(/\s*<[^>]+>\s*$/, '').replace(/"/g, '') || from,
             subject: subject || null,
+            conversation: m.threadId ? `gmail:${m.threadId}` : null,
             receivedAt: m.internalDate ? new Date(Number(m.internalDate)).toISOString() : null,
           });
         }
@@ -430,6 +431,7 @@ export const google: Provider = {
               .slice(0, 12_000),
             sender: said.length === 1 ? who(last) : where,
             subject: where,
+            conversation: `gchat:${sp.name}`,
             receivedAt: last.createTime ?? null,
           });
         }

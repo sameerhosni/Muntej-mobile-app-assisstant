@@ -22,6 +22,8 @@ export type Fetched = {
   sender?: string | null;
   subject?: string | null;
   receivedAt?: string | null;
+  /** the conversation it belongs to, by the tool's own id (Gmail thread, Chat space): "already answered" looks here */
+  conversation?: string | null;
   /** already a task in the tool (assigned to the person): taken as-is, no AI reading */
   task?: { title: string; due_at: string | null; priority: 'low' | 'medium' | 'high' | 'urgent'; description?: string | null; link?: string | null };
 };
@@ -298,6 +300,7 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
           sender: it.sender,
           subject: it.subject,
           receivedAt: it.receivedAt,
+          conversation: it.conversation ?? null,
           team: team ?? [],
           open: openTasks ?? [],
           create,
@@ -345,20 +348,20 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         }
       }
       nextCursor = fresh.length > MAX_ITEMS ? cur : cursor;
+      // an everyday alert (not a direct push): quiet hours, Friday and the daily budget apply, it shows on the Alerts
+      // screen, and a tap opens "From your tools" (reviewer, 10 Nov). One per connection per check.
       if (waitingNew > 0) {
-        const { data: who } = await admin.from('profiles').select('locale').eq('id', conn.profile_id).maybeSingle();
-        const ar = who?.locale === 'ar';
-        await sendPush(
-          [conn.profile_id],
-          {
-            title: ar ? '🔌 من أدواتك' : '🔌 From your tools',
-            body: ar
-              ? `لقيت ${waitingNew === 1 ? 'مهمة وحدة' : waitingNew === 2 ? 'مهمتين' : `${waitingNew} ${waitingNew <= 10 ? 'مهام' : 'مهمة'}`} لك، تنتظر موافقتك. اضغط وشوفها 👇`
-              : `I found ${waitingNew} task${waitingNew > 1 ? 's' : ''} for you. They wait for your OK: tap to see 👇`,
-            data: { screen: '/42-incoming' },
-          },
-          admin,
-        ).catch(() => 0);
+        const n = waitingNew;
+        const arN = n === 1 ? 'مهمة وحدة' : n === 2 ? 'مهمتين' : `${n} ${n <= 10 ? 'مهام' : 'مهمة'}`;
+        await admin.from('alerts').insert({
+          profile_id: conn.profile_id,
+          kind: 'tools_found',
+          title: '🔌 From your tools',
+          body: `I found ${n} task${n > 1 ? 's' : ''} for you. They wait for your OK.`,
+          title_ar: '🔌 من أدواتك',
+          body_ar: `لقيت ${arN} لك، تنتظر موافقتك.`,
+          dedupe_key: `tools_found:${conn.id}:${Date.now()}`,
+        });
       }
     }
 

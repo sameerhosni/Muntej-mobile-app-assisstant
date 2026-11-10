@@ -381,6 +381,27 @@ async function server() {
       await sql(`delete from public.tasks where id = '${t.id}'`);
     }
   });
+  // «ما فيه ميزانية» after «✍️ جاوب» on a budget question closes it without a budget (reviewer, 10 Nov: the Arabic
+  // never matched and was saved as the budget)
+  await check('whatsapp', '«ما فيه ميزانية» closes a budget question without saving a budget', async () => {
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA no budget', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`);
+    try {
+      await rpc('ask_task_detail', { p_task: t.id, p_what: 'budget' }, await jwtFor(QA_FAISAL, QA_ACCOUNT));
+      await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('da:${QA_BOSS}', '${QA_BOSS}', '{"task_id":"${t.id}","what":"budget"}', now())
+                 on conflict (key) do update set body = excluded.body, created_at = now()`);
+      const msgs = await wa('ما فيه ميزانية');
+      const [row] = await sql(`select budget from public.tasks where id = '${t.id}'`);
+      expect(!row.budget, `saved «${row.budget}» as the budget`);
+      const [open] = await sql(`select id from public.alerts where profile_id = '${QA_BOSS}' and kind = 'detail_asked' and task_id = '${t.id}' and read_at is null`);
+      expect(!open, `the question still waits: ${texts(msgs).slice(0, 120)}`);
+      return texts(msgs).slice(0, 70);
+    } finally {
+      await sql(`delete from public.wa_pending where key = 'da:${QA_BOSS}'`);
+      await sql(`delete from public.alerts where task_id = '${t.id}'`);
+      await sql(`delete from public.activity_log where task_id = '${t.id}'`);
+      await sql(`delete from public.tasks where id = '${t.id}'`);
+    }
+  });
   await sql(`update public.profiles set phone = null where id = '${QA_BOSS}'`);
 }
 

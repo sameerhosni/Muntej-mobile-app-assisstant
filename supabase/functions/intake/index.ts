@@ -85,6 +85,8 @@ serve(async (req) => {
           open: open ?? [],
           create,
           connectionId: viaConn?.id ?? null,
+          // the tool's conversation id (a thread / space), only with the caller's own connection
+          conversation: viaConn && typeof body.conversation === 'string' ? body.conversation.slice(0, 200) : null,
           // mail waits for an OK, as the Gmail reader does (a hand-off to a teammate still goes by itself)
           confirmFirst: source === 'gmail',
         }),

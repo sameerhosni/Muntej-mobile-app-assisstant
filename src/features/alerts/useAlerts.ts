@@ -36,7 +36,8 @@ export type AlertKind =
   | 'added_to_company'
   | 'detail_asked'
   | 'task_comment'
-  | 'kudos_received';
+  | 'kudos_received'
+  | 'tools_found';
 
 export type AlertItem = {
   id: string;

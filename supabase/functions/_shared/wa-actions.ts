@@ -113,7 +113,8 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
     });
   // questions about tasks they gave (due date, definition of done, budget) still unanswered: «✍️ جاوب» (owner, 10 Nov:
   // outside the 24 h window the "something needs you" button brought only decisions and reviews)
-  const { data: asks } = await admin
+  const answersOn = (await admin.rpc('feature_on_for', { p_key: 'task_answers', p_profile: meId })).data === true;
+  const { data: asks } = !answersOn ? { data: [] } : await admin
     .from('alerts')
     .select('task_id, title, title_ar, body, body_ar, dedupe_key')
     .eq('profile_id', meId)

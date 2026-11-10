@@ -134,8 +134,8 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
   // cancel the task if the user responded already". Read as from the QA manager's own (temporary) Google connection.
   {
     const [conn] = await sql(`insert into public.connections (profile_id, provider, account_label, import_on) values ('${QA_BOSS}', 'google', 'qa-manager@qa.muntej.test', false) returning id`);
-    const via = async (text, sender, subject, source) =>
-      (await fn('intake', { action: 'ingest', text: `${text}\n\n[qa ${Date.now()}]`, sender, subject, source, connection_id: conn.id }, jwt)).suggestions ?? [];
+    const via = async (text, sender, subject, source, conversation = null) =>
+      (await fn('intake', { action: 'ingest', text: `${text}\n\n[qa ${Date.now()}]`, sender, subject, source, connection_id: conn.id, conversation }, jwt)).suggestions ?? [];
     const madeFor = async (who, t0) => sql(`select id, title, status from public.tasks where owner_id = '${who}' and assigner_id = '${QA_BOSS}' and created_at >= '${t0}' and status <> 'cancelled'`);
     try {
       await check('inbox', 'Tools: work other people ask each other is never yours', async () => {
@@ -162,15 +162,24 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
       });
       await check('inbox', 'Tools: asked, then answered in the next messages: it closes by itself', async () => {
         const head = `Google Chat · Direct message between: ${BOSS_NAME}, ${FAISAL_NAME} (qa ${Date.now()})`;
-        const first = await via([head, `[2026-11-10T09:00:00Z] ${FAISAL_NAME}: ممكن تراجع لي عقد شركة الريان وترسل ملاحظاتك؟`].join('\n'), FAISAL_NAME, 'Direct message', 'google_chat');
+        const space = `gchat:spaces/qa-${Date.now()}`;
+        const first = await via([head, `[2026-11-10T09:00:00Z] ${FAISAL_NAME}: ممكن تراجع لي عقد شركة الريان وترسل ملاحظاتك؟`].join('\n'), FAISAL_NAME, 'Direct message', 'google_chat', space);
         const mine = live(first).filter((x) => x.owner_id === QA_BOSS);
         expect(mine.length, `the ask wasn't yours: ${first.map((x) => `${x.title}/${x.state}`).join(' · ') || 'nothing'}`);
-        await via([head, `[2026-11-10T09:30:00Z] ${BOSS_NAME}: راجعته وأرسلت لك الملاحظات على الإيميل ✅`].join('\n'), BOSS_NAME, 'Direct message', 'google_chat');
+        await via([head, `[2026-11-10T09:30:00Z] ${BOSS_NAME}: راجعته وأرسلت لك الملاحظات على الإيميل ✅`].join('\n'), BOSS_NAME, 'Direct message', 'google_chat', space);
         const [row] = await sql(`select suggestions from public.incoming_items where owner_id = '${QA_BOSS}' and body like '${head.replace(/'/g, "''")}%' order by received_at limit 1`);
         const s0 = row.suggestions.find((x) => x.owner_id === QA_BOSS);
         const closedTask = s0?.task_id ? (await sql(`select status from public.tasks where id = '${s0.task_id}'`))[0]?.status === 'done' : false;
         expect(s0?.closed_by_reply || closedTask, `still open: ${s0?.state}${s0?.task_id ? ' (task)' : ''}`);
         return s0.closed_by_reply ? 'left the list' : 'task closed';
+      });
+      await check('inbox', 'Tools: nobody can read a message as someone else’s connection', async () => {
+        const faisal = await jwtFor(FAISAL, QA_ACCOUNT);
+        const r = await fn('intake', { action: 'ingest', text: `QA connection check ${Date.now()}`, source: 'gmail', connection_id: conn.id }, faisal);
+        const [row] = await sql(`select connection_id, source from public.incoming_items where id = '${r.id}'`);
+        expect(row && !row.connection_id && row.source === 'paste', `read as the other person's connection: ${JSON.stringify(row)}`);
+        await sql(`delete from public.incoming_items where id = '${r.id}'`);
+        return 'read as a plain paste';
       });
       await check('inbox', 'Tools: the WhatsApp list says where they are in the app', async () => {
         const src = readFileSync(new URL('../../supabase/functions/_shared/wa-actions.ts', import.meta.url), 'utf8');

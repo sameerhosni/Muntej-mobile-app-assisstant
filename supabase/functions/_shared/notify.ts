@@ -45,7 +45,9 @@ export type AlertKind =
   // a comment on a task from the other side (add_task_comment): doer ↔ giver
   | 'task_comment'
   // someone thanked you (send_kudos)
-  | 'kudos_received';
+  | 'kudos_received'
+  // tasks for you found in your connected mail / chats, waiting for your OK (one per check): an everyday alert
+  | 'tools_found';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -78,6 +80,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   detail_asked: null,
   task_comment: null,
   kudos_received: null,
+  tools_found: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
@@ -530,7 +533,9 @@ async function whatsAppAlert(
     cards.length > 0 && (a.kind === 'decision_waiting' || (a.kind === 'new_submission' && cards.some((c) => c.taskId === a.task_id)));
   // a question / comment / call for help about a task comes with «💬 رد عليه»: the next message goes back to them
   // (Nouran, 9 Nov, N17/N21: "I tried to answer it over WhatsApp… nothing changed on the employee side")
-  const REPLYABLE = new Set<AlertKind>(['task_comment', 'escalated']);
+  // «✍️ جاوب» for questions: testers first (task_answers); the others keep «💬 رد عليه» on them
+  const answersOn = (await admin.rpc('feature_on_for', { p_key: 'task_answers', p_profile: person.id })).data === true;
+  const REPLYABLE = new Set<AlertKind>(answersOn ? ['task_comment', 'escalated'] : ['detail_asked', 'task_comment', 'escalated']);
   const replyable = m.alerts.filter((a) => REPLYABLE.has(a.kind) && !!a.task_id && !carded(a)).slice(0, 3);
   for (const a of replyable) {
     const body = `*${(ar ? a.title_ar : null) ?? a.title}*\n${(ar ? a.body_ar : null) ?? a.body ?? ''}`.trim();
@@ -538,7 +543,7 @@ async function whatsAppAlert(
   }
   // a question about a task (due date, definition of done, budget): its own card, and «✍️ جاوب» fills it in on the
   // task (owner, 10 Nov: "those questions I want to be able to answer them over whats app")
-  const questions = m.alerts.filter((a) => a.kind === 'detail_asked' && !!a.task_id && !!askedWhat(a)).slice(0, 6);
+  const questions = answersOn ? m.alerts.filter((a) => a.kind === 'detail_asked' && !!a.task_id && !!askedWhat(a)).slice(0, 6) : [];
   for (const a of questions) {
     const body = `*${(ar ? a.title_ar : null) ?? a.title}*\n${(ar ? a.body_ar : null) ?? a.body ?? ''}`.trim();
     ok = (await waButtons(person.phone, pre(a.task_id, body), [{ id: `da:${a.task_id}:${askedWhat(a)}`, title: ar ? '✍️ جاوب' : '✍️ Answer' }])) && ok;
