@@ -508,3 +508,7 @@ Last updated: 2026-11-09.
 ### R116 · A follow-up to an alert uses the exact items it named, on any seat of the login
 - **Why:** 10 Nov, reviewer: the «ايه هي؟» answer and the WhatsApp cards came from "the 10 newest waiting items", so an alert could name «X» and show three others; and only the picked seat's alerts were looked at.
 - **Check:** an alert about specific items keeps their ids (in its key or a column) and every follow-up shows exactly those; "what is it?" looks across every seat of the number; with no card for it, the task itself is shown, never a guess.
+
+### R117 · A follow-up that branches has one QA step per branch
+- **Why:** 10 Nov, reviewer: «ايه هي؟» has four outcomes (the alert's items, the task's card, the task as yours with buttons, the task someone else does) and only the first was tested; the two-seat step didn't make sure the alert was on the seat WhatsApp did not pick.
+- **Check:** each branch of a follow-up gets its own QA step, and a "wrong seat" step forces which seat is picked before testing the other one.

@@ -391,7 +391,8 @@ async function server() {
     const alert = async (owner, itemId) =>
       (await sql(`insert into public.alerts (profile_id, kind, title, body, title_ar, body_ar, dedupe_key, delivered_at)
         values ('${owner}', 'tools_found', 'From your tools', 'x', 'من أدواتك', 'x', 'tools_found:qa:${Date.now()}:${itemId}', now()) returning id`))[0];
-    const made = { items: [], alerts: [] };
+    const made = { items: [], alerts: [], tasks: [] };
+    let bossSession = null;
     const DEMO = 'c0000000-0000-4000-b000-000000000001';
     const OTHER = 'c0000000-0000-4000-b000-000000000011';
     const [{ phone: otherPhone }] = await sql(`select phone from public.profiles where id = '${OTHER}'`);
@@ -410,14 +411,40 @@ async function server() {
       // the alert on the number's OTHER seat (two companies): still found
       await jwtFor(OTHER, DEMO);
       await sql(`update public.profiles set phone = '${QA_PHONE}' where id = '${OTHER}'`);
+      // QA_BOSS is the seat WhatsApp picks (its session is the newest, no pending answers): the alert sits on the other
+      // one, so only the across-seats lookup can find it (reviewer, 10 Nov, R99)
+      await sql(`delete from public.wa_pending where profile_id in ('${QA_BOSS}', '${OTHER}') and created_at > now() - interval '2 hours'`);
+      bossSession = (await sql(`select s.account_id, s.updated_at from public.account_sessions s join public.profiles p on p.user_id = s.user_id where p.id = '${QA_BOSS}'`))[0] ?? null;
+      await sql(`insert into public.account_sessions (user_id, account_id, updated_at) select user_id, account_id, now() + interval '1 minute' from public.profiles where id = '${QA_BOSS}'
+                 on conflict (user_id) do update set account_id = excluded.account_id, updated_at = excluded.updated_at`);
       const theirs = await item(OTHER, `QA other seat ${tag}`, '2 days');
       made.items.push(theirs.id);
       made.alerts.push((await alert(OTHER, theirs.id)).id);
       const msgs2 = await wa('ايه هي؟');
       expect(JSON.stringify(msgs2).includes(`QA other seat ${tag}`), `the other seat's alert was missed: ${texts(msgs2).slice(0, 140)}`);
-      return 'that exact task, on either seat, with its buttons';
+      await sql(`update public.profiles set phone = ${otherPhone ? `'${otherPhone}'` : 'null'} where id = '${OTHER}'`);
+      // no card for the alert's task: the task itself. Their own open task → its buttons; one they gave → its line
+      const mineT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA what is it mine ${tag}', '${QA_BOSS}', '${QA_BOSS}', 'in_progress') returning id`))[0];
+      const gaveT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA what is it gave ${tag}', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`))[0];
+      made.tasks.push(mineT.id, gaveT.id);
+      for (const [t, own] of [[mineT, true], [gaveT, false]]) {
+        made.alerts.push((await sql(`insert into public.alerts (profile_id, kind, task_id, title, body, title_ar, body_ar, dedupe_key, delivered_at)
+          values ('${QA_BOSS}', 'task_comment', '${t.id}', 'QA comment', 'x', 'تعليق', 'x', 'qa-wii-${t.id}', now() + interval '5 seconds') returning id`))[0].id);
+        const r = await wa('ايه هي؟');
+        const j = JSON.stringify(r);
+        expect(j.includes(`QA what is it ${own ? 'mine' : 'gave'} ${tag}`), `the task wasn't shown (${own ? 'own' : 'given'}): ${texts(r).slice(0, 140)}`);
+        if (own) expect(j.includes(`h:done:${t.id}`), 'no Done / Need time / Need help on their own task');
+        else expect(!j.includes('h:done:') && /تفاصيلها في منتج|Details in Muntej/.test(texts(r)), `a given task should just say where to see it: ${texts(r).slice(0, 120)}`);
+      }
+      return 'that exact task, on either seat; the task itself when there is no card';
     } finally {
       await sql(`update public.profiles set phone = ${otherPhone ? `'${otherPhone}'` : 'null'} where id = '${OTHER}'`);
+      if (bossSession) await sql(`update public.account_sessions s set account_id = '${bossSession.account_id}', updated_at = '${bossSession.updated_at}' from public.profiles p where p.user_id = s.user_id and p.id = '${QA_BOSS}'`);
+      else await sql(`delete from public.account_sessions s using public.profiles p where p.user_id = s.user_id and p.id = '${QA_BOSS}'`);
+      if (made.tasks.length) {
+        await sql(`delete from public.alerts where task_id in (${made.tasks.map((x) => `'${x}'`).join(',')})`);
+        await sql(`delete from public.tasks where id in (${made.tasks.map((x) => `'${x}'`).join(',')})`);
+      }
       if (made.alerts.length) await sql(`delete from public.alerts where id in (${made.alerts.map((x) => `'${x}'`).join(',')})`);
       if (made.items.length) await sql(`delete from public.incoming_items where id in (${made.items.map((x) => `'${x}'`).join(',')})`);
     }
