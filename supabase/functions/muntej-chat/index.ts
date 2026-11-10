@@ -1038,6 +1038,25 @@ serve(async (req) => {
       }
     }
   }
+
+  // "all my tasks, even old / closed ones": the list comes from the data, never only an intro line (QA, 10 Nov: the
+  // model answered «هذي كل المهام … المقفلة:» and nothing after it)
+  {
+    const ar0 = parsed.language === 'ar';
+    const asksClosed = /(مقفل|المقفلة|القديمة|خلصت|المنتهية|closed|old|finished|done)/i.test(message) && /(مهام|مهمات|مهامي|tasks?)/i.test(message);
+    const closedList = context.closed_tasks;
+    if (parsed.action === 'none' && asksClosed && closedList.length && !closedList.some((t) => parsed.reply.includes(t.title))) {
+      const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(ar0 ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' }) : '');
+      const word = (s: string) => (ar0 ? ({ done: 'خلصت', cancelled: 'ملغاة' } as Record<string, string>)[s] ?? s : s === 'done' ? 'done' : s);
+      const lines = closedList.slice(0, 15).map((t) => `• ${t.title} · ${word(t.status)}${t.closed_at ? ` · ${when(t.closed_at)}` : ''}`);
+      const head = parsed.reply.trim().replace(/[:：]\s*$/, '');
+      parsed.reply = [
+        head || (ar0 ? 'هذي مهامك المقفلة' : 'Your closed tasks'),
+        ...lines,
+        ...(closedList.length > 15 ? [ar0 ? `و${closedList.length - 15} غيرها في صفحة المهام ← المنتهية` : `+${closedList.length - 15} more in Tasks → Done`] : []),
+      ].join('\n');
+    }
+  }
   if (parsed.bulk?.change?.kind === 'delete') parsed.bulk.change.kind = 'cancel';
   const displayName = (id: string | null) => {
     const p = id ? everyone.find((x) => x.id === id) : null;

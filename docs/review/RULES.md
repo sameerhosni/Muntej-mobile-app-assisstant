@@ -480,3 +480,7 @@ Last updated: 2026-11-09.
 ### R109 · A test build never shares the store app's identity
 - **Why:** 10 Nov, reviewer pass 4: the first iPhone test profile built `sa.muntej.app` on the Muntej Test channel and uploaded it to the store app in App Store Connect, where it could be picked for Apple's review.
 - **Check:** every test build profile sets `APP_VARIANT=test` (its own bundle id / package, name, App Store Connect app or Play listing, provisioning profile); the store app only ever gets `production` builds.
+
+### R110 · A chat answer that promises a list shows the list from the data
+- **Why:** 10 Nov, QA: «عطني كل مهامي حتى القديمة والمقفلة» was answered «هذي كل المهام اللي تخصك بما فيها القديمة والمقفلة:» and nothing after it.
+- **Check:** questions whose answer is a list (closed / old tasks, and any new kind) get the rows filled in by the server from the context, never left to the model alone.
