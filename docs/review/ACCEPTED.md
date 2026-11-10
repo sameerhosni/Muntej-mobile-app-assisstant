@@ -15,3 +15,4 @@ Line format: ``- `<commit>` · <date> · ACCEPT · <what was reviewed>``
 - `29f8bea` · 2026-11-10 · ACCEPT · Chat: old / closed tasks listed from the data, only on a request to see them, your own, which-one for two of a name (chips settle it). 6 passes: 6 → 5 → 1 → 2 → 1 → 0 findings; rules R110–R114.
 - `9bfb339` · 2026-11-10 · ACCEPT · Tools alert names its tasks and comes as their cards; «ايه هي؟» shows exactly what Muntej just sent, on any seat, every branch tested. 4 passes: 5 → 2 → 2 → 0 findings; rules R115–R117.
 - `426a828` · 2026-11-10 · ACCEPT · QA only: «ايه هي؟» branch steps match the task by its tag. 1 pass.
+- `9c15b49` · 2026-11-10 · ACCEPT · Tools cards say who asked (a person, never a place), when, where, their words, the due date and who it's for; QA closed-list check looks for the list. 2 passes: 2 → 0 findings; rules R118–R119.
