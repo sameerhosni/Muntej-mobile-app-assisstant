@@ -445,3 +445,19 @@ Last updated: 2026-11-09.
 ### R100 · A QA case that needs a second seat gives it a login first
 - **Why:** 10 Nov, reviewer pass 2 on R98: the two-seats case could never pass, because the QA seed clears every test person's login and WhatsApp only finds seats with one.
 - **Check:** a case that needs WhatsApp or the chat to find another QA profile calls `jwtFor(profile, account)` first.
+
+### R101 · A release sends only the code it checked at the start
+- **Why:** 10 Nov: a release started at 319aade; while QA ran, the «رجّعها» fix was committed and the release deployed `whatsapp` from the working folder before any review, then tagged `testing` past it.
+- **Check:** `scripts/ship.mjs` saves HEAD after the ACCEPT check and stops before QA, the database, the server and the app update if HEAD moved or code outside `docs/review/`, `docs/BACKLOG.md`, `scripts/release/` is uncommitted. Nothing is committed while a release runs.
+
+### R102 · From connected tools, only work asked of the person, or their own ask handed to a teammate
+- **Why:** 10 Nov, Nouran: "these are the tasks people ask me PLUS the tasks I ask to people, we need only the ones addressed to me … disregard any task that is sent from my email to others … assign them to other users if they are already on Montej … auto cancel the task if the user responded already". Replaces the 8–9 Nov behaviour of listing her asks to her for an OK (R28/R29).
+- **Check:** a mail / chat / meeting read from a connection keeps only `asked_of_user` work, or `asked_by_user` work whose owner is a teammate on Muntej (created as their task at once, not listed); work between other people and asks to people not on Muntej are dropped; the user is known by their addresses too (profile email + connected accounts), not only their name; earlier messages of the conversation are context only; waiting work the new messages show handled closes by itself and is logged.
+
+### R103 · A question about a task is answered on the task, and leaves "Needs you" however it was answered
+- **Why:** 10 Nov, the owner: "those questions I want to be able to answer them over whats app". «رد عليه» only added a comment: the due date / definition of done / budget stayed empty and the question stayed open.
+- **Check:** answering a `detail_asked` (WhatsApp «✍️ جاوب», the app, the chat) fills the field through `answer_task_detail` or a task edit; the `clear_answered_questions` trigger marks the question read; the asker gets one clear `request_answered` line; dates in free words go through `readWhen`, and unclear ones get quick buttons, never a guess.
+
+### R104 · Alert text is the person's words or Muntej's own sentence, never an internal note
+- **Why:** 10 Nov: Nouran's WhatsApp showed "Owner, 9 Nov: the chat sent «نوران» to Nouranemira…" and "N is at 4 h of 40 h this week.": `activity_log.reason` became the alert body.
+- **Check:** `notify_subject_of_change` (and any new alert from the log) shows `reason` only for the person's own note (`sent_back`); `reason` is for the log, written for the team.

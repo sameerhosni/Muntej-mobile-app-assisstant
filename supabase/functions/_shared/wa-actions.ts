@@ -8,7 +8,7 @@ import { titleIn } from './task-text.ts';
 import { rtl, waButtons, waText, type WaButton } from './wa.ts';
 
 export type WaCard = {
-  kind: 'decision' | 'review' | 'tool' | 'mine';
+  kind: 'decision' | 'review' | 'question' | 'tool' | 'mine';
   body: string;
   buttons: WaButton[];
   /** the task it's about */
@@ -111,6 +111,30 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
         { id: `r:back:${t.id}`, title: ar ? '↩️ رجّعها' : '↩️ Send back' },
       ],
     });
+  // questions about tasks they gave (due date, definition of done, budget) still unanswered: «✍️ جاوب» (owner, 10 Nov:
+  // outside the 24 h window the "something needs you" button brought only decisions and reviews)
+  const { data: asks } = await admin
+    .from('alerts')
+    .select('task_id, title, title_ar, body, body_ar, dedupe_key')
+    .eq('profile_id', meId)
+    .eq('kind', 'detail_asked')
+    .is('read_at', null)
+    .not('task_id', 'is', null)
+    .gte('created_at', new Date(now - 14 * DAY).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(6);
+  const seenAsk = new Set<string>();
+  for (const a of asks ?? []) {
+    const what = /^ask:[0-9a-f-]+:(due|doneDef|budget):/.exec((a.dedupe_key as string | null) ?? '')?.[1];
+    if (!what || seenAsk.has(`${a.task_id}:${what}`)) continue;
+    seenAsk.add(`${a.task_id}:${what}`);
+    cards.push({
+      kind: 'question',
+      taskId: a.task_id as string,
+      body: rtl(ar, `❓ *${((ar && a.title_ar) || a.title) as string}*\n${((ar && a.body_ar) || a.body || '') as string}`.trim()),
+      buttons: [{ id: `da:${a.task_id}:${what}`, title: ar ? '✍️ جاوب' : '✍️ Answer' }],
+    });
+  }
   for (const it of items ?? [])
     for (const [i, s] of ((it.suggestions ?? []) as { state: string; title: string; due_at: string | null }[]).entries()) {
       if (s.state !== 'new') continue;
@@ -210,6 +234,9 @@ export function toolListText(cards: WaCard[], ar: boolean) {
       '',
       ...shown.map((c, n) => `${n + 1}. ${c.line ?? ''}`),
       ...(cards.length > shown.length ? ['', ar ? `و${cards.length - shown.length} غيرها في منتج ← أدواتك` : `+${cards.length - shown.length} more in Muntej → Your tools`] : []),
+      // always: where they live in the app too (Nouran, 10 Nov: "I discovered it by chance")
+      '',
+      ar ? '📲 وتلقاها كمان في تطبيق منتج: الرئيسية ← «يحتاجك» ← «لقيت … في أدواتك»' : '📲 They’re also in the Muntej app: Home → "Needs you" → "tasks found in your tools"',
     ].join('\n'),
   );
 }

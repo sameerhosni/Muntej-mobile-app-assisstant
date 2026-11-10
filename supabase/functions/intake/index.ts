@@ -61,7 +61,13 @@ serve(async (req) => {
   switch (body.action) {
     case 'ingest': {
       const text = String(body.text ?? '');
-      const source = body.source === 'share' || body.source === 'meeting' ? body.source : 'paste';
+      // read it as if it came from one of the caller's own connected accounts (QA, and "read this mail again"): only
+      // their own connection, and only mail / chat
+      const viaConn =
+        typeof body.connection_id === 'string' && (body.source === 'gmail' || body.source === 'google_chat')
+          ? (await admin.from('connections').select('id').eq('id', body.connection_id).eq('profile_id', profileId).maybeSingle()).data
+          : null;
+      const source = viaConn ? (body.source as string) : body.source === 'share' || body.source === 'meeting' ? body.source : 'paste';
       if (text.trim().length > (source === 'meeting' ? MAX_MEETING_TEXT : MAX_TEXT))
         throw new HttpError(413, 'That message is too long — paste the part with the requests');
       const [{ data: team }, { data: open }] = await Promise.all([
@@ -78,6 +84,9 @@ serve(async (req) => {
           team: team ?? [],
           open: open ?? [],
           create,
+          connectionId: viaConn?.id ?? null,
+          // mail waits for an OK, as the Gmail reader does (a hand-off to a teammate still goes by itself)
+          confirmFirst: source === 'gmail',
         }),
       );
     }

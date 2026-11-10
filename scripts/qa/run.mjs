@@ -363,6 +363,24 @@ async function server() {
       await sql(`delete from public.tasks where id = '${task.id}'`);
     }
   });
+  // The owner, 10 Nov: "Muntej must understand whatever you type or say («بكرة»، «الخميس الساعة 3»)". «✍️ جاوب» on a
+  // due-date question, then the words: the task's due date is set from them.
+  await check('whatsapp', 'A due date answered in words («بكرة الساعة 3») is set on the task', async () => {
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA due by words', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`);
+    try {
+      await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('da:${QA_BOSS}', '${QA_BOSS}', '{"task_id":"${t.id}","what":"due"}', now())
+                 on conflict (key) do update set body = excluded.body, created_at = now()`);
+      const msgs = await wa('بكرة الساعة 3');
+      const [row] = await sql(`select to_char(due_at at time zone 'Asia/Riyadh', 'YYYY-MM-DD HH24') d from public.tasks where id = '${t.id}'`);
+      const tomorrow = new Date(Date.now() + 3 * 3_600_000 + 86_400_000).toISOString().slice(0, 10);
+      expect(row.d === `${tomorrow} 15`, `due is ${row.d ?? 'not set'}: ${texts(msgs).slice(0, 140)}`);
+      return `${row.d}:00 · ${texts(msgs).slice(0, 60)}`;
+    } finally {
+      await sql(`delete from public.wa_pending where key = 'da:${QA_BOSS}'`);
+      await sql(`delete from public.alerts where task_id = '${t.id}'`);
+      await sql(`delete from public.tasks where id = '${t.id}'`);
+    }
+  });
   await sql(`update public.profiles set phone = null where id = '${QA_BOSS}'`);
 }
 
@@ -868,6 +886,7 @@ if (JWT && (want('server') || want('cases') || want('invites'))) {
 if (JWT && (want('server') || want('cases'))) {
   const transcript = await cases({
     jwtFor,
+    rpc,
     check,
     expect,
     fn,

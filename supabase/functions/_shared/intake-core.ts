@@ -60,6 +60,11 @@ const Found = z.object({
         .describe('true when this message only changes or adds to the earlier_request (deadline, owner, details) instead of asking for new work'),
     }),
   ),
+  answered: z
+    .array(z.number())
+    .describe(
+      'numbers from waiting_here: work these messages show is already handled (the user or the person asked replied "done" / "sent" / "تم" / "أرسلتها", shared the file, answered the question, or someone else took it). Empty when none',
+    ),
 });
 type FoundTask = z.infer<typeof Found>['tasks'][number];
 const { $schema: _ignored, ...SCHEMA } = z.toJSONSchema(Found) as Record<string, unknown>;
@@ -86,7 +91,11 @@ Rules:
 - only_tasks_for_user = true (the user is an employee): list ONLY work the user themself must do (asked of them, assigned to them, or that they promised). Work for anyone else, and group requests nobody owns yet, are not listed.
 - confidence: 0.9+ explicit request with owner or deadline; 0.6–0.8 clear but vague; under 0.5 maybe.
 - user_is_manager = true: the user runs a team, and a request reaching their inbox / chat / meeting is not automatically theirs. This holds even when the message says "you" / "can you…" / "تقدر" to the user: a manager hands such work on. Work someone on the team can do (prepare, check, test, review a file, fill in a form, write a report, data entry, follow up with a client, design, build) → owner_id = the teammate whose title, then skills, fit it best (a test / QA job → the tester; marketing work → the marketer). The user is the owner ONLY for what needs them personally: approve, decide, sign, attend a meeting they're invited to, reply as themselves, or when the message says they will do it. No teammate fits → null, not the user.
-- Group chats, channels and meetings (is_group = true): the user sees every line but only some of it is theirs. Keep a task only when it is asked of the user (by name, @mention, or "you" in a reply to them), or of a named team member, or of everyone ("@all", "team", "يا شباب") AND the user's title / role fits the work. Work for named people or teams that are not in team ("Anas", "the dev team", "OP team", "Nabulsi to follow up") → outside = true.
+- ONLY THE USER'S WORK (owner, 10 Nov: "we need only the ones addressed to me, and only me"): a task is kept only when it is asked of the user (asked_of_user = true), or the user themself asks someone for it (asked_by_user = true, owner = that person). Work other people ask each other, teammates included, is NOT a task here: read it as context (who already answered, who took it), never list it.
+- Lines under "--- Earlier in this conversation (context only…) ---" were read before: NEVER a task from them. Use them only to understand the new messages (who asked whom, who already answered or took it).
+- waiting_here lists work from this same conversation still waiting (numbered). When the new messages show one is already handled, put its number in answered, and don't list it again as a task.
+- Sent by the user (sent_by_user = true, or the sender is one of user_emails / user_name): everything asked there is asked_by_user = true and asked_of_user = false: it is the other person's work, never the user's.
+- Group chats, channels and meetings (is_group = true): the user sees every line but only some of it is theirs. Keep a task only when it is asked of the user (by name, @mention, or "you" in a reply to them), or the user asks someone for it, or of everyone ("@all", "team", "يا شباب") AND the user's title / role fits the work. Work for named people or teams that are not in team ("Anas", "the dev team", "OP team", "Nabulsi to follow up") → outside = true.
 - Direct messages ("Direct message between: A, B"): two people talking, so the header says who everything is for. What the user writes there asking, telling or reminding ("Check for explee every 10 min pls", "عشان كده قلتلك تبعتي من الإيميل", "راجعي الملف") is the OTHER person's work, even with no name in the line: owner = the other person, asked_by_user = true, never the user. In team (match loosely: "N Emira" = "Nouran Emira") → owner_id; not → owner_name = their name, outside = true. It is the user's only when the other person asks the user for it or the user clearly promises to do it for them ("I'll send it", "راح أرسلها"). Saying what they are doing themself is not a task for anyone. Read the whole conversation before deciding who each thing is for.
 - Messages the user wrote themself (sender = user_name) asking someone else ("send me the Trello card", "ابعتلي") are that person's work, not the user's: owner = that person; not in team → outside = true.
 - Chats (google_chat, slack, teams, whatsapp) are conversations, not to-do lists (owner: "it's only chats, not tasks"). Default to NO task. A chat line is a task only when someone clearly asks a specific person (the user, or a teammate by name) for a concrete piece of work that is still open at the end of the conversation. NOT tasks in a chat: asking for, arranging or agreeing on a call / meeting, even before it's agreed ("can we have a call?", "إذا يناسبكم مكالمة", "4 pm ok?", "shall I put it in the calendar?": the calendar holds it); greetings and small talk; a question or ask the user already answered or handled in the same chat ("let me check", "check now", "done", "sent", "اى اكيد", "تمام"); someone posting their own list of work, plans or status ("X — done", "planned for tomorrow", a bare list of items with no one asked): that is the poster's own work, so owner = the poster (not in team → outside = true), never a teammate; links and files shared.
@@ -106,6 +115,8 @@ export type Suggestion = FoundTask & {
   task_id: string | null;
   /** added by Muntej without asking (sure about it) */
   auto?: boolean;
+  /** left the list by itself: a later message in the conversation showed it already handled */
+  closed_by_reply?: boolean;
 };
 export type Item = {
   id: string;
@@ -290,7 +301,8 @@ export async function createFromSuggestion(admin: SupabaseClient, profileId: str
   // who sent it in the tool (owner, 9 Nov: "many tasks with no assignee, from where you get it?"): the task page says
   // «من: Mohammed Sadiq · إيميل» instead of «لسه ما أحد»
   const sender = ((item as Item & { sender?: string | null }).sender ?? '').trim();
-  if (sender && !/^(direct message|google chat|group|space|unknown)$/i.test(sender)) extra.external_from = sender.slice(0, 120);
+  // (not for the user's own ask handed to a teammate: they gave it, the task already says so)
+  if (sender && !s.asked_by_user && !/^(direct message|google chat|group|space|unknown)$/i.test(sender)) extra.external_from = sender.slice(0, 120);
   if (Object.keys(extra).length) await admin.from('tasks').update(extra).eq('id', taskId);
   return taskId;
 }
@@ -331,6 +343,91 @@ export type IngestInput = {
   rereadId?: string;
 };
 
+type Waiting = { item_id: string; index: number; title: string; task_id: string | null };
+
+/** which conversation a message belongs to: a Gmail thread by its subject (Re:/Fwd: off), a Google Chat space or DM by
+ *  its header line; null for anything else (no closing by reply there) */
+function conversationKey(source: string, subject: string | null | undefined, body: string): string | null {
+  if (['gmail', 'outlook', 'email'].includes(source) && subject) return `mail:${subject.replace(/^\s*((re|fwd?|fw|رد|إعادة توجيه)\s*:\s*)+/gi, '').trim().toLowerCase()}`;
+  if (source === 'google_chat') return `chat:${body.split('\n')[0].trim()}`;
+  return null;
+}
+
+/** work from the same conversation that still waits: suggestions not decided yet, and the user's own tasks made from it
+ *  that are still open (last 14 days) */
+async function waitingHere(admin: SupabaseClient, input: IngestInput, body: string): Promise<Waiting[]> {
+  const key = conversationKey(input.source, input.subject, body);
+  if (!key) return [];
+  const { data } = await admin
+    .from('incoming_items')
+    .select('id, subject, body, suggestions')
+    .eq('owner_id', input.profileId)
+    .eq('connection_id', input.connectionId!)
+    .gte('received_at', new Date(Date.now() - 14 * 86_400_000).toISOString())
+    .order('received_at', { ascending: false })
+    .limit(40);
+  const same = ((data ?? []) as Item[]).filter((x) => conversationKey(input.source, x.subject, x.body ?? '') === key);
+  const out: Waiting[] = [];
+  const taskIds: string[] = [];
+  for (const it of same)
+    (it.suggestions ?? []).forEach((s, index) => {
+      if (s.state === 'new') out.push({ item_id: it.id, index, title: s.title, task_id: null });
+      else if (s.state === 'accepted' && s.task_id && !s.asked_by_user) {
+        out.push({ item_id: it.id, index, title: s.title, task_id: s.task_id });
+        taskIds.push(s.task_id);
+      }
+    });
+  if (!taskIds.length) return out.slice(0, 15);
+  // only the user's own open tasks can be closed by a reply (a teammate's still goes through their review)
+  const { data: open } = await admin.from('tasks').select('id').in('id', taskIds).eq('owner_id', input.profileId).in('status', ['assigned', 'in_progress', 'blocked', 'returned']);
+  const stillOpen = new Set((open ?? []).map((x) => x.id as string));
+  return out.filter((w) => !w.task_id || stillOpen.has(w.task_id)).slice(0, 15);
+}
+
+/** closes what the conversation shows already handled: a waiting suggestion leaves the list, an open task of the user's
+ *  is closed as done. Each is logged with why */
+async function closeAnswered(admin: SupabaseClient, profileId: string, list: Waiting[], why: string) {
+  const byItem = new Map<string, Waiting[]>();
+  for (const w of list) byItem.set(w.item_id, [...(byItem.get(w.item_id) ?? []), w]);
+  for (const [itemId, ws] of byItem) {
+    const { data: it } = await admin.from('incoming_items').select('*').eq('id', itemId).maybeSingle();
+    if (!it) continue;
+    const item = it as Item;
+    for (const w of ws) {
+      const s = item.suggestions[w.index];
+      if (!s) continue;
+      if (!w.task_id && s.state === 'new') {
+        s.state = 'ignored';
+        s.closed_by_reply = true;
+      }
+    }
+    item.status = item.suggestions.some((x) => x.state === 'new') ? 'new' : item.suggestions.some((x) => x.state === 'accepted') ? 'done' : 'nothing';
+    await saveItem(admin, item);
+  }
+  const tasks = list.filter((w) => w.task_id);
+  for (const w of tasks) {
+    const { data: done } = await admin
+      .from('tasks')
+      .update({ status: 'done', closed_at: new Date().toISOString(), progress: 100 })
+      .eq('id', w.task_id!)
+      .in('status', ['assigned', 'in_progress', 'blocked', 'returned'])
+      .select('id');
+    if (done?.length) await admin.from('followups').update({ status: 'cancelled' }).eq('task_id', w.task_id!).eq('status', 'scheduled');
+  }
+  await admin.from('activity_log').insert(
+    list.map((w) => ({
+      actor_type: 'muntej',
+      subject_id: profileId,
+      task_id: w.task_id,
+      action: 'closed_by_reply',
+      summary: `Closed "${w.title}": the conversation shows it's already handled`,
+      summary_ar: `قفّلت «${w.title}»: المحادثة تقول إنها انتهت`,
+      reason: why.slice(0, 300),
+      undoable: false,
+    })),
+  );
+}
+
 /** Reads a message and saves it as an incoming item (auto-adding the sure tasks). Same message twice → the same item. */
 export async function ingestMessage(admin: SupabaseClient, input: IngestInput): Promise<Item & { duplicate_message?: boolean }> {
   const text = input.text.trim();
@@ -353,11 +450,23 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const st = input.structured;
   // an employee's email / chat / meetings bring only their own work (owner: "tasks for each employee should be only the
   // ones assigned to him or related to him"); managers also see their team's (giving out work is their job)
-  const { data: me } = await admin.from('profiles').select('role, full_name, full_name_ar').eq('id', input.profileId).maybeSingle();
+  const { data: me } = await admin.from('profiles').select('role, full_name, full_name_ar, email').eq('id', input.profileId).maybeSingle();
+  // "this is me" by account, not only by name (Nouran, 10 Nov: her name in Google differs from Muntej's): the
+  // profile's email and every connected account's address. Mail or a chat line sent from one of them is the user's own
+  const { data: myConns } = await admin.from('connections').select('account_label').eq('profile_id', input.profileId);
+  const myAddrs = [me?.email, ...(myConns ?? []).map((c) => c.account_label as string | null)]
+    .map((x) => (x ?? '').trim().toLowerCase())
+    .filter((x) => x.includes('@'));
+  // the sender as given, or the mail's own From: line (the Gmail reader passes only the name as sender)
+  const fromLine = (/^From: (.+)$/m.exec(input.text)?.[1] ?? '').toLowerCase();
+  const fromUser = myAddrs.some((a) => (input.sender ?? '').toLowerCase().includes(a) || fromLine.includes(a));
   // a group conversation: not every line is for the reader
   const isGroup =
     ['slack', 'teams', 'meet', 'meeting', 'calendar'].includes(input.source) || (input.source === 'google_chat' && input.subject !== 'Direct message');
   const onlyMine = me?.role === 'employee';
+  // work still waiting from this same conversation (Nouran, 10 Nov: "auto cancel the task if the user responded already
+  // with the request over the integrated channel"): the reader says which the new messages show handled
+  const waiting = !st && input.connectionId && !input.rereadId ? await waitingHere(admin, input, body) : [];
   const found: z.infer<typeof Found> = st
     ? {
         language: /[؀-ۿ]/.test(st.title) ? 'ar' : 'en',
@@ -384,6 +493,7 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
             asked_of_user: true,
           },
         ],
+        answered: [],
       }
     : await extract(body, {
         current_time_riyadh: `${new Intl.DateTimeFormat('en-GB', {
@@ -402,6 +512,8 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
         // handed to a teammate by role (owner, 8 Nov: "You should get only tasks for me or assigned to me")
         user_is_manager: !onlyMine && !readForUser(input.connectionId, body),
         user_name: [me?.full_name, me?.full_name_ar].filter(Boolean).join(' / ') || null,
+        user_emails: myAddrs,
+        sent_by_user: fromUser,
         is_group: isGroup,
         team: input.team.map((p) => ({ id: p.id, name: p.full_name, name_ar: p.full_name_ar, title: p.title ?? null, skills: p.skills ?? [] })),
         sender: input.sender ?? null,
@@ -409,7 +521,11 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
         source: input.source,
         user_is_delegating: !!input.delegating,
         earlier_request: input.earlier ?? null,
+        waiting_here: waiting.map((w, i) => ({ number: i + 1, title: w.title })),
       });
+  // what the new messages show already handled: closed by itself, logged (and undoable for a task)
+  const answeredNow = (found.answered ?? []).map((n) => waiting[n - 1]).filter(Boolean);
+  if (answeredNow.length) await closeAnswered(admin, input.profileId, answeredNow, found.summary);
 
   const teamIds = new Set(input.team.map((p) => p.id));
   // email: only real tasks reach the person (a "maybe" from a mailbox is noise)
@@ -428,7 +544,12 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   };
   // a direct message: the other person, by name. What the user asks there is theirs (owner, 5 Nov: "These 2 tasks are
   // assigned to nouran... assign tasks correctly to the mentioned person by reading the context")
-  const myNames = [me?.full_name, me?.full_name_ar].filter(Boolean) as string[];
+  // her Muntej names, and the name in her own addresses ("nouranemira@…" → "nouranemira"): Google may show either
+  const myNames = [
+    me?.full_name,
+    me?.full_name_ar,
+    ...myAddrs.map((a) => a.split('@')[0].replace(/[._-]+/g, ' ').trim()).filter((x) => x.length > 2),
+  ].filter(Boolean) as string[];
   const dmWith = /^Google Chat · Direct message between: (.+)$/m.exec(body)?.[1].split(', ').find((n) => !myNames.some((x) => sameName(x, n))) ?? null;
   const dmId = dmWith ? teammateByName(dmWith, input.team) : null;
   // a meeting: its work is only for the people in it (owner, 8 Nov: "any meeting you should read the attendees and get
@@ -439,6 +560,9 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const onlyOther = meeting?.length === 1 ? meeting[0] : null;
   const onlyOtherId = onlyOther ? teammateByName(onlyOther, input.team) : null;
   const relevant = confident
+    // her own mail / message to others: what it asks is theirs, never hers (Nouran, 10 Nov: "disregard any task that is
+    // sent from my email to others")
+    .map((t) => (fromUser ? { ...t, asked_by_user: true, asked_of_user: false } : t))
     .map((t) => {
       // asked by the user in a direct message: it's the other person's, whoever the model picked, unless the line names
       // someone else on the team (owner, 9 Nov: «اعطيني تفاصيل الدخول» to Nouran went to the "Nouranemira" test login)
@@ -476,8 +600,17 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     // only work someone asked of the user (task tools assign work, so theirs always is). What the user asked of others
     // in their own mail / chats is theirs to chase, not a task for them (owner, 4 Nov: "not even assigned to me"); it
     // still counts when they hand it to Saree3 directly (WhatsApp, a pasted note)
-    .filter((t) => st || t.asked_of_user || (t.asked_by_user && (!input.connectionId || ((!!dmWith || !!meeting) && t.owner_id !== input.profileId))));
-  const kept = onlyMine ? relevant.filter((t) => t.owner_id === input.profileId) : relevant;
+    // From a connected tool (Nouran, 10 Nov: "we need only the ones addressed to me, and only me"): asked of the user, or
+    // the user's own ask to someone already on Muntej (that becomes their task, below). Work other people ask each
+    // other, and the user's asks to people not on Muntej, are dropped
+    .filter((t) =>
+      st ||
+      t.asked_of_user ||
+      (t.asked_by_user &&
+        (!input.connectionId || (!!t.owner_id && t.owner_id !== input.profileId && teamIds.has(t.owner_id)))),
+    );
+  // an employee keeps their own work, and their own asks to teammates (those become the teammate's task)
+  const kept = onlyMine ? relevant.filter((t) => t.owner_id === input.profileId || (t.asked_by_user && !!t.owner_id)) : relevant;
   const suggestions: Suggestion[] = kept.slice(0, MAX_TASKS).map((t) => {
     const owner = t.owner_id && teamIds.has(t.owner_id) ? t.owner_id : null;
     const due = t.due_at && !Number.isNaN(Date.parse(t.due_at)) ? t.due_at : null;
@@ -562,9 +695,16 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const { data: ap } = await admin.from('autopilot_prefs').select('rules').eq('profile_id', input.profileId).maybeSingle();
   // a task assigned to you in a task tool is sure even without a due date
   const sure = (s: Suggestion) => isSure(s) || (!!st && s.state === 'new' && !s.duplicate_of);
-  if (!input.confirmFirst && (ap?.rules as Record<string, boolean> | undefined)?.incoming_auto !== false && item.suggestions.some(sure)) {
+  // the user's own ask to a teammate in their mail / chats / meetings becomes that teammate's task straight away, even
+  // from Gmail (owner, 10 Nov: "make it the teammate's task straight away (create it and forget it) as this is our
+  // biggest value"). Only the person's "add by itself" switch (Autopilot) stops it
+  const handoff = (s: Suggestion) =>
+    !!input.connectionId && !!s.asked_by_user && !!s.owner_id && s.owner_id !== input.profileId && s.state === 'new' && !s.duplicate_of;
+  const autoOn = (ap?.rules as Record<string, boolean> | undefined)?.incoming_auto !== false;
+  const goes = (s: Suggestion) => (handoff(s) || (!input.confirmFirst && sure(s))) && autoOn;
+  if (item.suggestions.some(goes)) {
     for (const s of item.suggestions) {
-      if (!sure(s)) continue;
+      if (!goes(s)) continue;
       try {
         s.task_id = await createFromSuggestion(admin, input.profileId, item, s, input.create);
         s.state = 'accepted';

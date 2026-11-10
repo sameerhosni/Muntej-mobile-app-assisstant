@@ -129,7 +129,11 @@ const plain = (html: string) =>
     .trim();
 
 type Part = { mimeType?: string; body?: { data?: string }; parts?: Part[] };
-type GMessage = { id: string; internalDate?: string; payload?: Part & { headers?: { name: string; value: string }[] } };
+type GMessage = { id: string; threadId?: string; internalDate?: string; payload?: Part & { headers?: { name: string; value: string }[] } };
+
+/** the conversation before the new lines: context only, never a new task (Nouran, 10 Nov) — the reader's prompt knows */
+export const EARLIER_MARK = '--- Earlier in this conversation (context only: already read, never a new task) ---';
+export const NEW_MARK = '--- New messages ---';
 type GEvent = {
   id: string;
   summary?: string;
@@ -231,6 +235,22 @@ export const google: Provider = {
           const subject = h('subject');
           const body = withoutQuoted(bodyOf(m.payload));
           if (!body && !subject) continue;
+          // the thread before this mail, her own sent replies included (inbox reading alone never sees them): context
+          // only, so "already done" or "I asked Salman" is understood (Nouran, 10 Nov)
+          let earlier: string[] = [];
+          if (m.threadId)
+            try {
+              const th = await api<{ messages?: GMessage[] }>(t, `${GMAIL}/threads/${m.threadId}?format=full`);
+              earlier = (th.messages ?? [])
+                .filter((x) => x.id !== m.id && Number(x.internalDate ?? 0) < Number(m.internalDate ?? 0))
+                .slice(-4)
+                .map((x) => {
+                  const hx = (name: string) => x.payload?.headers?.find((y) => y.name.toLowerCase() === name)?.value ?? '';
+                  return `From: ${hx('from')} · ${x.internalDate ? new Date(Number(x.internalDate)).toISOString() : ''}\n${withoutQuoted(bodyOf(x.payload)).slice(0, 600)}`;
+                });
+            } catch {
+              // context is nice to have
+            }
           items.push({
             externalId: m.id,
             source: 'gmail',
@@ -242,6 +262,7 @@ export const google: Provider = {
               ...(h('cc') ? [`Cc: ${h('cc')}`] : []),
               ...(m.internalDate ? [`Date: ${new Date(Number(m.internalDate)).toISOString()}`] : []),
               '',
+              ...(earlier.length ? [EARLIER_MARK, ...earlier, NEW_MARK] : []),
               body,
             ]
               .join('\n')
@@ -376,6 +397,18 @@ export const google: Provider = {
             }
           const who = (m: ChatMessage) => m.sender?.displayName || names.get(m.sender?.name ?? '') || 'Someone';
           const where = isDirect ? 'Direct message' : (sp.displayName ?? 'Space');
+          // the conversation before these lines, as context only (Nouran, 10 Nov: her replies and asks "should be taken
+          // into consideration for AI to understand the context"): who already answered, who already took it
+          let before: ChatMessage[] = [];
+          try {
+            const prev = await api<{ messages?: ChatMessage[] }>(
+              t,
+              `${CHAT}/${sp.name}/messages?${new URLSearchParams({ filter: `createTime <= "${after}"`, pageSize: '15', orderBy: 'createTime DESC' })}`,
+            );
+            before = (prev.messages ?? []).filter((m) => m.sender?.type !== 'BOT' && (m.text ?? '').trim()).reverse();
+          } catch {
+            // context is nice to have
+          }
           // both people in it, by name: a line that only says "Check for explee pls" doesn't say who it's for
           const people = isDirect ? [...new Set([...names.values(), ...said.map(who)])].filter((x) => x !== 'Someone') : [];
           const last = said[said.length - 1];
@@ -384,6 +417,13 @@ export const google: Provider = {
             source: 'google_chat',
             text: [
               people.length ? `Google Chat · Direct message between: ${people.join(', ')}` : `Google Chat · ${where}`,
+              ...(before.length
+                ? [
+                    EARLIER_MARK,
+                    ...before.map((m) => `[${m.createTime ?? ''}] ${who(m)}: ${(m.text ?? '').trim().slice(0, 400)}`),
+                    NEW_MARK,
+                  ]
+                : []),
               ...said.map((m) => `[${m.createTime ?? ''}] ${who(m)}: ${(m.text ?? '').trim()}`),
             ]
               .join('\n')

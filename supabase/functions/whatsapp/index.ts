@@ -36,6 +36,14 @@ import {
   type WaRow,
 } from '../_shared/wa.ts';
 import { lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolListButtons, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
+import { quickDates, readWhen } from '../_shared/when.ts';
+
+/** what a question asks about (ask_task_detail's p_what) */
+type What = 'due' | 'doneDef' | 'budget';
+const WHAT_AR: Record<What, string> = { due: 'الموعد', doneDef: 'تعريف الإنجاز', budget: 'الميزانية' };
+const WHAT_EN: Record<What, string> = { due: 'due date', doneDef: 'definition of done', budget: 'budget' };
+/** "there's none": closes a budget / definition-of-done question without filling it */
+const NONE = /^(ما\s*(فيه|في|له|لها|عندها)|مافي|ماله|لا يوجد|بدون|no( budget)?|none|nothing|n\/a)\b/i;
 import { newPin, sessionFor, sha256 } from '../_shared/phone-session.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
@@ -477,7 +485,7 @@ async function handle(m: WaMessage, dry = false) {
       .from('wa_pending')
       .select('profile_id, key')
       .in('profile_id', people.map((p) => p.id))
-      .or(people.flatMap((p) => ['note', 'cm', 'obfix'].map((k) => `key.eq.${k}:${p.id}`)).join(','))
+      .or(people.flatMap((p) => ['note', 'cm', 'obfix', 'da'].map((k) => `key.eq.${k}:${p.id}`)).join(','))
       .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
       .order('created_at', { ascending: false })
       .limit(1);
@@ -749,6 +757,10 @@ async function handle(m: WaMessage, dry = false) {
       await admin.from('wa_pending').upsert({ key: `cm:${me.id}`, profile_id: me.id, body: { task_id: rest[0] }, created_at: new Date().toISOString() });
       return void (await say(ar ? 'اكتب ردك ✍️ أو سجّله صوت، وأوصله له على طول' : 'Type your answer ✍️ or say it, and I’ll pass it on right away'));
     }
+    // «✍️ جاوب» under a question: the next message fills it on the task (owner, 10 Nov)
+    if (verb === 'da' && rest[0] && rest[1]) return void (await askAnswer(rest[0], rest[1] as What));
+    // a quick date under «متى الموعد؟»
+    if (verb === 'dd' && rest[0] && rest[1]) return void (await setAnswer(rest[0], 'due', { due: new Date(Number(rest[1]) * 1000).toISOString() }));
     if (verb === 'h') return void (await checkin(rest[0], rest[1]));
     if (verb === 'ok' || verb === 'no') return void (await suggestion(verb, rest[0], Number(rest[1])));
     // the setup on WhatsApp: right / something's wrong / remind my team
@@ -1055,6 +1067,34 @@ async function handle(m: WaMessage, dry = false) {
   /** «💬 رد عليه» / «↩️ رجّعها»: this message is the answer the tap asked for. Saving it calls no AI, so a typed one goes
    *  through before the AI check (reviewer, 10 Nov: a seat without AI consent lost the reason again). True when handled. */
   async function pendingAnswer(text: string): Promise<boolean> {
+    // «✍️ جاوب»: the answer to a question, saved on the task itself (owner, 10 Nov)
+    const { data: q } = await admin
+      .from('wa_pending')
+      .select('body')
+      .eq('key', `da:${me.id}`)
+      .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
+      .maybeSingle();
+    if (q) {
+      const { task_id, what } = q.body as { task_id: string; what: What };
+      // "there's none" (budget / definition of done): the question closes and they're told
+      if (what !== 'due' && NONE.test(text.trim())) {
+        await admin.from('wa_pending').delete().eq('key', `da:${me.id}`);
+        await setAnswer(task_id, what, { none: true });
+        return true;
+      }
+      if (what !== 'due') {
+        await admin.from('wa_pending').delete().eq('key', `da:${me.id}`);
+        await setAnswer(task_id, what, { text });
+        return true;
+      }
+      // a date in their own words (AI, for those who allowed it); unclear → quick choices, and the question stays open
+      const due = (await aiAllowed(me.id, admin)) ? await readWhen(text).catch(() => null) : null;
+      if (due) {
+        await admin.from('wa_pending').delete().eq('key', `da:${me.id}`);
+        await setAnswer(task_id, 'due', { due });
+      } else await dueChoices(task_id, true);
+      return true;
+    }
     // «💬 رد عليه»: this message is the answer, a comment on the task to the other side (N17)
     const { data: answer } = await admin
       .from('wa_pending')
@@ -1099,6 +1139,49 @@ async function handle(m: WaMessage, dry = false) {
       return true;
     }
     return false;
+  }
+
+  /** «✍️ جاوب»: already set → say so; else ask for it (a date: in their words, with quick choices to tap) */
+  async function askAnswer(taskId: string, what: What) {
+    if (!['due', 'doneDef', 'budget'].includes(what)) return;
+    const { data: t } = await admin.from('tasks').select('title, due_at, definition_of_done, budget').eq('id', taskId).maybeSingle();
+    if (!t) return void (await say(ar ? 'ما لقيت المهمة 🤔' : 'I couldn’t find that task 🤔'));
+    const have = what === 'due' ? (t.due_at ? whenText(t.due_at as string, ar) : null) : what === 'doneDef' ? (t.definition_of_done as string | null) : (t.budget as string | null);
+    // filled in the app meanwhile (owner's checklist, item 7): nothing to ask
+    if (have)
+      return void (await say(
+        ar ? `محطوط ✓ ${WHAT_AR[what]}: ${have}\nتبي تغيّره؟ افتح المهمة في منتج.` : `Already set ✓ ${WHAT_EN[what]}: ${have}\nWant to change it? Open the task in Muntej.`,
+      ));
+    await admin.from('wa_pending').upsert({ key: `da:${me.id}`, profile_id: me.id, body: { task_id: taskId, what }, created_at: new Date().toISOString() });
+    if (what === 'due') return void (await dueChoices(taskId, false));
+    await say(
+      what === 'doneDef'
+        ? ar ? `متى تعتبر «${t.title}» خالصة؟ ✍️ اكتبها أو قلها بصوتك` : `When does “${t.title}” count as done? ✍️ Type it or say it`
+        : ar ? `كم ميزانية «${t.title}»؟ ✍️ (أو «ما فيه ميزانية»)` : `What’s the budget for “${t.title}”? ✍️ (or “no budget”)`,
+    );
+  }
+
+  /** "when is it due?": in their words, or one tap */
+  async function dueChoices(taskId: string, again: boolean) {
+    const ask = again
+      ? ar ? 'ما فهمت التاريخ 🤔 اختر واحد، أو اكتبه بطريقة ثانية (مثل: الخميس الساعة 3)' : 'I didn’t get the date 🤔 Pick one, or write it another way (e.g. Thursday at 3)'
+      : ar ? 'متى الموعد؟ ✍️ اكتبه أو قله بصوتك (بكرة، الخميس الساعة 3…)، أو اختر:' : 'When is it due? ✍️ Type it or say it (tomorrow, Thursday at 3…), or pick:';
+    const labels = { tomorrow: ar ? 'بكرة' : 'Tomorrow', in3: ar ? 'بعد 3 أيام' : 'In 3 days', sunday: ar ? 'الأحد الجاي' : 'Next Sunday' };
+    await waButtons(from, rtl(ask), quickDates().map((d) => ({ id: `dd:${taskId}:${Math.floor(Date.parse(d.at) / 1000)}`, title: labels[d.key] })));
+  }
+
+  /** saves the answer on the task (answer_task_detail: rights, the asker's alert, the question cleared) */
+  async function setAnswer(taskId: string, what: What, v: { text?: string; due?: string; none?: boolean }) {
+    await admin.from('wa_pending').delete().eq('key', `da:${me.id}`);
+    const db = userDb(await userToken(admin, me.user_id));
+    const { error } = await db.rpc('answer_task_detail', { p_task: taskId, p_what: what, p_text: v.text ?? null, p_due: v.due ?? null, p_none: !!v.none });
+    if (error) return void (await say(ar ? `ما قدرت أحفظها 😕 ${error.message}` : `I couldn’t save it 😕 ${error.message}`));
+    const shown = v.none ? (ar ? 'ما فيه' : 'none') : what === 'due' ? whenText(v.due!, ar) : v.text!.slice(0, 120);
+    await say(
+      ar
+        ? `حطّيت ${WHAT_AR[what]}: ${shown} ✓ وبلّغت اللي سأل 👍`
+        : `Set the ${WHAT_EN[what]}: ${shown} ✓ I told whoever asked 👍`,
+    );
   }
 
   async function review(how: 'ok' | 'back', taskId: string) {

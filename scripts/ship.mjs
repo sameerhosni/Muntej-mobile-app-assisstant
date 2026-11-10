@@ -140,9 +140,24 @@ async function test() {
     console.log(`  ✓ reviewed and accepted at ${last.slice(0, 7)}`);
   }
 
+  // ─── 1c. only the code checked here goes out (reviewer, 10 Nov, R101: commits made while QA ran were deployed from
+  // the working folder before anyone reviewed them). Saved now; every later step stops if HEAD moved or code changed.
+  const SHIP_AT = git('rev-parse', 'HEAD').trim();
+  const stillSame = (step) => {
+    const head = git('rev-parse', 'HEAD').trim();
+    if (head !== SHIP_AT) fail(`New commits arrived while shipping (${SHIP_AT.slice(0, 7)} → ${head.slice(0, 7)}): stopped before ${step}. Review them, then ship again.`);
+    const dirty = git('status', '--porcelain')
+      .split('\n')
+      .map((l) => l.slice(3).trim())
+      .filter((f) => f && !f.startsWith('docs/review/') && f !== 'docs/BACKLOG.md' && !f.startsWith('scripts/release/') && !f.startsWith('qa-out/'));
+    if (dirty.length) fail(`Uncommitted changes would go out with ${step}: ${dirty.slice(0, 6).join(', ')}. Commit and review them first.`);
+  };
+  stillSame('QA');
+
   // ─── 2. QA ──────────────────────────────────────────────────────────────────
   say('QA robot');
   if (run('node', ['scripts/qa/run.mjs']).code !== 0) fail('QA failed, see qa-out/report.md');
+  stillSame('the database changes');
 
   // ─── 3. database ────────────────────────────────────────────────────────────
   if (changed.some((f) => f.startsWith('supabase/migrations/'))) {
@@ -173,6 +188,7 @@ async function test() {
     return [...touched].some((t) => src.includes(`_shared/${t}`));
   });
   if (toDeploy.length) {
+    stillSame('the server functions');
     say(`Server: ${toDeploy.join(', ')}`);
     for (const fn of toDeploy) {
       const c = run('npx', ['-y', 'deno', 'check', '--node-modules-dir=none', `supabase/functions/${fn}/index.ts`], { quiet: true });
@@ -190,6 +206,7 @@ async function test() {
   const appChanged = changed.some((f) => /^(app|src|assets)\//.test(f) || ['app.json', 'app.config.js', 'package.json'].includes(f));
   let group = null;
   if (appChanged) {
+    stillSame('the app update');
     say('App update → Muntej Test (preview)');
     const u = run('npx', ['-y', 'eas-cli@latest', 'update', '--channel', 'preview', '--environment', 'preview', '--message', JSON.stringify(message), '--non-interactive'], {
       quiet: true,
@@ -210,7 +227,7 @@ async function test() {
   writeFileSync(
     TESTING,
     JSON.stringify(
-      { message: waiting ? `${waiting.message}; ${message}` : message, group: group ?? waiting?.group ?? null, at: new Date().toISOString(), commit: git('rev-parse', 'HEAD') },
+      { message: waiting ? `${waiting.message}; ${message}` : message, group: group ?? waiting?.group ?? null, at: new Date().toISOString(), commit: SHIP_AT },
       null,
       2,
     ) + '\n',

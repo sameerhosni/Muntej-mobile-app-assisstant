@@ -286,6 +286,9 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         : { data: [] as { external_id: string }[] };
       const seenIds = new Set((seen ?? []).map((r) => r.external_id as string));
       const fresh = items.filter((i) => !seenIds.has(i.externalId) && !linkByExt.has(i.externalId) && (i.task || i.text.trim()));
+      // mail / chat tasks waiting for the person's OK from this check: one push at the end (Nouran, 10 Nov: "we need to
+      // improve the discovery for it as I discovered it by chance")
+      let waitingNew = 0;
       for (const it of fresh.slice(0, MAX_ITEMS)) {
         const item = await ingestMessage(admin, {
           profileId: conn.profile_id,
@@ -322,6 +325,7 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
             admin,
           ).catch(() => 0);
         }
+        if (!it.task && it.source !== 'meet' && it.source !== 'meeting') waitingNew += item.suggestions.filter((s) => s.state === 'new').length;
         // tool tasks count when they became Muntej tasks; mail / chat counts every task found (some wait in Incoming)
         out.tasks += it.task ? item.suggestions.filter((s) => s.state === 'accepted').length : item.suggestions.length;
         // a tool task that became a Muntej task is linked, so status and changes stay in step from now on
@@ -341,6 +345,21 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
         }
       }
       nextCursor = fresh.length > MAX_ITEMS ? cur : cursor;
+      if (waitingNew > 0) {
+        const { data: who } = await admin.from('profiles').select('locale').eq('id', conn.profile_id).maybeSingle();
+        const ar = who?.locale === 'ar';
+        await sendPush(
+          [conn.profile_id],
+          {
+            title: ar ? '🔌 من أدواتك' : '🔌 From your tools',
+            body: ar
+              ? `لقيت ${waitingNew === 1 ? 'مهمة وحدة' : waitingNew === 2 ? 'مهمتين' : `${waitingNew} ${waitingNew <= 10 ? 'مهام' : 'مهمة'}`} لك، تنتظر موافقتك. اضغط وشوفها 👇`
+              : `I found ${waitingNew} task${waitingNew > 1 ? 's' : ''} for you. They wait for your OK: tap to see 👇`,
+            data: { screen: '/42-incoming' },
+          },
+          admin,
+        ).catch(() => 0);
+      }
     }
 
     // ── 2. out: Muntej → tool (the person's own open tasks from when they switched it on) ──

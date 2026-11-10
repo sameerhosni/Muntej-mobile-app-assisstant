@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 const DAY = 86_400_000;
 const riyadh = (ms) => new Date(ms + 3 * 3_600_000);
 
-export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, token }) {
+export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref, token }) {
   const { QA_ACCOUNT, QA_BOSS, FAISAL, ABDULLAH, NOURA, KHALID, SAAD } = ids;
   const NAME = { [FAISAL]: 'فيصل', [ABDULLAH]: 'عبدالله', [NOURA]: 'نورة', [KHALID]: 'خالد', [SAAD]: 'سعد' };
   const inQa = `(select id from public.profiles where account_id = '${QA_ACCOUNT}')`;
@@ -127,6 +127,61 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(s.every((x) => x.owner_id === QA_BOSS), `went to ${s.map((x) => NAME[x.owner_id] ?? x.owner_name ?? 'nobody').join(', ')}`);
     return s[0].title;
   });
+
+  // ─── tools: only the user's work (Nouran, 10 Nov) ─────────────────────────────
+  // "these are the tasks people ask me PLUS the tasks I ask to people, we need only the ones addressed to me … disregard
+  // any task that is sent from my email to others … assign them to other users if they are already on Montej … auto
+  // cancel the task if the user responded already". Read as from the QA manager's own (temporary) Google connection.
+  {
+    const [conn] = await sql(`insert into public.connections (profile_id, provider, account_label, import_on) values ('${QA_BOSS}', 'google', 'qa-manager@qa.muntej.test', false) returning id`);
+    const via = async (text, sender, subject, source) =>
+      (await fn('intake', { action: 'ingest', text: `${text}\n\n[qa ${Date.now()}]`, sender, subject, source, connection_id: conn.id }, jwt)).suggestions ?? [];
+    const madeFor = async (who, t0) => sql(`select id, title, status from public.tasks where owner_id = '${who}' and assigner_id = '${QA_BOSS}' and created_at >= '${t0}' and status <> 'cancelled'`);
+    try {
+      await check('inbox', 'Tools: work other people ask each other is never yours', async () => {
+        const s = live(await via(`Google Chat · QA marketing\n[2026-11-10T08:00:00Z] ${FAISAL_NAME}: عبدالله، جهّز عرض المبيعات قبل بكرة الظهر`, 'QA marketing', 'QA marketing', 'google_chat'));
+        expect(!s.length, `listed ${s.length}: ${s.map((x) => x.title).join(' · ')}`);
+        return 'nothing listed';
+      });
+      await check('inbox', 'Tools: your own mail asking a teammate becomes their task, not yours', async () => {
+        const t0 = new Date(Date.now() - 2000).toISOString();
+        const mail = [`From: ${BOSS_NAME} <qa-manager@qa.muntej.test>`, `To: ${FAISAL_NAME} <faisal@qa.muntej.test>`, '', `${FAISAL_NAME.split(' ')[0]}, please prepare the Q4 sales report by Thursday.`].join('\n');
+        const s = await via(mail, BOSS_NAME, 'Q4 sales report', 'gmail');
+        expect(!live(s).some((x) => x.owner_id === QA_BOSS || (x.state === 'new' && !x.owner_id)), 'it waits on your list');
+        const made = await madeFor(FAISAL, t0);
+        expect(made.length >= 1, `no task for ${FAISAL_NAME}: ${s.map((x) => `${x.title}/${x.state}/${NAME[x.owner_id] ?? x.owner_id}`).join(' · ') || 'nothing read'}`);
+        return `${made[0].title} → ${NAME[FAISAL]}`;
+      });
+      await check('inbox', 'Tools: your chat ask to a teammate goes straight to them', async () => {
+        const t0 = new Date(Date.now() - 2000).toISOString();
+        const s = await via(dm([`[2026-11-10T08:05:00Z] ${BOSS_NAME}: ارفع العقد على الدرايف اليوم لو سمحت`]), BOSS_NAME, 'Direct message', 'google_chat');
+        const made = await madeFor(FAISAL, t0);
+        expect(made.length >= 1, `not handed to ${FAISAL_NAME}: ${s.map((x) => `${x.title}/${x.state}`).join(' · ') || 'nothing'}`);
+        expect(!live(s).some((x) => x.state === 'new'), 'it also waits on your list');
+        return `${made[0].title} → ${NAME[FAISAL]}`;
+      });
+      await check('inbox', 'Tools: asked, then answered in the next messages: it closes by itself', async () => {
+        const head = `Google Chat · Direct message between: ${BOSS_NAME}, ${FAISAL_NAME} (qa ${Date.now()})`;
+        const first = await via([head, `[2026-11-10T09:00:00Z] ${FAISAL_NAME}: ممكن تراجع لي عقد شركة الريان وترسل ملاحظاتك؟`].join('\n'), FAISAL_NAME, 'Direct message', 'google_chat');
+        const mine = live(first).filter((x) => x.owner_id === QA_BOSS);
+        expect(mine.length, `the ask wasn't yours: ${first.map((x) => `${x.title}/${x.state}`).join(' · ') || 'nothing'}`);
+        await via([head, `[2026-11-10T09:30:00Z] ${BOSS_NAME}: راجعته وأرسلت لك الملاحظات على الإيميل ✅`].join('\n'), BOSS_NAME, 'Direct message', 'google_chat');
+        const [row] = await sql(`select suggestions from public.incoming_items where owner_id = '${QA_BOSS}' and body like '${head.replace(/'/g, "''")}%' order by received_at limit 1`);
+        const s0 = row.suggestions.find((x) => x.owner_id === QA_BOSS);
+        const closedTask = s0?.task_id ? (await sql(`select status from public.tasks where id = '${s0.task_id}'`))[0]?.status === 'done' : false;
+        expect(s0?.closed_by_reply || closedTask, `still open: ${s0?.state}${s0?.task_id ? ' (task)' : ''}`);
+        return s0.closed_by_reply ? 'left the list' : 'task closed';
+      });
+      await check('inbox', 'Tools: the WhatsApp list says where they are in the app', async () => {
+        const src = readFileSync(new URL('../../supabase/functions/_shared/wa-actions.ts', import.meta.url), 'utf8');
+        expect(/وتلقاها كمان في تطبيق منتج/.test(src), 'no line pointing to the app');
+        return 'every list points to Home → Needs you';
+      });
+    } finally {
+      await sql(`delete from public.incoming_items where connection_id = '${conn.id}'`);
+      await sql(`delete from public.connections where id = '${conn.id}'`);
+    }
+  }
 
   // ─── chat: Hoda's conversation ──────────────────────────────────────────────
   const snapshot = async () =>
@@ -365,7 +420,8 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, closed_at) values ('QA closed quarterly report', '${QA_BOSS}', '${QA_BOSS}', 'done', now()) returning id`);
     try {
       const a = await talk('عطني كل مهامي حتى القديمة والمقفلة');
-      expect(/QA closed quarterly report/.test(a.said), `closed task not listed: «${a.said.slice(0, 110)}»`);
+      // the list can come as words or as the chat's task card (its payload)
+      expect(/QA closed quarterly report/.test(a.said + JSON.stringify(a.payload)), `closed task not listed: «${a.said.slice(0, 110)}»`);
       expect(!/المفتوحة بس|بس المفتوحة|only (show )?open/i.test(a.said), `said it can only show open tasks: «${a.said.slice(0, 90)}»`);
       const b = await talk('ايه');
       expect(!/بطاقة|card/i.test(b.said) || Object.keys(b.payload).some((k) => /proposal|choice|duplicate|confirm/.test(k)), `talked about a card that isn't there: «${b.said.slice(0, 90)}»`);
@@ -437,12 +493,71 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
   // Nouran, 9 Nov (N17/N21): "I tried to answer it over WhatsApp, WhatsApp confirmed it is done but nothing changed on
   // the employee side" and the last message "doesn't say how to answer". Questions come with «💬 رد عليه»; the next
   // message is a comment on the task to the person who asked.
-  await check('invites', 'A question on WhatsApp has «💬 رد عليه», and the answer reaches who asked', async () => {
+  await check('invites', 'A comment or call for help on WhatsApp has «💬 رد عليه», a question has «✍️ جاوب»', async () => {
     const notify = readFileSync(new URL('../../supabase/functions/_shared/notify.ts', import.meta.url), 'utf8');
     const wa = readFileSync(new URL('../../supabase/functions/whatsapp/index.ts', import.meta.url), 'utf8');
-    expect(/REPLYABLE = new Set<AlertKind>\(\['detail_asked', 'task_comment', 'escalated'\]\)/.test(notify) && /id: `cm:\$\{a\.task_id\}`/.test(notify), 'questions go out without a reply button');
+    expect(/REPLYABLE = new Set<AlertKind>\(\['task_comment', 'escalated'\]\)/.test(notify) && /id: `cm:\$\{a\.task_id\}`/.test(notify), 'comments go out without a reply button');
+    expect(/id: `da:\$\{a\.task_id\}:\$\{askedWhat\(a\)\}`/.test(notify), 'questions go out without «جاوب»');
     expect(/verb === 'cm'/.test(wa) && /key', `cm:\$\{me\.id\}`[\s\S]{0,600}add_task_comment/.test(wa), 'the answer after «رد عليه» isn’t posted to the task');
-    return 'reply button + answer as a comment';
+    return 'reply button for comments, answer button for questions';
+  });
+  // The owner, 10 Nov: "those questions I want to be able to answer them over whats app". The answer fills the task,
+  // the asker hears it, and the question leaves Needs you. Plus the leak in the same screenshot: internal notes
+  // ("Owner, 9 Nov: …", "N is at 4 h of 40 h") reached her as alert text.
+  await check('invites', 'Answering a question fills the task, tells who asked, and clears it', async () => {
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA question task', '${FAISAL}', '${QA_BOSS}', 'in_progress') returning id`);
+    try {
+      const faisal = await jwtFor(FAISAL, QA_ACCOUNT);
+      await rpc('ask_task_detail', { p_task: t.id, p_what: 'doneDef' }, faisal);
+      const [asked] = await sql(`select id from public.alerts where profile_id = '${QA_BOSS}' and kind = 'detail_asked' and task_id = '${t.id}' and read_at is null`);
+      expect(asked, 'the question never reached the giver');
+      await rpc('answer_task_detail', { p_task: t.id, p_what: 'doneDef', p_text: 'التقرير مرفوع على الدرايف ومعتمد' }, jwt);
+      const [task] = await sql(`select definition_of_done from public.tasks where id = '${t.id}'`);
+      expect(/الدرايف/.test(task.definition_of_done ?? ''), 'the definition of done wasn’t saved');
+      const [still] = await sql(`select id from public.alerts where id = '${asked.id}' and read_at is null`);
+      expect(!still, 'the question still waits in Needs you');
+      const [told] = await sql(`select title_ar from public.alerts where profile_id = '${FAISAL}' and kind = 'request_answered' and task_id = '${t.id}'`);
+      expect(told, 'whoever asked wasn’t told');
+      // answered in the app instead (a direct edit): the question clears too
+      await rpc('ask_task_detail', { p_task: t.id, p_what: 'budget' }, faisal);
+      await sql(`update public.tasks set budget = '5,000 SAR' where id = '${t.id}'`);
+      const [left] = await sql(`select id from public.alerts where profile_id = '${QA_BOSS}' and kind = 'detail_asked' and task_id = '${t.id}' and dedupe_key like '%:budget:%' and read_at is null`);
+      expect(!left, 'a question answered in the app still waits');
+      return `${told.title_ar}`;
+    } finally {
+      await sql(`delete from public.alerts where task_id = '${t.id}'`);
+      await sql(`delete from public.activity_log where task_id = '${t.id}'`);
+      await sql(`delete from public.tasks where id = '${t.id}'`);
+    }
+  });
+  // The owner, 10 Nov: "AI should be allowed by default … no need to ask for permissions except the user stopped it so
+  // give him clear notification of this" (iPhone keeps its one-time screen: Apple 5.1.2).
+  await check('invites', 'AI is on unless the person turned it off, and turning it off says so clearly', async () => {
+    const [{ ai_consent: before }] = await sql(`select ai_consent from public.profiles where id = '${NOURA}'`);
+    try {
+      await sql(`update public.profiles set ai_consent = null where id = '${NOURA}'`);
+      const [{ ok: onByDefault }] = await sql(`select public.ai_allowed('${NOURA}') ok`);
+      expect(onByDefault === true, 'someone who never answered has AI off');
+      await sql(`update public.profiles set ai_consent = false where id = '${NOURA}'`);
+      const [{ ok: off }] = await sql(`select public.ai_allowed('${NOURA}') ok`);
+      expect(off === false, 'turned off, but AI still reads for them');
+      const [note] = await sql(`select title_ar from public.alerts where profile_id = '${NOURA}' and dedupe_key like 'ai_off:%' and created_at > now() - interval '1 minute'`);
+      expect(note, 'no clear notice when it was turned off');
+      return `on by default · off says «${note.title_ar}»`;
+    } finally {
+      await sql(`delete from public.alerts where profile_id = '${NOURA}' and dedupe_key like 'ai_off:%'`);
+      await sql(`update public.profiles set ai_consent = ${before === null ? 'null' : before} where id = '${NOURA}'`);
+    }
+  });
+  await check('invites', 'Internal notes never reach people as alert text', async () => {
+    const [log] = await sql(`insert into public.activity_log (actor_type, actor_id, subject_id, action, summary, summary_ar, reason, undoable)
+      values ('user', '${QA_BOSS}', '${FAISAL}', 'task_assigned', 'QA leak check', 'فحص التسريب', 'Owner, 9 Nov: internal note', false) returning id`);
+    const [a] = await sql(`select body, body_ar from public.alerts where dedupe_key = 'change:${log.id}'`);
+    await sql(`delete from public.alerts where dedupe_key = 'change:${log.id}'`);
+    await sql(`delete from public.activity_log where id = '${log.id}'`);
+    expect(a, 'no alert at all');
+    expect(!/Owner, 9 Nov/.test(`${a.body} ${a.body_ar}`), `the note reached them: «${a.body}»`);
+    return 'the note stays in the log';
   });
   // The owner, 9 Nov: "tasks to non added users should be still on their side till they be active and remind them"
   await check('invites', 'Someone invited but not active, with a task, is reminded until they join', async () => {

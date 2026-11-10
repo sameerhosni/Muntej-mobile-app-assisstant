@@ -25,6 +25,7 @@ export type FeatureEvent = { feature_key: string; state: FeatureState; later_cou
 export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   today_home: { href: '/01-home', spot: 'home.pulse' },
   decision_finish: { href: '/04-decisions', spot: 'decisions.card' },
+  tools_only_mine: { href: '/01-home', spot: 'home.needs' },
   ai_consent: { href: '/settings', spot: 'settings.ai' },
   invite_status: { href: '/39-team', spot: 'team.status' },
   confirm_new: { href: '/01-home', spot: 'home.confirm' },

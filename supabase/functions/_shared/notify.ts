@@ -255,7 +255,11 @@ type PendingAlert = {
   body: string;
   title_ar: string | null;
   body_ar: string | null;
+  dedupe_key?: string | null;
 };
+
+/** what a question asks about, from its key ('ask:<task>:<due|doneDef|budget>:<day>') */
+export const askedWhat = (a: { dedupe_key?: string | null }) => /^ask:[0-9a-f-]+:(due|doneDef|budget):/.exec(a.dedupe_key ?? '')?.[1] ?? null;
 
 /**
  * Sends every alert not delivered yet (created in the last 24 h, not waiting for quiet hours).
@@ -268,7 +272,7 @@ export async function deliverPending(
   const now = new Date();
   let q = admin
     .from('alerts')
-    .select('id, profile_id, kind, subject_id, task_id, title, body, title_ar, body_ar')
+    .select('id, profile_id, kind, subject_id, task_id, title, body, title_ar, body_ar, dedupe_key')
     .is('delivered_at', null)
     .gte('created_at', new Date(now.getTime() - DAY_MS).toISOString())
     .or(`deliver_after.is.null,deliver_after.lte.${now.toISOString()}`)
@@ -526,13 +530,20 @@ async function whatsAppAlert(
     cards.length > 0 && (a.kind === 'decision_waiting' || (a.kind === 'new_submission' && cards.some((c) => c.taskId === a.task_id)));
   // a question / comment / call for help about a task comes with «💬 رد عليه»: the next message goes back to them
   // (Nouran, 9 Nov, N17/N21: "I tried to answer it over WhatsApp… nothing changed on the employee side")
-  const REPLYABLE = new Set<AlertKind>(['detail_asked', 'task_comment', 'escalated']);
+  const REPLYABLE = new Set<AlertKind>(['task_comment', 'escalated']);
   const replyable = m.alerts.filter((a) => REPLYABLE.has(a.kind) && !!a.task_id && !carded(a)).slice(0, 3);
   for (const a of replyable) {
     const body = `*${(ar ? a.title_ar : null) ?? a.title}*\n${(ar ? a.body_ar : null) ?? a.body ?? ''}`.trim();
     ok = (await waButtons(person.phone, pre(a.task_id, body), [{ id: `cm:${a.task_id}`, title: ar ? '💬 رد عليه' : '💬 Reply' }])) && ok;
   }
-  const rest = m.alerts.filter((a) => !carded(a) && !replyable.includes(a));
+  // a question about a task (due date, definition of done, budget): its own card, and «✍️ جاوب» fills it in on the
+  // task (owner, 10 Nov: "those questions I want to be able to answer them over whats app")
+  const questions = m.alerts.filter((a) => a.kind === 'detail_asked' && !!a.task_id && !!askedWhat(a)).slice(0, 6);
+  for (const a of questions) {
+    const body = `*${(ar ? a.title_ar : null) ?? a.title}*\n${(ar ? a.body_ar : null) ?? a.body ?? ''}`.trim();
+    ok = (await waButtons(person.phone, pre(a.task_id, body), [{ id: `da:${a.task_id}:${askedWhat(a)}`, title: ar ? '✍️ جاوب' : '✍️ Answer' }])) && ok;
+  }
+  const rest = m.alerts.filter((a) => !carded(a) && !replyable.includes(a) && !questions.includes(a));
   if (rest.length) {
     const line = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
     const text = rest.length === m.alerts.length ? rtl(ar, `*${m.title}*\n${m.body}`) : rest.length === 1 ? pre(rest[0].task_id, `*${line(rest[0])}*\n${(ar ? rest[0].body_ar : null) ?? rest[0].body}`) : pre(null, rest.map(line).join('\n'));
