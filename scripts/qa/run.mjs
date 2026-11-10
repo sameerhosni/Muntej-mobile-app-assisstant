@@ -402,7 +402,10 @@ async function server() {
   await check('whatsapp', isNone ? `«${answer}» closes a budget question without saving a budget` : `«${answer}» is saved as the budget, not read as none`, async () => {
     const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA no budget', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`);
     try {
-      await rpc('ask_task_detail', { p_task: t.id, p_what: 'budget' }, await jwtFor(QA_FAISAL, QA_ACCOUNT));
+      // the question as ask_task_detail writes it (Faisal's login may be on another seat after the delete/restore cases)
+      await sql(`insert into public.alerts (profile_id, kind, task_id, subject_id, title, body, title_ar, body_ar, dedupe_key)
+                 values ('${QA_BOSS}', 'detail_asked', '${t.id}', '${QA_FAISAL}', 'Faisal asks about the budget', '"QA no budget": add the budget', 'يسأل فيصل عن الميزانية', '«QA no budget»: أضف الميزانية', 'ask:${t.id}:budget:${new Date().toISOString().slice(0, 10)}')
+                 on conflict (dedupe_key) do nothing`);
       await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('da:${QA_BOSS}', '${QA_BOSS}', '{"task_id":"${t.id}","what":"budget"}', now())
                  on conflict (key) do update set body = excluded.body, created_at = now()`);
       const msgs = await wa(answer);

@@ -542,7 +542,7 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
   await check('invites', 'A comment or call for help on WhatsApp has «💬 رد عليه», a question has «✍️ جاوب»', async () => {
     const notify = readFileSync(new URL('../../supabase/functions/_shared/notify.ts', import.meta.url), 'utf8');
     const wa = readFileSync(new URL('../../supabase/functions/whatsapp/index.ts', import.meta.url), 'utf8');
-    expect(/REPLYABLE = new Set<AlertKind>\(\['task_comment', 'escalated'\]\)/.test(notify) && /id: `cm:\$\{a\.task_id\}`/.test(notify), 'comments go out without a reply button');
+    expect(/REPLYABLE = new Set<AlertKind>\(answersOn \? \['task_comment', 'escalated'\]/.test(notify) && /id: `cm:\$\{a\.task_id\}`/.test(notify), 'comments go out without a reply button');
     expect(/id: `da:\$\{a\.task_id\}:\$\{askedWhat\(a\)\}`/.test(notify), 'questions go out without «جاوب»');
     expect(/verb === 'cm'/.test(wa) && /key', `cm:\$\{me\.id\}`[\s\S]{0,600}add_task_comment/.test(wa), 'the answer after «رد عليه» isn’t posted to the task');
     return 'reply button for comments, answer button for questions';
