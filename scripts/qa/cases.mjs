@@ -143,6 +143,14 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         expect(!s.length, `listed ${s.length}: ${s.map((x) => x.title).join(' · ')}`);
         return 'nothing listed';
       });
+      // Nouran, 10 Nov: «Prepare client training» «من Nouran Emira» still waited on her own list — in a group chat, the
+      // user's own ask is never listed to them
+      await check('inbox', 'Tools: your own ask in a group chat never waits on your list', async () => {
+        const s = live(await via(`Google Chat · QA ops\n[2026-11-10T10:00:00Z] ${BOSS_NAME}: ${NAME[ABDULLAH] ?? 'Abdullah'}، جهّز تدريب العميل ليوم الخميس`, 'QA ops', 'QA ops', 'google_chat'));
+        const mine = s.filter((x) => x.state === 'new' && (!x.owner_id || x.owner_id === QA_BOSS));
+        expect(!mine.length, `waits on your list: ${mine.map((x) => x.title).join(' · ')}`);
+        return s.length ? `${s.length} handed on` : 'nothing for you';
+      });
       await check('inbox', 'Tools: your own mail asking a teammate becomes their task, not yours', async () => {
         const t0 = new Date(Date.now() - 2000).toISOString();
         const mail = [`From: ${BOSS_NAME} <qa-manager@qa.muntej.test>`, `To: ${FAISAL_NAME} <faisal@qa.muntej.test>`, '', `${FAISAL_NAME.split(' ')[0]}, please prepare the Q4 sales report by Thursday.`].join('\n');
@@ -653,6 +661,29 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
     } finally {
       await sql(`delete from public.alerts where profile_id = '${NOURA}' and dedupe_key like 'ai_off:%'`);
       await sql(`update public.profiles set ai_consent = ${before === null ? 'null' : before} where id = '${NOURA}'`);
+    }
+  });
+  // the task page's «جاوب» sheet (owner, 10 Nov, option 2): the answer is saved on the task, the question clears; an
+  // unclear date is never guessed
+  await check('invites', 'Answering on the task page saves it and clears the question; an unclear date is not guessed', async () => {
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA page answer', '${FAISAL}', '${QA_BOSS}', 'in_progress') returning id`);
+    try {
+      await rpc('ask_task_detail', { p_task: t.id, p_what: 'doneDef' }, await jwtFor(FAISAL, QA_ACCOUNT));
+      const r = await fn('answer-detail', { task_id: t.id, what: 'doneDef', text: 'العقد موقّع ومرفوع' }, jwt);
+      expect(r.saved, `not saved: ${JSON.stringify(r).slice(0, 120)}`);
+      const [row] = await sql(`select definition_of_done from public.tasks where id = '${t.id}'`);
+      expect(/موقّع/.test(row.definition_of_done ?? ''), 'not on the task');
+      const [left] = await sql(`select id from public.alerts where profile_id = '${QA_BOSS}' and kind = 'detail_asked' and task_id = '${t.id}' and read_at is null`);
+      expect(!left, 'the question still waits');
+      const u = await fn('answer-detail', { task_id: t.id, what: 'due', text: 'مدري والله' }, jwt);
+      expect(u.unclear && Array.isArray(u.choices) && u.choices.length, `an unclear date was saved: ${JSON.stringify(u).slice(0, 120)}`);
+      const [due] = await sql(`select due_at from public.tasks where id = '${t.id}'`);
+      expect(!due.due_at, 'a date was guessed');
+      return 'saved, cleared, and an unclear date gets choices';
+    } finally {
+      await sql(`delete from public.alerts where task_id = '${t.id}'`);
+      await sql(`delete from public.activity_log where task_id = '${t.id}'`);
+      await sql(`delete from public.tasks where id = '${t.id}'`);
     }
   });
   await check('invites', 'Internal notes never reach people as alert text', async () => {

@@ -540,3 +540,11 @@ Last updated: 2026-11-09.
 ### R124 · A QA case that sends a typed command checks everything the command touches
 - **Why:** 10 Nov, reviewer: the «10» case expected the 9th task to stay waiting, but «10» approves 10 and ignores the rest of the list; and it would have ignored the QA manager's other waiting items without putting them back.
 - **Check:** assert the command's full effect (approved and ignored), set aside the other rows it would change and restore them in `finally`.
+
+### R125 · What a task says is shown as words, and a question about it is answered where it's shown
+- **Why:** 10 Nov, Nouran: "I still don't see my definition of done on the UI … I can't answer the definition of done or see that question on the task itself" — the task page used the definition of done, budget and description only as ✓ in the clarity ring, and the doer's question lived only in alerts / WhatsApp.
+- **Check:** every field a task carries that people set (definition of done, due, budget, description) is visible as text on the task page; an open question about the task is shown on it to whoever can answer, with the answer saved there (answer-detail → answer_task_detail) and cleared everywhere.
+
+### R126 · The database decides whose row it is, never a value the app loaded earlier
+- **Why:** 10 Nov, QA: «Send an idea» failed in most runs — the app sent the profile and account it had loaded, but the policy accepts only current_profile_id(); after a seat switch they differ.
+- **Check:** inserts whose policy checks `current_profile_id()` let the database fill the owner and account (a BEFORE INSERT trigger or a default), and the app doesn't send them.

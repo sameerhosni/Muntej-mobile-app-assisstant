@@ -1044,6 +1044,25 @@ async function screens() {
       expect(!errors.length, errors.slice(0, 3).join('\n'));
       return 'tree + inline edit work';
     });
+    // Nouran, 10 Nov: "I still don't see my definition of done on the UI … I can't answer the definition of done or see
+    // that question on the task itself". Read the task page as the giver: the details as words, the question bar
+    await check('flows', 'A task shows its definition of done, and the giver sees the question with «جاوب»', async () => {
+      const tag = Date.now().toString(36);
+      const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, definition_of_done) values ('QA details ${tag}', 'a0000000-0000-4000-b000-000000000011', '${QA_BOSS}', 'in_progress', 'QA done when signed ${tag}') returning id`);
+      await sql(`insert into public.alerts (profile_id, kind, task_id, subject_id, title, body, title_ar, body_ar, dedupe_key)
+        values ('${QA_BOSS}', 'detail_asked', '${t.id}', 'a0000000-0000-4000-b000-000000000011', 'asks', 'x', 'يسأل', 'x', 'ask:${t.id}:due:${new Date().toISOString().slice(0, 10)}')`);
+      try {
+        await page.goto(`http://localhost:8099/14-task-detail?id=${t.id}`, { waitUntil: 'domcontentloaded' });
+        await page.getByText(`QA done when signed ${tag}`).waitFor({ timeout: 25_000 });
+        await page.getByText(/يسأل عن الموعد/).waitFor({ timeout: 10_000 });
+        await page.getByRole('button', { name: 'جاوب' }).first().waitFor({ timeout: 5_000 });
+        await page.screenshot({ path: join(OUT, 'flow_task_details.png') });
+        return 'definition of done shown; question bar with «جاوب»';
+      } finally {
+        await sql(`delete from public.alerts where task_id = '${t.id}'`);
+        await sql(`delete from public.tasks where id = '${t.id}'`);
+      }
+    });
     await check('flows', 'Send an idea', async () => {
       errors.length = 0;
       await page.goto('http://localhost:8099/59-ideas', { waitUntil: 'domcontentloaded' });

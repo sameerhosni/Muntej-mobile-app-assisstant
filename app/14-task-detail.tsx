@@ -39,6 +39,7 @@ import { useTaskSeen } from '@/features/ladder/api';
 import { TASK_POINTS } from '@/features/tasks/useCompleteTask';
 import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { NS } from '@/features/task-detail/strings';
+import { DetailAnswer, type What as AnswerWhat } from '@/features/task-detail/DetailAnswer';
 
 type CheckKey = 'owner' | 'due' | 'doneDef' | 'budget';
 type SubVM = { id: string; name: string; who: string; done: boolean };
@@ -93,6 +94,8 @@ export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const live = !!id;
   const task = useTask(id);
+  // the «جاوب» / add sheet (DetailAnswer): which detail is being answered
+  const [answerSheet, setAnswerSheet] = useState<AnswerWhat | null>(null);
   const tool = useTaskTools().data?.get(id ?? '');
   const team = useTeam();
   const me = useMyProfile();
@@ -378,6 +381,19 @@ export default function TaskDetailScreen() {
           </View>
         </View>
 
+        {/* the details as words, and the doer's question with «جاوب» for whoever gave it (owner, 10 Nov, option 2) */}
+        {live && d && (
+          <View style={{ paddingHorizontal: spacing.screen }}>
+            <DetailAnswer
+              task={d as unknown as Parameters<typeof DetailAnswer>[0]['task']}
+              meId={me.data?.id}
+              team={team.data ?? []}
+              sheet={answerSheet}
+              setSheet={setAnswerSheet}
+            />
+          </View>
+        )}
+
         {/* what's needed from you, then where it stands (owner, 8 Nov: design/examples/task-sections.png) */}
         {live && d && (
           <View style={{ paddingHorizontal: spacing.screen }}>
@@ -391,7 +407,8 @@ export default function TaskDetailScreen() {
               doing={doing}
               reviewer={reviewer}
               asked={asked}
-              onAdd={(k) => addIt(k)}
+              // the giver adds it right here, in the same sheet as «جاوب» (owner, 10 Nov: "I can't answer … on the task itself")
+              onAdd={(k) => setAnswerSheet(k)}
               onAsk={(k) => askGiver(k)}
               onReview={() => router.push({ pathname: '/15-review', params: { id: d.id } })}
             />

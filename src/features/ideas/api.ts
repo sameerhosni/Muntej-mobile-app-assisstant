@@ -110,9 +110,9 @@ export function useSendIdea() {
       if (!p) throw new Error('Not signed in');
       const attachments: Attachment[] = [];
       for (const f of v.files ?? []) attachments.push(await upload(p.id, f));
-      const { error } = await untyped
-        .from('ideas')
-        .insert({ profile_id: p.id, account_id: p.account_id, kind: v.kind, body: v.body.trim(), screen: v.screen, attachments });
+      // the seat is filled in by the database (ideas_fill_seat): the one the server sees now, never a stale one the app
+      // loaded before a seat switch (QA, 10 Nov: the insert was refused)
+      const { error } = await untyped.from('ideas').insert({ kind: v.kind, body: v.body.trim(), screen: v.screen, attachments });
       if (error) throw new Error(error.message);
       track('idea_sent', { kind: v.kind, screen: v.screen, length: v.body.trim().length, files: attachments.length, voice: !!v.voice });
     },

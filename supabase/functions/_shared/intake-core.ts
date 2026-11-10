@@ -560,6 +560,9 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     // her own mail / message to others: what it asks is theirs, never hers (Nouran, 10 Nov: "disregard any task that is
     // sent from my email to others")
     .map((t) => (onlyUsersWork && fromUser ? { ...t, asked_by_user: true, asked_of_user: false } : t))
+    // asked BY the user, by the reader's own account (requested_by = one of their names): their ask, never their task,
+    // whatever the flags say (Nouran, 10 Nov: «Prepare client training» «من Nouran Emira» still waited on her list)
+    .map((t) => (onlyUsersWork && t.requested_by && myNames.some((n) => sameName(n, t.requested_by!)) ? { ...t, asked_by_user: true, asked_of_user: false } : t))
     .map((t) => {
       // asked by the user in a direct message: it's the other person's, whoever the model picked, unless the line names
       // someone else on the team (owner, 9 Nov: «اعطيني تفاصيل الدخول» to Nouran went to the "Nouranemira" test login)
