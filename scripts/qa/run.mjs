@@ -423,7 +423,8 @@ async function server() {
       expect(pm.includes(`QA place ${tag}`), 'the place item’s card wasn’t shown');
       expect(!pm.includes(`من QA Space ${tag}`) && !pm.includes('من Direct message'), 'a chat space was shown as the person who asked');
       // the alert's items are settled: it says so, and shows nothing else (R117)
-      await sql(`update public.incoming_items set status = 'done' where id = '${found.id}'`);
+      // (the place item's alert is the newest now: settle both, so either way the answer is "nothing waiting")
+      await sql(`update public.incoming_items set status = 'done' where id in ('${found.id}', '${placeItem.id}')`);
       const settled = await wa('ايه هي؟');
       const sj = JSON.stringify(settled);
       expect(/ما عاد فيه شي ينتظرك|nothing from them is waiting/.test(texts(settled)), `settled items, but: ${texts(settled).slice(0, 120)}`);
@@ -985,7 +986,8 @@ async function screens() {
       await page.getByRole('button', { name: 'أرسل' }).click();
       await page.getByText(/وصلت، شكرًا لك/).waitFor({ timeout: 20_000 }).catch(async (e) => {
         await page.screenshot({ path: join(OUT, 'flow_idea_failed.png'), fullPage: true });
-        throw new Error(`${e.message.split('\n')[0]} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
+        // the page's own errors too, so the cause shows next time (it failed several runs while the server check passed)
+        throw new Error(`${e.message.split('\n')[0]} · errors: ${errors.slice(-3).join(' | ').slice(0, 300) || 'none'} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 200)}`);
       });
       await page.screenshot({ path: join(OUT, 'flow_idea.png') });
       return 'sent and thanked';

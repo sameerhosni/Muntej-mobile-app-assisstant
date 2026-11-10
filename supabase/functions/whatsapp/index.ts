@@ -1223,6 +1223,7 @@ async function handle(m: WaMessage, dry = false) {
     // the database's reasons in plain words, never its raw message (reviewer, 10 Nov, R7)
     if (error) {
       const m = error.message;
+      console.warn('answer_task_detail', what, v.none ? 'none' : '', m);
       const why = /Only who gave/.test(m)
         ? ar ? 'بس اللي عطى المهمة يقدر يجاوب على هذا 🙏' : 'Only whoever gave the task can answer that 🙏'
         : /Task not found/.test(m)
