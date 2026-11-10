@@ -55,7 +55,7 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
       .order('created_at')
       .limit(10),
     admin.from('reviews').select('task_id').eq('reviewer_id', meId).is('decision', null).limit(30),
-    admin.from('incoming_items').select('id, source, suggestions').eq('owner_id', meId).eq('status', 'new').order('received_at', { ascending: false }).limit(10),
+    admin.from('incoming_items').select('id, source, sender, subject, received_at, suggestions').eq('owner_id', meId).eq('status', 'new').order('received_at', { ascending: false }).limit(10),
     admin.from('tasks').select('id, title, translations, due_at, status').eq('owner_id', meId).in('status', OPEN).not('due_at', 'is', null).lt('due_at', new Date(endToday).toISOString()).order('due_at').limit(10),
   ]);
   const reviewIds = (reviewRows ?? []).map((r) => r.task_id as string);
@@ -152,20 +152,49 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
   return cards;
 }
 
-type ToolItem = { id: string; source: string; suggestions: { state: string; title: string; due_at: string | null; duplicate_of?: unknown }[] | null };
+type ToolItem = {
+  id: string;
+  source: string;
+  sender?: string | null;
+  subject?: string | null;
+  received_at?: string | null;
+  suggestions: { state: string; title: string; due_at: string | null; duplicate_of?: unknown; requested_by?: string | null; quote?: string | null; owner_name?: string | null }[] | null;
+};
 
-/** an item's waiting suggestions as cards (✅ اعتمد / ✖️ تجاهل) */
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+/** a person or place a tool reports, never a placeholder ("Direct message", "Space") */
+const realName = (s: string | null | undefined) => (s && !/^(direct message|google chat|group|space|someone|unknown)$/i.test(s.trim()) ? s.trim() : null);
+
+/** an item's waiting suggestions as cards (✅ اعتمد / ✖️ تجاهل). Enough to decide right there (owner, 10 Nov: "Need some
+ *  info on the task like from whom and when or any other important things to help me to confirm"): who asked, when,
+ *  where (the mail subject or the chat), their words, the due date, and who it would go to */
 function toolCardsOf(it: ToolItem, ar: boolean): WaCard[] {
   const out: WaCard[] = [];
   const tool = (SOURCE[it.source] ?? [it.source, it.source])[ar ? 0 : 1];
   for (const [i, s] of (it.suggestions ?? []).entries()) {
     if (s.state !== 'new') continue;
     const dup = !!s.duplicate_of;
+    const who = realName(s.requested_by) ?? realName(it.sender);
+    const sent = it.received_at ? whenText(it.received_at, ar) : null;
+    const where = realName(it.subject);
+    const words = (s.quote ?? '').trim();
+    const forWho = realName(s.owner_name);
     out.push({
       kind: 'tool',
       ref: { item: it.id, index: i },
-      line: `*${s.title.length > 70 ? `${s.title.slice(0, 69)}…` : s.title}*\n   ${[tool, s.due_at ? whenText(s.due_at, ar) : null, dup ? (ar ? '♻️ موجودة قبل' : '♻️ already a task') : null].filter(Boolean).join(' · ')}`,
-      body: rtl(ar, `🔌 ${ar ? 'لقيتها في' : 'Found in'} ${tool}:\n📝 *${s.title}*${s.due_at ? `\n⏰ ${whenText(s.due_at, ar)}` : ''}`),
+      line: `*${clip(s.title, 70)}*\n   ${[who ? (ar ? `من ${who}` : `from ${who}`) : null, tool, sent, s.due_at ? `⏰ ${whenText(s.due_at, ar)}` : null, dup ? (ar ? '♻️ موجودة قبل' : '♻️ already a task') : null].filter(Boolean).join(' · ')}`,
+      body: rtl(
+        ar,
+        [
+          `🔌 ${ar ? 'لقيتها في' : 'Found in'} ${tool}${where ? ` · «${clip(where, 50)}»` : ''}:`,
+          `📝 *${s.title}*`,
+          ...(who || sent ? [`👤 ${[who ? (ar ? `من ${who}` : `from ${who}`) : null, sent].filter(Boolean).join(' · ')}`] : []),
+          ...(words && words !== s.title ? [`💬 «${clip(words, 160)}»`] : []),
+          ...(s.due_at ? [`⏰ ${ar ? 'مطلوبة' : 'due'} ${whenText(s.due_at, ar)}`] : []),
+          ...(forWho ? [`➡️ ${ar ? 'لـ' : 'for'} ${forWho}`] : []),
+          ...(dup ? [ar ? '♻️ فيه مهمة مثلها من قبل' : '♻️ there is already a task like it'] : []),
+        ].join('\n'),
+      ),
       buttons: [
         { id: `ok:${it.id}:${i}`, title: ar ? '✅ اعتمد' : '✅ Approve' },
         { id: `no:${it.id}:${i}`, title: ar ? '✖️ تجاهل' : '✖️ Ignore' },
@@ -181,7 +210,7 @@ export const foundItemIds = (dedupeKey: string | null | undefined) => (/^tools_f
 /** cards for exactly those items, still waiting (reviewer, 10 Nov: never "the newest waiting ones") */
 export async function toolCardsFor(admin: SupabaseClient, itemIds: string[], ar: boolean): Promise<WaCard[]> {
   if (!itemIds.length) return [];
-  const { data } = await admin.from('incoming_items').select('id, source, suggestions').in('id', itemIds).eq('status', 'new');
+  const { data } = await admin.from('incoming_items').select('id, source, sender, subject, received_at, suggestions').in('id', itemIds).eq('status', 'new');
   const byId = new Map(((data ?? []) as ToolItem[]).map((x) => [x.id, x]));
   return itemIds.flatMap((id) => (byId.get(id) ? toolCardsOf(byId.get(id)!, ar) : []));
 }

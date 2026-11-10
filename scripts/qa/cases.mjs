@@ -492,7 +492,9 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
     try {
       for (const q of ['what tasks are on hold?', 'هل مهمة التقرير خلصت؟', 'هل كل مهامي المقفلة لي؟', 'كم مهمة من مهامي المقفلة؟', 'وش المشكلة في المهام المقفلة؟']) {
         const a = await talk(q);
-        expect(!/QA closed mine report/.test(a.said), `«${q}» got the closed list: «${a.said.slice(0, 100)}»`);
+        // a direct answer may name the task («أيه، مهمة … مقفلة» to «هل مهمة التقرير خلصت؟» is right); what must not
+        // appear is the server's closed-tasks LIST (its «• title · status» lines)
+        expect(!/(^|\n)• .+ · /.test(a.said), `«${q}» got the closed list: «${a.said.slice(0, 100)}»`);
       }
       // a teammate whose Arabic name starts with «مها» (inside «مهامي»): still the asker's own list (reviewer, 10 Nov)
       const [{ full_name_ar: was }] = await sql(`select full_name_ar from public.profiles where id = '${FAISAL}'`);

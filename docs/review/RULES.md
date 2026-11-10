@@ -512,3 +512,7 @@ Last updated: 2026-11-09.
 ### R117 · A follow-up that branches has one QA step per branch
 - **Why:** 10 Nov, reviewer: «ايه هي؟» has four outcomes (the alert's items, the task's card, the task as yours with buttons, the task someone else does) and only the first was tested; the two-seat step didn't make sure the alert was on the seat WhatsApp did not pick.
 - **Check:** each branch of a follow-up gets its own QA step, and a "wrong seat" step forces which seat is picked before testing the other one.
+
+### R118 · A card asking for an OK carries what's needed to decide
+- **Why:** 10 Nov, the owner, on the WhatsApp tools cards: "Need some info on the task like from whom and when or any other important things to help me to confirm".
+- **Check:** an approve / ignore card names who asked, when, where (mail subject / chat), a short quote of their words, the due date and who it would go to — whatever the item has; QA reads the card and expects them.

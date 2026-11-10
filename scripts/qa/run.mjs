@@ -384,7 +384,7 @@ async function server() {
   // The owner, 10 Nov: "unclear" — Nouran got «من أدواتك: لقيت مهمة وحدة لك، تنتظر موافقتك» (no name, no buttons), asked
   // «ايه هي؟», and the chat answered about another task. Read as the user: the next «ايه هي؟» shows that task's card.
   await check('whatsapp', 'After «found a task in your tools», «ايه هي؟» shows exactly that task with Approve / Ignore', async () => {
-    const sug = (title) => `[{"title":"${title}","owner_id":null,"due_at":null,"priority":"medium","state":"new","task_id":null,"duplicate_of":null,"confidence":0.9,"quote":"","description":null,"definition_of_done":null,"proof_required":"none","budget":null,"estimate_hours":null,"requested_by":null,"amends_earlier":false,"owner_name":null,"outside":false,"asked_by_user":false,"asked_of_user":true}]`;
+    const sug = (title) => `[{"title":"${title}","owner_id":null,"due_at":null,"priority":"medium","state":"new","task_id":null,"duplicate_of":null,"confidence":0.9,"quote":"please confirm the push status today","description":null,"definition_of_done":null,"proof_required":"none","budget":null,"estimate_hours":null,"requested_by":"Mohammed QA","amends_earlier":false,"owner_name":null,"outside":false,"asked_by_user":false,"asked_of_user":true}]`;
     const item = async (owner, title, ago) =>
       (await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, suggestions, received_at)
         values ('${owner}', 'gmail', 'qa-${Math.random().toString(36).slice(2)}', 'QA', 'QA', 'new', '${sug(title)}'::jsonb, now() - interval '${ago}') returning id`))[0];
@@ -408,6 +408,8 @@ async function server() {
       expect(all.includes(`QA found ${tag}`), `the alert's task wasn't shown: ${texts(msgs).slice(0, 140)}`);
       expect(!all.includes(`QA newer other ${tag}`), 'showed another waiting task instead');
       expect(all.includes(`ok:${found.id}:0`) && all.includes(`no:${found.id}:0`), 'no Approve / Ignore on it');
+      // enough to decide right there (owner, 10 Nov: "from whom and when or any other important things"): who, their words
+      expect(all.includes('Mohammed QA') && all.includes('please confirm the push status today'), `the card doesn't say who asked or what they wrote: ${texts(msgs).slice(0, 160)}`);
       // the alert's items are settled: it says so, and shows nothing else (R117)
       await sql(`update public.incoming_items set status = 'done' where id = '${found.id}'`);
       const settled = await wa('ايه هي؟');
