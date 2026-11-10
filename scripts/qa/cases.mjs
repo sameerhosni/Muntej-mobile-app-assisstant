@@ -146,10 +146,24 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
       // Nouran, 10 Nov: «Prepare client training» «من Nouran Emira» still waited on her own list — in a group chat, the
       // user's own ask is never listed to them
       await check('inbox', 'Tools: your own ask in a group chat never waits on your list', async () => {
-        const s = live(await via(`Google Chat · QA ops\n[2026-11-10T10:00:00Z] ${BOSS_NAME}: ${NAME[ABDULLAH] ?? 'Abdullah'}، جهّز تدريب العميل ليوم الخميس`, 'QA ops', 'QA ops', 'google_chat'));
+        // no teammate named (Nouran's «Prepare client training» named nobody): the old reader listed it to her
+        const s = live(await via(`Google Chat · QA ops\n[2026-11-10T10:00:00Z] ${BOSS_NAME}: جهّزوا تدريب العميل ليوم الخميس`, 'QA ops', 'QA ops', 'google_chat'));
         const mine = s.filter((x) => x.state === 'new' && (!x.owner_id || x.owner_id === QA_BOSS));
         expect(!mine.length, `waits on your list: ${mine.map((x) => x.title).join(' · ')}`);
         return s.length ? `${s.length} handed on` : 'nothing for you';
+      });
+      // …but a teammate who shares the user's first name asking them is still theirs (reviewer, 10 Nov)
+      await check('inbox', 'Tools: a teammate with your first name asking you is still yours', async () => {
+        const first = BOSS_NAME.split(' ')[0];
+        const [{ full_name: was }] = await sql(`select full_name from public.profiles where id = '${SAAD}'`);
+        await sql(`update public.profiles set full_name = '${first} Twin' where id = '${SAAD}'`);
+        try {
+          const s = live(await via(dm([`[2026-11-10T11:00:00Z] ${first} Twin: ممكن تراجع لي عرض السعر اليوم؟`]).replace(FAISAL_NAME, `${first} Twin`), `${first} Twin`, 'Direct message', 'google_chat'));
+          expect(s.some((x) => x.owner_id === QA_BOSS), `the ask was dropped as your own: ${s.map((x) => `${x.title}/${x.state}`).join(' · ') || 'nothing'}`);
+          return 'still yours';
+        } finally {
+          await sql(`update public.profiles set full_name = '${was.replace(/'/g, "''")}' where id = '${SAAD}'`);
+        }
       });
       await check('inbox', 'Tools: your own mail asking a teammate becomes their task, not yours', async () => {
         const t0 = new Date(Date.now() - 2000).toISOString();

@@ -13,6 +13,8 @@ import { quickDates, readWhen } from '../_shared/when.ts';
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
   const { db, profileId } = await getCaller(req);
+  // «جاوب» goes to testers first, like on WhatsApp (feature task_answers, R69)
+  if ((await db.rpc('feature_on', { p_key: 'task_answers' })).data !== true) throw new HttpError(403, 'Not available yet');
   const body = (await req.json().catch(() => ({}))) as { task_id?: string; what?: string; text?: string; due?: string; none?: boolean };
   const what = body.what;
   if (!body.task_id || !['due', 'doneDef', 'budget'].includes(what ?? '')) throw new HttpError(400, 'Which task and which detail?');

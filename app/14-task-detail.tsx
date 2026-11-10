@@ -39,7 +39,7 @@ import { useTaskSeen } from '@/features/ladder/api';
 import { TASK_POINTS } from '@/features/tasks/useCompleteTask';
 import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { NS } from '@/features/task-detail/strings';
-import { DetailAnswer, type What as AnswerWhat } from '@/features/task-detail/DetailAnswer';
+import { DetailAnswer, useAnswersOn, type What as AnswerWhat } from '@/features/task-detail/DetailAnswer';
 
 type CheckKey = 'owner' | 'due' | 'doneDef' | 'budget';
 type SubVM = { id: string; name: string; who: string; done: boolean };
@@ -171,6 +171,10 @@ export default function TaskDetailScreen() {
   const missing = (['doneDef', 'due'] as CheckKey[]).find((k) => !checks.find((c) => c.key === k)?.ok);
   // the person doing it asks the one who gave it; the one who gave it (or a manager) adds it themselves
   const meId = me.data?.id;
+  // the answer sheet is for whoever may save there (answer_task_detail): the giver or an admin; others still get the chat
+  const amAdmin = ['admin', 'super_admin'].includes((me.data?.actual_role ?? me.data?.role) ?? '');
+  const answersOn = useAnswersOn();
+  const canAnswer = answersOn && live && !!d && !!meId && (d.assigner_id === meId || amAdmin);
   const doing = live && !!meId && (d?.owner_id === meId || d?.helper_id === meId) && !!d?.assigner_id && d.assigner_id !== meId;
   const allMissing = (['due', 'doneDef'] as DetailKey[]).filter((k) => !checks.find((c) => c.key === k)?.ok);
   const askGiver = async (what: CheckKey | undefined = missing) => {
@@ -390,6 +394,7 @@ export default function TaskDetailScreen() {
               team={team.data ?? []}
               sheet={answerSheet}
               setSheet={setAnswerSheet}
+              isAdmin={amAdmin}
             />
           </View>
         )}
@@ -408,7 +413,7 @@ export default function TaskDetailScreen() {
               reviewer={reviewer}
               asked={asked}
               // the giver adds it right here, in the same sheet as «جاوب» (owner, 10 Nov: "I can't answer … on the task itself")
-              onAdd={(k) => setAnswerSheet(k)}
+              onAdd={(k) => (canAnswer ? setAnswerSheet(k) : addIt(k))}
               onAsk={(k) => askGiver(k)}
               onReview={() => router.push({ pathname: '/15-review', params: { id: d.id } })}
             />

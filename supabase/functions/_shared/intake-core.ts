@@ -562,7 +562,16 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
     .map((t) => (onlyUsersWork && fromUser ? { ...t, asked_by_user: true, asked_of_user: false } : t))
     // asked BY the user, by the reader's own account (requested_by = one of their names): their ask, never their task,
     // whatever the flags say (Nouran, 10 Nov: «Prepare client training» «من Nouran Emira» still waited on her list)
-    .map((t) => (onlyUsersWork && t.requested_by && myNames.some((n) => sameName(n, t.requested_by!)) ? { ...t, asked_by_user: true, asked_of_user: false } : t))
+    // …and only when the name fits nobody else on the team (a teammate who shares her first name asking her stays hers
+    // to do — reviewer, 10 Nov)
+    .map((t) =>
+      onlyUsersWork &&
+      t.requested_by &&
+      myNames.some((n) => sameName(n, t.requested_by!)) &&
+      !input.team.some((p) => p.id !== input.profileId && [p.full_name, p.full_name_ar].some((n) => !!n && sameName(n, t.requested_by!)))
+        ? { ...t, asked_by_user: true, asked_of_user: false }
+        : t,
+    )
     .map((t) => {
       // asked by the user in a direct message: it's the other person's, whoever the model picked, unless the line names
       // someone else on the team (owner, 9 Nov: «اعطيني تفاصيل الدخول» to Nouran went to the "Nouranemira" test login)

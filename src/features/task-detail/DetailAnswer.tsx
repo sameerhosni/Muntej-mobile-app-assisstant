@@ -3,7 +3,7 @@
 // gave the task a «❓ X يسأل عن … · جاوب» bar that opens a sheet to answer right here. Saved by answer-detail →
 // answer_task_detail: the task changes, the question leaves "Needs you", the asker is told.
 import { useState } from 'react';
-import { Modal, Pressable, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppText, Button, Card, TextField } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
@@ -102,14 +102,27 @@ function quickDates(now = new Date()): { key: 'tomorrow' | 'in3' | 'sunday' | 'w
   return all.filter((d) => !seen.has(d.at) && (seen.add(d.at), true)).slice(0, 3);
 }
 
-export function DetailAnswer({ task, meId, team, sheet, setSheet }: { task: Task; meId: string | undefined; team: Person[]; sheet: What | null; setSheet: (w: What | null) => void }) {
+/** answering on the task page is on for this person (testers first: feature task_answers) */
+export function useAnswersOn() {
+  return (
+    useQuery({
+      queryKey: ['featureOn', 'task_answers'],
+      queryFn: async () => (await supabase.rpc('feature_on' as never, { p_key: 'task_answers' } as never)).data === true,
+    }).data === true
+  );
+}
+
+export function DetailAnswer({ task, meId, team, sheet, setSheet, isAdmin = false }: { task: Task; meId: string | undefined; team: Person[]; sheet: What | null; setSheet: (w: What | null) => void; isAdmin?: boolean }) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const qc = useQueryClient();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const giver = !!meId && task.assigner_id === meId;
+  // who may answer / edit: whoever gave it, or an admin (answer_task_detail's own rule — reviewer, 10 Nov)
+  // the question bar and the answer sheet: testers first, like «جاوب» on WhatsApp (feature task_answers, R69)
+  const answersOn = useAnswersOn();
+  const giver = answersOn && !!meId && (task.assigner_id === meId || isAdmin);
 
   // the open question(s) about this task, for the giver (alerts.detail_asked, unread)
   const asks = useQuery({
@@ -214,6 +227,8 @@ export function DetailAnswer({ task, meId, team, sheet, setSheet }: { task: Task
       </Card>
 
       <Modal visible={!!sheet} transparent animationType="slide" onRequestClose={close}>
+        {/* the keyboard pushes the sheet up, never covers the box and «حفظ» (R65: padding on Android too) */}
+        <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Pressable onPress={close} style={{ flex: 1, backgroundColor: 'rgba(11,26,51,0.35)' }} />
         <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.cardLg, borderTopRightRadius: radius.cardLg, padding: spacing.screen, gap: spacing.md }}>
           <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
@@ -260,6 +275,7 @@ export function DetailAnswer({ task, meId, team, sheet, setSheet }: { task: Task
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

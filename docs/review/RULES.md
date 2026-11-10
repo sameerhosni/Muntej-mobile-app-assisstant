@@ -548,3 +548,7 @@ Last updated: 2026-11-09.
 ### R126 · The database decides whose row it is, never a value the app loaded earlier
 - **Why:** 10 Nov, QA: «Send an idea» failed in most runs — the app sent the profile and account it had loaded, but the policy accepts only current_profile_id(); after a seat switch they differ.
 - **Check:** inserts whose policy checks `current_profile_id()` let the database fill the owner and account (a BEFORE INSERT trigger or a default), and the app doesn't send them.
+
+### R127 · A file upload follows the same seat rule as its row
+- **Why:** 10 Nov, reviewer: ideas were fixed to take the server's seat (R126), but their files were still uploaded to the folder of the seat the app had loaded, and the storage policy checks current_profile_id().
+- **Check:** when the database decides a row's seat, uploads for that row use the seat the server sees (current_profile_id) too.

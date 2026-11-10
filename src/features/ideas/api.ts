@@ -109,7 +109,12 @@ export function useSendIdea() {
       const p = me.data;
       if (!p) throw new Error('Not signed in');
       const attachments: Attachment[] = [];
-      for (const f of v.files ?? []) attachments.push(await upload(p.id, f));
+      // files go in the folder of the seat the SERVER sees (the storage policy checks current_profile_id(), like the
+      // row; reviewer, 10 Nov, R126): never the one the app loaded before a seat switch
+      if (v.files?.length) {
+        const { data: seat } = await untyped.rpc('current_profile_id');
+        for (const f of v.files) attachments.push(await upload((seat as string | null) ?? p.id, f));
+      }
       // the seat is filled in by the database (ideas_fill_seat): the one the server sees now, never a stale one the app
       // loaded before a seat switch (QA, 10 Nov: the insert was refused)
       const { error } = await untyped.from('ideas').insert({ kind: v.kind, body: v.body.trim(), screen: v.screen, attachments });
