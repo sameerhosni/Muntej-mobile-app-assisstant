@@ -383,25 +383,45 @@ async function server() {
   });
   // The owner, 10 Nov: "unclear" — Nouran got «من أدواتك: لقيت مهمة وحدة لك، تنتظر موافقتك» (no name, no buttons), asked
   // «ايه هي؟», and the chat answered about another task. Read as the user: the next «ايه هي؟» shows that task's card.
-  await check('whatsapp', 'After «found a task in your tools», «ايه هي؟» shows that task with Approve / Ignore', async () => {
-    const title = `QA tools found task ${Date.now().toString(36)}`;
-    const [item] = await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, suggestions)
-      values ('${QA_BOSS}', 'gmail', 'qa-${Date.now()}', 'QA', 'QA', 'new',
-        '[{"title":"${title}","owner_id":"${QA_BOSS}","due_at":null,"priority":"medium","state":"new","task_id":null,"duplicate_of":null,"confidence":0.9,"quote":"","description":null,"definition_of_done":null,"proof_required":"none","budget":null,"estimate_hours":null,"requested_by":null,"amends_earlier":false,"owner_name":null,"outside":false,"asked_by_user":false,"asked_of_user":true}]'::jsonb) returning id`);
-    const [al] = await sql(`insert into public.alerts (profile_id, kind, title, body, title_ar, body_ar, dedupe_key, delivered_at)
-      values ('${QA_BOSS}', 'tools_found', 'From your tools', 'x', 'من أدواتك', 'x', 'qa-tools-${Date.now()}', now()) returning id`);
+  await check('whatsapp', 'After «found a task in your tools», «ايه هي؟» shows exactly that task with Approve / Ignore', async () => {
+    const sug = (title) => `[{"title":"${title}","owner_id":null,"due_at":null,"priority":"medium","state":"new","task_id":null,"duplicate_of":null,"confidence":0.9,"quote":"","description":null,"definition_of_done":null,"proof_required":"none","budget":null,"estimate_hours":null,"requested_by":null,"amends_earlier":false,"owner_name":null,"outside":false,"asked_by_user":false,"asked_of_user":true}]`;
+    const item = async (owner, title, ago) =>
+      (await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, suggestions, received_at)
+        values ('${owner}', 'gmail', 'qa-${Math.random().toString(36).slice(2)}', 'QA', 'QA', 'new', '${sug(title)}'::jsonb, now() - interval '${ago}') returning id`))[0];
+    const alert = async (owner, itemId) =>
+      (await sql(`insert into public.alerts (profile_id, kind, title, body, title_ar, body_ar, dedupe_key, delivered_at)
+        values ('${owner}', 'tools_found', 'From your tools', 'x', 'من أدواتك', 'x', 'tools_found:qa:${Date.now()}:${itemId}', now()) returning id`))[0];
+    const made = { items: [], alerts: [] };
+    const DEMO = 'c0000000-0000-4000-b000-000000000001';
+    const OTHER = 'c0000000-0000-4000-b000-000000000011';
+    const [{ phone: otherPhone }] = await sql(`select phone from public.profiles where id = '${OTHER}'`);
     try {
+      // the alert's task is older than another waiting one: the reply must show the alert's, not the newest
+      const tag = Date.now().toString(36);
+      const found = await item(QA_BOSS, `QA found ${tag}`, '3 days');
+      const newer = await item(QA_BOSS, `QA newer other ${tag}`, '1 minute');
+      made.items.push(found.id, newer.id);
+      made.alerts.push((await alert(QA_BOSS, found.id)).id);
       const msgs = await wa('ايه هي؟');
       const all = JSON.stringify(msgs);
-      expect(all.includes(title), `the task wasn't shown: ${texts(msgs).slice(0, 140)}`);
-      expect(all.includes(`ok:${item.id}:0`) && all.includes(`no:${item.id}:0`), 'no Approve / Ignore on it');
-      return 'the task, with its buttons';
+      expect(all.includes(`QA found ${tag}`), `the alert's task wasn't shown: ${texts(msgs).slice(0, 140)}`);
+      expect(!all.includes(`QA newer other ${tag}`), 'showed another waiting task instead');
+      expect(all.includes(`ok:${found.id}:0`) && all.includes(`no:${found.id}:0`), 'no Approve / Ignore on it');
+      // the alert on the number's OTHER seat (two companies): still found
+      await jwtFor(OTHER, DEMO);
+      await sql(`update public.profiles set phone = '${QA_PHONE}' where id = '${OTHER}'`);
+      const theirs = await item(OTHER, `QA other seat ${tag}`, '2 days');
+      made.items.push(theirs.id);
+      made.alerts.push((await alert(OTHER, theirs.id)).id);
+      const msgs2 = await wa('ايه هي؟');
+      expect(JSON.stringify(msgs2).includes(`QA other seat ${tag}`), `the other seat's alert was missed: ${texts(msgs2).slice(0, 140)}`);
+      return 'that exact task, on either seat, with its buttons';
     } finally {
-      await sql(`delete from public.alerts where id = '${al.id}'`);
-      await sql(`delete from public.incoming_items where id = '${item.id}'`);
+      await sql(`update public.profiles set phone = ${otherPhone ? `'${otherPhone}'` : 'null'} where id = '${OTHER}'`);
+      if (made.alerts.length) await sql(`delete from public.alerts where id in (${made.alerts.map((x) => `'${x}'`).join(',')})`);
+      if (made.items.length) await sql(`delete from public.incoming_items where id in (${made.items.map((x) => `'${x}'`).join(',')})`);
     }
-  });
-  // The owner, 10 Nov: "Is it only 1 needs me or 23?" — the midday report said «1 تحتاجك» (30 tools tasks counted as one
+  });  // The owner, 10 Nov: "Is it only 1 needs me or 23?" — the midday report said «1 تحتاجك» (30 tools tasks counted as one
   // line) and «وش يحتاجني» a tap later said «فيه 23 شي يحتاجك». The same number, from the same list.
   await check('whatsapp', 'The report’s “need you” number is what «وش يحتاجني» lists', async () => {
     const r = await fn('daily-summary', { test: true, kind: 'midday', dry: true }, JWT);

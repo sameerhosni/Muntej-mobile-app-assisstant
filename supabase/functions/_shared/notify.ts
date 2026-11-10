@@ -7,7 +7,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { translationPending } from './task-text.ts';
 import { companyTags, consoleSeats, sendPush } from './push.ts';
 import { ACTION_TEMPLATE, inWindow, rtl, waButtons, waTemplate, localizedFor } from './wa.ts';
-import { needsYouCards } from './wa-actions.ts';
+import { foundItemIds, needsYouCards, toolCardsFor } from './wa-actions.ts';
 import { phCapture } from './posthog.ts';
 import { sendEmail } from './email.ts';
 
@@ -522,17 +522,19 @@ async function whatsAppAlert(
   // tasks found in their tools come as those tasks' own cards (✅ اعتمد / ✖️ تجاهل), never a bare count (owner, 10 Nov:
   // «لقيت مهمة وحدة لك» → «ايه هي؟» and the chat didn't know)
   const toolsFound = about('tools_found').length > 0;
-  const all = decided.length || reviewed.size || toolsFound ? await needsYouCards(admin, person.id, ar) : [];
+  const all = decided.length || reviewed.size ? await needsYouCards(admin, person.id, ar) : [];
   const cards = all.filter(
     (c) =>
       (c.kind === 'decision' && decided.some((a) => !a.task_id || a.task_id === c.taskId)) ||
       (c.kind === 'review' && reviewed.has(c.taskId ?? null)),
   );
-  const toolCards = toolsFound ? all.filter((c) => c.kind === 'tool').slice(0, 3) : [];
+  // exactly the items the alert named (kept in its key), never the newest waiting ones (reviewer, 10 Nov)
+  const found = toolsFound ? await toolCardsFor(admin, [...new Set(about('tools_found').flatMap((a) => foundItemIds(a.dedupe_key)))], ar) : [];
+  const toolCards = found.slice(0, 3);
   let ok = true;
   for (const c of cards.slice(0, 3)) ok = (await waButtons(person.phone, pre(c.taskId, c.body), c.buttons)) && ok;
   for (const c of toolCards) ok = (await waButtons(person.phone, pre(null, c.body), c.buttons)) && ok;
-  const toolsLeft = all.filter((c) => c.kind === 'tool').length - toolCards.length;
+  const toolsLeft = found.length - toolCards.length;
   if (toolCards.length && toolsLeft > 0)
     ok = (await sendWhatsApp(person.phone, rtl(ar, ar ? `و${toolsLeft} غيرها من أدواتك: قل «وش يحتاجني» أو افتح منتج ← الرئيسية ← «يحتاجك»` : `+${toolsLeft} more from your tools: say "what needs me" or open Muntej → Home → "Needs you"`))) && ok;
   const carded = (a: PendingAlert) =>

@@ -504,3 +504,7 @@ Last updated: 2026-11-09.
 ### R115 · Every message Muntej sends is checked as the person reads it
 - **Why:** 10 Nov, the owner ("unclear", "why we are not getting this in QA activities? we should add these scenarios every time"): «من أدواتك: لقيت مهمة وحدة لك، تنتظر موافقتك» named no task and had no buttons; Nouran replied «ايه هي؟» and Saree3 answered about another task. QA had checked that the alert existed, never what it said.
 - **Check:** a new or changed notification (push, WhatsApp, report line) has a QA case that reads its words as the person: it names the thing (task, person, number), has a way to act or open it, and the natural next reply («ايه هي؟» / "what is it?") is answered about that same thing.
+
+### R116 · A follow-up to an alert uses the exact items it named, on any seat of the login
+- **Why:** 10 Nov, reviewer: the «ايه هي؟» answer and the WhatsApp cards came from "the 10 newest waiting items", so an alert could name «X» and show three others; and only the picked seat's alerts were looked at.
+- **Check:** an alert about specific items keeps their ids (in its key or a column) and every follow-up shows exactly those; "what is it?" looks across every seat of the number; with no card for it, the task itself is shown, never a guess.

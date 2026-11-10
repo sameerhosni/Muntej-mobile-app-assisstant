@@ -35,7 +35,7 @@ import {
   type WaButton,
   type WaRow,
 } from '../_shared/wa.ts';
-import { lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolListButtons, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
+import { foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolCardsFor, toolListButtons, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
 import { quickDates, readWhen } from '../_shared/when.ts';
 
 /** "what is it?" about the last thing Muntej sent (whole message; Arabic without \b, R112) */
@@ -565,26 +565,42 @@ async function handle(m: WaMessage, dry = false) {
   // «ايه هي؟» / "what is it?" right after Muntej told them about something: show that thing, never guess (owner, 10 Nov:
   // after «لقيت مهمة وحدة لك» the chat answered about another task's definition of done)
   if (WHAT_IS_IT.test(text.trim())) {
+    // the latest alert on ANY seat of this number (two company seats: it may be on the other one — reviewer, 10 Nov)
     const { data: last } = await admin
       .from('alerts')
-      .select('kind, task_id')
-      .eq('profile_id', me.id)
+      .select('kind, task_id, profile_id, dedupe_key')
+      .in('profile_id', people.map((p) => p.id))
       .not('delivered_at', 'is', null)
       .gte('delivered_at', new Date(Date.now() - 2 * 3_600_000).toISOString())
       .order('delivered_at', { ascending: false })
       .limit(1)
       .maybeSingle();
     if (last?.kind === 'tools_found') {
-      const tools = (await needsYouCards(admin, me.id, ar)).filter((c) => c.kind === 'tool');
+      // exactly the items that alert named
+      const tools = await toolCardsFor(admin, foundItemIds(last.dedupe_key as string | null), ar);
       if (tools.length) return void (await sendCards(from, ar, tools, 3));
       return void (await say(ar ? 'كانت من أدواتك، وما عاد فيه شي ينتظرك منها 👌' : 'It was from your tools, and nothing from them is waiting any more 👌'));
     }
     if (last?.task_id) {
-      const card = (await needsYouCards(admin, me.id, ar)).find((c) => c.taskId === last.task_id);
+      const seat = last.profile_id as string;
+      const card = (await needsYouCards(admin, seat, ar)).find((c) => c.taskId === last.task_id);
       if (card) return void (await waButtons(from, card.body, card.buttons));
+      // no card for it: the task itself, never a guess (R115)
+      const { data: t } = await admin.from('tasks').select('id, title, translations, due_at, status, owner_id').eq('id', last.task_id).maybeSingle();
+      if (t) {
+        const title = titleIn(t as never, ar ? 'ar' : 'en');
+        const due = t.due_at ? `\n⏰ ${whenText(t.due_at as string, ar)}` : '';
+        const openMine = t.owner_id === seat && ['assigned', 'in_progress', 'blocked', 'returned'].includes(t.status as string);
+        if (openMine)
+          return void (await waButtons(from, rtl(`📝 *${title}*${due}`), [
+            { id: `h:done:${t.id}`, title: ar ? '✅ خلصت' : '✅ Done' },
+            { id: `h:need_time:${t.id}`, title: ar ? '⏳ أبي وقت' : '⏳ Need time' },
+            { id: `h:blocked:${t.id}`, title: ar ? '🆘 أبي مساعدة' : '🆘 Need help' },
+          ]));
+        return void (await say(`📝 *${title}*${due}\n${ar ? 'تفاصيلها في منتج ← المهام' : 'Details in Muntej → Tasks'}`));
+      }
     }
   }
-
   if (SAYS_HELP.test(text)) return void (await say(helpText(ar)));
   // what Muntej is doing, in the chat itself (owner, 9 Nov: "Need more than typing in the chat itself, something like
   // Claude in simple way"; he picked option 2): read it, then the step, before the work starts

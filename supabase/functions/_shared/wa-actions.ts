@@ -136,22 +136,7 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
       buttons: [{ id: `da:${a.task_id}:${what}`, title: ar ? '✍️ جاوب' : '✍️ Answer' }],
     });
   }
-  for (const it of items ?? [])
-    for (const [i, s] of ((it.suggestions ?? []) as { state: string; title: string; due_at: string | null }[]).entries()) {
-      if (s.state !== 'new') continue;
-      const tool = (SOURCE[it.source as string] ?? [it.source, it.source])[ar ? 0 : 1];
-      const dup = !!(s as { duplicate_of?: unknown }).duplicate_of;
-      cards.push({
-        kind: 'tool',
-        ref: { item: it.id as string, index: i },
-        line: `*${s.title.length > 70 ? `${s.title.slice(0, 69)}…` : s.title}*\n   ${[tool, s.due_at ? whenText(s.due_at, ar) : null, dup ? (ar ? '♻️ موجودة قبل' : '♻️ already a task') : null].filter(Boolean).join(' · ')}`,
-        body: rtl(ar, `🔌 ${ar ? 'لقيتها في' : 'Found in'} ${(SOURCE[it.source as string] ?? [it.source, it.source])[ar ? 0 : 1]}:\n📝 *${s.title}*${s.due_at ? `\n⏰ ${whenText(s.due_at, ar)}` : ''}`),
-        buttons: [
-          { id: `ok:${it.id}:${i}`, title: ar ? '✅ اعتمد' : '✅ Approve' },
-          { id: `no:${it.id}:${i}`, title: ar ? '✖️ تجاهل' : '✖️ Ignore' },
-        ],
-      });
-    }
+  for (const it of items ?? []) cards.push(...toolCardsOf(it as ToolItem, ar));
   for (const t of mine ?? []) {
     const late = Date.parse(t.due_at as string) < now;
     cards.push({
@@ -165,6 +150,40 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
     });
   }
   return cards;
+}
+
+type ToolItem = { id: string; source: string; suggestions: { state: string; title: string; due_at: string | null; duplicate_of?: unknown }[] | null };
+
+/** an item's waiting suggestions as cards (✅ اعتمد / ✖️ تجاهل) */
+function toolCardsOf(it: ToolItem, ar: boolean): WaCard[] {
+  const out: WaCard[] = [];
+  const tool = (SOURCE[it.source] ?? [it.source, it.source])[ar ? 0 : 1];
+  for (const [i, s] of (it.suggestions ?? []).entries()) {
+    if (s.state !== 'new') continue;
+    const dup = !!s.duplicate_of;
+    out.push({
+      kind: 'tool',
+      ref: { item: it.id, index: i },
+      line: `*${s.title.length > 70 ? `${s.title.slice(0, 69)}…` : s.title}*\n   ${[tool, s.due_at ? whenText(s.due_at, ar) : null, dup ? (ar ? '♻️ موجودة قبل' : '♻️ already a task') : null].filter(Boolean).join(' · ')}`,
+      body: rtl(ar, `🔌 ${ar ? 'لقيتها في' : 'Found in'} ${tool}:\n📝 *${s.title}*${s.due_at ? `\n⏰ ${whenText(s.due_at, ar)}` : ''}`),
+      buttons: [
+        { id: `ok:${it.id}:${i}`, title: ar ? '✅ اعتمد' : '✅ Approve' },
+        { id: `no:${it.id}:${i}`, title: ar ? '✖️ تجاهل' : '✖️ Ignore' },
+      ],
+    });
+  }
+  return out;
+}
+
+/** the exact items a "found in your tools" alert named (kept in its key: tools_found:<conn>:<ts>:<id,id>) */
+export const foundItemIds = (dedupeKey: string | null | undefined) => (/^tools_found:[^:]+:\d+:(.+)$/.exec(dedupeKey ?? '')?.[1] ?? '').split(',').filter(Boolean);
+
+/** cards for exactly those items, still waiting (reviewer, 10 Nov: never "the newest waiting ones") */
+export async function toolCardsFor(admin: SupabaseClient, itemIds: string[], ar: boolean): Promise<WaCard[]> {
+  if (!itemIds.length) return [];
+  const { data } = await admin.from('incoming_items').select('id, source, suggestions').in('id', itemIds).eq('status', 'new');
+  const byId = new Map(((data ?? []) as ToolItem[]).map((x) => [x.id, x]));
+  return itemIds.flatMap((id) => (byId.get(id) ? toolCardsOf(byId.get(id)!, ar) : []));
 }
 
 /** The one profile a WhatsApp number speaks for when it's on several accounts: the account its person works in now

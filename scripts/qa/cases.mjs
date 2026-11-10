@@ -224,7 +224,7 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         const conn = readFileSync(new URL('../../supabase/functions/_shared/connections.ts', import.meta.url), 'utf8');
         const notify = readFileSync(new URL('../../supabase/functions/_shared/notify.ts', import.meta.url), 'utf8');
         expect(/title_ar: n === 1 \? `🔌 من أدواتك: \$\{named\[0\]\}`/.test(conn), 'the alert does not name the task');
-        expect(/const toolCards = toolsFound \?/.test(notify), 'on WhatsApp it is not the task’s card');
+        expect(/toolCardsFor\(admin, \[\.\.\.new Set\(about\('tools_found'\)\.flatMap\(\(a\) => foundItemIds\(a\.dedupe_key\)\)\)\]/.test(notify), 'on WhatsApp it is not the cards of the items it named');
         return 'named, with its card';
       });
       await check('inbox', 'Tools: the WhatsApp list says where they are in the app', async () => {
