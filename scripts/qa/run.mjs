@@ -327,6 +327,26 @@ async function server() {
     expect(after.token_hash, 'no sign-in after the message');
     return 'waits, then signs in';
   });
+  // The owner, 10 Nov: Nouran tapped «↩️ رجّعها» on one seat, typed why, and the answer reached her other seat on the
+  // same number, which didn't know which task. Two seats on one number: the typed answer goes to the seat that asked.
+  await check('whatsapp', 'A typed answer goes to the seat that asked for it (two seats, one number)', async () => {
+    const [task] = await sql(`select id from public.tasks where owner_id = '${QA_FAISAL}' and status <> 'cancelled' order by created_at desc limit 1`);
+    expect(task, 'no task of Faisal’s to answer on');
+    await sql(`update public.profiles set phone = '${QA_PHONE}' where id = '${QA_FAISAL}'`);
+    try {
+      await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('cm:${QA_FAISAL}', '${QA_FAISAL}', '{"task_id":"${task.id}"}', now())
+                 on conflict (key) do update set body = excluded.body, created_at = now()`);
+      const word = `QA جواب ${Date.now()}`;
+      const msgs = await wa(word);
+      const [c] = await sql(`select author_id from public.task_comments where task_id = '${task.id}' and body = '${word}'`);
+      expect(c, `the answer didn’t land on the task: ${texts(msgs).slice(0, 140)}`);
+      expect(c.author_id === QA_FAISAL, 'the answer landed as the other seat');
+      return 'answered as the seat that asked';
+    } finally {
+      await sql(`update public.profiles set phone = null where id = '${QA_FAISAL}'`);
+      await sql(`delete from public.wa_pending where key = 'cm:${QA_FAISAL}'`);
+    }
+  });
   await sql(`update public.profiles set phone = null where id = '${QA_BOSS}'`);
 }
 

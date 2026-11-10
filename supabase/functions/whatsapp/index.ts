@@ -469,6 +469,20 @@ async function handle(m: WaMessage, dry = false) {
   if (people.length > 1 && !tappedAny && !(await aiAllowed(pick, admin))) {
     for (const p of people) if (p.id !== pick && (await aiAllowed(p.id, admin))) { pick = p.id; break; }
   }
+  // a typed answer goes to the seat that just asked for it: «↩️ رجّعها» / «💬 رد عليه» / "something's wrong" wait
+  // (30 min) on the seat whose button was tapped (owner, 10 Nov: Nouran tapped «رجّعها» on T2, typed why, and it
+  // reached her other seat, which didn't know which task)
+  if (people.length > 1 && !tappedAny) {
+    const { data: waiting } = await admin
+      .from('wa_pending')
+      .select('profile_id, key')
+      .in('profile_id', people.map((p) => p.id))
+      .or(people.flatMap((p) => ['note', 'cm', 'obfix'].map((k) => `key.eq.${k}:${p.id}`)).join(','))
+      .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (waiting?.[0]) pick = waiting[0].profile_id as string;
+  }
   const me = (people.find((p) => p.id === pick) ?? people[0]) as Me;
   const ar = prefersArabic(me.locale);
   const lang = ar ? 'ar' : me.locale === 'hi' ? 'hi' : 'en';

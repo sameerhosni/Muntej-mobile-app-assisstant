@@ -433,3 +433,7 @@ Last updated: 2026-11-09.
 ### R97 · A heading added before an RLM-wrapped message keeps the RLM first
 - **Why:** 10 Nov, reviewer pass 2: «*T2 · مهمتك*» was put on top of WhatsApp cards that `rtl()` had wrapped; the Latin "T" became the first letter and flipped the whole Arabic bubble left to right.
 - **Check:** any prefix or heading added in front of a WhatsApp or push text wraps the final text in `rtl()` / `rtlSafe()` again.
+
+### R98 · On one number with several seats, a typed answer goes to the seat that asked for it
+- **Why:** 10 Nov: Nouran tapped «↩️ رجّعها» on her T2 seat; her typed reason went to her other seat (picked for typing), which had no pending note and didn't know which task.
+- **Check:** any WhatsApp step that waits for the next typed message (`wa_pending` note/cm/obfix…) is found from whichever seat on the number is waiting, not only the one picked for typing.
