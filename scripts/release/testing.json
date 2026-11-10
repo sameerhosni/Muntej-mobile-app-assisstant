@@ -2,5 +2,6 @@
   "message": "One Cancel, split row with X, chat stops inventing cards; Task page buttons (N2) + close or review choice (N3); Nouran's testing N1-N23: task buttons, busy in own words, real thanks, approvals, needs-you tab, WhatsApp replies; Decisions: clean header, already-done, no spinner; DM work to the right person; reminders for invited people; reviewer + consultant agents; Super admin: system dashboard, no notifications; one report per phone with the company name and the same numbers; Tools bring only your work; answer questions on WhatsApp; AI on by default; one need-you count; closed tasks in the chat; iPhone Muntej Test build setup; Task page shows details and «جاوب»; WhatsApp tools drop-down with who/when; clearer tools alert; due-date buttons fixed; own asks never on your list; ideas send again",
   "group": "400ea847-e08c-4d4c-af42-2c8d580ed1a5",
   "at": "2026-11-10T18:19:19.573Z",
-  "commit": "f22af729ea9f1bfe3e7d2a8985883cc4cc1092ba"
+  "commit": "f22af729ea9f1bfe3e7d2a8985883cc4cc1092ba",
+  "live_at": "2026-11-10T18:27:43.735Z"
 }
