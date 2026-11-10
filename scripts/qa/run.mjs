@@ -330,32 +330,37 @@ async function server() {
   // The owner, 10 Nov: Nouran tapped «↩️ رجّعها» on one seat, typed why, and the answer reached her other seat on the
   // same number, which didn't know which task. Two seats on one number: the typed answer goes to the seat that asked.
   await check('whatsapp', 'A typed answer goes to the seat that asked for it (two seats, one number)', async () => {
-    const [task] = await sql(`select id from public.tasks where owner_id = '${QA_FAISAL}' and status <> 'cancelled' order by created_at desc limit 1`);
-    expect(task, 'no task of Faisal’s to answer on');
-    const [{ ai_consent: faisalAi }] = await sql(`select ai_consent from public.profiles where id = '${QA_FAISAL}'`);
+    // the second seat is in another company (one number holds one seat per company): the demo company's person
+    const DEMO = 'c0000000-0000-4000-b000-000000000001';
+    const OTHER = 'c0000000-0000-4000-b000-000000000011';
+    const [{ ai_consent: otherAi, phone: otherPhone }] = await sql(`select ai_consent, phone from public.profiles where id = '${OTHER}'`);
+    // the QA seed removes test logins: the second seat needs one to be found on WhatsApp (reviewer, 10 Nov, R100)
+    await jwtFor(OTHER, DEMO);
+    const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA two seats answer', '${OTHER}', '${OTHER}', 'in_progress') returning id`);
     // Nouran's state: other cards came after her tap (a newer pending row on the other seat), and the asking seat may
     // not have allowed AI (reviewer, 10 Nov: without these the case passed on the old code too)
-    const other = `qa${Date.now().toString(36)}`;
-    await sql(`update public.profiles set phone = '${QA_PHONE}' where id = '${QA_FAISAL}'`);
+    const newer = `qa${Date.now().toString(36)}`;
+    await sql(`update public.profiles set phone = '${QA_PHONE}' where id = '${OTHER}'`);
     try {
       const answerAs = async (consent) => {
-        await sql(`update public.profiles set ai_consent = ${consent} where id = '${QA_FAISAL}'`);
-        await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('cm:${QA_FAISAL}', '${QA_FAISAL}', '{"task_id":"${task.id}"}', now())
+        await sql(`update public.profiles set ai_consent = ${consent} where id = '${OTHER}'`);
+        await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('cm:${OTHER}', '${OTHER}', '{"task_id":"${task.id}"}', now())
                    on conflict (key) do update set body = excluded.body, created_at = now()`);
-        await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('${other}', '${QA_BOSS}', '{}', now() + interval '1 second')
+        await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('${newer}', '${QA_BOSS}', '{}', now() + interval '1 second')
                    on conflict (key) do update set created_at = now() + interval '1 second'`);
         const word = `QA جواب ${Date.now()}`;
         const msgs = await wa(word);
         const [c] = await sql(`select author_id from public.task_comments where task_id = '${task.id}' and body = '${word}'`);
         expect(c, `${consent ? 'with' : 'without'} AI: the answer didn’t land on the task: ${texts(msgs).slice(0, 140)}`);
-        expect(c.author_id === QA_FAISAL, 'the answer landed as the other seat');
+        expect(c.author_id === OTHER, 'the answer landed as the other seat');
       };
       await answerAs(true);
       await answerAs(false);
       return 'answered as the seat that asked, with or without AI consent, after other cards';
     } finally {
-      await sql(`update public.profiles set phone = null, ai_consent = ${faisalAi === null ? 'null' : faisalAi} where id = '${QA_FAISAL}'`);
-      await sql(`delete from public.wa_pending where key in ('cm:${QA_FAISAL}', '${other}')`);
+      await sql(`update public.profiles set phone = ${otherPhone ? `'${otherPhone}'` : 'null'}, ai_consent = ${otherAi === null ? 'null' : otherAi} where id = '${OTHER}'`);
+      await sql(`delete from public.wa_pending where key in ('cm:${OTHER}', '${newer}')`);
+      await sql(`delete from public.tasks where id = '${task.id}'`);
     }
   });
   await sql(`update public.profiles set phone = null where id = '${QA_BOSS}'`);

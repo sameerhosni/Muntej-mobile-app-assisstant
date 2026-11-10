@@ -441,3 +441,7 @@ Last updated: 2026-11-09.
 ### R99 · A "picked the wrong seat" QA case rebuilds the competing state
 - **Why:** 10 Nov, reviewer on R98's fix: the first case passed on the old code too, because nothing on the other seat competed (no newer pending row, AI allowed on both).
 - **Check:** a case for a wrong-seat or wrong-account fix recreates what the other seat had (a newer pending row, AI consent on one seat only) and is shown to fail on the old code.
+
+### R100 · A QA case that needs a second seat gives it a login first
+- **Why:** 10 Nov, reviewer pass 2 on R98: the two-seats case could never pass, because the QA seed clears every test person's login and WhatsApp only finds seats with one.
+- **Check:** a case that needs WhatsApp or the chat to find another QA profile calls `jwtFor(profile, account)` first.
