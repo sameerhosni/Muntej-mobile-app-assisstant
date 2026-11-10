@@ -445,7 +445,8 @@ async function server() {
           expect(!j.includes('h:done:') && !/تفاصيلها في منتج/.test(texts(r)), 'the card branch fell through');
           continue;
         }
-        expect(j.includes(`QA what is it ${own ? 'mine' : 'gave'} ${tag}`), `the task wasn't shown (${own ? 'own' : 'given'}): ${texts(r).slice(0, 140)}`);
+        // titles get translated for the reader («سوي QA: what is it mine …»): match the unique tag, not the words
+        expect(j.includes(`${tag}`) && j.includes(own ? 'mine' : 'gave'), `the task wasn't shown (${own ? 'own' : 'given'}): ${texts(r).slice(0, 140)}`);
         if (own) expect(j.includes(`h:done:${t.id}`), 'no Done / Need time / Need help on their own task');
         else expect(!j.includes('h:done:') && /تفاصيلها في منتج|Details in Muntej/.test(texts(r)), `a given task should just say where to see it: ${texts(r).slice(0, 120)}`);
       }
