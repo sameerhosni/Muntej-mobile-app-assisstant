@@ -1,6 +1,6 @@
 {
-  "message": "One Cancel, split row with X, chat stops inventing cards; Task page buttons (N2) + close or review choice (N3); Nouran's testing N1-N23: task buttons, busy in own words, real thanks, approvals, needs-you tab, WhatsApp replies; Decisions: clean header, already-done, no spinner; DM work to the right person; reminders for invited people; reviewer + consultant agents; Super admin: system dashboard, no notifications; one report per phone with the company name and the same numbers",
-  "group": "c9782f65-e5af-4d40-bbfd-4511d9557ec4",
-  "at": "2026-11-10T08:26:32.458Z",
-  "commit": "debcbb6d130653e216942b00a12e992ddf765ba8"
+  "message": "One Cancel, split row with X, chat stops inventing cards; Task page buttons (N2) + close or review choice (N3); Nouran's testing N1-N23: task buttons, busy in own words, real thanks, approvals, needs-you tab, WhatsApp replies; Decisions: clean header, already-done, no spinner; DM work to the right person; reminders for invited people; reviewer + consultant agents; Super admin: system dashboard, no notifications; one report per phone with the company name and the same numbers; Tools bring only your work; answer questions on WhatsApp; AI on by default; one need-you count; closed tasks in the chat; iPhone Muntej Test build setup",
+  "group": "80e51974-a8d8-413d-ab6c-5913eacb5898",
+  "at": "2026-11-10T11:58:10.821Z",
+  "commit": "4ae73c98b8888e09597396fd9f87fd59a1d621b7"
 }
