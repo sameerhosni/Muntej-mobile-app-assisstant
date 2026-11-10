@@ -173,6 +173,33 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         expect(s0?.closed_by_reply || closedTask, `still open: ${s0?.state}${s0?.task_id ? ' (task)' : ''}`);
         return s0.closed_by_reply ? 'left the list' : 'task closed';
       });
+      // reviewer, 10 Nov: a reply-close follows Done's rule: an employee with a manager → review, never a silent close
+      await check('inbox', 'Tools: closed by a reply follows Done (an employee with a manager goes for review)', async () => {
+        const [mine] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA reply close (employee)', '${FAISAL}', '${FAISAL}', 'in_progress') returning id`);
+        try {
+          const [{ r }] = await sql(`select public.close_by_reply('${mine.id}', '${FAISAL}', 'qa: the chat shows it done') r`);
+          expect(r === 'submitted', `an employee's own task became «${r}»`);
+          const [rv] = await sql(`select reviewer_id from public.reviews where task_id = '${mine.id}' and decision is null`);
+          expect(rv?.reviewer_id === QA_BOSS, 'no review round for the manager');
+          const [log] = await sql(`select undoable, actor_id from public.activity_log where task_id = '${mine.id}' and action = 'closed_by_reply'`);
+          expect(log?.undoable && log.actor_id === FAISAL, 'not undoable by the person');
+          return 'sent for the manager’s review, undoable';
+        } finally {
+          await sql(`delete from public.reviews where task_id = '${mine.id}'`);
+          await sql(`delete from public.alerts where task_id = '${mine.id}'`);
+          await sql(`delete from public.activity_log where task_id = '${mine.id}'`);
+          await sql(`delete from public.tasks where id = '${mine.id}'`);
+        }
+      });
+      // reviewer, 10 Nov: a tester is the login (any seat), as in the app
+      await check('inbox', 'Tools: the testers switch reads the whole login, every seat the same', async () => {
+        const rows = await sql(`select me.id, public.feature_on_for('tools_only_mine', me.id) on_,
+            exists (select 1 from public.profiles p where p.user_id = me.user_id and p.tester and p.status <> 'deleted') tester
+          from public.profiles me where me.user_id in (select user_id from public.profiles where user_id is not null group by user_id having count(*) > 1) and me.status <> 'deleted'`);
+        const off = rows.filter((x) => x.tester && !x.on_);
+        expect(!off.length, `${off.length} seats of testers are left out`);
+        return `${rows.length} seats on shared logins agree`;
+      });
       await check('inbox', 'Tools: nobody can read a message as someone else’s connection', async () => {
         const faisal = await jwtFor(FAISAL, QA_ACCOUNT);
         const r = await fn('intake', { action: 'ingest', text: `QA connection check ${Date.now()}`, source: 'gmail', connection_id: conn.id }, faisal);

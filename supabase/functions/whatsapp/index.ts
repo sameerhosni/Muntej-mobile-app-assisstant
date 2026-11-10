@@ -44,7 +44,7 @@ const WHAT_AR: Record<What, string> = { due: 'الموعد', doneDef: 'تعري�
 const WHAT_EN: Record<What, string> = { due: 'due date', doneDef: 'definition of done', budget: 'budget' };
 /** "there's none": closes a budget / definition-of-done question without filling it */
 // (no \b: without the u flag JS sees Arabic letters as non-word, so «ما فيه ميزانية» never matched — reviewer, 10 Nov)
-const NONE = /^(ما\s*(فيه|في|له|لها|عندها)|مافي|ماله|لا يوجد|بدون|no( budget)?|none|nothing|n\/a)(?=\s|$|[،.!؟,])/i;
+const NONE = /^(ما\s*(فيه|فيها|في|له|لها|عنده|عندها|عندي)|مافي|مافيه|مافيها|ماله|مالها|لا\s*(يوجد|شي)|لا|ولا\s*شي|بدون|no( budget)?|none|nothing|n\/a)(?=\s|$|[،.!؟,])/i;
 import { newPin, sessionFor, sha256 } from '../_shared/phone-session.ts';
 import { phCapture } from '../_shared/posthog.ts';
 

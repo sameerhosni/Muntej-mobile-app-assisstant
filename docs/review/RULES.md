@@ -464,3 +464,11 @@ Last updated: 2026-11-09.
 ### R105 · An automatic close or hand-off decided by the AI goes through the same path as a person's tap, and the person can undo it
 - **Why:** 10 Nov, reviewer: the tools reader first closed "already answered" tasks with a direct service-role status update: no review rules, other decisions left pending, not undoable.
 - **Check:** AI-decided closes use `close_by_reply` (or the status RPC a tap uses): own work only, other pending decisions resolved, the owner told, logged undoable by them (`undo_task_changes` allows 7 days for `closed_by_reply`). Never `update tasks set status` from a function.
+
+### R106 · A count of "what needs you" is the same everywhere: the number of things «وش يحتاجني» lists
+- **Why:** 10 Nov, the owner: "Is it only 1 needs me or 23?" — the midday report counted 30 tools tasks as one line («1 تحتاجك»), and «وش يحتاجني» a tap later listed 23.
+- **Check:** any "need you" number (reports, push, Home, WhatsApp) comes from the same list (`needsYouCards`, or the same items it lists), counting each item, not each line or group.
+
+### R107 · An automatic Muntej status change uses Done's close-or-review rule
+- **Why:** 10 Nov, reviewer pass 2: `close_by_reply` closed any self-given task, but a Done tap from an employee with a manager sends it for review.
+- **Check:** any server-side close mirrors `set_task_status`'s `can_close` for the owner (closes_itself, admin, nobody above, or the giver below); otherwise it goes to `submitted` with a review round, logged and undoable. Testers are a login (any seat), the same in `feature_on_for` as in `is_tester()`.

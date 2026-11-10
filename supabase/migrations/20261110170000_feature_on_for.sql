@@ -7,7 +7,10 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce((select not f.testing or coalesce((select p.tester from public.profiles p where p.id = p_profile), false)
+  -- a tester is the login, like is_tester(): any of its seats with the flag (reviewer, 10 Nov)
+  select coalesce((select not f.testing or exists (select 1 from public.profiles me join public.profiles p on p.user_id = me.user_id
+                                                   where me.id = p_profile and p.tester and p.status <> 'deleted')
+                       or coalesce((select p.tester from public.profiles p where p.id = p_profile), false)
                      from public.features f where f.key = p_key), true);
 $$;
 revoke all on function public.feature_on_for(text, uuid) from public, anon, authenticated;

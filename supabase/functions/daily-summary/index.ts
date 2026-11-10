@@ -16,7 +16,7 @@ import { HttpError, getCaller, json, serve } from '../_shared/http.ts';
 import { adminClient, companyTags, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
 import { inWindow, REPORT_TEMPLATE, rtl, waButtons, waConfigured, waTemplate } from '../_shared/wa.ts';
-import { waProfileFor } from '../_shared/wa-actions.ts';
+import { needsYouCards, waProfileFor } from '../_shared/wa-actions.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
 type Lang = 'en' | 'ar';
@@ -239,7 +239,9 @@ function winsSpan(kind: Kind, now: Date): [number, number] {
   return kind === 'daily' ? [today - DAY, today] : [today, now.getTime() + 1];
 }
 
-function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind): Summary | null {
+/** needsCount: how many things «وش يحتاجني» lists for them right now (the same cards), so the report and WhatsApp
+ *  never disagree (owner, 10 Nov: «1 تحتاجك» in the report, «فيه 23 شي يحتاجك» a tap later) */
+function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind, needsCount?: number): Summary | null {
   const reports = [...w.people.values()].filter((p) => p.manager_id === me.id && p.status === 'active');
   const reportIds = new Set(reports.map((p) => p.id));
   const name = (id: string | null) => firstName(id ? w.people.get(id) : undefined, lang) || '…';
@@ -330,7 +332,7 @@ function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind):
     // the same number as Home's "Late" tile: the team's and your own (owner, 4 Nov: report said 1, Home 2)
     late: num(late.length + w.tasks.filter((x) => x.owner_id === me.id && isLate(x)).length, lang),
     done: num(kind === 'daily' ? wins.length : won.length, lang),
-    needs: num(needs.length, lang),
+    needs: num(needsCount ?? needs.length, lang),
     open: num(working.length + late.length, lang),
     reviews: num(reviews.length, lang),
     decisions: num(decisions.length, lang),
@@ -562,7 +564,9 @@ async function sendOne(
   const lang: Lang = me.locale === 'ar' ? 'ar' : 'en';
   const rule = ruleOf(prefs, kind, me);
   const mgr = isManager(me, w);
-  const s = mgr ? managerReport(me, w, now, lang, kind) : employeeReport(me, w, now, lang, kind);
+  // the count «وش يحتاجني» gives (each waiting tools task, decision, review, question and today's own work), not lines
+  const needsCount = mgr ? (await needsYouCards(admin, me.id, lang === 'ar').catch(() => null))?.length : undefined;
+  const s = mgr ? managerReport(me, w, now, lang, kind, needsCount) : employeeReport(me, w, now, lang, kind);
   if (!s) return { profile: me.id, kind, sent: [] as string[], skipped: 'nothing to say' };
   // seats in two companies: every channel says which company this report is about ("T2 · صباح الخير…")
   const company = (await companyTags(admin, [me.id])).get(me.id);
