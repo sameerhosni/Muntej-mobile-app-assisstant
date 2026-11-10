@@ -1040,24 +1040,44 @@ serve(async (req) => {
   }
 
   // "all my tasks, even old / closed ones": the list comes from the data, never only an intro line (QA, 10 Nov: the
-  // model answered «هذي كل المهام … المقفلة:» and nothing after it)
+  // model answered «هذي كل المهام … المقفلة:» and nothing after it). Narrow on purpose (reviewer, 10 Nov): a request to
+  // SEE / LIST closed or old tasks, not a yes/no or count question, not "I finished…" or "mark / close …"; the caller's
+  // own (or what they gave) unless they name someone; never used to hide a false "done" (filledClosed below).
+  let filledClosed = false;
   {
     const ar0 = parsed.language === 'ar';
-    const asksClosed = /(مقفل|المقفلة|القديمة|خلصت|المنتهية|closed|old|finished|done)/i.test(message) && /(مهام|مهمات|مهامي|tasks?)/i.test(message);
-    const closedList = context.closed_tasks;
-    if (parsed.action === 'none' && asksClosed && closedList.length && !closedList.some((t) => parsed.reply.includes(t.title))) {
-      const when = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(ar0 ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' }) : '');
-      const word = (s: string) => (ar0 ? ({ done: 'خلصت', cancelled: 'ملغاة' } as Record<string, string>)[s] ?? s : s === 'done' ? 'done' : s);
-      const lines = closedList.slice(0, 15).map((t) => `• ${t.title} · ${word(t.status)}${t.closed_at ? ` · ${when(t.closed_at)}` : ''}`);
-      const head = parsed.reply.trim().replace(/[:：]\s*$/, '');
-      parsed.reply = [
-        head || (ar0 ? 'هذي مهامك المقفلة' : 'Your closed tasks'),
-        ...lines,
-        ...(closedList.length > 15 ? [ar0 ? `و${closedList.length - 15} غيرها في صفحة المهام ← المنتهية` : `+${closedList.length - 15} more in Tasks → Done`] : []),
-      ].join('\n');
+    const m = message.trim();
+    const aboutClosed = /(المقفلة|المقفوله|مقفلة|القديمة|المنتهية|اللي خلصت|الخالصة)/.test(m) || /\b(closed|old|older|finished|done|completed)\b/i.test(m);
+    const aboutTasks = /(مهام|مهمات|مهامي)/.test(m) || /\btasks?\b/i.test(m);
+    const wantsList = /(كل|عطني|اعطني|وريني|ورني|اعرض|طلع|ابي اشوف|أبي أشوف)/.test(m) || /\b(show|list|all|give me|see)\b/i.test(m);
+    const notThis = /^(هل|كم)\b/.test(m) || /^\s*خلصت/.test(m) || /\b(is|are|how many|mark|close|did i)\b/i.test(m) || /^(قفّل|قفل|سكّر|سكر)/.test(m);
+    if (parsed.action === 'none' && aboutClosed && aboutTasks && wantsList && !notThis && !CLAIMS_DONE.test(parsed.reply.trim())) {
+      const named = team.find((p) => p.id !== profileId && [p.full_name, p.full_name_ar].some((n) => !!n && n.split(/\s+/)[0].length > 1 && m.includes(n.split(/\s+/)[0])));
+      const closed = allTasks
+        .filter((t) => !ACTIVE.includes(t.status))
+        .filter((t) => (named ? t.owner_id === named.id : t.owner_id === profileId || t.assigner_id === profileId))
+        .sort((x, y) => Date.parse(y.closed_at ?? y.updated_at ?? '') - Date.parse(x.closed_at ?? x.updated_at ?? ''));
+      if (closed.length && !closed.some((t) => parsed.reply.includes(t.title))) {
+        const when = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString(ar0 ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' }) : '');
+        const word = (s: string) => (ar0 ? ({ done: 'خلصت', cancelled: 'ملغاة' } as Record<string, string>)[s] ?? s : s);
+        const shown = closed.slice(0, 15);
+        const lines = shown.map((t) => `• ${t.title} · ${word(t.status)}${!named && t.owner_id !== profileId ? ` · ${nameOf(t.owner_id)}` : ''}${t.closed_at ?? t.updated_at ? ` · ${when(t.closed_at ?? t.updated_at)}` : ''}`);
+        const rest = closed.slice(15);
+        const restCancelled = rest.some((t) => t.status === 'cancelled');
+        const head = parsed.reply.trim().replace(/[:：]\s*$/, '');
+        parsed.reply = [
+          head || (ar0 ? 'هذي مهامك المقفلة' : 'Your closed tasks'),
+          ...lines,
+          ...(rest.length
+            ? [ar0
+                ? `و${rest.length} غيرها في المهام ← خلصت${restCancelled ? ' (والملغية تحت ⋯ ← الملغية)' : ''}`
+                : `+${rest.length} more in Tasks → Done${restCancelled ? ' (cancelled ones under ⋯ → Cancelled)' : ''}`]
+            : []),
+        ].join('\n');
+        filledClosed = true;
+      }
     }
-  }
-  if (parsed.bulk?.change?.kind === 'delete') parsed.bulk.change.kind = 'cancel';
+  }  if (parsed.bulk?.change?.kind === 'delete') parsed.bulk.change.kind = 'cancel';
   const displayName = (id: string | null) => {
     const p = id ? everyone.find((x) => x.id === id) : null;
     return p ? ((ar0 ? p.full_name_ar : null) ?? p.full_name) : null;
@@ -1706,7 +1726,8 @@ serve(async (req) => {
   // still claims it with nothing done (a bad task id, say): the truth, not a false "done"
   const asked = confirmDelete || bulkProposal || peopleChoice || duplicate || teamDraft || orgProposal || objectiveProposal || recurringProposal || proposedPatch;
   // an answer that lists what was really made ("سويت اليوم: «X» …") is the truth, not a false claim
-  const listsReal = allTasks.some((t) => t.title.length > 3 && parsed.reply.includes(t.title));
+  // (titles the server wrote itself into a closed-tasks list don't count as proof — reviewer, 10 Nov, R111)
+  const listsReal = !filledClosed && allTasks.some((t) => t.title.length > 3 && parsed.reply.includes(t.title));
   if (action === 'none' && !asked && !undoLogId && !listsReal && !CLOSING.test(message) && ['none', 'create', 'update'].includes(parsed.action) && CLAIMS_DONE.test(parsed.reply.trim())) {
     parsed.reply = ar0 ? 'ما قدرت أسويها للحين، ولا تغيّر شي. قولها لي مرة ثانية وبتفاصيل أكثر.' : "I couldn't do that yet, and nothing changed. Tell me again with a bit more detail.";
     parsed.suggestions = [];

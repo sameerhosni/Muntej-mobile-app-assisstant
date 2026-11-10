@@ -476,6 +476,23 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
       await sql(`delete from public.tasks where id = '${t.id}'`);
     }
   });
+  // reviewer, 10 Nov (R111): the closed-tasks list only for a request to see them, and only the asker's own
+  await check('chat', 'The closed-tasks list never lands under another answer, and shows only your own', async () => {
+    const [mine] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, closed_at) values ('QA closed mine report', '${QA_BOSS}', '${QA_BOSS}', 'done', now()) returning id`);
+    const [theirs] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, closed_at) values ('QA closed teammate file', '${FAISAL}', '${FAISAL}', 'done', now()) returning id`);
+    try {
+      for (const q of ['what tasks are on hold?', 'هل مهمة التقرير خلصت؟']) {
+        const a = await talk(q);
+        expect(!/QA closed mine report/.test(a.said), `«${q}» got the closed list: «${a.said.slice(0, 100)}»`);
+      }
+      const b = await talk('عطني كل مهامي المقفلة');
+      expect(/QA closed mine report/.test(b.said + JSON.stringify(b.payload)), `your closed task not listed: «${b.said.slice(0, 100)}»`);
+      expect(!/QA closed teammate file/.test(b.said), 'a teammate’s closed task was listed as yours');
+      return 'only on request, only yours';
+    } finally {
+      await sql(`delete from public.tasks where id in ('${mine.id}', '${theirs.id}')`);
+    }
+  });
   await check('chat', 'Asking your manager for a budget approval is in scope', async () => {
     const r = await fn('muntej-chat', { message: 'أنا عايزة موافقة من مديري بصرف الميزانية قبل موعدها بخمس أيام.', source: 'text', lang: 'ar' }, await jwtFor(FAISAL, QA_ACCOUNT));
     const said = r.messages?.at(-1)?.content ?? '';
