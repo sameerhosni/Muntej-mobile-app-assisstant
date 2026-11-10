@@ -472,3 +472,7 @@ Last updated: 2026-11-09.
 ### R107 · An automatic Muntej status change uses Done's close-or-review rule
 - **Why:** 10 Nov, reviewer pass 2: `close_by_reply` closed any self-given task, but a Done tap from an employee with a manager sends it for review.
 - **Check:** any server-side close mirrors `set_task_status`'s `can_close` for the owner (closes_itself, admin, nobody above, or the giver below); otherwise it goes to `submitted` with a review round, logged and undoable. Testers are a login (any seat), the same in `feature_on_for` as in `is_tester()`.
+
+### R108 · A late undo never overrides someone else's decision
+- **Why:** 10 Nov, reviewer pass 3: a reply-close sent for review could be undone for 7 days, even after the manager approved it.
+- **Check:** an undo allowed for longer than 5 minutes refuses ("it moved on since") once the task's status changed or a review was decided after the change.

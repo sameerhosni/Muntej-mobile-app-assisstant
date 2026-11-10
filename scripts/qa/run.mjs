@@ -389,24 +389,26 @@ async function server() {
     const inReport = /(\d+) تحتاجك|(\d+) need you/.exec(r.preview ?? '');
     expect(inReport, `no “need you” number in the report: ${(r.preview ?? '').slice(0, 120)}`);
     const msgs = await wa('وش يحتاجني');
-    const first = texts(msgs);
-    const listed = /فيه (\d+)/.exec(first)?.[1] ?? (/شي واحد/.test(first) ? '1' : /شيئين/.test(first) ? '2' : /ما فيه شي/.test(first) ? '0' : null);
+    // only the first reply holds the count (the late-team lines after it have numbers of their own — reviewer, 10 Nov)
+    const first = texts(msgs.slice(0, 1));
+    const listed = /فيه (\d+)/.exec(first)?.[1] ?? (/شي واحد/.test(first) ? '1' : /شيئين/.test(first) ? '2' : /ما فيه شي|ما فيه قرار ينتظرك/.test(first) ? '0' : null);
     expect(listed !== null, `«وش يحتاجني» gave no count: ${first.slice(0, 120)}`);
     expect(Number(inReport[1] ?? inReport[2]) === Number(listed), `report says ${inReport[1] ?? inReport[2]}, «وش يحتاجني» lists ${listed}`);
     return `${listed} in both`;
   });
   // «ما فيه ميزانية» after «✍️ جاوب» on a budget question closes it without a budget (reviewer, 10 Nov: the Arabic
   // never matched and was saved as the budget)
-  for (const none of ['ما فيه ميزانية', 'ما فيها شي'])
-  await check('whatsapp', `«${none}» closes a budget question without saving a budget`, async () => {
+  for (const [answer, isNone] of [['ما فيه ميزانية', true], ['ما فيها شي', true], ['لا تتجاوز 5000', false], ['No more than 5000', false]])
+  await check('whatsapp', isNone ? `«${answer}» closes a budget question without saving a budget` : `«${answer}» is saved as the budget, not read as none`, async () => {
     const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA no budget', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`);
     try {
       await rpc('ask_task_detail', { p_task: t.id, p_what: 'budget' }, await jwtFor(QA_FAISAL, QA_ACCOUNT));
       await sql(`insert into public.wa_pending (key, profile_id, body, created_at) values ('da:${QA_BOSS}', '${QA_BOSS}', '{"task_id":"${t.id}","what":"budget"}', now())
                  on conflict (key) do update set body = excluded.body, created_at = now()`);
-      const msgs = await wa(none);
+      const msgs = await wa(answer);
       const [row] = await sql(`select budget from public.tasks where id = '${t.id}'`);
-      expect(!row.budget, `saved «${row.budget}» as the budget`);
+      if (isNone) expect(!row.budget, `saved «${row.budget}» as the budget`);
+      else expect(/5000/.test(row.budget ?? ''), `the budget wasn’t saved: «${row.budget ?? 'nothing'}» · ${texts(msgs).slice(0, 80)}`);
       const [open] = await sql(`select id from public.alerts where profile_id = '${QA_BOSS}' and kind = 'detail_asked' and task_id = '${t.id}' and read_at is null`);
       expect(!open, `the question still waits: ${texts(msgs).slice(0, 120)}`);
       return texts(msgs).slice(0, 70);

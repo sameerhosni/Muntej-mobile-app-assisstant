@@ -2,14 +2,23 @@
 # sign-in, no prompts (scripts/ios-signing.mjs). The .ipa is uploaded to App Store Connect → TestFlight, from where it
 # goes to the App Store. If the app doesn't exist in App Store Connect yet, the .ipa is kept as the run's artifact
 # and the run says so.
-# Start it: Actions → "iOS build" → Run workflow, or push a tag `ios-production-<anything>`.
+# Start it: Actions → "iOS build" → Run workflow, or push a tag `ios-production-<anything>` / `ios-test-<anything>`.
+#   production = the App Store build (gets live updates only)
+#   testflight = an iPhone test build for TestFlight testers (owner, 10 Nov: Nouran is on iPhone): it gets the Muntej
+#                Test updates (channel preview), like the Android Muntej Test app. Never submit it for App Store review.
 # Needs repository secrets: EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (the .p8 file's text).
 name: iOS build
 
 on:
   workflow_dispatch:
+    inputs:
+      profile:
+        description: 'production = App Store build (live updates), testflight = iPhone test build (Muntej Test updates)'
+        type: choice
+        options: [production, testflight]
+        default: production
   push:
-    tags: ['ios-production-*']
+    tags: ['ios-production-*', 'ios-test-*']
 
 permissions:
   contents: write
@@ -59,9 +68,12 @@ jobs:
 
       - name: Build
         run: |
+          # the profile: the manual choice, else from the tag (ios-test-* = testflight)
+          PROFILE="${{ github.event.inputs.profile }}"
+          if [ -z "$PROFILE" ]; then case "$GITHUB_REF_NAME" in ios-test-*) PROFILE=testflight ;; *) PROFILE=production ;; esac; fi
           VERSION=$(node -p "require('./app.json').expo.version")
-          OUT="muntej-${VERSION}-ios-${GITHUB_RUN_NUMBER}.ipa"
-          npx -y eas-cli@latest build --platform ios --profile production --local --non-interactive --output "$OUT"
+          OUT="muntej-${VERSION}-ios-${PROFILE}-${GITHUB_RUN_NUMBER}.ipa"
+          npx -y eas-cli@latest build --platform ios --profile "$PROFILE" --local --non-interactive --output "$OUT"
           echo "OUT=$OUT" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4

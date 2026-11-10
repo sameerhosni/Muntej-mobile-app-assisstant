@@ -311,13 +311,15 @@ function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind, 
   ].filter(Boolean) as string[];
 
   // quiet Saree3: midday / end of day only when there's something worth saying
-  if (kind !== 'daily' && !risks.length && !needs.length && !wins.length && !mine.length) return null;
-  if (kind === 'daily' && !risks.length && !needs.length && !support.length && !mine.length && !working.length && !wins.length) return null;
+  // waiting things count as the WhatsApp list counts them (questions too), so a quiet report never hides them (R106)
+  const needsNow = needsCount ?? needs.length;
+  if (kind !== 'daily' && !risks.length && !needsNow && !wins.length && !mine.length) return null;
+  if (kind === 'daily' && !risks.length && !needsNow && !support.length && !mine.length && !working.length && !wins.length) return null;
 
   const date = when(now.toISOString(), lang);
   const base = { subject: say(lang, `subject_${kind}`, { date }), hello: say(lang, `hello_${kind}`, { name: firstName(me, lang) }) };
   // nothing needs them in the morning: one line, counted not listed (BRD v1.2 FR-BRF-04)
-  if (kind === 'daily' && !risks.length && !needs.length && !support.length && !mine.length)
+  if (kind === 'daily' && !risks.length && !needsNow && !support.length && !mine.length)
     return {
       ...base,
       headline: say(lang, 'allClear', { n: num(working.length, lang) }),

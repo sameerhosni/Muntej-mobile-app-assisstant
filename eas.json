@@ -32,6 +32,14 @@
         "buildType": "apk"
       }
     },
+    "testflight": {
+      "autoIncrement": true,
+      "channel": "preview",
+      "environment": "preview",
+      "ios": {
+        "credentialsSource": "local"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "channel": "production",

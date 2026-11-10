@@ -183,7 +183,17 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
           expect(rv?.reviewer_id === QA_BOSS, 'no review round for the manager');
           const [log] = await sql(`select undoable, actor_id from public.activity_log where task_id = '${mine.id}' and action = 'closed_by_reply'`);
           expect(log?.undoable && log.actor_id === FAISAL, 'not undoable by the person');
-          return 'sent for the manager’s review, undoable';
+          // the manager approves the review; the employee's late undo must not override it (reviewer, 10 Nov)
+          await sql(`update public.reviews set decision = 'approved', decided_at = now() + interval '1 second' where task_id = '${mine.id}' and decision is null`);
+          const [l2] = await sql(`select id from public.activity_log where task_id = '${mine.id}' and action = 'closed_by_reply'`);
+          let refused = false;
+          try {
+            await rpc('undo_task_changes', { p_log: l2.id }, await jwtFor(FAISAL, QA_ACCOUNT));
+          } catch (e) {
+            refused = /moved on since/.test(e.message);
+          }
+          expect(refused, 'a late undo overrode the manager’s approval');
+          return 'sent for the manager’s review, undoable until someone acts';
         } finally {
           await sql(`delete from public.reviews where task_id = '${mine.id}'`);
           await sql(`delete from public.alerts where task_id = '${mine.id}'`);
