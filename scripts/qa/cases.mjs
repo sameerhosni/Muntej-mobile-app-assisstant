@@ -507,6 +507,12 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         const d = await talk('مهام مهند الأول المقفلة كلها');
         expect(!/تقصد مين/.test(d.said), `asked which one again: «${d.said.slice(0, 110)}»`);
         expect(!/مهند الثاني/.test(d.said), `listed the other one: «${d.said.slice(0, 110)}»`);
+        // one family name for both (common in family companies): the most name words wins, no loop (reviewer, 10 Nov)
+        await sql(`update public.profiles set full_name_ar = 'مهند سعد العتيبي' where id = '${NOURA}'`);
+        await sql(`update public.profiles set full_name_ar = 'مهند خالد العتيبي' where id = '${KHALID}'`);
+        const e = await talk('مهام مهند سعد العتيبي المقفلة كلها');
+        expect(!/تقصد مين/.test(e.said), `asked which one again with a shared family name: «${e.said.slice(0, 110)}»`);
+        expect(!/خالد/.test(e.said), `listed the other one: «${e.said.slice(0, 110)}»`);
       } finally {
         for (const t of twins) await sql(`update public.profiles set full_name_ar = ${t.full_name_ar === null ? 'null' : `'${t.full_name_ar.replace(/'/g, "''")}'`} where id = '${t.id}'`);
       }

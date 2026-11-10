@@ -1058,16 +1058,16 @@ serve(async (req) => {
       const words = new Set(m.replace(/[؟?،,.!:]/g, ' ').split(/\s+/).filter(Boolean).flatMap((w) => [w.toLowerCase(), w.toLowerCase().replace(/'s$/, ''), w.replace(/^(وال|لل|ال|و|ل)/, '')]));
       const fits = team.filter((p) => p.id !== profileId && [p.full_name, p.full_name_ar].some((n) => { const f = (n ?? '').trim().split(/\s+/)[0]; return f.length > 1 && words.has(f.toLowerCase()); }));
       // two fit the first name: the other name words decide (a tapped «مهام مهند الأول …» chip picks one — reviewer)
-      const narrowed =
-        fits.length > 1
-          ? fits.filter((p) =>
-              [p.full_name, p.full_name_ar].some((n) => {
-                const rest = (n ?? '').trim().split(/\s+/).slice(1).map((w) => w.replace(/'s$/i, '').toLowerCase()).filter((w) => w.length > 1);
-                return rest.length > 0 && rest.some((w) => words.has(w) || words.has(w.replace(/^(ال)/, '')));
-              }),
-            )
-          : fits;
-      if (narrowed.length === 1) fits.splice(0, fits.length, narrowed[0]);
+      // the most of their other name words wins, so a family name both share never keeps both (reviewer, 10 Nov)
+      const score = (p: PersonRow) =>
+        Math.max(
+          ...[p.full_name, p.full_name_ar].map((n) =>
+            (n ?? '').trim().split(/\s+/).slice(1).map((w) => w.replace(/'s$/i, '').toLowerCase()).filter((w) => w.length > 1)
+              .filter((w) => words.has(w) || words.has(w.replace(/^(ال)/, ''))).length,
+          ),
+        );
+      const best = fits.length > 1 ? Math.max(...fits.map(score)) : 0;
+      const narrowed = fits.length > 1 && best > 0 ? fits.filter((p) => score(p) === best) : fits;      if (narrowed.length === 1) fits.splice(0, fits.length, narrowed[0]);
       const ambiguous = fits.length > 1;
       const named = ambiguous ? undefined : fits[0];
       const closed = allTasks

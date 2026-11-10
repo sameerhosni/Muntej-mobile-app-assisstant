@@ -499,4 +499,4 @@ Last updated: 2026-11-09.
 
 ### R114 · A which-one question's chips settle the choice when tapped
 - **Why:** 10 Nov, reviewer pass 4: «مهام مهند الأول المقفلة كلها» still fit both «مهند»s (only first names were compared), so the same question came back forever.
-- **Check:** once two people fit, the other words of their names narrow it; a QA case taps a chip's text and expects exactly one person, no second question.
+- **Check:** once two people fit, the one matching the most of their other name words wins (a family name both share never keeps both); a QA case taps a chip's text, also with a shared family name, and expects exactly one person, no second question.
