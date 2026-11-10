@@ -490,6 +490,7 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     // outside the 24 h window WhatsApp is the template: its line must be the push's own line
     expect(/s\.counts = \[company, `\$\{say\(lang, `label_\$\{kind\}`\)\}: \$\{s\.short\}`\]/.test(report), 'the WhatsApp template line isn’t the push’s line');
     expect(/pre\(c\.taskId, c\.body\)/.test(src('_shared/notify.ts')), 'WhatsApp cards don’t say which company / whose task');
+    expect(/rtl\(ar, `\*\$\{head/.test(src('_shared/notify.ts')), 'the company line flips Arabic WhatsApp messages left to right');
     return 'no push, WhatsApp or report to the console seat; one report per phone, same numbers';
   });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {

@@ -429,3 +429,7 @@ Last updated: 2026-11-09.
 ### R96 · One report, one source line
 - **Why:** 10 Nov, reviewer on R95's fix: the push opened with "in progress · late · done" while the WhatsApp template (outside the 24 h window, the usual case at 8:00) said "risks · need you · wins": two numbers for one morning.
 - **Check:** a report sent on several channels (push, in-window WhatsApp, WhatsApp template, email) builds every channel's first line from the same field; no channel gets its own summary string with other numbers.
+
+### R97 · A heading added before an RLM-wrapped message keeps the RLM first
+- **Why:** 10 Nov, reviewer pass 2: «*T2 · مهمتك*» was put on top of WhatsApp cards that `rtl()` had wrapped; the Latin "T" became the first letter and flipped the whole Arabic bubble left to right.
+- **Check:** any prefix or heading added in front of a WhatsApp or push text wraps the final text in `rtl()` / `rtlSafe()` again.

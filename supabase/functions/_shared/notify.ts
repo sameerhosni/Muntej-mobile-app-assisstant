@@ -6,7 +6,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { translationPending } from './task-text.ts';
 import { companyTags, consoleSeats, sendPush } from './push.ts';
-import { ACTION_TEMPLATE, inWindow, waButtons, waTemplate, localizedFor } from './wa.ts';
+import { ACTION_TEMPLATE, inWindow, rtl, waButtons, waTemplate, localizedFor } from './wa.ts';
 import { needsYouCards } from './wa-actions.ts';
 import { phCapture } from './posthog.ts';
 import { sendEmail } from './email.ts';
@@ -500,7 +500,7 @@ async function whatsAppAlert(
   /** «T2 · مهمتك» for a task's message ('' when neither applies): every WhatsApp form carries it (reviewer, 10 Nov) */
   head: (taskId: string | null | undefined) => string = () => '',
 ): Promise<'sent' | 'error' | 'outside_window'> {
-  const pre = (taskId: string | null | undefined, text: string) => (head(taskId) ? `*${head(taskId)}*\n${text}` : text);
+  const pre = (taskId: string | null | undefined, text: string) => (head(taskId) ? rtl(ar, `*${head(taskId)}*\n${text}`) : text);
   if (!inWindow(person.wa_last_inbound_at)) {
     if (!m.alerts.some((a) => EXCEPTION_KINDS.has(a.kind) || WIN_KINDS.has(a.kind) || URGENT_WHEN_HIGH.has(a.kind))) return 'outside_window';
     const name = ((ar && person.full_name_ar) || person.full_name || '').split(' ')[0];
@@ -535,7 +535,7 @@ async function whatsAppAlert(
   const rest = m.alerts.filter((a) => !carded(a) && !replyable.includes(a));
   if (rest.length) {
     const line = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
-    const text = rest.length === m.alerts.length ? `*${m.title}*\n${m.body}` : rest.length === 1 ? pre(rest[0].task_id, `*${line(rest[0])}*\n${(ar ? rest[0].body_ar : null) ?? rest[0].body}`) : pre(null, rest.map(line).join('\n'));
+    const text = rest.length === m.alerts.length ? rtl(ar, `*${m.title}*\n${m.body}`) : rest.length === 1 ? pre(rest[0].task_id, `*${line(rest[0])}*\n${(ar ? rest[0].body_ar : null) ?? rest[0].body}`) : pre(null, rest.map(line).join('\n'));
     ok = (await sendWhatsApp(person.phone, text)) && ok;
   }
   return ok ? 'sent' : 'error';
