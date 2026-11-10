@@ -485,7 +485,11 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     const src = (f) => readFileSync(new URL(`../../supabase/functions/${f}`, import.meta.url), 'utf8');
     expect(/neq\('role', 'super_admin'\)/.test(src('_shared/wa-actions.ts')), 'WhatsApp can still pick the console seat');
     expect(/consoleSeats\(admin, ids\)/.test(src('_shared/push.ts')), 'pushes still reach the console seat');
-    expect(/short: say\(lang, `pulse_\$\{kind\}`, v\)/.test(src('daily-summary/index.ts')), 'the push and WhatsApp start with different numbers');
+    const report = src('daily-summary/index.ts');
+    expect(/short: say\(lang, `pulse_\$\{kind\}`, v\)/.test(report), 'the push and the WhatsApp message start with different numbers');
+    // outside the 24 h window WhatsApp is the template: its line must be the push's own line
+    expect(/s\.counts = \[company, `\$\{say\(lang, `label_\$\{kind\}`\)\}: \$\{s\.short\}`\]/.test(report), 'the WhatsApp template line isn’t the push’s line');
+    expect(/pre\(c\.taskId, c\.body\)/.test(src('_shared/notify.ts')), 'WhatsApp cards don’t say which company / whose task');
     return 'no push, WhatsApp or report to the console seat; one report per phone, same numbers';
   });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {

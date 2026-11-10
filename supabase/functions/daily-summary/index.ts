@@ -54,8 +54,8 @@ type Summary = {
   headline: string;
   sections: Section[];
   short: string;
-  /** for the WhatsApp template: "3 risks · 2 decisions · 5 wins" */
-  counts: string;
+  /** for the WhatsApp template: the push's own line, so both channels show the same numbers (set in sendOne) */
+  counts?: string;
   /** the company, when the person has seats in two ("T2") */
   company?: string;
 };
@@ -122,7 +122,6 @@ const W = {
     more: '+{n} more in the app',
     open: 'Open the Muntej app to act on these.',
     footer: 'Sent by Muntej at the time you chose in Alerts.',
-    counts: '{label}: {risks} risks · {needs} need you · {wins} wins',
     label_daily: '☀️ Morning report',
     label_midday: '🌤️ Midday report',
     label_evening: '🌙 End-of-day report',
@@ -178,7 +177,6 @@ const W = {
     more: '+{n} زيادة في التطبيق',
     open: 'افتح منتج وخلّصها بضغطة.',
     footer: 'أرسلتها لك بالوقت اللي اخترته. تقدر تغيّره من التنبيهات.',
-    counts: '{label}: {risks} مخاطر · {needs} تحتاجك · {wins} إنجازات',
     label_daily: '☀️ تقرير الصباح',
     label_midday: '🌤️ تقرير الظهر',
     label_evening: '🌙 تقرير آخر اليوم',
@@ -315,9 +313,7 @@ function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind):
   if (kind === 'daily' && !risks.length && !needs.length && !support.length && !mine.length && !working.length && !wins.length) return null;
 
   const date = when(now.toISOString(), lang);
-  const label = say(lang, `label_${kind}`);
-  const counts = say(lang, 'counts', { label, risks: num(risks.length, lang), needs: num(needs.length, lang), wins: num(wins.length, lang) });
-  const base = { subject: say(lang, `subject_${kind}`, { date }), hello: say(lang, `hello_${kind}`, { name: firstName(me, lang) }), counts };
+  const base = { subject: say(lang, `subject_${kind}`, { date }), hello: say(lang, `hello_${kind}`, { name: firstName(me, lang) }) };
   // nothing needs them in the morning: one line, counted not listed (BRD v1.2 FR-BRF-04)
   if (kind === 'daily' && !risks.length && !needs.length && !support.length && !mine.length)
     return {
@@ -393,7 +389,6 @@ function employeeReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind)
   const wins = won.map((x) => say(lang, 'wonMine', { title: titleIn(x, lang) }));
   if (kind === 'daily' ? !work.length && !waiting : !work.length && !wins.length) return null;
   const v = { today: num(today, lang), late: num(late, lang), back: num(back, lang), done: num(won.length, lang), tomorrow: num(tomorrow, lang) };
-  const label = say(lang, `label_${kind}`);
   return {
     subject: say(lang, `subject_${kind}`, { date: when(now.toISOString(), lang) }),
     hello: say(lang, `hello_${kind}`, { name: firstName(me, lang) }),
@@ -406,7 +401,6 @@ function employeeReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind)
       ] as Section[]
     ).filter((s) => s.items.length),
     short: say(lang, kind === 'daily' ? 'emp_daily' : kind === 'midday' ? 'emp_midday' : 'emp_evening', v),
-    counts: say(lang, 'counts', { label, risks: num(late, lang), needs: num(work.length, lang), wins: num(wins.length, lang) }),
   };
 }
 
@@ -488,7 +482,7 @@ function whatsappText(s: Summary, lang: Lang) {
 async function sendWhatsAppReport(me: Person, lang: Lang, s: Summary, kind: Kind): Promise<boolean> {
   if (!me.phone) return false;
   if (!inWindow(me.wa_last_inbound_at))
-    return await waTemplate(me.phone, REPORT_TEMPLATE(), lang, [firstName(me, lang), s.counts], `rep:${kind}`);
+    return await waTemplate(me.phone, REPORT_TEMPLATE(), lang, [firstName(me, lang), s.counts ?? s.short], `rep:${kind}`);
   // a tap on either button also keeps WhatsApp's 24 h window open for the next report
   const ar = lang === 'ar';
   return await waButtons(me.phone, whatsappText(s, lang), [
@@ -573,10 +567,10 @@ async function sendOne(
   // seats in two companies: every channel says which company this report is about ("T2 · صباح الخير…")
   const company = (await companyTags(admin, [me.id])).get(me.id);
   // (the push gets it in its title from sendPush; WhatsApp here)
-  if (company) {
-    s.company = company;
-    s.counts = `${company} · ${s.counts}`;
-  }
+  if (company) s.company = company;
+  // the WhatsApp template (outside the 24 h window, the usual case at 8:00) carries the push's very line (reviewer,
+  // 10 Nov: the template said "risks · need you · wins" while the push said "in progress · late · done")
+  s.counts = [company, `${say(lang, `label_${kind}`)}: ${s.short}`].filter(Boolean).join(' · ');
 
   if (kind === 'daily') {
     // "New for you": up to two features from the last 2 weeks this person hasn't tried (or turned down) yet

@@ -401,15 +401,17 @@ export async function deliverPending(
     const tBody = (a: PendingAlert) => (ar ? a.body_ar : null) ?? a.body;
     const company = tags.get(profileId);
     /** "T2 · مهمتك · …": the company when they have two, and for a manager whose work this is (theirs or the team's) */
-    const tagged = (a: PendingAlert) => {
+    /** "T2 · مهمتك" (or ''), for any message about a task: push titles, WhatsApp cards, reply messages */
+    const head = (taskId: string | null | undefined) => {
       const whose =
-        leads.has(profileId) && a.task_id && ownerOf.has(a.task_id)
-          ? ownerOf.get(a.task_id) === profileId
+        leads.has(profileId) && taskId && ownerOf.has(taskId)
+          ? ownerOf.get(taskId) === profileId
             ? ar ? 'مهمتك' : 'Your task'
             : ar ? 'فريقك' : 'Your team'
           : null;
-      return [company, whose, tTitle(a)].filter(Boolean).join(' · ');
+      return [company, whose].filter(Boolean).join(' · ');
     };
+    const tagged = (a: PendingAlert) => [head(a.task_id), tTitle(a)].filter(Boolean).join(' · ');
     // a new company is worth an email too: their phone may not be registered for push yet
     if (person?.email) {
       for (const a of list.filter((x) => x.kind === 'added_to_company')) {
@@ -454,7 +456,7 @@ export async function deliverPending(
       else if (!person?.phone) waStatus = 'not_connected';
       else if (!wants('whatsapp')) waStatus = 'off';
       else {
-        waStatus = await whatsAppAlert(admin, person as WaPerson, m, ar);
+        waStatus = await whatsAppAlert(admin, person as WaPerson, m, ar, head);
         sentWa = waStatus === 'sent';
         if (sentWa) out.whatsapped++;
       }
@@ -495,7 +497,10 @@ async function whatsAppAlert(
   person: WaPerson,
   m: { alerts: PendingAlert[]; title: string; body: string },
   ar: boolean,
+  /** «T2 · مهمتك» for a task's message ('' when neither applies): every WhatsApp form carries it (reviewer, 10 Nov) */
+  head: (taskId: string | null | undefined) => string = () => '',
 ): Promise<'sent' | 'error' | 'outside_window'> {
+  const pre = (taskId: string | null | undefined, text: string) => (head(taskId) ? `*${head(taskId)}*\n${text}` : text);
   if (!inWindow(person.wa_last_inbound_at)) {
     if (!m.alerts.some((a) => EXCEPTION_KINDS.has(a.kind) || WIN_KINDS.has(a.kind) || URGENT_WHEN_HIGH.has(a.kind))) return 'outside_window';
     const name = ((ar && person.full_name_ar) || person.full_name || '').split(' ')[0];
@@ -516,7 +521,7 @@ async function whatsAppAlert(
         )
       : [];
   let ok = true;
-  for (const c of cards.slice(0, 3)) ok = (await waButtons(person.phone, c.body, c.buttons)) && ok;
+  for (const c of cards.slice(0, 3)) ok = (await waButtons(person.phone, pre(c.taskId, c.body), c.buttons)) && ok;
   const carded = (a: PendingAlert) =>
     cards.length > 0 && (a.kind === 'decision_waiting' || (a.kind === 'new_submission' && cards.some((c) => c.taskId === a.task_id)));
   // a question / comment / call for help about a task comes with «💬 رد عليه»: the next message goes back to them
@@ -525,12 +530,12 @@ async function whatsAppAlert(
   const replyable = m.alerts.filter((a) => REPLYABLE.has(a.kind) && !!a.task_id && !carded(a)).slice(0, 3);
   for (const a of replyable) {
     const body = `*${(ar ? a.title_ar : null) ?? a.title}*\n${(ar ? a.body_ar : null) ?? a.body ?? ''}`.trim();
-    ok = (await waButtons(person.phone, body, [{ id: `cm:${a.task_id}`, title: ar ? '💬 رد عليه' : '💬 Reply' }])) && ok;
+    ok = (await waButtons(person.phone, pre(a.task_id, body), [{ id: `cm:${a.task_id}`, title: ar ? '💬 رد عليه' : '💬 Reply' }])) && ok;
   }
   const rest = m.alerts.filter((a) => !carded(a) && !replyable.includes(a));
   if (rest.length) {
     const line = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
-    const text = rest.length === m.alerts.length ? `*${m.title}*\n${m.body}` : rest.length === 1 ? `*${line(rest[0])}*\n${(ar ? rest[0].body_ar : null) ?? rest[0].body}` : rest.map(line).join('\n');
+    const text = rest.length === m.alerts.length ? `*${m.title}*\n${m.body}` : rest.length === 1 ? pre(rest[0].task_id, `*${line(rest[0])}*\n${(ar ? rest[0].body_ar : null) ?? rest[0].body}`) : pre(null, rest.map(line).join('\n'));
     ok = (await sendWhatsApp(person.phone, text)) && ok;
   }
   return ok ? 'sent' : 'error';

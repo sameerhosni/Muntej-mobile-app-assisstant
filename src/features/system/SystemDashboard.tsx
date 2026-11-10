@@ -32,12 +32,22 @@ const en = {
   perDay: '📈 New tasks each day',
   today: 'Today',
   busiest: '🏆 Busiest company',
-  busiestVal: '{{name}} · {{n}} tasks',
+  busiestVal_zero: '{{name}} · no tasks',
+  busiestVal_one: '{{name}} · 1 task',
+  busiestVal_two: '{{name}} · {{count}} tasks',
+  busiestVal_few: '{{name}} · {{count}} tasks',
+  busiestVal_many: '{{name}} · {{count}} tasks',
+  busiestVal_other: '{{name}} · {{count}} tasks',
   idle: '😴 No activity in 7 days',
   fresh: '🆕 New this week',
   health: '🩺 System health',
   healthy: 'Healthy',
-  issues: '{{n}} to check',
+  issues_zero: 'Nothing to check',
+  issues_one: '1 thing to check',
+  issues_two: '{{count}} things to check',
+  issues_few: '{{count}} things to check',
+  issues_many: '{{count}} things to check',
+  issues_other: '{{count}} things to check',
   colCompany: 'Company',
   colActive: 'Active',
   colInvited: 'Invited',
@@ -75,12 +85,22 @@ const ar: typeof en & Record<string, string> = {
   perDay: '📈 مهام جديدة كل يوم',
   today: 'اليوم',
   busiest: '🏆 أنشط شركة',
-  busiestVal: '{{name}} · {{n}} مهمة',
+  busiestVal_zero: '{{name}} · بدون مهام',
+  busiestVal_one: '{{name}} · مهمة وحدة',
+  busiestVal_two: '{{name}} · مهمتين',
+  busiestVal_few: '{{name}} · {{count}} مهام',
+  busiestVal_many: '{{name}} · {{count}} مهمة',
+  busiestVal_other: '{{name}} · {{count}} مهمة',
   idle: '😴 بدون نشاط 7 أيام',
   fresh: '🆕 جديدة هالأسبوع',
   health: '🩺 صحة النظام',
   healthy: 'سليمة',
-  issues: '{{n}} تحتاج نظرة',
+  issues_zero: 'ما فيه شي',
+  issues_one: 'شي واحد يحتاج نظرة',
+  issues_two: 'شيئين يحتاجون نظرة',
+  issues_few: '{{count}} أشياء تحتاج نظرة',
+  issues_many: '{{count}} شي يحتاج نظرة',
+  issues_other: '{{count}} شي يحتاج نظرة',
   colCompany: 'الشركة',
   colActive: 'نشط',
   colInvited: 'مدعو',
@@ -237,10 +257,10 @@ export function SystemDashboard() {
             <Bars days={d.per_day} lang={lang} todayLabel={t('today')} />
           </Card>
           <Card padding={spacing.lg}>
-            {d.companies[0] && <Row label={t('busiest')} value={t('busiestVal', { name: d.companies[0].name, n: fmt(d.companies[0].tasks_7d) })} first />}
+            {d.companies[0] && <Row label={t('busiest')} value={t('busiestVal', { name: d.companies[0].name, count: d.companies[0].tasks_7d })} first />}
             <Row label={t('idle')} value={fmt(d.totals.idle_companies_7d)} tone={d.totals.idle_companies_7d ? 'amberText' : undefined} />
             <Row label={t('fresh')} value={fmt(d.totals.new_companies_7d)} />
-            <Row label={t('health')} value={issues ? t('issues', { n: issues }) : t('healthy')} tone={issues ? 'amberText' : 'greenText'} onPress={() => setTab('health')} chevron={Chevron} />
+            <Row label={t('health')} value={issues ? t('issues', { count: issues }) : t('healthy')} tone={issues ? 'amberText' : 'greenText'} onPress={() => setTab('health')} chevron={Chevron} />
           </Card>
           <AppText weight="extrabold" style={{ marginTop: spacing.sm }}>
             {t('tools')}

@@ -425,3 +425,7 @@ Last updated: 2026-11-09.
 ### R95 · The super admin's console seat gets no notifications; one person, one message per moment
 - **Why:** 10 Nov: two morning reports landed on one phone at 8:00, WhatsApp from the Super account seat (5 decisions) and a push from T2 (0 decisions), with different numbers. The owner: "Super admin should not receive notifications here. It should be a dashboard in the app".
 - **Check:** any new push / WhatsApp / email / report path skips `role = 'super_admin'` seats (use `consoleSeats` / `sendPush`, or `.neq('role','super_admin')`); a phone or login with seats in two companies says the company first ("T2 · …"); WhatsApp picks one seat per phone (`waProfileFor`); the push and WhatsApp versions of a report show the same numbers on the same first line.
+
+### R96 · One report, one source line
+- **Why:** 10 Nov, reviewer on R95's fix: the push opened with "in progress · late · done" while the WhatsApp template (outside the 24 h window, the usual case at 8:00) said "risks · need you · wins": two numbers for one morning.
+- **Check:** a report sent on several channels (push, in-window WhatsApp, WhatsApp template, email) builds every channel's first line from the same field; no channel gets its own summary string with other numbers.
