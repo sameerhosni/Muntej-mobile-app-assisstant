@@ -496,3 +496,7 @@ Last updated: 2026-11-09.
 ### R113 · A server list that finds nothing, or isn't sure who, still answers
 - **Why:** 10 Nov, reviewer pass 3: when two teammates fit the name or nothing was closed, the closed-tasks block left the model's bare «هذي مهام … المقفلة:» (the R110 incident again).
 - **Check:** a trigger that decided to fill a list replaces the reply with "none" or a which-one question naming the people when it has nothing to show.
+
+### R114 · A which-one question's chips settle the choice when tapped
+- **Why:** 10 Nov, reviewer pass 4: «مهام مهند الأول المقفلة كلها» still fit both «مهند»s (only first names were compared), so the same question came back forever.
+- **Check:** once two people fit, the other words of their names narrow it; a QA case taps a chip's text and expects exactly one person, no second question.

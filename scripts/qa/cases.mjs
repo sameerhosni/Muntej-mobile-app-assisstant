@@ -503,6 +503,10 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         const c = await talk('عطني كل مهام مهند المقفلة');
         expect(/مهند الأول/.test(c.said) && /مهند الثاني/.test(c.said), `didn't ask which one: «${c.said.slice(0, 110)}»`);
         expect(!/[:：]\s*$/.test(c.said.trim()), `a bare intro with nothing after it: «${c.said.slice(0, 110)}»`);
+        // tapping a chip settles it: no which-one again, nothing of the other one (reviewer, 10 Nov)
+        const d = await talk('مهام مهند الأول المقفلة كلها');
+        expect(!/تقصد مين/.test(d.said), `asked which one again: «${d.said.slice(0, 110)}»`);
+        expect(!/مهند الثاني/.test(d.said), `listed the other one: «${d.said.slice(0, 110)}»`);
       } finally {
         for (const t of twins) await sql(`update public.profiles set full_name_ar = ${t.full_name_ar === null ? 'null' : `'${t.full_name_ar.replace(/'/g, "''")}'`} where id = '${t.id}'`);
       }
