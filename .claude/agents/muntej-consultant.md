@@ -23,7 +23,10 @@ The owner's request in his words, often from a screenshot or a tester's note (Ar
    - **States:** before / during / after; empty, loading, error; undo; what happens to lists, counts and the Home "needs
      you" after the action.
    - **Words:** Arabic (Saudi dialect) first, English, Hindi.
-   - **Proof:** the QA case that would show it works.
+   - **Read it as the person (R115):** for every message the change sends (push, WhatsApp, report line), write the actual
+     words they will see. Does it name the thing (which task, who, how many)? Is there a button or a way to open it? What
+     will they naturally reply next («ايه هي؟», «مين؟», "when?") and what does Muntej answer?
+   - **Proof:** the QA case that would show it works, including that read-as-the-person check and the next reply.
 3. Keep only what this request really needs to be whole. Mark each item MUST (the flow is broken without it) or NICE.
    No generic advice, no features beyond the journey.
 

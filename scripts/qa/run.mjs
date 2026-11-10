@@ -381,6 +381,26 @@ async function server() {
       await sql(`delete from public.tasks where id = '${t.id}'`);
     }
   });
+  // The owner, 10 Nov: "unclear" — Nouran got «من أدواتك: لقيت مهمة وحدة لك، تنتظر موافقتك» (no name, no buttons), asked
+  // «ايه هي؟», and the chat answered about another task. Read as the user: the next «ايه هي؟» shows that task's card.
+  await check('whatsapp', 'After «found a task in your tools», «ايه هي؟» shows that task with Approve / Ignore', async () => {
+    const title = `QA tools found task ${Date.now().toString(36)}`;
+    const [item] = await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, suggestions)
+      values ('${QA_BOSS}', 'gmail', 'qa-${Date.now()}', 'QA', 'QA', 'new',
+        '[{"title":"${title}","owner_id":"${QA_BOSS}","due_at":null,"priority":"medium","state":"new","task_id":null,"duplicate_of":null,"confidence":0.9,"quote":"","description":null,"definition_of_done":null,"proof_required":"none","budget":null,"estimate_hours":null,"requested_by":null,"amends_earlier":false,"owner_name":null,"outside":false,"asked_by_user":false,"asked_of_user":true}]'::jsonb) returning id`);
+    const [al] = await sql(`insert into public.alerts (profile_id, kind, title, body, title_ar, body_ar, dedupe_key, delivered_at)
+      values ('${QA_BOSS}', 'tools_found', 'From your tools', 'x', 'من أدواتك', 'x', 'qa-tools-${Date.now()}', now()) returning id`);
+    try {
+      const msgs = await wa('ايه هي؟');
+      const all = JSON.stringify(msgs);
+      expect(all.includes(title), `the task wasn't shown: ${texts(msgs).slice(0, 140)}`);
+      expect(all.includes(`ok:${item.id}:0`) && all.includes(`no:${item.id}:0`), 'no Approve / Ignore on it');
+      return 'the task, with its buttons';
+    } finally {
+      await sql(`delete from public.alerts where id = '${al.id}'`);
+      await sql(`delete from public.incoming_items where id = '${item.id}'`);
+    }
+  });
   // The owner, 10 Nov: "Is it only 1 needs me or 23?" — the midday report said «1 تحتاجك» (30 tools tasks counted as one
   // line) and «وش يحتاجني» a tap later said «فيه 23 شي يحتاجك». The same number, from the same list.
   await check('whatsapp', 'The report’s “need you” number is what «وش يحتاجني» lists', async () => {

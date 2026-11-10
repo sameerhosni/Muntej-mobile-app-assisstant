@@ -291,6 +291,8 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
       // mail / chat tasks waiting for the person's OK from this check: one push at the end (Nouran, 10 Nov: "we need to
       // improve the discovery for it as I discovered it by chance")
       let waitingNew = 0;
+      // and which ones: the alert names them (owner, 10 Nov: «لقيت مهمة وحدة لك» said nothing, so «ايه هي؟»)
+      const waitingTitles: string[] = [];
       for (const it of fresh.slice(0, MAX_ITEMS)) {
         const item = await ingestMessage(admin, {
           profileId: conn.profile_id,
@@ -328,7 +330,11 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
             admin,
           ).catch(() => 0);
         }
-        if (!it.task && it.source !== 'meet' && it.source !== 'meeting') waitingNew += item.suggestions.filter((s) => s.state === 'new').length;
+        if (!it.task && it.source !== 'meet' && it.source !== 'meeting') {
+          const fresh = item.suggestions.filter((s) => s.state === 'new');
+          waitingNew += fresh.length;
+          waitingTitles.push(...fresh.map((s) => s.title));
+        }
         // tool tasks count when they became Muntej tasks; mail / chat counts every task found (some wait in Incoming)
         out.tasks += it.task ? item.suggestions.filter((s) => s.state === 'accepted').length : item.suggestions.length;
         // a tool task that became a Muntej task is linked, so status and changes stay in step from now on
@@ -352,14 +358,15 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
       // screen, and a tap opens "From your tools" (reviewer, 10 Nov). One per connection per check.
       if (waitingNew > 0) {
         const n = waitingNew;
-        const arN = n === 1 ? 'مهمة وحدة' : n === 2 ? 'مهمتين' : `${n} ${n <= 10 ? 'مهام' : 'مهمة'}`;
+        const named = waitingTitles.slice(0, 2).map((t) => `«${t.length > 60 ? `${t.slice(0, 59)}…` : t}»`);
+        const more = n - named.length;
         await admin.from('alerts').insert({
           profile_id: conn.profile_id,
           kind: 'tools_found',
-          title: '🔌 From your tools',
-          body: `I found ${n} task${n > 1 ? 's' : ''} for you. They wait for your OK.`,
-          title_ar: '🔌 من أدواتك',
-          body_ar: `لقيت ${arN} لك، تنتظر موافقتك.`,
+          title: n === 1 ? `🔌 From your tools: ${named[0]}` : `🔌 ${n} tasks from your tools`,
+          body: `${named.join(' · ')}${more > 0 ? ` +${more} more` : ''}. They wait for your OK.`,
+          title_ar: n === 1 ? `🔌 من أدواتك: ${named[0]}` : `🔌 ${n === 2 ? 'مهمتين' : `${n} ${n <= 10 ? 'مهام' : 'مهمة'}`} من أدواتك`,
+          body_ar: `${named.join(' · ')}${more > 0 ? ` و${more} غيرها` : ''}. تنتظر موافقتك.`,
           dedupe_key: `tools_found:${conn.id}:${Date.now()}`,
         });
       }

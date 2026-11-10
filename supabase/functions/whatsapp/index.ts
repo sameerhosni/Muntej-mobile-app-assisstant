@@ -38,6 +38,9 @@ import {
 import { lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolListButtons, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
 import { quickDates, readWhen } from '../_shared/when.ts';
 
+/** "what is it?" about the last thing Muntej sent (whole message; Arabic without \b, R112) */
+const WHAT_IS_IT = /^((ايه|إيه|ايش|إيش|وش|شو|ما)\s*(هي|هو|هم|هذي|هذا|هاذي|المهمة|المهمه)|وشو|ايش هي|what('s| is) (it|that|this)|which (one|task)|show me)\s*[؟?!.]*$/i;
+
 /** what a question asks about (ask_task_detail's p_what) */
 type What = 'due' | 'doneDef' | 'budget';
 const WHAT_AR: Record<What, string> = { due: 'الموعد', doneDef: 'تعريف الإنجاز', budget: 'الميزانية' };
@@ -558,6 +561,29 @@ async function handle(m: WaMessage, dry = false) {
   // numbers after the list of tasks found in tools ("1 3 5", "تجاهل 2 6", "الكل"): approve / ignore in one go
   const chosen = parsePick(text);
   if (chosen && (await toolList())) return void (await applyPick(chosen));
+
+  // «ايه هي؟» / "what is it?" right after Muntej told them about something: show that thing, never guess (owner, 10 Nov:
+  // after «لقيت مهمة وحدة لك» the chat answered about another task's definition of done)
+  if (WHAT_IS_IT.test(text.trim())) {
+    const { data: last } = await admin
+      .from('alerts')
+      .select('kind, task_id')
+      .eq('profile_id', me.id)
+      .not('delivered_at', 'is', null)
+      .gte('delivered_at', new Date(Date.now() - 2 * 3_600_000).toISOString())
+      .order('delivered_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (last?.kind === 'tools_found') {
+      const tools = (await needsYouCards(admin, me.id, ar)).filter((c) => c.kind === 'tool');
+      if (tools.length) return void (await sendCards(from, ar, tools, 3));
+      return void (await say(ar ? 'كانت من أدواتك، وما عاد فيه شي ينتظرك منها 👌' : 'It was from your tools, and nothing from them is waiting any more 👌'));
+    }
+    if (last?.task_id) {
+      const card = (await needsYouCards(admin, me.id, ar)).find((c) => c.taskId === last.task_id);
+      if (card) return void (await waButtons(from, card.body, card.buttons));
+    }
+  }
 
   if (SAYS_HELP.test(text)) return void (await say(helpText(ar)));
   // what Muntej is doing, in the chat itself (owner, 9 Nov: "Need more than typing in the chat itself, something like

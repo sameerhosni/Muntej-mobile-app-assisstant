@@ -519,18 +519,25 @@ async function whatsAppAlert(
   const reviewed = new Set(about('new_submission').map((a) => a.task_id));
   // decisions and reviews come as cards with their buttons, even when other updates arrived in the same minute
   // (an employee answering "more time", "help" and "done" at once used to turn the cards into one plain text)
-  const cards =
-    decided.length || reviewed.size
-      ? (await needsYouCards(admin, person.id, ar)).filter(
-          (c) =>
-            (c.kind === 'decision' && decided.some((a) => !a.task_id || a.task_id === c.taskId)) ||
-            (c.kind === 'review' && reviewed.has(c.taskId ?? null)),
-        )
-      : [];
+  // tasks found in their tools come as those tasks' own cards (✅ اعتمد / ✖️ تجاهل), never a bare count (owner, 10 Nov:
+  // «لقيت مهمة وحدة لك» → «ايه هي؟» and the chat didn't know)
+  const toolsFound = about('tools_found').length > 0;
+  const all = decided.length || reviewed.size || toolsFound ? await needsYouCards(admin, person.id, ar) : [];
+  const cards = all.filter(
+    (c) =>
+      (c.kind === 'decision' && decided.some((a) => !a.task_id || a.task_id === c.taskId)) ||
+      (c.kind === 'review' && reviewed.has(c.taskId ?? null)),
+  );
+  const toolCards = toolsFound ? all.filter((c) => c.kind === 'tool').slice(0, 3) : [];
   let ok = true;
   for (const c of cards.slice(0, 3)) ok = (await waButtons(person.phone, pre(c.taskId, c.body), c.buttons)) && ok;
+  for (const c of toolCards) ok = (await waButtons(person.phone, pre(null, c.body), c.buttons)) && ok;
+  const toolsLeft = all.filter((c) => c.kind === 'tool').length - toolCards.length;
+  if (toolCards.length && toolsLeft > 0)
+    ok = (await sendWhatsApp(person.phone, rtl(ar, ar ? `و${toolsLeft} غيرها من أدواتك: قل «وش يحتاجني» أو افتح منتج ← الرئيسية ← «يحتاجك»` : `+${toolsLeft} more from your tools: say "what needs me" or open Muntej → Home → "Needs you"`))) && ok;
   const carded = (a: PendingAlert) =>
-    cards.length > 0 && (a.kind === 'decision_waiting' || (a.kind === 'new_submission' && cards.some((c) => c.taskId === a.task_id)));
+    (a.kind === 'tools_found' && toolCards.length > 0) ||
+    (cards.length > 0 && (a.kind === 'decision_waiting' || (a.kind === 'new_submission' && cards.some((c) => c.taskId === a.task_id))));
   // a question / comment / call for help about a task comes with «💬 رد عليه»: the next message goes back to them
   // (Nouran, 9 Nov, N17/N21: "I tried to answer it over WhatsApp… nothing changed on the employee side")
   // «✍️ جاوب» for questions: testers first (task_answers); the others keep «💬 رد عليه» on them

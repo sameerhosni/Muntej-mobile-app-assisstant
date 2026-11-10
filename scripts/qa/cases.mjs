@@ -218,6 +218,15 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         await sql(`delete from public.incoming_items where id = '${r.id}'`);
         return 'read as a plain paste';
       });
+      // The owner, 10 Nov: "unclear" — the tools alert said «لقيت مهمة وحدة لك» with no name. Read as the user: it names
+      // the task, and on WhatsApp it is the task's own card with Approve / Ignore
+      await check('inbox', 'Tools: the “found tasks” alert names them, and comes as their cards on WhatsApp', async () => {
+        const conn = readFileSync(new URL('../../supabase/functions/_shared/connections.ts', import.meta.url), 'utf8');
+        const notify = readFileSync(new URL('../../supabase/functions/_shared/notify.ts', import.meta.url), 'utf8');
+        expect(/title_ar: n === 1 \? `🔌 من أدواتك: \$\{named\[0\]\}`/.test(conn), 'the alert does not name the task');
+        expect(/const toolCards = toolsFound \?/.test(notify), 'on WhatsApp it is not the task’s card');
+        return 'named, with its card';
+      });
       await check('inbox', 'Tools: the WhatsApp list says where they are in the app', async () => {
         const src = readFileSync(new URL('../../supabase/functions/_shared/wa-actions.ts', import.meta.url), 'utf8');
         expect(/وتلقاها كمان في تطبيق منتج/.test(src), 'no line pointing to the app');

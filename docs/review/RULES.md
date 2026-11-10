@@ -500,3 +500,7 @@ Last updated: 2026-11-09.
 ### R114 · A which-one question's chips settle the choice when tapped
 - **Why:** 10 Nov, reviewer pass 4: «مهام مهند الأول المقفلة كلها» still fit both «مهند»s (only first names were compared), so the same question came back forever.
 - **Check:** once two people fit, the one matching the most of their other name words wins (a family name both share never keeps both); a QA case taps a chip's text, also with a shared family name, and expects exactly one person, no second question.
+
+### R115 · Every message Muntej sends is checked as the person reads it
+- **Why:** 10 Nov, the owner ("unclear", "why we are not getting this in QA activities? we should add these scenarios every time"): «من أدواتك: لقيت مهمة وحدة لك، تنتظر موافقتك» named no task and had no buttons; Nouran replied «ايه هي؟» and Saree3 answered about another task. QA had checked that the alert existed, never what it said.
+- **Check:** a new or changed notification (push, WhatsApp, report line) has a QA case that reads its words as the person: it names the thing (task, person, number), has a way to act or open it, and the natural next reply («ايه هي؟» / "what is it?") is answered about that same thing.
