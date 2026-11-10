@@ -408,6 +408,12 @@ async function server() {
       expect(all.includes(`QA found ${tag}`), `the alert's task wasn't shown: ${texts(msgs).slice(0, 140)}`);
       expect(!all.includes(`QA newer other ${tag}`), 'showed another waiting task instead');
       expect(all.includes(`ok:${found.id}:0`) && all.includes(`no:${found.id}:0`), 'no Approve / Ignore on it');
+      // the alert's items are settled: it says so, and shows nothing else (R117)
+      await sql(`update public.incoming_items set status = 'done' where id = '${found.id}'`);
+      const settled = await wa('ايه هي؟');
+      const sj = JSON.stringify(settled);
+      expect(/ما عاد فيه شي ينتظرك|nothing from them is waiting/.test(texts(settled)), `settled items, but: ${texts(settled).slice(0, 120)}`);
+      expect(!sj.includes('ok:') && !sj.includes('no:') && !sj.includes(`QA newer other ${tag}`), 'showed other waiting items');
       // the alert on the number's OTHER seat (two companies): still found
       await jwtFor(OTHER, DEMO);
       await sql(`update public.profiles set phone = '${QA_PHONE}' where id = '${OTHER}'`);
@@ -426,12 +432,19 @@ async function server() {
       // no card for the alert's task: the task itself. Their own open task → its buttons; one they gave → its line
       const mineT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA what is it mine ${tag}', '${QA_BOSS}', '${QA_BOSS}', 'in_progress') returning id`))[0];
       const gaveT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA what is it gave ${tag}', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`))[0];
-      made.tasks.push(mineT.id, gaveT.id);
-      for (const [t, own] of [[mineT, true], [gaveT, false]]) {
+      // a task with a card of its own (waiting for their review): that card
+      const reviewT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA what is it review ${tag}', '${QA_FAISAL}', '${QA_BOSS}', 'submitted') returning id`))[0];
+      made.tasks.push(mineT.id, gaveT.id, reviewT.id);
+      for (const [t, own] of [[mineT, true], [gaveT, false], [reviewT, 'card']]) {
         made.alerts.push((await sql(`insert into public.alerts (profile_id, kind, task_id, title, body, title_ar, body_ar, dedupe_key, delivered_at)
           values ('${QA_BOSS}', 'task_comment', '${t.id}', 'QA comment', 'x', 'تعليق', 'x', 'qa-wii-${t.id}', now() + interval '5 seconds') returning id`))[0].id);
         const r = await wa('ايه هي؟');
         const j = JSON.stringify(r);
+        if (own === 'card') {
+          expect(j.includes(`r:ok:${t.id}`) && j.includes(`r:back:${t.id}`), `no review card: ${texts(r).slice(0, 140)}`);
+          expect(!j.includes('h:done:') && !/تفاصيلها في منتج/.test(texts(r)), 'the card branch fell through');
+          continue;
+        }
         expect(j.includes(`QA what is it ${own ? 'mine' : 'gave'} ${tag}`), `the task wasn't shown (${own ? 'own' : 'given'}): ${texts(r).slice(0, 140)}`);
         if (own) expect(j.includes(`h:done:${t.id}`), 'no Done / Need time / Need help on their own task');
         else expect(!j.includes('h:done:') && /تفاصيلها في منتج|Details in Muntej/.test(texts(r)), `a given task should just say where to see it: ${texts(r).slice(0, 120)}`);
