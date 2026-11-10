@@ -564,3 +564,15 @@ Last updated: 2026-11-09.
 ### R130 · A send never waits on something the server already knows, and its failure says why
 - **Why:** 10 Nov, QA: «Send an idea» kept failing with «ما قدرت أرسلها» and no clue; the screen stopped with «Not signed in» because the loaded profile wasn't there yet, though the database fills in the seat itself.
 - **Check:** a mutation needs only what the server can't work out (the seat comes from current_profile_id()); every onError or catch that shows a failure note also logs the real message (console.error), and an error the server returned is never replaced by a guess like «Not signed in», so QA shows the cause.
+
+### R131 · Whoever the server lets cancel a task sees Cancel, and a cancel can always be brought back
+- **Why:** 10 Nov, owner: «Already deleted but still there». A task from his own email, his to do, had no Cancel: the page offered it only to a giver who isn't the doer, though can_cancel_task allowed him. And a cancel was one-way.
+- **Check:** every Cancel button follows canCancel() (the app's copy of can_cancel_task), on the task page and on list rows; the doer of a task someone else gave gets «اطلب إلغاءها» instead; cancel_task remembers the status and stopped follow-ups, and «رجّعها» (6 seconds, then from the cancelled task's page) brings them back; the doer's notice says who cancelled it in words that can't read as "I cancelled".
+
+### R132 · A request that waits on another person gets its own alert kind, never the generic notice
+- **Why:** 10 Nov, reviewer: «اطلب إلغاءها» was saved as a plain changed_for_you alert, so it never showed in the giver's «يحتاجك», could wait for the morning brief, was held at prayer time, and had no button on WhatsApp, while the doer was told it was sent.
+- **Check:** a new "please do X" ask has its own kind in AlertKind, RULE_FOR, EXCEPTION_KINDS and PRAYER_SKIP_KINDS. It is listed in «يحتاجك» with the buttons that settle it, and goes out on WhatsApp with those buttons, which act as the sender. Settling it (or cancelling the task) marks it read and tells the asker once.
+
+### R133 · A button from an older message checks the task again, and its reply says only what really happened
+- **Why:** 10 Nov, reviewer: an old [✕ ألغها] could cancel a task the doer had since finished, and [👍 خلّها] always said «قلت له يكمّل» even when nothing was settled.
+- **Check:** WhatsApp taps and «يحتاجك» rows re-read the task's status before acting (done / cancelled get their own line), the RPC refuses a closed task too, and the reply follows what the RPC returned (its count or status), never a fixed sentence.

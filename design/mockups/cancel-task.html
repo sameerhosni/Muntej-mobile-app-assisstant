@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cancel a task</title>
+<style>
+:root{--bg:#F4F7FC;--card:#fff;--ink:#0E1B3D;--sub:#6B7794;--line:#E6EBF3;--blue:#2F6BF0;--red:#E5484D;--redbg:#FDECEC;--green:#1F9D55}
+body{margin:0;background:var(--bg);font-family:system-ui,"Segoe UI",Tahoma,sans-serif;color:var(--ink);padding:16px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:17px;margin:24px 0 8px}p.s{color:var(--sub);margin:0 0 12px;font-size:14px}
+.phone{background:var(--card);border-radius:22px;padding:14px;box-shadow:0 2px 10px #0001;max-width:380px;margin-bottom:12px}
+.row{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.row:last-child{border:0}.t{flex:1}.t b{display:block;font-size:15px}.t span{font-size:12px;color:var(--sub)}
+.x{width:44px;height:44px;border-radius:12px;background:var(--redbg);color:var(--red);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700}
+.sheet{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:10px}
+.btns{display:flex;gap:8px;margin-top:10px}.b{flex:1;text-align:center;padding:12px;border-radius:14px;font-weight:700;font-size:15px}
+.red{background:var(--red);color:#fff}.ghost{border:1px solid var(--line)}
+.toast{background:var(--ink);color:#fff;border-radius:14px;padding:12px 14px;display:flex;justify-content:space-between;margin-top:10px;font-size:14px}
+.toast u{color:#9EC1FF;text-decoration:none;font-weight:700}
+.tag{display:inline-block;background:#EAF1FF;color:var(--blue);border-radius:10px;padding:2px 10px;font-size:12px;font-weight:700}
+.bar{display:flex;gap:8px;margin-top:6px}.bar .b{padding:14px}.blue{background:var(--blue);color:#fff}
+.from{background:#FFF4E8;border-radius:14px;padding:10px;font-size:14px}
+</style></head><body>
+<h1>إلغاء المهمة بضغطة</h1>
+<p class="s">صفحة المهمة صار فيها «ألغها» لما تكون المهمة لك أو أنت اللي عطيتها. وفي قائمة المهام صار فيه زر ✕ على كل مهمة تقدر تلغيها.</p>
+
+<h2>صفحة المهمة (نفسها في الخيارين)</h2>
+<div class="phone">
+  <div class="from">من: <b>إيميلك · GITEX 2026</b> &nbsp;←&nbsp; إلى: <b>أنت</b></div>
+  <div class="bar"><div class="b blue">✓ خلصت</div><div class="b ghost">غيّرها مع منتج</div><div class="b ghost" style="color:var(--red)">✕ ألغها</div></div>
+</div>
+
+<h2>الخيار 1 · يسألك أول</h2>
+<p class="s">تضغط ✕، ويطلع لك سؤال قبل ما تنلغي.</p>
+<div class="phone">
+  <div class="row"><div class="t"><b>Finalize all Nizamy content and demos</b><span>الاثنين ٥ م · عالية</span></div><div class="x">✕</div></div>
+  <div class="sheet"><b>تلغيها؟</b><div style="font-size:13px;color:var(--sub)">تختفي من القوائم وتوقف المتابعة.</div>
+    <div class="btns"><div class="b red">إيه، ألغها</div><div class="b ghost">لا</div></div></div>
+</div>
+
+<h2>الخيار 2 · تنلغي على طول ومعها «رجّعها»</h2>
+<p class="s">تضغط ✕ فتنلغي فورًا، ويظهر «رجّعها» لمدة ٦ ثواني. وبعدها تقدر ترجعها من ⋯ ← الملغاة.</p>
+<div class="phone">
+  <div class="row"><div class="t"><b>Prepare Nizamy product positioning</b><span>١٥ نوفمبر</span></div><div class="x">✕</div></div>
+  <div class="toast">انلغت ✓ «Finalize all Nizamy…»<u>رجّعها</u></div>
+</div>
+
+<h2>في الخيارين</h2>
+<p class="s">✕ يظهر بس على المهام اللي تقدر تلغيها. المهمة اللي عطاك إياها شخص ثاني يظهر لك فيها «اطلب إلغاءها»، وتروح للي عطاك إياها. وما فيه حذف نهائي أبد.</p>
+</body></html>

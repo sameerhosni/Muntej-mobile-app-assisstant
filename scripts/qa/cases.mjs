@@ -704,6 +704,84 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
       await sql(`delete from public.tasks where id = '${t.id}'`);
     }
   });
+  // The owner, 10 Nov: "Already deleted but still there. Let's add delete or cancel button with each task" — a task from
+  // his own email, his to do, had no Cancel at all. He may cancel his own; «رجّعها» brings it back with its follow-ups; a
+  // task someone else gave stays theirs to cancel, and the doer asks them instead.
+  await check('invites', 'Your own task cancels and comes back; one you were given you ask the giver to cancel', async () => {
+    const [own] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, source, external_from)
+      values ('QA cancel own email task', '${QA_BOSS}', '${QA_BOSS}', 'assigned', 'email', 'QA Sender') returning id`);
+    const [given] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA cancel given task', '${ABDULLAH}', '${QA_BOSS}', 'assigned') returning id`);
+    let wasTester = null;
+    try {
+      const [fu] = await sql(`insert into public.followups (task_id, recipient_id, scheduled_at, channel, message, status)
+        values ('${own.id}', '${QA_BOSS}', now() + interval '2 days', 'push', 'QA reminder', 'scheduled') returning id`);
+      await rpc('cancel_task', { p_task: own.id }, jwt);
+      const [c] = await sql(`select t.status, f.status fstatus from public.tasks t, public.followups f where t.id = '${own.id}' and f.id = '${fu.id}'`);
+      expect(c.status === 'cancelled' && c.fstatus === 'cancelled', `not cancelled: ${JSON.stringify(c)}`);
+      const back = await rpc('restore_task', { p_task: own.id }, jwt);
+      const [b] = await sql(`select t.status, f.status fstatus from public.tasks t, public.followups f where t.id = '${own.id}' and f.id = '${fu.id}'`);
+      expect(back === 'assigned' && b.status === 'assigned' && b.fstatus === 'scheduled', `not back as it was: ${back} ${JSON.stringify(b)}`);
+      // an old button never cancels a finished task (reviewer, 10 Nov, R133)
+      await sql(`update public.tasks set status = 'done' where id = '${own.id}'`);
+      const doneKept = await rpc('cancel_task', { p_task: own.id }, jwt).then(() => false, (e) => /Already done/.test(e.message));
+      const [still] = await sql(`select status from public.tasks where id = '${own.id}'`);
+      expect(doneKept && still.status === 'done', `a finished task was cancelled: ${still.status}`);
+
+      // a task the boss gave Abdullah: Abdullah can't cancel it, he asks; the boss cancels; Abdullah reads who did it
+      // («اطلب إلغاءها» is testers first: Abdullah is one for this check)
+      [{ tester: wasTester }] = await sql(`select tester from public.profiles where id = '${ABDULLAH}'`);
+      await sql(`update public.profiles set tester = true where id = '${ABDULLAH}'`);
+      const abdullah = await jwtFor(ABDULLAH, QA_ACCOUNT);
+      const refused = await rpc('cancel_task', { p_task: given.id }, abdullah).then(() => false, () => true);
+      expect(refused, 'the doer cancelled a task someone else gave him');
+      await rpc('ask_to_cancel', { p_task: given.id, p_reason: 'العميل ألغى الطلب' }, abdullah);
+      const [asked] = await sql(`select kind, title_ar, body_ar from public.alerts where profile_id = '${QA_BOSS}' and task_id = '${given.id}' and dedupe_key like 'cancel_ask:%'`);
+      expect(asked && asked.kind === 'cancel_asked' && /تلغيها/.test(asked.title_ar) && /العميل/.test(asked.body_ar), `the giver wasn't asked: ${JSON.stringify(asked)}`);
+      // «خلّها» tells him to carry on and settles the request
+      await rpc('keep_task', { p_task: given.id }, jwt);
+      const [kept] = await sql(`select title_ar from public.alerts where profile_id = '${ABDULLAH}' and task_id = '${given.id}' and dedupe_key like 'cancel_kept:%'`);
+      expect(kept && /كمّل/.test(kept.title_ar), 'the doer wasn’t told to carry on');
+      // asked again, then cancelled: a waiting decision on it closes too
+      await rpc('ask_to_cancel', { p_task: given.id }, abdullah);
+      await sql(`insert into public.decisions (task_id, manager_id, requested_by, type, title, status) values ('${given.id}', '${QA_BOSS}', '${ABDULLAH}', 'extension_request', 'QA more time', 'pending')`);
+      await rpc('cancel_task', { p_task: given.id }, jwt);
+      const [dec] = await sql(`select status from public.decisions where task_id = '${given.id}'`);
+      expect(dec.status === 'expired', `a decision on the cancelled task still waits: ${dec.status}`);
+      const [left] = await sql(`select id from public.alerts where profile_id = '${QA_BOSS}' and task_id = '${given.id}' and kind = 'cancel_asked' and read_at is null`);
+      expect(!left, 'the cancel request still waits after cancelling');
+      const [told] = await sql(`select title_ar from public.alerts a join public.activity_log l on a.dedupe_key = 'change:' || l.id
+        where a.profile_id = '${ABDULLAH}' and l.task_id = '${given.id}' and l.action = 'task_cancelled'`);
+      expect(told && /ألغى/.test(told.title_ar) && /ما عاد تحتاج/.test(told.title_ar), `the doer's notice reads wrong: ${told?.title_ar}`);
+      return `«${told.title_ar}»`;
+    } finally {
+      // put back what was there before
+      if (wasTester !== null) await sql(`update public.profiles set tester = ${wasTester ? 'true' : 'false'} where id = '${ABDULLAH}'`);
+      for (const id of [own.id, given.id]) {
+        await sql(`delete from public.alerts where task_id = '${id}'`);
+        await sql(`delete from public.followups where task_id = '${id}'`);
+        await sql(`delete from public.decisions where task_id = '${id}'`);
+        await sql(`delete from public.activity_log where task_id = '${id}'`);
+        await sql(`delete from public.tasks where id = '${id}'`);
+      }
+    }
+  });
+  // the bug itself was the button, not the server (reviewer, 10 Nov): the app's rule and the page must offer Cancel to
+  // the giver who is also the doer, and to the owner of a task nobody gave
+  await check('invites', 'The task page offers Cancel on your own task (giver and doer are you)', async () => {
+    const ts = (await import('typescript')).default;
+    const src = readFileSync(new URL('../../src/features/tasks/canCancel.ts', import.meta.url), 'utf8');
+    const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020 } }).outputText;
+    const { canCancel } = await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+    const me = { id: 'me', role: 'manager', manager_id: null };
+    const team = [me, { id: 'f', manager_id: 'me' }, { id: 'a', manager_id: 'f' }, { id: 'boss', manager_id: null }];
+    expect(canCancel({ owner_id: 'me', assigner_id: 'me', status: 'assigned' }, me, team), 'no Cancel when you gave it to yourself (the GITEX email task)');
+    expect(canCancel({ owner_id: 'me', assigner_id: null, status: 'assigned' }, me, team), 'no Cancel on your own task nobody gave');
+    expect(canCancel({ owner_id: 'a', assigner_id: 'f', status: 'assigned' }, me, team), 'no Cancel two levels above the owner');
+    expect(!canCancel({ owner_id: 'me', assigner_id: 'boss', status: 'assigned' }, me, team), 'Cancel offered on a task someone else gave you');
+    const bar = readFileSync(new URL('../../src/features/review/ReviewBar.tsx', import.meta.url), 'utf8');
+    expect(/const cancelSlot = OPEN_STATUSES\.includes\(task\.status\) \? \(mayCancel \? cancelBtn/.test(bar), 'the page decides Cancel by role, not by the server’s rule');
+    return 'self-given, nobody-gave and two-up get Cancel; a given task asks instead';
+  });
   await check('invites', 'Internal notes never reach people as alert text', async () => {
     const [log] = await sql(`insert into public.activity_log (actor_type, actor_id, subject_id, action, summary, summary_ar, reason, undoable)
       values ('user', '${QA_BOSS}', '${FAISAL}', 'task_assigned', 'QA leak check', 'فحص التسريب', 'Owner, 9 Nov: internal note', false) returning id`);

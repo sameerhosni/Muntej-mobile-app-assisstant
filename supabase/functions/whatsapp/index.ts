@@ -362,6 +362,10 @@ async function whoseTap(m: WaMessage, people: { id: string; account_id: string }
     // (tc = a row of the tools drop-down: the seat that owns the item — reviewer, 10 Nov)
     const { data } = await admin.from('incoming_items').select('owner_id').eq('id', a).maybeSingle();
     related = [data?.owner_id ?? null];
+  } else if ((verb === 'xc' || verb === 'xk') && a) {
+    // a cancel request: the seat that gave the task decides
+    const { data } = await admin.from('tasks').select('assigner_id, owner_id').eq('id', a).maybeSingle();
+    related = [data?.assigner_id ?? null, data?.owner_id ?? null];
   } else if (verb === 'tl') {
     // «شوف الباقي»: the seat whose list it is (its saved numbers)
     const { data } = await admin.from('wa_pending').select('profile_id').in('key', [...ids].map((id) => `tools:${id}`)).order('created_at', { ascending: false }).limit(1);
@@ -815,6 +819,31 @@ async function handle(m: WaMessage, dry = false) {
     // a quick date under «متى الموعد؟»
     if (verb === 'dd' && rest[0] && rest[1]) return void (await setAnswer(rest[0], 'due', { due: new Date(Number(rest[1]) * 1000).toISOString() }));
     if (verb === 'h') return void (await checkin(rest[0], rest[1]));
+    // [ألغها] / [خلّها] under «X يقول … ما عاد لها داعي — تلغيها؟», as them (owner, 10 Nov; reviewer: settled right there)
+    if ((verb === 'xc' || verb === 'xk') && rest[0]) {
+      const db = userDb(await userToken(admin, me.user_id));
+      const { data: task } = await admin.from('tasks').select('title, status').eq('id', rest[0]).maybeSingle();
+      if (!task) return void (await say(ar ? 'ما لقيت هالمهمة 🤔' : 'I couldn’t find that task 🤔'));
+      // an old button: check the task again, and say only what really happened (reviewer, 10 Nov, R133)
+      if (task.status === 'cancelled') return void (await say(ar ? `«${task.title}» ملغاة من قبل 👍` : `"${task.title}" is already cancelled 👍`));
+      if (task.status === 'done') return void (await say(ar ? `«${task.title}» خلصت أصلاً ✅ ما فيه شي ينلغي` : `"${task.title}" is already done ✅ nothing to cancel`));
+      const { data: kept, error } = await db.rpc(verb === 'xc' ? 'cancel_task' : 'keep_task', { p_task: rest[0] });
+      if (error) {
+        console.error('whatsapp cancel ask', verb, error.message);
+        return void (await say(
+          /Only the person/.test(error.message)
+            ? ar ? 'القرار فيها لللي عطاها أو مديره 🙏' : 'Only whoever gave it (or their manager) can decide 🙏'
+            : ar ? 'ما قدرت أكمّلها الحين 😕 جرّب من التطبيق' : 'I couldn’t do it right now 😕 try in the app',
+        ));
+      }
+      return void (await say(
+        verb === 'xc'
+          ? ar ? `تم ✕ ألغيت «${task.title}» ووقفت متابعتها، وبلّغته. تقدر ترجّعها من التطبيق.` : `Done ✕ "${task.title}" is cancelled and follow-ups stopped; they're told. You can bring it back in the app.`
+          : Number(kept ?? 0) > 0
+            ? ar ? `تمام 👍 «${task.title}» باقية، وقلت له يكمّل عليها.` : `OK 👍 "${task.title}" stays; I told them to carry on.`
+            : ar ? `هالطلب انحسم من قبل 👍 «${task.title}» باقية.` : `That request was already settled 👍 "${task.title}" stays.`,
+      ));
+    }
     if (verb === 'ok' || verb === 'no') return void (await suggestion(verb, rest[0], Number(rest[1])));
     // the setup on WhatsApp: right / something's wrong / remind my team
     if (verb === 'ob') {

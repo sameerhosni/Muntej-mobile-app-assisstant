@@ -6,7 +6,8 @@ import { ActivityIndicator, Pressable, View } from 'react-native';
 import { FromTag } from './FromTag';
 import { FROM_TO_NS, fromToLine } from './FromTo';
 import { router } from 'expo-router';
-import { Check, ChevronRight } from 'lucide-react-native';
+import { Check, ChevronRight, X } from 'lucide-react-native';
+import { canCancel, OPEN_STATUSES } from './canCancel';
 import { AppText, Card } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { TOOL_LABEL, useTaskTools } from './toolTags';
@@ -20,7 +21,17 @@ import { isFinished, useCompleteTask } from './useCompleteTask';
 import { NS } from './strings';
 
 /** `hideObjective` is kept for callers; objectives are no longer shown on the row. */
-export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolean }) {
+export function TaskRow({
+  task,
+  onCancel,
+  cancelLabel,
+}: {
+  task: TaskWithPeople;
+  hideObjective?: boolean;
+  /** the list's quick ✕ (owner, 10 Nov): shown only where the server would let you cancel it (R15) */
+  onCancel?: (task: TaskWithPeople) => void;
+  cancelLabel?: string;
+}) {
   const { t } = useScreenT(NS);
   const { t: tf } = useScreenT(FROM_TO_NS);
   const { lang, isRTL } = useDirection();
@@ -160,6 +171,24 @@ export function TaskRow({ task }: { task: TaskWithPeople; hideObjective?: boolea
         </View>
         <ChevronRight color={colors.textFaint} size={16} strokeWidth={2.2} style={flip} />
       </Pressable>
+      {!!onCancel && OPEN_STATUSES.includes(task.status) && canCancel(task, me.data, team.data ?? []) && (
+        <Pressable
+          onPress={() => onCancel(task)}
+          accessibilityRole="button"
+          accessibilityLabel={cancelLabel ?? task.title}
+          style={({ pressed }) => ({
+            width: sizes.touch,
+            height: sizes.touch,
+            borderRadius: radius.md,
+            backgroundColor: colors.redTint,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <X color={colors.red} size={18} strokeWidth={2.6} />
+        </Pressable>
+      )}
     </Card>
   );
 }

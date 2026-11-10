@@ -37,7 +37,8 @@ export type AlertKind =
   | 'detail_asked'
   | 'task_comment'
   | 'kudos_received'
-  | 'tools_found';
+  | 'tools_found'
+  | 'cancel_asked';
 
 export type AlertItem = {
   id: string;

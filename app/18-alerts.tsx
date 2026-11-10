@@ -107,6 +107,7 @@ const ALERT_STYLE: Record<AlertKind, { Icon: ComponentType<LucideProps>; bg: Col
   task_comment: { Icon: MessageCircle, bg: 'primary' },
   kudos_received: { Icon: ThumbsUp, bg: 'orange' },
   tools_found: { Icon: ArrowLeftRight, bg: 'primary' },
+  cancel_asked: { Icon: MessageCircleQuestion, bg: 'red' },
 };
 
 function RecentAlerts() {

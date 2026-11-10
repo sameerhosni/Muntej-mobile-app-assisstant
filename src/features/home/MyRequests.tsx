@@ -23,6 +23,7 @@ const en = {
   gotTime: '✅ {{name}} gave you more time: “{{task}}” is now due {{when}}',
   yes: '✅ {{name}} said yes: “{{task}}”',
   finished: '✅ {{name}} closed “{{task}}”: it was already done',
+  taskCancelled: '“{{task}}” was cancelled, so your request isn’t needed',
   noTime: '“{{task}}”: the date stays. Need help to make it? Open it and tell me',
   no: '“{{task}}”: {{name}} said not this time',
   someone: 'your manager',
@@ -37,6 +38,7 @@ const ar: typeof en & Record<string, string> = {
   gotTime: '✅ {{name}} عطاك وقت زيادة: «{{task}}» موعدها الجديد {{when}}',
   yes: '✅ {{name}} وافق: «{{task}}»',
   finished: '✅ قفّلها {{name}}: «{{task}}» كانت خالصة أصلاً',
+  taskCancelled: '«{{task}}» انلغت، فطلبك ما عاد يحتاج',
   noTime: '«{{task}}»: الموعد باقي. تحتاج مساعدة تلحق؟ افتحها وقل لي',
   no: '«{{task}}»: {{name}} ما وافق هالمرة',
   someone: 'مديرك',
@@ -151,12 +153,22 @@ export function MyRequests({ bare = false }: { bare?: boolean } = {}) {
             : (r.status as string) === 'finished'
               ? // closed with «خلصت أصلاً» (reviewer, 9 Nov: it read as "declined")
                 t('finished', { task, name })
+            : (r.status as string) === 'expired'
+              ? // the task was cancelled, so the request isn't needed (reviewer, 10 Nov: it read as "declined")
+                t('taskCancelled', { task })
             : r.status === 'approved'
               ? time && r.details?.new_due_at
                 ? t('gotTime', { task, name, when: formatDue(r.details.new_due_at, lang) })
                 : t('yes', { task, name })
               : t(time ? 'noTime' : 'no', { task, name });
-        const tone = r.status === 'pending' ? colors.amberTint : r.status === 'approved' || (r.status as string) === 'finished' ? colors.greenTint : colors.chip;
+        const tone =
+          r.status === 'pending'
+            ? colors.amberTint
+            : r.status === 'approved' || (r.status as string) === 'finished'
+              ? colors.greenTint
+              : (r.status as string) === 'expired'
+                ? colors.surfaceMuted
+                : colors.chip;
         return (
           <View key={r.id} style={{ padding: spacing.md, borderRadius: radius.md, backgroundColor: tone }}>
             <AppText

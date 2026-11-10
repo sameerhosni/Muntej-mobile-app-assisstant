@@ -19,6 +19,7 @@ import { FILTERS, MORE_FILTERS, TABS, useTaskList, type SortMode, type TaskListF
 import { NEEDS_NS, NeedsYouList, useNeedsYou } from '@/features/tasks/NeedsYou';
 import { SortToggle } from '@/features/tasks/SortToggle';
 import { TaskRow } from '@/features/tasks/TaskRow';
+import { useCancelFlow, useQuickCancelOn } from '@/features/tasks/CancelFlow';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { NS } from '@/features/tasks/strings';
@@ -87,6 +88,9 @@ export default function TasksScreen() {
     if (needs.rows.length > 0) setNeedsTab(true);
   }, [needsPicked, needs.loading, needs.rows.length, wanted, onlyIds]);
   const showNeeds = needsTab && !onlyIds && !moreActive && !search;
+  const cancelFlow = useCancelFlow();
+  // the row ✕ goes to testers first (feature quick_cancel)
+  const quickOn = useQuickCancelOn();
 
   const header = (
     <View style={{ gap: spacing.lg, marginBottom: spacing.sm }}>
@@ -259,16 +263,14 @@ export default function TasksScreen() {
       <FlatList
         data={showNeeds ? [] : rows}
         keyExtractor={(x) => x.id}
-        renderItem={({ item, index }) =>
+        renderItem={({ item, index }) => {
+          // the quick ✕ (owner, 10 Nov): «تلغيها؟» first, then «رجّعها» for 6 seconds
+          const row = (
+            <TaskRow task={item} onCancel={quickOn ? (x) => cancelFlow.ask({ id: x.id, title: x.title }) : undefined} cancelLabel={cancelFlow.cancelA11y(item.title)} />
+          );
           // the first row is the one Saree3's walkthrough lights up ("tap the circle when it's done")
-          index === 0 ? (
-            <TourTarget id="tasks.row">
-              <TaskRow task={item} />
-            </TourTarget>
-          ) : (
-            <TaskRow task={item} />
-          )
-        }
+          return index === 0 ? <TourTarget id="tasks.row">{row}</TourTarget> : row;
+        }}
         ListHeaderComponent={header}
         ListEmptyComponent={showNeeds ? <NeedsYouList /> : empty}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
@@ -278,6 +280,8 @@ export default function TasksScreen() {
         refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => query.refetch()} tintColor={accent} />}
         showsVerticalScrollIndicator={false}
       />
+
+      {cancelFlow.ui}
 
       {/* "⋯": sort + the rarer filters */}
       <Modal visible={sheet} transparent animationType="slide" onRequestClose={() => setSheet(false)}>

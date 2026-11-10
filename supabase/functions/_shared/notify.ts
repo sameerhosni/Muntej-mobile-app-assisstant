@@ -47,7 +47,9 @@ export type AlertKind =
   // someone thanked you (send_kudos)
   | 'kudos_received'
   // tasks for you found in your connected mail / chats, waiting for your OK (one per check): an everyday alert
-  | 'tools_found';
+  | 'tools_found'
+  // the doer asks you to cancel a task you gave (ask_to_cancel): you decide, [ألغها] / [خلّها]
+  | 'cancel_asked';
 
 /** Which Alerts-screen rule (notification_prefs.rules) switches each kind; null = always on (things done to you). */
 export const RULE_FOR: Record<AlertKind, string | null> = {
@@ -81,6 +83,7 @@ export const RULE_FOR: Record<AlertKind, string | null> = {
   task_comment: null,
   kudos_received: null,
   tools_found: null,
+  cancel_asked: null,
 };
 
 // Notification budget (BRD v1.2 FR-ZLG-02): one morning brief + exceptions. Exceptions always push; a few everyday
@@ -100,9 +103,10 @@ export const EXCEPTION_KINDS = new Set<AlertKind>([
   'detail_asked',
   'task_comment',
   'kudos_received',
+  'cancel_asked',
 ]);
 /** someone is waiting on the reader: sent through prayer time (not after hours / Friday) */
-export const PRAYER_SKIP_KINDS = new Set<AlertKind>(['new_submission', 'detail_asked', 'task_comment', 'decision_waiting', 'escalated', 'request_answered']);
+export const PRAYER_SKIP_KINDS = new Set<AlertKind>(['new_submission', 'detail_asked', 'task_comment', 'decision_waiting', 'escalated', 'request_answered', 'cancel_asked']);
 /** these go out at once too when the task is high or urgent priority */
 export const URGENT_WHEN_HIGH = new Set<AlertKind>(['task_late', 'task_at_risk', 'no_reply']);
 export const BRIEF_ONLY_KINDS = new Set<AlertKind>([
@@ -557,7 +561,17 @@ async function whatsAppAlert(
     const body = `*${(ar ? a.title_ar : null) ?? a.title}*\n${(ar ? a.body_ar : null) ?? a.body ?? ''}`.trim();
     ok = (await waButtons(person.phone, pre(a.task_id, body), [{ id: `da:${a.task_id}:${askedWhat(a)}`, title: ar ? '✍️ جاوب' : '✍️ Answer' }])) && ok;
   }
-  const rest = m.alerts.filter((a) => !carded(a) && !replyable.includes(a) && !questions.includes(a));
+  // the doer asks you to cancel a task you gave: settle it right here (owner, 10 Nov; reviewer: never a plain notice)
+  const cancelAsks = m.alerts.filter((a) => a.kind === 'cancel_asked' && !!a.task_id).slice(0, 3);
+  for (const a of cancelAsks) {
+    const body = `*${(ar ? a.title_ar : null) ?? a.title}*\n${(ar ? a.body_ar : null) ?? a.body ?? ''}`.trim();
+    ok =
+      (await waButtons(person.phone, pre(a.task_id, body), [
+        { id: `xc:${a.task_id}`, title: ar ? '✕ ألغها' : '✕ Cancel it' },
+        { id: `xk:${a.task_id}`, title: ar ? '👍 خلّها' : '👍 Keep it' },
+      ])) && ok;
+  }
+  const rest = m.alerts.filter((a) => !carded(a) && !replyable.includes(a) && !questions.includes(a) && !cancelAsks.includes(a));
   if (rest.length) {
     const line = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
     const text = rest.length === m.alerts.length ? rtl(ar, `*${m.title}*\n${m.body}`) : rest.length === 1 ? pre(rest[0].task_id, `*${line(rest[0])}*\n${(ar ? rest[0].body_ar : null) ?? rest[0].body}`) : pre(null, rest.map(line).join('\n'));

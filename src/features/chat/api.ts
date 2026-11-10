@@ -475,6 +475,26 @@ export async function cancelTask(taskId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** «رجّعها»: brings a cancelled task back as it was (status and the follow-ups still ahead); returns the status */
+export async function restoreTask(taskId: string): Promise<string> {
+  const { data, error } = await untyped.rpc('restore_task', { p_task: taskId });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+/** the doer of a task someone else gave: asks the giver to cancel it */
+export async function askToCancel(taskId: string, reason?: string): Promise<void> {
+  const { error } = await untyped.rpc('ask_to_cancel', { p_task: taskId, p_reason: reason?.trim() || null });
+  if (error) throw new Error(error.message);
+}
+
+/** «خلّها»: the giver keeps a task the doer asked to cancel; the doer is told to carry on */
+export async function keepTask(taskId: string): Promise<number> {
+  const { data, error } = await untyped.rpc('keep_task', { p_task: taskId });
+  if (error) throw new Error(error.message);
+  return (data as number) ?? 0;
+}
+
 /** Delete: removes the task for good (only its assigner or the owner's manager may). */
 export async function deleteTask(taskId: string): Promise<void> {
   const { error } = await untyped.rpc('delete_task', { p_task: taskId });

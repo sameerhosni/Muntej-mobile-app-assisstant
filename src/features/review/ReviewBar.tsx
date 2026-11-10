@@ -17,7 +17,9 @@ import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import type { Profile, Review } from '@/lib/api';
 import { shortName } from '@/features/decisions/people';
-import { cancelTask, invalidateTaskData, setTaskStatus } from '@/features/chat/api';
+import { invalidateTaskData, restoreTask, setTaskStatus } from '@/features/chat/api';
+import { canCancel, OPEN_STATUSES } from '@/features/tasks/canCancel';
+import { useCancelFlow, useQuickCancelOn } from '@/features/tasks/CancelFlow';
 import { TaskActionSheet, type SheetMode } from './TaskActionSheet';
 import { autoApproveAt, countdown, leftText, openReview, useNow } from './countdown';
 import { REVIEW_BAR_NS } from './barStrings';
@@ -26,6 +28,7 @@ const WORKING = ['draft', 'assigned', 'in_progress', 'blocked', 'returned'];
 
 type TaskLike = {
   id: string;
+  title?: string;
   status: string;
   owner_id: string | null;
   assigner_id: string | null;
@@ -126,7 +129,12 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
   const amAdmin = me?.role === 'admin' || me?.role === 'super_admin';
   const isGiver = !isDoer && !!meId && (task.assigner_id === meId || ownerManager === meId || amAdmin);
   const [sheet, setSheet] = useState<SheetMode | null>(null);
-  const [asking, setAsking] = useState(false);
+  // Cancel for whoever the server lets (owner, 10 Nov: a task from his own email, his to do, had no Cancel): «تلغيها؟»
+  // first, then «رجّعها» for 6 seconds
+  const mayCancel = canCancel(task, me, team);
+  const cancelFlow = useCancelFlow();
+  const quickOn = useQuickCancelOn();
+  const askCancel = () => cancelFlow.ask({ id: task.id, title: task.title ?? '' });
 
   const small = (label: string, onPress: () => void, icon: React.ReactNode) => (
     <Pressable
@@ -155,6 +163,10 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
     </Pressable>
   );
   const muntej = small(t('tellMuntej'), change.onPress, <Sparkles color={colors.purple} size={14} strokeWidth={2.2} />);
+  const cancelBtn = small(t('cancelIt'), askCancel, <Ban color={colors.red} size={14} strokeWidth={2.2} />);
+  // the doer of a task someone else gave: ask them instead
+  const askBtn =
+    isDoer && !mayCancel && otherId && otherId !== meId && task.status !== 'submitted' ? small(t('askCancel'), () => setSheet('cancelAsk'), <Ban color={colors.textSoft} size={14} strokeWidth={2.2} />) : null;
   const commentBtn = otherId && otherId !== meId ? small(t('comment'), () => setSheet('comment'), <MessageSquare color={colors.primary} size={14} strokeWidth={2.2} />) : null;
 
   let buttons: React.ReactNode;
@@ -192,36 +204,7 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
     );
     extra = [otherId && otherId !== meId ? small(t('moreTime'), () => setSheet('time'), <Clock color={colors.amberText} size={14} strokeWidth={2.2} />) : null, commentBtn, muntej];
   } else if (isGiver && open) {
-    buttons = asking ? (
-      <View style={{ flex: 1, gap: spacing.sm, backgroundColor: colors.redTint, borderRadius: radius.md, padding: spacing.md }}>
-        <AppText variant="small" weight="bold" color="red">
-          {t('cancelAsk')}
-        </AppText>
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Button label={t('keep')} variant="outline" size="md" onPress={() => setAsking(false)} style={{ flex: 1 }} />
-          <Button
-            label={t('yesCancel')}
-            size="md"
-            loading={busy === 'main'}
-            onPress={async () => {
-              setBusy('main');
-              setError(null);
-              try {
-                await cancelTask(task.id);
-                setAsking(false);
-                setNote(t('cancelledOk'));
-                void refresh();
-              } catch (e) {
-                setError(t('failed', { reason: (e as Error).message }));
-              } finally {
-                setBusy(null);
-              }
-            }}
-            style={{ flex: 1 }}
-          />
-        </View>
-      </View>
-    ) : (
+    buttons = (
       <Button
         label={t('closeIt')}
         onPress={() => run('done', () => t('closed'))}
@@ -230,10 +213,51 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
         style={{ flex: 1 }}
       />
     );
-    if (!asking) extra = [commentBtn, small(t('cancelIt'), () => setAsking(true), <Ban color={colors.textSoft} size={14} strokeWidth={2.2} />), muntej];
+    extra = [commentBtn, muntej];
+  } else if (task.status === 'cancelled' && mayCancel) {
+    // ⋯ → Cancelled → the task: bring it back as it was
+    buttons = (
+      <Button
+        label={t('bringBack')}
+        variant="outline"
+        loading={busy === 'main'}
+        onPress={async () => {
+          setBusy('main');
+          setError(null);
+          try {
+            await restoreTask(task.id);
+            setNote(t('broughtBack'));
+            void refresh();
+          } catch (e) {
+            console.error('restore_task failed:', e instanceof Error ? e.message : String(e));
+            setError(t('failed', { reason: cancelFlow.reason(e) }));
+          } finally {
+            setBusy(null);
+          }
+        }}
+        icon={<RotateCcw color={colors.primary} size={16} strokeWidth={2.2} />}
+        style={{ flex: 1 }}
+      />
+    );
   } else {
     buttons = <Button label={t('tellMuntej')} onPress={change.onPress} icon={<Sparkles color={colors.purple} size={18} strokeWidth={2.2} />} variant="outline" style={{ flex: 1 }} />;
     if (isDoer && commentBtn) extra = [commentBtn];
+  }
+  // Cancel follows the server's rule in every role (reviewer, 10 Nov: the row ✕ and the page must agree): whoever may
+  // cancel it gets «ألغها»; the doer (or helper) of a task someone else gave gets «اطلب إلغاءها» (testers first)
+  const cancelSlot = OPEN_STATUSES.includes(task.status) ? (mayCancel ? cancelBtn : quickOn ? askBtn : null) : null;
+  if (cancelSlot) {
+    const list = (Array.isArray(extra) ? extra : extra ? [extra] : []) as React.ReactNode[];
+    // just before «قل لمنتج» (the last one) when it's there
+    extra = list.length && list[list.length - 1] === muntej ? [...list.slice(0, -1), cancelSlot, muntej] : [...list, cancelSlot];
+  }
+  if (task.status === 'cancelled' && !note) {
+    // say why there is nothing to do here
+    extra = (
+      <AppText variant="small" weight="bold" color="textMuted" align="center" style={{ flex: 1 }}>
+        {t('isCancelled')}
+      </AppText>
+    );
   }
 
   return (
@@ -258,6 +282,7 @@ export function ReviewBar({ task, me, team }: { task: TaskLike; me: Profile | un
       )}
       <View style={{ flexDirection: 'row', gap: spacing.md }}>{buttons}</View>
       {!!extra && <View style={{ flexDirection: 'row', gap: 6 }}>{extra}</View>}
+      {cancelFlow.ui}
       <TaskActionSheet
         mode={sheet}
         task={task}

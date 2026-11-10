@@ -45,6 +45,13 @@ const en = {
   yesCancel: 'Yes, cancel',
   keep: 'Keep it',
   cancelledOk: 'Cancelled ✓',
+  askCancel: 'Ask to cancel',
+  askCancelTitle: 'Ask {{name}} to cancel it',
+  askCancelPh: 'Why isn’t it needed any more? (optional)',
+  askedCancel: 'Asked {{name}} to cancel it ✓ They decide.',
+  bringBack: 'Bring it back',
+  broughtBack: 'It’s back ✓',
+  isCancelled: 'This task is cancelled.',
 };
 
 const ar: typeof en = {
@@ -91,6 +98,13 @@ const ar: typeof en = {
   yesCancel: 'إيه، ألغها',
   keep: 'خلها',
   cancelledOk: 'انلغت ✓',
+  askCancel: 'اطلب إلغاءها',
+  askCancelTitle: 'اطلب من {{name}} يلغيها',
+  askCancelPh: 'ليش ما عاد لها داعي؟ (اختياري)',
+  askedCancel: 'طلبت من {{name}} يلغيها ✓ القرار له.',
+  bringBack: 'رجّعها',
+  broughtBack: 'رجعت ✓',
+  isCancelled: 'هالمهمة ملغاة.',
 };
 
 export const REVIEW_BAR_NS = registerStrings('reviewBar', { en, ar });

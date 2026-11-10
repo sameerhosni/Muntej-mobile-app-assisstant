@@ -14,7 +14,8 @@ import { registerStrings, useScreenT } from '@/lib/i18n/register';
 import { supabase } from '@/lib/supabase';
 import { useDecisions, useMyProfile, useTasks, useTeam, type DecisionWithContext } from '@/lib/api';
 import { useResolveDecision } from '@/features/decisions/useResolveDecision';
-import { invalidateTaskData, setTaskStatus } from '@/features/chat/api';
+import { invalidateTaskData, keepTask, setTaskStatus } from '@/features/chat/api';
+import { useCancelFlow } from './CancelFlow';
 
 const NS = registerStrings('needsYouTab', {
   en: {
@@ -34,6 +35,9 @@ const NS = registerStrings('needsYouTab', {
     takeBack: '✓ Take it back',
     keepIt: '✕ No, they keep it',
     openReply: '💬 Open and reply',
+    cancel: '✕ Asks you to cancel it',
+    cancelIt: '✕ Cancel it',
+    keepTask: '👍 Keep it',
     done: 'Done ✓',
     empty: 'Nothing waits on you 👌',
     failed: 'Didn’t save. Try again?',
@@ -55,6 +59,9 @@ const NS = registerStrings('needsYouTab', {
     takeBack: '✓ خذها منه',
     keepIt: '✕ لا، يكمّل',
     openReply: '💬 افتحها وردّ',
+    cancel: '✕ يطلب تلغيها',
+    cancelIt: '✕ ألغها',
+    keepTask: '👍 خلّها',
     done: 'تم ✓',
     empty: 'ما فيه شي ينتظرك 👌',
     failed: 'ما انحفظ. جرّب مرة ثانية؟',
@@ -62,11 +69,11 @@ const NS = registerStrings('needsYouTab', {
 });
 export const NEEDS_NS = NS;
 
-type AskAlert = { id: string; kind: 'detail_asked' | 'task_comment'; task_id: string; subject_id: string | null; title: string; title_ar: string | null; body: string | null; body_ar: string | null };
+type AskAlert = { id: string; kind: 'detail_asked' | 'task_comment' | 'cancel_asked'; task_id: string; subject_id: string | null; title: string; title_ar: string | null; body: string | null; body_ar: string | null };
 
 export type NeedRow = {
   key: string;
-  kind: 'review' | 'ask' | 'comment' | 'time' | 'busy' | 'approval' | 'decision';
+  kind: 'review' | 'ask' | 'comment' | 'time' | 'busy' | 'approval' | 'decision' | 'cancel';
   title: string;
   sub: string;
   taskId: string | null;
@@ -82,6 +89,7 @@ const TONE: Record<NeedRow['kind'], { bg: ColorToken; fg: ColorToken }> = {
   busy: { bg: 'redTint', fg: 'red' },
   approval: { bg: 'greenTint', fg: 'greenText' },
   decision: { bg: 'purpleTint', fg: 'purple' },
+  cancel: { bg: 'redTint', fg: 'red' },
 };
 
 /** Everything waiting on the signed-in person (also gives the tab its count). */
@@ -101,7 +109,7 @@ export function useNeedsYou() {
         .from('alerts')
         .select('id, kind, task_id, subject_id, title, title_ar, body, body_ar')
         .eq('profile_id', meId)
-        .in('kind', ['detail_asked', 'task_comment'])
+        .in('kind', ['detail_asked', 'task_comment', 'cancel_asked'])
         .is('read_at', null)
         .not('task_id', 'is', null)
         .gte('created_at', new Date(Date.now() - 14 * 86_400_000).toISOString())
@@ -137,14 +145,20 @@ export function useNeedsYou() {
     }),
     // one row per task for questions / comments (several asks on one task read as one)
     ...Object.values(
-      (asks.data ?? []).reduce<Record<string, AskAlert[]>>((m, a) => ((m[`${a.kind}:${a.task_id}`] ??= []).push(a), m), {}),
+      (asks.data ?? [])
+        // a cancel request on a task that has closed since has nothing left to decide (reviewer, 10 Nov)
+        .filter((a) => a.kind !== 'cancel_asked' || !['done', 'cancelled'].includes((tasks.data ?? []).find((x) => x.id === a.task_id)?.status ?? ''))
+        .reduce<Record<string, AskAlert[]>>((m, a) => ((m[`${a.kind}:${a.task_id}`] ??= []).push(a), m), {}),
     ).map((list) => {
       const a = list[0];
       return {
         key: `a-${a.kind}-${a.task_id}`,
-        kind: a.kind === 'task_comment' ? ('comment' as const) : ('ask' as const),
+        kind: a.kind === 'task_comment' ? ('comment' as const) : a.kind === 'cancel_asked' ? ('cancel' as const) : ('ask' as const),
         title: titleOf(a.task_id) ?? ((ar && a.title_ar) || a.title),
-        sub: a.kind === 'task_comment' ? `${first(a.subject_id)} · «${((ar && a.body_ar) || a.body || '').slice(0, 90)}»` : (ar && a.title_ar) || a.title,
+        sub:
+          a.kind === 'detail_asked'
+            ? (ar && a.title_ar) || a.title
+            : [first(a.subject_id), (ar && a.body_ar) || a.body ? `«${((ar && a.body_ar) || a.body || '').slice(0, 90)}»` : null].filter(Boolean).join(' · '),
         taskId: a.task_id,
         alertIds: list.map((x) => x.id),
       };
@@ -158,6 +172,7 @@ export function NeedsYouList() {
   const qc = useQueryClient();
   const { rows, meId } = useNeedsYou();
   const resolve = useResolveDecision();
+  const cancelFlow = useCancelFlow();
   const [state, setState] = useState<Record<string, 'busy' | 'done' | 'failed'>>({});
 
   const run = async (key: string, work: () => Promise<unknown>) => {
@@ -167,12 +182,14 @@ export function NeedsYouList() {
       setState((s) => ({ ...s, [key]: 'done' }));
       void invalidateTaskData(qc);
       void qc.invalidateQueries({ queryKey: ['needsYouAsks'] });
-    } catch {
+    } catch (e) {
+      console.error('needs-you action failed:', e instanceof Error ? e.message : String(e));
       setState((s) => ({ ...s, [key]: 'failed' }));
     }
   };
   const open = (r: NeedRow) => {
-    if (r.alertIds?.length) {
+    // a cancel request stays until it's settled (Cancel or Keep), opening the task doesn't answer it
+    if (r.alertIds?.length && r.kind !== 'cancel') {
       void (supabase as unknown as { from: (t: string) => any })
         .from('alerts')
         .update({ read_at: new Date().toISOString() })
@@ -187,11 +204,15 @@ export function NeedsYouList() {
 
   if (!rows.length)
     return (
-      <Card style={{ alignItems: 'center', paddingVertical: spacing.xxl }}>
-        <AppText color="greenText" weight="semibold">
-          {t('empty')}
-        </AppText>
-      </Card>
+      // the «رجّعها» line stays even when the last row just left
+      <View style={{ minHeight: 160 }}>
+        <Card style={{ alignItems: 'center', paddingVertical: spacing.xxl }}>
+          <AppText color="greenText" weight="semibold">
+            {t('empty')}
+          </AppText>
+        </Card>
+        {cancelFlow.ui}
+      </View>
     );
 
   return (
@@ -205,7 +226,21 @@ export function NeedsYouList() {
                 { label: t('approve'), primary: true, onPress: () => run(r.key, () => setTaskStatus(r.taskId!, 'done')) },
                 { label: t('sendBack'), onPress: () => router.push({ pathname: '/15-review', params: { id: r.taskId! } }) },
               ]
-            : r.decision
+            : r.kind === 'cancel'
+              ? [
+                  // the doer asked to cancel it: the giver settles it here (reviewer, 10 Nov)
+                  // the same 6-second «رجّعها» as everywhere (the row itself already asked)
+                  {
+                    label: t('cancelIt'),
+                    primary: true,
+                    onPress: () =>
+                      run(r.key, async () => {
+                        if (!(await cancelFlow.cancelNow({ id: r.taskId!, title: r.title }))) throw new Error('cancel failed');
+                      }),
+                  },
+                  { label: t('keepTask'), onPress: () => run(r.key, () => keepTask(r.taskId!)) },
+                ]
+              : r.decision
               ? [
                   { label: r.kind === 'busy' ? t('takeBack') : t('yes'), primary: true, onPress: () => decide(r, 'approved') },
                   { label: r.kind === 'busy' ? t('keepIt') : t('no'), onPress: () => decide(r, 'declined') },
@@ -267,6 +302,7 @@ export function NeedsYouList() {
           </Card>
         );
       })}
+      {cancelFlow.ui}
     </View>
   );
 }

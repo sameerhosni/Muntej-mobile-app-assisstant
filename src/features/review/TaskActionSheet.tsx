@@ -1,6 +1,7 @@
 // The two small sheets from the task page's bottom bar (owner, 9 Nov, N2), both in the person's own words:
 //   time     ask whoever gave it for a new date (+1 day / +2 days / +1 week) with an optional reason → request_more_time
 //   comment  write to the other side (doer ↔ giver) → add_task_comment (an alert to them, listed on the task page)
+//   cancelAsk the doer of a task someone else gave asks them to cancel it, with an optional reason → ask_to_cancel
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +12,7 @@ import { useScreenT } from '@/lib/i18n/register';
 import { supabase } from '@/lib/supabase';
 import { formatDue } from '@/features/capture/format';
 import { REVIEW_BAR_NS } from './barStrings';
+import { askToCancel } from '@/features/chat/api';
 
 const DAY = 86_400_000;
 const untyped = supabase as unknown as { rpc: (fn: string, args: object) => Promise<{ data: unknown; error: { message: string } | null }> };
@@ -27,7 +29,7 @@ function addWorkingDays(from: Date, n: number) {
   return d;
 }
 
-export type SheetMode = 'time' | 'comment';
+export type SheetMode = 'time' | 'comment' | 'cancelAsk';
 
 export function TaskActionSheet({
   mode,
@@ -62,6 +64,10 @@ export function TaskActionSheet({
         if (e) throw new Error(e.message);
         onDone(data === false ? t('alreadyAsked', { name: toName }) : t('askedTime', { name: toName }));
         void qc.invalidateQueries({ queryKey: ['decisions'] });
+      } else if (mode === 'cancelAsk') {
+        // the giver decides (owner, 10 Nov): an alert to them with the reason, if any
+        await askToCancel(task.id, text);
+        onDone(t('askedCancel', { name: toName }));
       } else {
         if (!text.trim()) return;
         const { error: e } = await untyped.rpc('add_task_comment', { p_task: task.id, p_body: text.trim() });
@@ -103,7 +109,7 @@ export function TaskActionSheet({
         <Pressable onPress={onClose} accessibilityLabel={t('keep')} style={{ flex: 1, backgroundColor: 'rgba(11,26,51,0.35)' }} />
         <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.cardLg, borderTopRightRadius: radius.cardLg, padding: spacing.xl, gap: spacing.md }}>
           <AppText variant="cardTitle" weight="bold">
-            {mode === 'time' ? t('moreTitle') : t('commentTitle', { name: toName })}
+            {mode === 'time' ? t('moreTitle') : mode === 'cancelAsk' ? t('askCancelTitle', { name: toName }) : t('commentTitle', { name: toName })}
           </AppText>
           {mode === 'time' && (
             <>
@@ -121,7 +127,7 @@ export function TaskActionSheet({
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder={mode === 'time' ? t('reasonPh') : t('commentPh')}
+            placeholder={mode === 'time' ? t('reasonPh') : mode === 'cancelAsk' ? t('askCancelPh') : t('commentPh')}
             placeholderTextColor={colors.textFaint}
             multiline
             maxLength={2000}
