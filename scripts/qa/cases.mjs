@@ -481,14 +481,21 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
     const [mine] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, closed_at) values ('QA closed mine report', '${QA_BOSS}', '${QA_BOSS}', 'done', now()) returning id`);
     const [theirs] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, closed_at) values ('QA closed teammate file', '${FAISAL}', '${FAISAL}', 'done', now()) returning id`);
     try {
-      for (const q of ['what tasks are on hold?', 'هل مهمة التقرير خلصت؟']) {
+      for (const q of ['what tasks are on hold?', 'هل مهمة التقرير خلصت؟', 'هل كل مهامي المقفلة لي؟', 'كم مهمة من مهامي المقفلة؟', 'وش المشكلة في المهام المقفلة؟']) {
         const a = await talk(q);
         expect(!/QA closed mine report/.test(a.said), `«${q}» got the closed list: «${a.said.slice(0, 100)}»`);
       }
-      const b = await talk('عطني كل مهامي المقفلة');
-      expect(/QA closed mine report/.test(b.said + JSON.stringify(b.payload)), `your closed task not listed: «${b.said.slice(0, 100)}»`);
-      expect(!/QA closed teammate file/.test(b.said), 'a teammate’s closed task was listed as yours');
-      return 'only on request, only yours';
+      // a teammate whose Arabic name starts with «مها» (inside «مهامي»): still the asker's own list (reviewer, 10 Nov)
+      const [{ full_name_ar: was }] = await sql(`select full_name_ar from public.profiles where id = '${FAISAL}'`);
+      await sql(`update public.profiles set full_name_ar = 'مها كيو إيه' where id = '${FAISAL}'`);
+      try {
+        const b = await talk('عطني كل مهامي المقفلة');
+        expect(/QA closed mine report/.test(b.said + JSON.stringify(b.payload)), `your closed task not listed: «${b.said.slice(0, 100)}»`);
+        expect(!/QA closed teammate file/.test(b.said), 'a teammate’s closed task was listed as yours');
+      } finally {
+        await sql(`update public.profiles set full_name_ar = ${was === null ? 'null' : `'${was.replace(/'/g, "''")}'`} where id = '${FAISAL}'`);
+      }
+      return 'only on request, only yours (even with a «مها» on the team)';
     } finally {
       await sql(`delete from public.tasks where id in ('${mine.id}', '${theirs.id}')`);
     }

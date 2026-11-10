@@ -1049,19 +1049,27 @@ serve(async (req) => {
     const m = message.trim();
     const aboutClosed = /(المقفلة|المقفوله|مقفلة|القديمة|المنتهية|اللي خلصت|الخالصة)/.test(m) || /\b(closed|old|older|finished|done|completed)\b/i.test(m);
     const aboutTasks = /(مهام|مهمات|مهامي)/.test(m) || /\btasks?\b/i.test(m);
-    const wantsList = /(كل|عطني|اعطني|وريني|ورني|اعرض|طلع|ابي اشوف|أبي أشوف)/.test(m) || /\b(show|list|all|give me|see)\b/i.test(m);
-    const notThis = /^(هل|كم)\b/.test(m) || /^\s*خلصت/.test(m) || /\b(is|are|how many|mark|close|did i)\b/i.test(m) || /^(قفّل|قفل|سكّر|سكر)/.test(m);
+    // whole words only: JS's \b doesn't work next to Arabic (reviewer, 10 Nov: «مشكلة» held «كل», «هل كل…» slipped by)
+    const wantsList = /(^|\s)(كل|كلها|عطني|اعطني|وريني|ورني|اعرض|طلّع|طلع|ابي اشوف|أبي أشوف)(\s|$)/.test(m) || /\b(show|list|all|give me|see)\b/i.test(m);
+    const notThis = /^(هل|كم)(\s|$)/.test(m) || /^\s*خلصت/.test(m) || /\b(is|are|how many|mark|close|did i)\b/i.test(m) || /^(قفّل|قفل|سكّر|سكر)/.test(m);
     if (parsed.action === 'none' && aboutClosed && aboutTasks && wantsList && !notThis && !CLAIMS_DONE.test(parsed.reply.trim())) {
-      const named = team.find((p) => p.id !== profileId && [p.full_name, p.full_name_ar].some((n) => !!n && n.split(/\s+/)[0].length > 1 && m.includes(n.split(/\s+/)[0])));
+      // a teammate named as a whole word («مها» is inside «مهامي»: never a match); two who fit → leave it to the normal
+      // which-one path, no list
+      const words = new Set(m.replace(/[؟?،,.!:]/g, ' ').split(/\s+/).filter(Boolean).flatMap((w) => [w.toLowerCase(), w.replace(/^(وال|لل|ال|و|ل)/, '')]));
+      const fits = team.filter((p) => p.id !== profileId && [p.full_name, p.full_name_ar].some((n) => { const f = (n ?? '').trim().split(/\s+/)[0]; return f.length > 1 && words.has(f.toLowerCase()); }));
+      const ambiguous = fits.length > 1;
+      const named = ambiguous ? undefined : fits[0];
       const closed = allTasks
         .filter((t) => !ACTIVE.includes(t.status))
         .filter((t) => (named ? t.owner_id === named.id : t.owner_id === profileId || t.assigner_id === profileId))
         .sort((x, y) => Date.parse(y.closed_at ?? y.updated_at ?? '') - Date.parse(x.closed_at ?? x.updated_at ?? ''));
-      if (closed.length && !closed.some((t) => parsed.reply.includes(t.title))) {
+      if (!ambiguous && closed.length && !closed.some((t) => parsed.reply.includes(t.title))) {
         const when = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString(ar0 ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' }) : '');
         const word = (s: string) => (ar0 ? ({ done: 'خلصت', cancelled: 'ملغاة' } as Record<string, string>)[s] ?? s : s);
         const shown = closed.slice(0, 15);
-        const lines = shown.map((t) => `• ${t.title} · ${word(t.status)}${!named && t.owner_id !== profileId ? ` · ${nameOf(t.owner_id)}` : ''}${t.closed_at ?? t.updated_at ? ` · ${when(t.closed_at ?? t.updated_at)}` : ''}`);
+        // the owner when it isn't the caller, in the reply's language; nothing when nobody owns it
+        const ownerName = (id: string | null) => { const p = id ? team.find((x) => x.id === id) : undefined; return p ? ((ar0 && p.full_name_ar) || p.full_name).split(' ')[0] : ''; };
+        const lines = shown.map((t) => `• ${t.title} · ${word(t.status)}${!named && t.owner_id !== profileId && ownerName(t.owner_id) ? ` · ${ownerName(t.owner_id)}` : ''}${t.closed_at ?? t.updated_at ? ` · ${when(t.closed_at ?? t.updated_at)}` : ''}`);
         const rest = closed.slice(15);
         const restCancelled = rest.some((t) => t.status === 'cancelled');
         const head = parsed.reply.trim().replace(/[:：]\s*$/, '');

@@ -488,3 +488,7 @@ Last updated: 2026-11-09.
 ### R111 · A server rewrite of a chat reply never weakens a guard, and fires only on its own wording
 - **Why:** 10 Nov, reviewer: the closed-tasks list made the false-"done" guard skip the reply (its titles looked like proof), and its trigger fired on "on hold" («hold» ⊃ «old»), «خلصت المهام كلها», "how many tasks are done".
 - **Check:** text the server adds is excluded from the guards' "proof"; triggers use word boundaries and a clear intent (a request to see / list), skip yes/no, count and first-person questions, and have a QA case with nearby wording that must not fire them.
+
+### R112 · Arabic patterns on the server never use \b; names match whole words
+- **Why:** 10 Nov, reviewer: `/^(هل|كم)\b/` never matched (JS `\b` treats Arabic letters as non-word), «كل» matched inside «مشكلة», and the name «مها» matched inside «مهامي».
+- **Check:** Arabic regexes use `(^|\s)…(\s|$)` or lookarounds; a person is found from a message by whole words (with و/ل/ال stripped), never `includes`; two people who fit → ask which one.
