@@ -52,6 +52,7 @@ export default function IdeasScreen() {
         setUsedVoice(true);
       }
     } catch (e) {
+      console.error('idea voice failed:', e instanceof Error ? e.message : String(e));
       setNote(e instanceof MicDeniedError ? t('micDenied') : t('failed'));
     } finally {
       setListening((l) => (l === 'on' ? 'on' : 'off'));
@@ -82,7 +83,11 @@ export default function IdeasScreen() {
           setUsedVoice(false);
           setNote(t('sent'));
         },
-        onError: () => setNote(t('failed')),
+        // the cause goes to the console too, so QA and support can see why (QA, 10 Nov: it failed with no clue)
+        onError: (e) => {
+          console.error('idea send failed:', e instanceof Error ? e.message : String(e));
+          setNote(t('failed'));
+        },
       },
     );
   };

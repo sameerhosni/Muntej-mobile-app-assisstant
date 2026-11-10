@@ -560,3 +560,7 @@ Last updated: 2026-11-09.
 ### R129 · A direct message still finds the other person when they share the user's first name
 - **Why:** 10 Nov, reviewer: with «Ahmed QA, Ahmed» both names fit the user, so the other person came out empty and the direct-message rules stopped applying.
 - **Check:** when every header name fits the user, the other one is the name that isn't exactly theirs, matched among teammates other than the user.
+
+### R130 · A send never waits on something the server already knows, and its failure says why
+- **Why:** 10 Nov, QA: «Send an idea» kept failing with «ما قدرت أرسلها» and no clue; the screen stopped with «Not signed in» because the loaded profile wasn't there yet, though the database fills in the seat itself.
+- **Check:** a mutation needs only what the server can't work out (the seat comes from current_profile_id()); every onError or catch that shows a failure note also logs the real message (console.error), and an error the server returned is never replaced by a guess like «Not signed in», so QA shows the cause.

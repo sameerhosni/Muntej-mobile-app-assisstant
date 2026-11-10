@@ -103,17 +103,17 @@ export function useAllIdeas() {
 
 export function useSendIdea() {
   const qc = useQueryClient();
-  const me = useMyProfile();
   return useMutation({
     mutationFn: async (v: { kind: IdeaKind; body: string; screen: string | null; files?: PickedFile[]; voice?: boolean }) => {
-      const p = me.data;
-      if (!p) throw new Error('Not signed in');
+      // no wait for the loaded profile (QA, 10 Nov: «Not signed in» when it hadn't loaded yet): the server knows the seat
       const attachments: Attachment[] = [];
       // files go in the folder of the seat the SERVER sees (the storage policy checks current_profile_id(), like the
       // row; reviewer, 10 Nov, R126): never the one the app loaded before a seat switch
       if (v.files?.length) {
-        const { data: seat } = await untyped.rpc('current_profile_id');
-        for (const f of v.files) attachments.push(await upload((seat as string | null) ?? p.id, f));
+        const { data: seat, error: seatErr } = await untyped.rpc('current_profile_id');
+        if (seatErr) throw new Error(seatErr.message);
+        if (!seat) throw new Error('Not signed in');
+        for (const f of v.files) attachments.push(await upload(seat as string, f));
       }
       // the seat is filled in by the database (ideas_fill_seat): the one the server sees now, never a stale one the app
       // loaded before a seat switch (QA, 10 Nov: the insert was refused)
