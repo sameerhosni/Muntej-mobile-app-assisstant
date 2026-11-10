@@ -1063,7 +1063,20 @@ serve(async (req) => {
         .filter((t) => !ACTIVE.includes(t.status))
         .filter((t) => (named ? t.owner_id === named.id : t.owner_id === profileId || t.assigner_id === profileId))
         .sort((x, y) => Date.parse(y.closed_at ?? y.updated_at ?? '') - Date.parse(x.closed_at ?? x.updated_at ?? ''));
-      if (!ambiguous && closed.length && !closed.some((t) => parsed.reply.includes(t.title))) {
+      const full = (p: PersonRow) => (ar0 && p.full_name_ar) || p.full_name;
+      if (ambiguous) {
+        // two fit the name: ask which one, never the model's bare intro (reviewer, 10 Nov)
+        parsed.reply = ar0
+          ? `تقصد مين: ${fits.slice(0, 3).map(full).join(' ولا ')}؟`
+          : `Who do you mean: ${fits.slice(0, 3).map(full).join(' or ')}?`;
+        parsed.suggestions = fits.slice(0, 3).map((p) => (ar0 ? `مهام ${full(p)} المقفلة كلها` : `All of ${full(p)}'s closed tasks`));
+        filledClosed = true;
+      } else if (!closed.length) {
+        parsed.reply = named
+          ? ar0 ? `ما فيه مهام مقفلة لـ${full(named)}` : `No closed tasks for ${full(named)}`
+          : ar0 ? 'ما فيه مهام مقفلة لك' : 'No closed tasks for you';
+        filledClosed = true;
+      } else if (!closed.some((t) => parsed.reply.includes(t.title))) {
         const when = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString(ar0 ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' }) : '');
         const word = (s: string) => (ar0 ? ({ done: 'خلصت', cancelled: 'ملغاة' } as Record<string, string>)[s] ?? s : s);
         const shown = closed.slice(0, 15);

@@ -495,7 +495,18 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
       } finally {
         await sql(`update public.profiles set full_name_ar = ${was === null ? 'null' : `'${was.replace(/'/g, "''")}'`} where id = '${FAISAL}'`);
       }
-      return 'only on request, only yours (even with a «مها» on the team)';
+      // two teammates with one first name: the chat asks which one, never a bare «…:» (reviewer, 10 Nov)
+      const twins = await sql(`select id, full_name_ar from public.profiles where id in ('${NOURA}', '${KHALID}')`);
+      await sql(`update public.profiles set full_name_ar = 'مهند الأول' where id = '${NOURA}'`);
+      await sql(`update public.profiles set full_name_ar = 'مهند الثاني' where id = '${KHALID}'`);
+      try {
+        const c = await talk('عطني كل مهام مهند المقفلة');
+        expect(/مهند الأول/.test(c.said) && /مهند الثاني/.test(c.said), `didn't ask which one: «${c.said.slice(0, 110)}»`);
+        expect(!/[:：]\s*$/.test(c.said.trim()), `a bare intro with nothing after it: «${c.said.slice(0, 110)}»`);
+      } finally {
+        for (const t of twins) await sql(`update public.profiles set full_name_ar = ${t.full_name_ar === null ? 'null' : `'${t.full_name_ar.replace(/'/g, "''")}'`} where id = '${t.id}'`);
+      }
+      return 'only on request, only yours, asks which one for two of a name';
     } finally {
       await sql(`delete from public.tasks where id in ('${mine.id}', '${theirs.id}')`);
     }

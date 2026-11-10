@@ -492,3 +492,7 @@ Last updated: 2026-11-09.
 ### R112 · Arabic patterns on the server never use \b; names match whole words
 - **Why:** 10 Nov, reviewer: `/^(هل|كم)\b/` never matched (JS `\b` treats Arabic letters as non-word), «كل» matched inside «مشكلة», and the name «مها» matched inside «مهامي».
 - **Check:** Arabic regexes use `(^|\s)…(\s|$)` or lookarounds; a person is found from a message by whole words (with و/ل/ال stripped), never `includes`; two people who fit → ask which one.
+
+### R113 · A server list that finds nothing, or isn't sure who, still answers
+- **Why:** 10 Nov, reviewer pass 3: when two teammates fit the name or nothing was closed, the closed-tasks block left the model's bare «هذي مهام … المقفلة:» (the R110 incident again).
+- **Check:** a trigger that decided to fill a list replaces the reply with "none" or a which-one question naming the people when it has nothing to show.
