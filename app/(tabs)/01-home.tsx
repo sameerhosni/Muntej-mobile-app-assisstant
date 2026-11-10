@@ -39,6 +39,7 @@ import { MORE_NS } from '@/features/more/strings';
 import { useHomeSection } from '@/features/prefs/appPrefs';
 import { HomeSectionsRow } from '@/features/prefs/HomeSectionsRow';
 import { FeatureCards } from '@/features/prefs/featureCards';
+import { SystemDashboard } from '@/features/system/SystemDashboard';
 function greetingKey(date = new Date()) {
   const h = date.getHours();
   return h < 12 ? 'home.morning' : h < 18 ? 'home.afternoon' : 'home.evening';
@@ -68,6 +69,8 @@ export default function ManagerHome() {
   const confirmCount = (tasks.data ?? []).filter((x) => x.owner_id === me.data?.id && x.status === 'assigned' && !!x.assigner_id && x.assigner_id !== me.data?.id).length;
 
   if (me.data?.role === 'employee' && !protoActive) return <Redirect href="/25-employee-home" />;
+  // the super admin's own seat has no tasks: its Home is the system dashboard (owner, 10 Nov)
+  if (me.data?.role === 'super_admin') return <SystemDashboard />;
 
   const firstName = (lang === 'ar' && me.data?.full_name_ar ? me.data.full_name_ar : (me.data?.full_name ?? '')).split(' ')[0];
 

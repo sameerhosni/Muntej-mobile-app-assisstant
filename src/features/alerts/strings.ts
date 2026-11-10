@@ -3,6 +3,8 @@ import { registerStrings } from '@/lib/i18n/register';
 const en = {
   title: 'Alerts',
   subtitle: 'Only what matters',
+  consoleTitle: 'This account gets no notifications',
+  consoleBody: 'No push, WhatsApp or reports. Follow the system on the System dashboard. Your own work’s alerts come from your seat in your company.',
   back: 'Back',
   fewer: 'fewer pings',
   channelsLabel: 'Alert channels',
@@ -88,6 +90,8 @@ const en = {
 const ar: typeof en = {
   title: 'التنبيهات',
   subtitle: 'بس اللي يهمك',
+  consoleTitle: 'هذا الحساب ما يستقبل تنبيهات',
+  consoleBody: 'لا إشعارات ولا واتساب ولا تقارير. تابع النظام من «لوحة النظام». تنبيهات شغلك توصلك من حسابك في شركتك.',
   back: 'رجوع',
   fewer: 'تنبيهات أقل',
   channelsLabel: 'قنوات التنبيه',

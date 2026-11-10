@@ -468,6 +468,26 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, ids, ref, tok
     expect(/actNow && p\?\.quiet_hours \? \{ \.\.\.p\.quiet_hours, prayer_times: false \}/.test(notify), 'the prayer hold still applies to them');
     return 'reviews, questions and decisions go through prayer time';
   });
+  // The owner, 10 Nov: "Super admin should not receive notifications here. It should be a dashboard in the app" — two
+  // morning reports on one phone (Super account on WhatsApp, T2 as a push) with different numbers.
+  await check('delivery', 'The super admin’s console seat sends nothing; one phone gets one company’s report', async () => {
+    const since = '2026-11-10T14:00:00Z'; // after the fix went out
+    const [{ n: alerts }] = await sql(`select count(*)::int n from public.alerts a join public.profiles p on p.id = a.profile_id
+      where p.role = 'super_admin' and a.delivered_at >= '${since}' and (a.sent_push or a.sent_whatsapp)`);
+    expect(!alerts, `${alerts} alerts pushed or sent on WhatsApp to a super admin seat`);
+    const [{ n: reports }] = await sql(`select count(*)::int n from public.daily_summaries d join public.profiles p on p.id = d.profile_id
+      where p.role = 'super_admin' and d.day >= '2026-11-11' and cardinality(d.channels) > 0`);
+    expect(!reports, `${reports} reports went to a super admin seat`);
+    // a phone shared by two seats: WhatsApp reports only from one of them each day, never the console seat
+    const twice = await sql(`select p.phone, d.day, d.kind, count(*)::int n from public.daily_summaries d join public.profiles p on p.id = d.profile_id
+      where d.day >= '2026-11-11' and 'whatsapp' = any(d.channels) and p.phone is not null group by 1, 2, 3 having count(*) > 1`);
+    expect(!twice.length, `${twice.length} phones got two WhatsApp reports for the same time`);
+    const src = (f) => readFileSync(new URL(`../../supabase/functions/${f}`, import.meta.url), 'utf8');
+    expect(/neq\('role', 'super_admin'\)/.test(src('_shared/wa-actions.ts')), 'WhatsApp can still pick the console seat');
+    expect(/consoleSeats\(admin, ids\)/.test(src('_shared/push.ts')), 'pushes still reach the console seat');
+    expect(/short: say\(lang, `pulse_\$\{kind\}`, v\)/.test(src('daily-summary/index.ts')), 'the push and WhatsApp start with different numbers');
+    return 'no push, WhatsApp or report to the console seat; one report per phone, same numbers';
+  });
   await check('delivery', 'Muntej’s WhatsApp number is alive at Meta', async () => {
     const [{ s }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
     const r = await fn('whatsapp', { template_status: true }, null, { 'x-cron-secret': s });

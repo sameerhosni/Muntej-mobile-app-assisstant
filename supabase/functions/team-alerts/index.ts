@@ -255,7 +255,10 @@ serve(async (req) => {
     const p = id ? people.get(id) : undefined;
     return p && p.status === 'active' ? p : undefined;
   };
-  const admins = [...people.values()].filter((p) => p.status === 'active' && (p.role === 'admin' || p.role === 'super_admin'));
+  // the company's own admins first; the super admin's console seat only where it is the company's only admin
+  const admins = [...people.values()]
+    .filter((p) => p.status === 'active' && (p.role === 'admin' || p.role === 'super_admin'))
+    .filter((p, _i, all) => p.role === 'admin' || !all.some((x) => x.role === 'admin' && x.account_id === p.account_id));
   /** The person's manager, or every active admin when they have none (never the person themselves). */
   const managersOf = (personId: string): string[] => {
     const m = active(people.get(personId)?.manager_id);

@@ -402,8 +402,19 @@ async function handle(m: WaMessage, dry = false) {
     ));
   }
   // who sent it: their WhatsApp number on their profile; with several accounts, the one they work in now
-  const findPeople = () =>
-    admin.from('profiles').select('id, user_id, account_id, locale, full_name').eq('phone', from).eq('status', 'active').eq('hidden', false).not('user_id', 'is', null);
+  // the super admin's console seat answers only when it's the number's sole seat: otherwise WhatsApp is the
+  // person's company seat (owner, 10 Nov: "Super admin should not receive notifications here")
+  const findPeople = async () => {
+    const r = await admin
+      .from('profiles')
+      .select('id, user_id, account_id, locale, full_name, role')
+      .eq('phone', from)
+      .eq('status', 'active')
+      .eq('hidden', false)
+      .not('user_id', 'is', null);
+    const real = (r.data ?? []).filter((p) => p.role !== 'super_admin');
+    return { ...r, data: real.length ? real : r.data };
+  };
   let { data: people } = await findPeople();
   if (!people?.length) {
     // in the team already (their manager added this mobile) but never signed in: writing from that number proves it's

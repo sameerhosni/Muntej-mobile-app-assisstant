@@ -56,12 +56,62 @@ export function adminClient(): SupabaseClient {
 }
 
 /**
+ * The super admin's seats: a console, not a person at work. They never get a push, a WhatsApp or a report (owner,
+ * 10 Nov: "Super admin should not receive notifications here. It should be a dashboard in the app"); what they'd have
+ * said waits on the dashboard. Their alerts still land on the Alerts screen.
+ */
+export async function consoleSeats(admin: SupabaseClient, ids: string[]): Promise<Set<string>> {
+  const list = [...new Set(ids.filter(Boolean))];
+  if (!list.length) return new Set();
+  const { data } = await admin.from('profiles').select('id').in('id', list).eq('role', 'super_admin');
+  return new Set((data ?? []).map((r) => r.id as string));
+}
+
+/**
+ * For people with seats in more than one company (one login or one phone): the company name each message starts
+ * with, "T2 · …", so two messages on one phone can't be mixed up (owner, 10 Nov). Console seats don't count.
+ */
+export async function companyTags(admin: SupabaseClient, ids: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const list = [...new Set(ids.filter(Boolean))];
+  if (!list.length) return out;
+  const { data: me } = await admin.from('profiles').select('id, user_id, phone, account_id, account:accounts(name)').in('id', list);
+  const rows = (me ?? []) as unknown as { id: string; user_id: string | null; phone: string | null; account_id: string; account: { name: string } | null }[];
+  const users = [...new Set(rows.map((r) => r.user_id).filter(Boolean))] as string[];
+  const phones = [...new Set(rows.map((r) => r.phone).filter(Boolean))] as string[];
+  const ors = [users.length && `user_id.in.(${users.join(',')})`, phones.length && `phone.in.(${phones.map((p) => `"${p}"`).join(',')})`].filter(Boolean);
+  if (!ors.length) return out;
+  const { data: seats } = await admin
+    .from('profiles')
+    .select('user_id, phone, account_id')
+    .or(ors.join(','))
+    .eq('status', 'active')
+    .eq('hidden', false)
+    .neq('role', 'super_admin');
+  for (const r of rows) {
+    const companies = new Set(
+      (seats ?? []).filter((s) => (r.user_id && s.user_id === r.user_id) || (r.phone && s.phone === r.phone)).map((s) => s.account_id as string),
+    );
+    if (companies.size > 1 && r.account?.name) out.set(r.id, r.account.name);
+  }
+  return out;
+}
+
+/**
  * Sends one message to every device of each person. Returns how many devices it went to.
  * Tokens Expo reports as no longer registered are removed.
  */
 export async function sendPush(profileIds: string[], msg: PushMessage, admin = adminClient()): Promise<number> {
   let ids = [...new Set(profileIds.filter(Boolean))];
+  // the super admin's console seat never gets a push (its dashboard has it); their other seats still do
+  const consoles = await consoleSeats(admin, ids);
+  ids = ids.filter((id) => !consoles.has(id));
   if (!ids.length) return 0;
+  // one person with seats in two companies: the push says which company it's about ("T2 · …")
+  if (ids.length === 1) {
+    const tag = (await companyTags(admin, ids)).get(ids[0]);
+    if (tag && !msg.title.startsWith(`${tag} · `)) msg = { ...msg, title: `${tag} · ${msg.title}` };
+  }
   // one login can be in several accounts (one profile each): its phone was registered under one of them
   const { data: logins } = await admin.from('profiles').select('user_id').in('id', ids).not('user_id', 'is', null);
   const userIds = [...new Set((logins ?? []).map((r) => r.user_id as string))];

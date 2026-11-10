@@ -317,6 +317,19 @@ export default function AlertsScreen() {
         <View style={{ paddingHorizontal: spacing.screen, marginTop: -40, gap: spacing.md }}>
           <RecentAlerts />
 
+          {/* the super admin's console seat: nothing is ever sent from it, so no switches, one clear line (owner, 10 Nov) */}
+          {me.data?.role === 'super_admin' ? (
+            <Card padding={spacing.lg} style={{ flexDirection: 'row', gap: spacing.md, backgroundColor: colors.purpleTint, borderWidth: 1, borderColor: colors.purpleBorder }}>
+              <BellOff color={colors.purpleDark} size={22} />
+              <View style={{ flex: 1, gap: 4 }}>
+                <AppText weight="extrabold" color="purpleDark">
+                  {t('consoleTitle')}
+                </AppText>
+                <AppText color="purpleDark">{t('consoleBody')}</AppText>
+              </View>
+            </Card>
+          ) : (
+          <>
           {/* Channels */}
           <View accessibilityLabel={t('channelsLabel')} style={{ flexDirection: 'row', gap: spacing.sm }}>
             {CHANNELS.map((c) => {
@@ -520,6 +533,8 @@ export default function AlertsScreen() {
               label={t('chases')}
             />
           </View>
+          </>
+          )}
         </View>
       </ScrollView>
     </View>

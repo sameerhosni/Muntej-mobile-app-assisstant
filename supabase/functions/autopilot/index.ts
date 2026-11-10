@@ -139,7 +139,10 @@ async function run(admin: SupabaseClient, dry: boolean) {
     const p = id ? people.get(id) : undefined;
     return p && p.status === 'active' ? p : undefined;
   };
-  const admins = [...people.values()].filter((p) => p.status === 'active' && (p.role === 'admin' || p.role === 'super_admin'));
+  // the company's own admins first; the super admin's console seat only where it is the company's only admin
+  const admins = [...people.values()]
+    .filter((p) => p.status === 'active' && (p.role === 'admin' || p.role === 'super_admin'))
+    .filter((p, _i, all) => p.role === 'admin' || !all.some((x) => x.role === 'admin' && x.account_id === p.account_id));
   const managerOf = (personId: string, fallback?: string | null): Person | undefined =>
     active(people.get(personId)?.manager_id) ??
     active(fallback && fallback !== personId ? fallback : null) ??

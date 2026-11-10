@@ -5,7 +5,7 @@
 // when they end. Called every minute by send-followups, right after changes by muntej-chat, and by team-alerts.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { translationPending } from './task-text.ts';
-import { sendPush } from './push.ts';
+import { companyTags, consoleSeats, sendPush } from './push.ts';
 import { ACTION_TEMPLATE, inWindow, waButtons, waTemplate, localizedFor } from './wa.ts';
 import { needsYouCards } from './wa-actions.ts';
 import { phCapture } from './posthog.ts';
@@ -281,7 +281,25 @@ export async function deliverPending(
   const out = { pushed: 0, held: 0, off: 0, whatsapped: 0, batched: 0 };
   if (!rows.length) return out;
 
+  // the super admin's console seat: no push, no WhatsApp, no email. The alert stays on its Alerts screen and its
+  // dashboard (owner, 10 Nov: "Super admin should not receive notifications here")
+  const consoles = await consoleSeats(admin, rows.map((r) => r.profile_id));
+  if (consoles.size) {
+    const quiet = rows.filter((r) => consoles.has(r.profile_id));
+    await admin.from('alerts').update({ delivered_at: now.toISOString(), sent_push: false, whatsapp_status: 'console' }).in('id', quiet.map((r) => r.id));
+    out.off += quiet.length;
+    rows.splice(0, rows.length, ...rows.filter((r) => !consoles.has(r.profile_id)));
+    if (!rows.length) return out;
+  }
+
   const ids = [...new Set(rows.map((r) => r.profile_id))];
+  // seats in two companies: "T2 · …" first. A manager's own work and the team's read apart: «مهمتك» / «فريقك»
+  const tags = await companyTags(admin, ids);
+  const { data: bosses } = await admin.from('profiles').select('manager_id').in('manager_id', ids).in('status', ['active', 'pending']);
+  const leads = new Set((bosses ?? []).map((b) => b.manager_id as string));
+  const alertTasks = [...new Set(rows.map((r) => r.task_id).filter(Boolean))] as string[];
+  const { data: owners } = alertTasks.length ? await admin.from('tasks').select('id, owner_id').in('id', alertTasks) : { data: [] };
+  const ownerOf = new Map((owners ?? []).map((x) => [x.id as string, x.owner_id as string | null]));
   const [prefs, { data: ppl }] = await Promise.all([
     loadPrefs(admin, ids),
     admin.from('profiles').select('id, full_name, full_name_ar, locale, phone, email, whatsapp_connected, wa_last_inbound_at').in('id', ids),
@@ -381,6 +399,17 @@ export async function deliverPending(
     const ar = person?.locale === 'ar';
     const tTitle = (a: PendingAlert) => (ar ? a.title_ar : null) ?? a.title;
     const tBody = (a: PendingAlert) => (ar ? a.body_ar : null) ?? a.body;
+    const company = tags.get(profileId);
+    /** "T2 · مهمتك · …": the company when they have two, and for a manager whose work this is (theirs or the team's) */
+    const tagged = (a: PendingAlert) => {
+      const whose =
+        leads.has(profileId) && a.task_id && ownerOf.has(a.task_id)
+          ? ownerOf.get(a.task_id) === profileId
+            ? ar ? 'مهمتك' : 'Your task'
+            : ar ? 'فريقك' : 'Your team'
+          : null;
+      return [company, whose, tTitle(a)].filter(Boolean).join(' · ');
+    };
     // a new company is worth an email too: their phone may not be registered for push yet
     if (person?.email) {
       for (const a of list.filter((x) => x.kind === 'added_to_company')) {
@@ -393,7 +422,9 @@ export async function deliverPending(
       ? [
           {
             alerts: list,
-            title: ar ? (list.length === 2 ? 'تحديثين من منتج' : `${list.length} تحديثات من منتج`) : `${list.length} updates from Muntej`,
+            title: [company, ar ? (list.length === 2 ? 'تحديثين من منتج' : `${list.length} تحديثات من منتج`) : `${list.length} updates from Muntej`]
+              .filter(Boolean)
+              .join(' · '),
             // one update per line (joined with " · " the directions got mixed)
             body: list.slice(0, 3).map(tTitle).join('\n') + (list.length > 3 ? '\n…' : ''),
             data: { screen: '/18-alerts', count: list.length } as Record<string, unknown>,
@@ -401,7 +432,7 @@ export async function deliverPending(
         ]
       : list.map((a) => ({
           alerts: [a],
-          title: tTitle(a),
+          title: tagged(a),
           body: tBody(a),
           data: { alertId: a.id, kind: a.kind, ...(a.task_id ? { taskId: a.task_id } : {}) } as Record<string, unknown>,
         }));

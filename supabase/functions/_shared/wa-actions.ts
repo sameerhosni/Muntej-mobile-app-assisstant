@@ -151,6 +151,8 @@ export async function waProfileFor(admin: SupabaseClient, phone: string): Promis
     .eq('phone', phone)
     .eq('status', 'active')
     .eq('hidden', false)
+    // the super admin's console seat never answers on WhatsApp: the person's company seat does (owner, 10 Nov)
+    .neq('role', 'super_admin')
     .not('user_id', 'is', null)
     .order('created_at');
   if (!people?.length) return null;
@@ -165,6 +167,14 @@ export async function waProfileFor(admin: SupabaseClient, phone: string): Promis
     const hit = people.find((p) => p.user_id === s.user_id && p.account_id === s.account_id);
     if (hit) return hit.id as string;
   }
+  // no switch on record: the seat the phone's app signed in to last (its newest push token), then the oldest
+  const { data: tok } = await admin
+    .from('push_tokens')
+    .select('profile_id')
+    .in('profile_id', people.map((p) => p.id as string))
+    .order('updated_at', { ascending: false })
+    .limit(1);
+  if (tok?.[0]) return tok[0].profile_id as string;
   return people[0].id as string;
 }
 

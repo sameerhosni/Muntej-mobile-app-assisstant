@@ -13,7 +13,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { titleIn } from '../_shared/task-text.ts';
 import { HttpError, getCaller, json, serve } from '../_shared/http.ts';
-import { adminClient, sendPush } from '../_shared/push.ts';
+import { adminClient, companyTags, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
 import { inWindow, REPORT_TEMPLATE, rtl, waButtons, waConfigured, waTemplate } from '../_shared/wa.ts';
 import { waProfileFor } from '../_shared/wa-actions.ts';
@@ -56,6 +56,8 @@ type Summary = {
   short: string;
   /** for the WhatsApp template: "3 risks · 2 decisions · 5 wins" */
   counts: string;
+  /** the company, when the person has seats in two ("T2") */
+  company?: string;
 };
 
 const PERSON_COLS =
@@ -94,6 +96,8 @@ const W = {
     needs: '📌 Needs you',
     support: '🤝 Needs your support',
     yours: '📝 Your tasks',
+    teamNeeds: '📌 Your team needs you',
+    yoursOwn: '📝 Your own tasks',
     handled: '🤖 I handled it for you',
     waiting: '⏳ Waiting for review',
     handledMoved: 'moved {n} of your late tasks to the next working day',
@@ -118,10 +122,6 @@ const W = {
     more: '+{n} more in the app',
     open: 'Open the Muntej app to act on these.',
     footer: 'Sent by Muntej at the time you chose in Alerts.',
-    push_daily: '{late} late · {reviews} to review · {decisions} decisions',
-    push_midday: '{done} done so far · {late} late · {needs} need you',
-    push_evening: '{done} done today · {late} late · {needs} need you',
-    pushEmp: '{today} due today · {late} late',
     counts: '{label}: {risks} risks · {needs} need you · {wins} wins',
     label_daily: '☀️ Morning report',
     label_midday: '🌤️ Midday report',
@@ -130,7 +130,6 @@ const W = {
     logReason: '{label} at {time}, as set in Alerts',
     newFor: '✨ New for you',
     allClear: 'All {n} tasks are moving. Nothing needs you today, enjoy your coffee ☕',
-    allClearPush: "Nothing needs you today. I've got the rest ☕",
     since: '🔔 Since yesterday',
     sinceN: '{n} small updates in the app, whenever you like',
     below: 'What needs you, with buttons 👇',
@@ -153,6 +152,8 @@ const W = {
     needs: '📌 يحتاجك',
     support: '🤝 يحتاجون دعمك',
     yours: '📝 مهامك',
+    teamNeeds: '📌 فريقك يحتاجك',
+    yoursOwn: '📝 مهامك أنت',
     handled: '🤖 تكفّلت فيها عنك',
     waiting: '⏳ تنتظر المراجعة',
     handledMoved: 'أجّلت {n} من مهامك المتأخرة ليوم العمل الجاي',
@@ -177,10 +178,6 @@ const W = {
     more: '+{n} زيادة في التطبيق',
     open: 'افتح منتج وخلّصها بضغطة.',
     footer: 'أرسلتها لك بالوقت اللي اخترته. تقدر تغيّره من التنبيهات.',
-    push_daily: '{late} متأخرة · {reviews} للمراجعة · {decisions} قرارات',
-    push_midday: '{done} خلصت لين الحين · {late} متأخرة · {needs} تحتاجك',
-    push_evening: '{done} خلصت اليوم · {late} متأخرة · {needs} تحتاجك',
-    pushEmp: '{today} مطلوبة اليوم · {late} متأخرة',
     counts: '{label}: {risks} مخاطر · {needs} تحتاجك · {wins} إنجازات',
     label_daily: '☀️ تقرير الصباح',
     label_midday: '🌤️ تقرير الظهر',
@@ -189,7 +186,6 @@ const W = {
     logReason: '{label} الساعة {time} حسب إعدادات التنبيهات',
     newFor: '✨ جديد لك',
     allClear: 'كل المهام ماشية ({n}). ما فيه شي يحتاجك اليوم، روح اشرب قهوتك ☕',
-    allClearPush: 'ما فيه شي يحتاجك اليوم، والباقي عليّ ☕',
     since: '🔔 من أمس',
     sinceN: '{n} تحديثات صغيرة في التطبيق، على راحتك',
     below: 'اللي يحتاجك، وتحت كل وحدة أزرارها 👇',
@@ -331,7 +327,7 @@ function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind):
         { key: 'wins' as const, title: say(lang, 'wins'), items: top(wins, lang) },
         { key: 'handled' as const, title: say(lang, 'handled'), items: handled },
       ].filter((s) => s.items.length),
-      short: say(lang, 'allClearPush'),
+      short: say(lang, 'allClear', { n: num(working.length, lang) }),
     };
   const v = {
     working: num(working.length, lang),
@@ -348,15 +344,17 @@ function managerReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind):
     headline: say(lang, `pulse_${kind}`, v),
     sections: (
       [
-        { key: 'needs', title: say(lang, 'needs'), items: top(needs, lang, 5) },
+        // two parts for a manager with work of their own too (owner, 10 Nov): the team's, then theirs
+        { key: 'needs', title: say(lang, 'teamNeeds'), items: top(needs, lang, 5) },
         { key: 'risks', title: say(lang, 'risks'), items: top(risks, lang, 5) },
         { key: 'wins', title: say(lang, 'wins'), items: top(wins, lang, kind === 'evening' ? 6 : 3) },
         { key: 'support', title: say(lang, 'support'), items: top(support, lang) },
-        { key: 'yours', title: say(lang, 'yours'), items: top(mine, lang) },
+        { key: 'yours', title: say(lang, 'yoursOwn'), items: top(mine, lang) },
         { key: 'handled', title: say(lang, 'handled'), items: handled },
       ] as Section[]
     ).filter((s) => s.items.length),
-    short: say(lang, `push_${kind}`, v),
+    // the push and WhatsApp start with the same line and the same numbers (owner, 10 Nov: «0 late» vs «2 late»)
+    short: say(lang, `pulse_${kind}`, v),
   };
 }
 
@@ -407,7 +405,7 @@ function employeeReport(me: Person, w: World, now: Date, lang: Lang, kind: Kind)
         { key: 'waiting', title: say(lang, 'waiting'), items: waiting ? [say(lang, 'waitingN', { n: num(waiting, lang) })] : [] },
       ] as Section[]
     ).filter((s) => s.items.length),
-    short: say(lang, 'pushEmp', v),
+    short: say(lang, kind === 'daily' ? 'emp_daily' : kind === 'midday' ? 'emp_midday' : 'emp_evening', v),
     counts: say(lang, 'counts', { label, risks: num(late, lang), needs: num(work.length, lang), wins: num(wins.length, lang) }),
   };
 }
@@ -477,7 +475,7 @@ const clip = (s: string, n = 60) => (s.length > n ? `${s.slice(0, n - 1)}…` : 
 function whatsappText(s: Summary, lang: Lang) {
   const needs = s.sections.find((sec) => sec.key === 'needs') ?? s.sections.find((sec) => sec.key === 'yours');
   const items = (needs?.items ?? []).filter((i) => !i.startsWith('+'));
-  const lines = [`*${s.hello}*`, s.headline];
+  const lines = [`*${s.company ? `${s.company} · ` : ''}${s.hello}*`, s.headline];
   if (items.length) {
     lines.push('', `*${needs!.title}*`, ...items.slice(0, 3).map((i) => `• ${clip(i)}`));
     if (items.length > 3) lines.push(say(lang, 'more', { n: num(items.length - 3, lang) }));
@@ -565,11 +563,20 @@ async function sendOne(
   kind: Kind,
   opts: { test: boolean; only?: string; dry?: boolean },
 ) {
+  // the super admin's console seat gets no report on any channel: its dashboard has it (owner, 10 Nov)
+  if (me.role === 'super_admin') return { profile: me.id, kind, sent: [] as string[], skipped: 'console seat: see the dashboard' };
   const lang: Lang = me.locale === 'ar' ? 'ar' : 'en';
   const rule = ruleOf(prefs, kind, me);
   const mgr = isManager(me, w);
   const s = mgr ? managerReport(me, w, now, lang, kind) : employeeReport(me, w, now, lang, kind);
   if (!s) return { profile: me.id, kind, sent: [] as string[], skipped: 'nothing to say' };
+  // seats in two companies: every channel says which company this report is about ("T2 · صباح الخير…")
+  const company = (await companyTags(admin, [me.id])).get(me.id);
+  // (the push gets it in its title from sendPush; WhatsApp here)
+  if (company) {
+    s.company = company;
+    s.counts = `${company} · ${s.counts}`;
+  }
 
   if (kind === 'daily') {
     // "New for you": up to two features from the last 2 weeks this person hasn't tried (or turned down) yet
@@ -696,7 +703,7 @@ serve(async (req) => {
   const nudged = await setupNudges(admin, now);
 
   const active = await (async () => {
-    const { data } = await admin.from('profiles').select('id').eq('status', 'active').eq('hidden', false);
+    const { data } = await admin.from('profiles').select('id').eq('status', 'active').eq('hidden', false).neq('role', 'super_admin');
     return (data ?? []).map((p) => p.id as string);
   })();
   const prefs = await loadPrefs(admin, active);

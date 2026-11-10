@@ -421,3 +421,7 @@ Last updated: 2026-11-09.
 ### R94 · Closing or cancelling a task resolves every other open decision on it
 - **Why:** 9 Nov, third reviewer pass: «✓ خلصت أصلاً» closed the task but left a second pending card (busy / more time) on it; approving that later would move a done task's date or owner.
 - **Check:** any path that closes or cancels a task also resolves the task's other `pending` decisions (and tells their askers once).
+
+### R95 · The super admin's console seat gets no notifications; one person, one message per moment
+- **Why:** 10 Nov: two morning reports landed on one phone at 8:00, WhatsApp from the Super account seat (5 decisions) and a push from T2 (0 decisions), with different numbers. The owner: "Super admin should not receive notifications here. It should be a dashboard in the app".
+- **Check:** any new push / WhatsApp / email / report path skips `role = 'super_admin'` seats (use `consoleSeats` / `sendPush`, or `.neq('role','super_admin')`); a phone or login with seats in two companies says the company first ("T2 · …"); WhatsApp picks one seat per phone (`waProfileFor`); the push and WhatsApp versions of a report show the same numbers on the same first line.

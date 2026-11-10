@@ -37,7 +37,9 @@ serve(async (req) => {
     const { data: ppl } = await admin
       .from('profiles')
       .select('id, full_name, full_name_ar, locale, phone, wa_last_inbound_at, account_id, status, user_id, hidden')
-      .in('id', due.map((r) => r.profile_id));
+      .in('id', due.map((r) => r.profile_id))
+      // the super admin's console seat gets no reminders (owner, 10 Nov)
+      .neq('role', 'super_admin');
     const people = new Map(((ppl ?? []) as Person[]).map((p) => [p.id, p]));
     const prefs = await loadPrefs(admin, due.map((r) => r.profile_id));
     for (const r of due) {
