@@ -36,6 +36,9 @@
       "autoIncrement": true,
       "channel": "preview",
       "environment": "preview",
+      "env": {
+        "APP_VARIANT": "test"
+      },
       "ios": {
         "credentialsSource": "local"
       }
@@ -50,6 +53,7 @@
     }
   },
   "submit": {
+    "testflight": {},
     "production": {}
   }
 }

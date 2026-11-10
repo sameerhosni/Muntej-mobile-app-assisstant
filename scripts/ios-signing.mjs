@@ -11,8 +11,11 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, sign } from 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-const BUNDLE = JSON.parse(readFileSync('app.json', 'utf8')).expo.ios.bundleIdentifier;
-const PROFILE_NAME = 'Muntej App Store (CI)';
+// APP_VARIANT=test: the Muntej Test app (its own bundle id, provisioning profile and App Store Connect app), never the
+// store one (reviewer, 10 Nov: a test build must never share the store app's identity)
+const TEST = process.env.APP_VARIANT === 'test';
+const BUNDLE = TEST ? 'sa.muntej.app.test' : JSON.parse(readFileSync('app.json', 'utf8')).expo.ios.bundleIdentifier;
+const PROFILE_NAME = TEST ? 'Muntej Test App Store (CI)' : 'Muntej App Store (CI)';
 const STORE = 'signing/ios/dist.enc';
 const WORK = 'ios-signing';
 const { ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 } = process.env;

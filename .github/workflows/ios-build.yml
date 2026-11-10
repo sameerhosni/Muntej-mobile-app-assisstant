@@ -4,8 +4,8 @@
 # and the run says so.
 # Start it: Actions → "iOS build" → Run workflow, or push a tag `ios-production-<anything>` / `ios-test-<anything>`.
 #   production = the App Store build (gets live updates only)
-#   testflight = an iPhone test build for TestFlight testers (owner, 10 Nov: Nouran is on iPhone): it gets the Muntej
-#                Test updates (channel preview), like the Android Muntej Test app. Never submit it for App Store review.
+#   testflight = the iPhone "Muntej Test" app (sa.muntej.app.test, its own App Store Connect app) for TestFlight testers
+#                (owner, 10 Nov: Nouran is on iPhone): it gets the Muntej Test updates (channel preview), like Android's.
 # Needs repository secrets: EXPO_TOKEN, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (the .p8 file's text).
 name: iOS build
 
@@ -51,6 +51,15 @@ jobs:
       - name: Install
         run: npm ci
 
+      # which build: the manual choice, else from the tag (ios-test-* = testflight). testflight is the separate
+      # "Muntej Test" app (sa.muntej.app.test, APP_VARIANT=test): it can never be picked for the store's review
+      - name: Profile
+        run: |
+          PROFILE="${{ github.event.inputs.profile }}"
+          if [ -z "$PROFILE" ]; then case "$GITHUB_REF_NAME" in ios-test-*) PROFILE=testflight ;; *) PROFILE=production ;; esac; fi
+          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
+          if [ "$PROFILE" = "testflight" ]; then echo "APP_VARIANT=test" >> "$GITHUB_ENV"; fi
+
       - name: Signing
         id: signing
         run: node scripts/ios-signing.mjs
@@ -68,9 +77,6 @@ jobs:
 
       - name: Build
         run: |
-          # the profile: the manual choice, else from the tag (ios-test-* = testflight)
-          PROFILE="${{ github.event.inputs.profile }}"
-          if [ -z "$PROFILE" ]; then case "$GITHUB_REF_NAME" in ios-test-*) PROFILE=testflight ;; *) PROFILE=production ;; esac; fi
           VERSION=$(node -p "require('./app.json').expo.version")
           OUT="muntej-${VERSION}-ios-${PROFILE}-${GITHUB_RUN_NUMBER}.ipa"
           npx -y eas-cli@latest build --platform ios --profile "$PROFILE" --local --non-interactive --output "$OUT"
@@ -87,12 +93,13 @@ jobs:
           ASC_APP_ID: ${{ steps.signing.outputs.asc_app_id }}
         run: |
           if [ -z "$ASC_APP_ID" ]; then
-            echo "::warning::No app for sa.muntej.app in App Store Connect yet. Create it (Apps → + → New App), then run this workflow again."
+            BUNDLE=sa.muntej.app; [ "$PROFILE" = "testflight" ] && BUNDLE=sa.muntej.app.test
+            echo "::warning::No app for $BUNDLE in App Store Connect yet. Create it (Apps → + → New App, bundle $BUNDLE), then run this workflow again. The .ipa is kept as this run's artifact."
             exit 0
           fi
           printf '%s\n' "$ASC_KEY_P8" > asc-key.p8
           node -e "
             const fs=require('fs');const e=JSON.parse(fs.readFileSync('eas.json','utf8'));
-            e.submit.production.ios={ascAppId:process.env.ASC_APP_ID,ascApiKeyPath:'asc-key.p8',ascApiKeyId:process.env.ASC_KEY_ID,ascApiKeyIssuerId:process.env.ASC_ISSUER_ID};
+            e.submit[process.env.PROFILE].ios={ascAppId:process.env.ASC_APP_ID,ascApiKeyPath:'asc-key.p8',ascApiKeyId:process.env.ASC_KEY_ID,ascApiKeyIssuerId:process.env.ASC_ISSUER_ID};
             fs.writeFileSync('eas.json',JSON.stringify(e,null,2));"
-          npx -y eas-cli@latest submit --platform ios --profile production --path "$OUT" --non-interactive
+          npx -y eas-cli@latest submit --platform ios --profile "$PROFILE" --path "$OUT" --non-interactive

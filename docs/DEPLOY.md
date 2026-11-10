@@ -72,9 +72,11 @@ Republishes the exact tested update to `production`, switches the tested feature
 ## Builds
 
 - **Android Muntej Test APK**: `npm run ship -- "…" --build`, or push a tag `android-test-<anything>`.
-- **iPhone TestFlight test build** (gets Muntej Test updates): push a tag `ios-test-<anything>`, or Actions → iOS build →
-  Run workflow → `testflight`. It is uploaded to App Store Connect → TestFlight; add testers there (Internal Testing).
-  Never submit this build for App Store review.
+- **iPhone TestFlight test build** ("Muntej Test" on iPhone, gets Muntej Test updates): push a tag `ios-test-<anything>`,
+  or Actions → iOS build → Run workflow → `testflight`. It is its own app, bundle `sa.muntej.app.test`, so it can never
+  be picked for the store app's review. Once only: create that app in App Store Connect (Apps → + → New App, bundle
+  `sa.muntej.app.test`, name "Muntej Test"); until then the build is kept as the run's artifact. Then add testers in
+  that app's TestFlight → Internal Testing.
 - **iPhone App Store build**: tag `ios-production-<anything>` (Actions secrets `EXPO_TOKEN`, `ASC_KEY_ID`,
   `ASC_ISSUER_ID`, `ASC_KEY_P8` are already set in the repository).
 

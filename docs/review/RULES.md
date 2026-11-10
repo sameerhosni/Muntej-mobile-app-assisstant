@@ -476,3 +476,7 @@ Last updated: 2026-11-09.
 ### R108 · A late undo never overrides someone else's decision
 - **Why:** 10 Nov, reviewer pass 3: a reply-close sent for review could be undone for 7 days, even after the manager approved it.
 - **Check:** an undo allowed for longer than 5 minutes refuses ("it moved on since") once the task's status changed or a review was decided after the change.
+
+### R109 · A test build never shares the store app's identity
+- **Why:** 10 Nov, reviewer pass 4: the first iPhone test profile built `sa.muntej.app` on the Muntej Test channel and uploaded it to the store app in App Store Connect, where it could be picked for Apple's review.
+- **Check:** every test build profile sets `APP_VARIANT=test` (its own bundle id / package, name, App Store Connect app or Play listing, provisioning profile); the store app only ever gets `production` builds.
