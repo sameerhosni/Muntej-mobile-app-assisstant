@@ -520,3 +520,7 @@ Last updated: 2026-11-09.
 ### R119 · "From whom" names a person, never a place
 - **Why:** 10 Nov, reviewer: the tools card fell back to the item's sender, which Google Chat fills with the space name when several people wrote, and Meet with "Google Meet": «من Availo team».
 - **Check:** a "from" shown to people comes from a field that names a person (the asker, or a one-message sender); channel, space and meeting names are shown as where, not who.
+
+### R120 · A QA guard is loosened only for the wording that failed
+- **Why:** 10 Nov, reviewer: the harness's false-claim check was skipped for any message ending in ؟, but Saudi requests are usually questions («ممكن تعطي فيصل مهمة التقرير؟»).
+- **Check:** an exception in a QA guard names the exact pattern that failed (here: a message starting with a question word), never punctuation or other traits real requests share.

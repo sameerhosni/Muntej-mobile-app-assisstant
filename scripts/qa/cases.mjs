@@ -265,7 +265,8 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
     expect(said.length > 3, `no reply to «${message}»`);
     // a question about what was done ("What did I make today?" → «سويت اليوم: «X» …») answers it; only a reply to a
     // request may claim a change
-    const asked = /[؟?]\s*$/.test(message.trim()) || /^(وش|ايش|إيش|شو)(\s|$)/.test(message.trim()) || /^(what|which|how)\b/i.test(message.trim());
+    // only a real question word (a polite request ends in ؟ too: «ممكن تعطي فيصل…؟» must still be checked — reviewer, R120)
+    const asked = /^(وش|ايش|إيش|شو)(\s|$)/.test(message.trim()) || /^(what|which|how)\b/i.test(message.trim());
     expect(asked || !(CLAIM.test(replies[0].trim()) && before.u === after.u && before.n === after.n), `said «${replies[0].slice(0, 80)}» but nothing changed`);
     return { said, payload: r.messages?.at(-1)?.payload ?? {} };
   }
