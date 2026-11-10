@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-11-09
+Last updated: 2026-11-10
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -132,6 +132,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-10 · In testing: Decisions: clean header, already-done, no spinner; DM work to the right person; reminders for invited people; reviewer + consultant agents (server: connect, intake, onboarding-nudges, public-api, sync-sources, team-import, whatsapp · Muntej Test update 1.0.0)
 - 2026-11-09 · In testing: Nouran's testing N1-N23: task buttons, busy in own words, real thanks, approvals, needs-you tab, WhatsApp replies (server: autopilot, connect, daily-summary, intake, intercom-webhook, muntej-chat, onboarding-nudges, public-api, send-followups, sync-sources, team-alerts, team-import, whatsapp · Muntej Test update 1.0.0)
 - 2026-11-09 · In testing: Task page buttons (N2) + close or review choice (N3) (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts · Muntej Test update 1.0.0)
 - 2026-11-09 · In testing: One Cancel, split row with X, chat stops inventing cards (server: muntej-chat, whatsapp · Muntej Test update 1.0.0)

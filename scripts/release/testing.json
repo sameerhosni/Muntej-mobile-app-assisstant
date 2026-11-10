@@ -1,6 +1,6 @@
 {
-  "message": "One Cancel, split row with X, chat stops inventing cards; Task page buttons (N2) + close or review choice (N3); Nouran's testing N1-N23: task buttons, busy in own words, real thanks, approvals, needs-you tab, WhatsApp replies",
-  "group": "c2d72493-e53d-4782-993d-0fb20b8aebb2",
-  "at": "2026-11-09T15:53:06.456Z",
-  "commit": "620bcf62c0864ce187298dfd056dbec271c1971c"
+  "message": "One Cancel, split row with X, chat stops inventing cards; Task page buttons (N2) + close or review choice (N3); Nouran's testing N1-N23: task buttons, busy in own words, real thanks, approvals, needs-you tab, WhatsApp replies; Decisions: clean header, already-done, no spinner; DM work to the right person; reminders for invited people; reviewer + consultant agents",
+  "group": "23691166-a56f-4252-9e9b-0669ad8d8db1",
+  "at": "2026-11-10T05:28:33.004Z",
+  "commit": "2dd1b54c3d6553d2f879c680dc36e258c9c6e84b"
 }
