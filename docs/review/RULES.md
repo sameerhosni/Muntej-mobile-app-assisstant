@@ -536,3 +536,7 @@ Last updated: 2026-11-09.
 ### R123 · WhatsApp buttons in one message never share an id
 - **Why:** 10 Nov, Nouran: «جاوب» on a due date got no reply — «بعد 3 أيام» fell on Friday → Sunday, the same as «الأحد الجاي»; WhatsApp refused the message and sent nothing.
 - **Check:** `waButtons` drops repeated ids; generated choices (dates…) are de-duplicated before they become buttons; QA checks the ids are distinct.
+
+### R124 · A QA case that sends a typed command checks everything the command touches
+- **Why:** 10 Nov, reviewer: the «10» case expected the 9th task to stay waiting, but «10» approves 10 and ignores the rest of the list; and it would have ignored the QA manager's other waiting items without putting them back.
+- **Check:** assert the command's full effect (approved and ignored), set aside the other rows it would change and restore them in `finally`.

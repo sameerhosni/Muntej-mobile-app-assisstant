@@ -56,7 +56,7 @@ export function toolListRows(cards: WaCard[], ar: boolean, from = 0, nums?: numb
   return rows;
 }
 /** the message above the list button: how many, and from whom */
-export function toolListIntro(cards: WaCard[], ar: boolean) {
+export function toolListIntro(cards: WaCard[], ar: boolean, button?: string, beyond = 0) {
   const n = cards.length;
   const by = new Map<string, number>();
   for (const c of cards) if (c.who) by.set(c.who, (by.get(c.who) ?? 0) + 1);
@@ -66,7 +66,10 @@ export function toolListIntro(cards: WaCard[], ar: boolean) {
     [
       ar ? `🔌 *${n === 1 ? 'مهمة وحدة' : n === 2 ? 'مهمتين' : `${n} ${n <= 10 ? 'مهام' : 'مهمة'}`} من أدواتك* تنتظر موافقتك` : `🔌 *${n} task${n > 1 ? 's' : ''} from your tools* wait for your OK`,
       ...(top.length ? [top.join(' · ') + (by.size > 3 ? ' · …' : '')] : []),
-      ar ? 'اضغط «شوف المهام» واختر مهمة تشوف تفاصيلها.' : 'Tap "See tasks" and pick one for its details.',
+      // the button this very message has (reviewer, 10 Nov: page 2's button is «شوف الباقي»)
+      ar ? `اضغط «${button ?? '📋 شوف المهام'}» واختر مهمة تشوف تفاصيلها.` : `Tap "${button ?? '📋 See tasks'}" and pick one for its details.`,
+      // more than the list can number: the rest are in the app
+      ...(beyond > 0 ? [ar ? `و${beyond} غيرها في منتج ← أدواتك` : `+${beyond} more in Muntej → Your tools`] : []),
       // where they live in the app too (Nouran, 10 Nov: "I discovered it by chance")
       ar ? '📲 وتلقاها كمان في تطبيق منتج: الرئيسية ← «يحتاجك» ← «لقيت … في أدواتك»' : '📲 They’re also in the Muntej app: Home → "Needs you" → "tasks found in your tools"',
     ].join('\n'),

@@ -507,6 +507,9 @@ async function server() {
   await check('whatsapp', 'The tools list’s next page keeps its numbers, and «10» approves the task shown as 10', async () => {
     const tag = Date.now().toString(36);
     const sugs = Array.from({ length: 11 }, (_, k) => ({ title: `QA page ${tag} n${k + 1}`, owner_id: null, due_at: null, priority: 'medium', state: 'new', task_id: null, duplicate_of: null, confidence: 0.9, quote: '', description: null, definition_of_done: null, proof_required: 'none', budget: null, estimate_hours: null, requested_by: 'Saad QA', amends_earlier: false, owner_name: null, outside: false, asked_by_user: false, asked_of_user: true }));
+    // «10» approves 10 and ignores the rest of the list: set the QA manager's other waiting items aside so only this
+    // one is in the list, and put them back after (reviewer, 10 Nov)
+    const aside = (await sql(`update public.incoming_items set status = 'nothing' where owner_id = '${QA_BOSS}' and status = 'new' returning id`)).map((r) => r.id);
     const [it] = await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, suggestions, received_at)
       values ('${QA_BOSS}', 'gmail', 'qa-page-${tag}', 'QA', 'QA', 'new', '${JSON.stringify(sugs)}'::jsonb, now() + interval '1 minute') returning id`);
     try {
@@ -520,12 +523,14 @@ async function server() {
       expect(ten && ten.id === `tc:${it.id}:9`, `the next page's «10.» isn't the 10th task: ${rows2.map((r) => `${r.title}=${r.id}`).join(' | ').slice(0, 160)}`);
       await wa('10');
       const [row] = await sql(`select suggestions->9->>'state' s9, suggestions->8->>'state' s8 from public.incoming_items where id = '${it.id}'`);
-      expect(row.s9 === 'accepted' && row.s8 === 'new', `«10» approved the wrong one (9th: ${row.s8}, 10th: ${row.s9})`);
+      // «10» = approve the 10th, ignore the rest of the list (as the list says)
+      expect(row.s9 === 'accepted' && row.s8 === 'ignored', `«10» approved the wrong one (9th: ${row.s8}, 10th: ${row.s9})`);
       return 'page 2 starts at 10, and «10» is that task';
     } finally {
       await sql(`delete from public.tasks where id in (select (s->>'task_id')::uuid from public.incoming_items i, jsonb_array_elements(i.suggestions) s where i.id = '${it.id}' and s->>'task_id' is not null)`);
       await sql(`delete from public.incoming_items where id = '${it.id}'`);
       await sql(`delete from public.wa_pending where key = 'tools:${QA_BOSS}'`);
+      if (aside.length) await sql(`update public.incoming_items set status = 'new' where id in (${aside.map((x) => `'${x}'`).join(',')})`);
     }
   });
   // Nouran, 10 Nov: «جاوب» on a due date sent nothing — two quick dates fell on the same Sunday, and WhatsApp refuses

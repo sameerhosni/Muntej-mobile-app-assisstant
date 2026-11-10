@@ -1025,7 +1025,10 @@ async function handle(m: WaMessage, dry = false) {
     await admin.from('wa_pending').upsert({ key: `tools:${me.id}`, profile_id: me.id, body: { refs }, created_at: new Date().toISOString() });
     // WhatsApp's drop-down list: one row per task (who · when · due), a row opens its card (owner, 10 Nov, option 2);
     // the numbered text stays for numbers typed back («1 3 5», «تجاهل 2») and is still what «اعتمد الكل» covers
-    await waList(from, toolListIntro(tools, ar), ar ? '📋 شوف المهام' : '📋 See tasks', toolListRows(tools, ar), ar ? 'أو اكتب الأرقام: 1 3 5' : 'Or type the numbers: 1 3 5');
+    // only what the saved numbers cover (MAX_LIST); the rest are counted and live in the app (reviewer, 10 Nov)
+    const listed = tools.slice(0, MAX_LIST);
+    const btn = ar ? '📋 شوف المهام' : '📋 See tasks';
+    await waList(from, toolListIntro(listed, ar, btn, tools.length - listed.length), btn, toolListRows(listed, ar), ar ? 'أو اكتب الأرقام: 1 3 5' : 'Or type the numbers: 1 3 5');
     const b = toolListButtons(ar);
     await waButtons(from, b.body, b.buttons);
   }
@@ -1041,16 +1044,24 @@ async function handle(m: WaMessage, dry = false) {
   /** «شوف الباقي»: the next page of the SAME list — its saved numbers, handled ones left out (reviewer, 10 Nov: a
    *  list rebuilt fresh renumbered the rows, so a typed «10» approved another task) */
   async function toolPage(afterNum: number) {
-    const refs = (await toolList()) ?? [];
+    const saved = await toolList();
+    // the saved list ran out (a day old) or was cleared: a fresh list, new numbers (reviewer, 10 Nov)
+    if (!saved) {
+      const tools = (await needsYouCards(admin, me.id, ar)).filter((c) => c.kind === 'tool' && c.ref);
+      if (!tools.length) return void (await say(ar ? 'ما فيه شي ينتظرك من أدواتك 👌' : 'Nothing from your tools is waiting 👌'));
+      return void (await sendToolList(tools));
+    }
+    const refs = saved;
     const cards = await toolCardsFor(admin, [...new Set(refs.map((r) => r.item))], ar);
     const entries = refs
       .map((r, k) => ({ num: k + 1, card: cards.find((c) => c.ref?.item === r.item && c.ref?.index === r.index) }))
       .filter((e): e is { num: number; card: WaCard } => !!e.card && e.num > afterNum);
     if (!entries.length) return void (await say(ar ? 'هذي كلها 👌' : "That's all of them 👌"));
+    const btn = ar ? '📋 شوف الباقي' : '📋 See the rest';
     await waList(
       from,
-      toolListIntro(entries.map((e) => e.card), ar),
-      ar ? '📋 شوف الباقي' : '📋 See the rest',
+      toolListIntro(entries.map((e) => e.card), ar, btn),
+      btn,
       toolListRows(entries.map((e) => e.card), ar, 0, entries.map((e) => e.num)),
     );
   }
