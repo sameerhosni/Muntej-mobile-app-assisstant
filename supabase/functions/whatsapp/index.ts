@@ -35,7 +35,7 @@ import {
   type WaButton,
   type WaRow,
 } from '../_shared/wa.ts';
-import { foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolCardsFor, toolListButtons, toolListIntro, toolListRows, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
+import { foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolCardsFor, toolListButtons, toolListIntro, toolListRows, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
 import { quickDates, readWhen } from '../_shared/when.ts';
 
 /** "what is it?" about the last thing Muntej sent (whole message; Arabic without \b, R112) */
@@ -358,9 +358,14 @@ async function whoseTap(m: WaMessage, people: { id: string; account_id: string }
   } else if ((verb === 'r' || verb === 'h') && b) {
     const { data } = await admin.from('tasks').select('assigner_id, owner_id').eq('id', b).maybeSingle();
     related = verb === 'h' ? [data?.owner_id ?? null, data?.assigner_id ?? null] : [data?.assigner_id ?? null, data?.owner_id ?? null];
-  } else if ((verb === 'ok' || verb === 'no') && a) {
+  } else if ((verb === 'ok' || verb === 'no' || verb === 'tc') && a) {
+    // (tc = a row of the tools drop-down: the seat that owns the item — reviewer, 10 Nov)
     const { data } = await admin.from('incoming_items').select('owner_id').eq('id', a).maybeSingle();
     related = [data?.owner_id ?? null];
+  } else if (verb === 'tl') {
+    // «شوف الباقي»: the seat whose list it is (its saved numbers)
+    const { data } = await admin.from('wa_pending').select('profile_id').in('key', [...ids].map((id) => `tools:${id}`)).order('created_at', { ascending: false }).limit(1);
+    related = [(data?.[0]?.profile_id as string | undefined) ?? null];
   }
   const known = related.filter((x): x is string => !!x);
   const direct = known.find((x) => ids.has(x));
@@ -1025,18 +1030,29 @@ async function handle(m: WaMessage, dry = false) {
     await waButtons(from, b.body, b.buttons);
   }
 
-  /** a row tapped in the tools list: that task's full card */
+  /** a row tapped in the tools list: that task's full card (only an item of one of this number's seats) */
   async function toolRow(itemId: string, index: number) {
-    const card = (await toolCardsFor(admin, [itemId], ar)).find((c) => c.ref?.index === index);
+    const { data: own } = await admin.from('incoming_items').select('id').eq('id', itemId).in('owner_id', (people ?? []).map((p) => p.id)).maybeSingle();
+    const card = own ? (await toolCardsFor(admin, [itemId], ar)).find((c) => c.ref?.index === index) : undefined;
     if (!card) return void (await say(ar ? 'هذي انحسمت قبل ✓' : 'That one was already handled ✓'));
     await waButtons(from, card.body, card.buttons);
   }
 
-  /** «شوف الباقي»: the next page of the same list */
-  async function toolPage(fromIndex: number) {
-    const tools = (await needsYouCards(admin, me.id, ar)).filter((c) => c.kind === 'tool');
-    if (fromIndex >= tools.length) return void (await say(ar ? 'هذي كلها 👌' : "That's all of them 👌"));
-    await waList(from, toolListIntro(tools, ar), ar ? '📋 شوف الباقي' : '📋 See the rest', toolListRows(tools, ar, fromIndex));
+  /** «شوف الباقي»: the next page of the SAME list — its saved numbers, handled ones left out (reviewer, 10 Nov: a
+   *  list rebuilt fresh renumbered the rows, so a typed «10» approved another task) */
+  async function toolPage(afterNum: number) {
+    const refs = (await toolList()) ?? [];
+    const cards = await toolCardsFor(admin, [...new Set(refs.map((r) => r.item))], ar);
+    const entries = refs
+      .map((r, k) => ({ num: k + 1, card: cards.find((c) => c.ref?.item === r.item && c.ref?.index === r.index) }))
+      .filter((e): e is { num: number; card: WaCard } => !!e.card && e.num > afterNum);
+    if (!entries.length) return void (await say(ar ? 'هذي كلها 👌' : "That's all of them 👌"));
+    await waList(
+      from,
+      toolListIntro(entries.map((e) => e.card), ar),
+      ar ? '📋 شوف الباقي' : '📋 See the rest',
+      toolListRows(entries.map((e) => e.card), ar, 0, entries.map((e) => e.num)),
+    );
   }
 
   async function needsYou(max: number) {
@@ -1230,7 +1246,7 @@ async function handle(m: WaMessage, dry = false) {
     const ask = again
       ? ar ? 'ما فهمت التاريخ 🤔 اختر واحد، أو اكتبه بطريقة ثانية (مثل: الخميس الساعة 3)' : 'I didn’t get the date 🤔 Pick one, or write it another way (e.g. Thursday at 3)'
       : ar ? 'متى الموعد؟ ✍️ اكتبه أو قله بصوتك (بكرة، الخميس الساعة 3…)، أو اختر:' : 'When is it due? ✍️ Type it or say it (tomorrow, Thursday at 3…), or pick:';
-    const labels = { tomorrow: ar ? 'بكرة' : 'Tomorrow', in3: ar ? 'بعد 3 أيام' : 'In 3 days', sunday: ar ? 'الأحد الجاي' : 'Next Sunday' };
+    const labels = { tomorrow: ar ? 'بكرة' : 'Tomorrow', in3: ar ? 'بعد 3 أيام' : 'In 3 days', sunday: ar ? 'الأحد الجاي' : 'Next Sunday', week: ar ? 'بعد أسبوع' : 'In a week' };
     await waButtons(from, rtl(ask), quickDates().map((d) => ({ id: `dd:${taskId}:${Math.floor(Date.parse(d.at) / 1000)}`, title: labels[d.key] })));
   }
 

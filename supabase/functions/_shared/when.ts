@@ -62,7 +62,7 @@ export async function readWhen(text: string, now = new Date()): Promise<string |
 
 /** quick choices when the words weren't clear (or AI is off): tomorrow, in 3 days, next Sunday — at 17:00 Riyadh,
  *  skipping the weekend */
-export function quickDates(now = new Date()): { key: 'tomorrow' | 'in3' | 'sunday'; at: string }[] {
+export function quickDates(now = new Date()): { key: 'tomorrow' | 'in3' | 'sunday' | 'week'; at: string }[] {
   const dayStart = (d: Date) => {
     const r = new Date(d.getTime() + RIYADH_MS);
     return Date.UTC(r.getUTCFullYear(), r.getUTCMonth(), r.getUTCDate()) - RIYADH_MS;
@@ -77,9 +77,14 @@ export function quickDates(now = new Date()): { key: 'tomorrow' | 'in3' | 'sunda
     return new Date(t + END_OF_DAY_H * 3_600_000).toISOString();
   };
   const wd = new Date(now.getTime() + RIYADH_MS).getUTCDay();
-  return [
+  const all: { key: 'tomorrow' | 'in3' | 'sunday' | 'week'; at: string }[] = [
     { key: 'tomorrow', at: at(1) },
     { key: 'in3', at: at(3) },
     { key: 'sunday', at: at(((7 - wd) % 7) || 7) },
+    { key: 'week', at: at(7) },
   ];
+  // never two buttons on the same date: WhatsApp refuses buttons with the same id and sends NOTHING (Nouran, 10 Nov:
+  // «بعد 3 أيام» fell on Friday → Sunday = «الأحد الجاي», and «جاوب» on a due date got no reply)
+  const seen = new Set<string>();
+  return all.filter((d) => !seen.has(d.at) && (seen.add(d.at), true)).slice(0, 3);
 }

@@ -37,24 +37,24 @@ export function shortWhen(iso: string, ar: boolean, now = new Date()) {
 
 /** the tools list as WhatsApp's drop-down (owner, 10 Nov, option 2): one row per task — its title, then who · when ·
  *  due. A row opens the task's full card. 10 rows at most: with more, the 10th is «شوف الباقي» */
-export function toolListRows(cards: WaCard[], ar: boolean, from = 0): WaRow[] {
+export function toolListRows(cards: WaCard[], ar: boolean, from = 0, nums?: number[]): WaRow[] {
+  // nums: each card's number in the FIRST list sent (the numbers typed back point there, reviewer, 10 Nov)
+  const numOf = (k: number) => (nums ? nums[k] : k + 1);
   const page = cards.slice(from);
   const more = page.length > 10;
   const shown = more ? page.slice(0, 9) : page.slice(0, 10);
-  // numbered like the text the numbers typed back refer to («1 3 5»)
   const rows: WaRow[] = shown.map((c, i) => ({
     id: `tc:${c.ref!.item}:${c.ref!.index}`,
-    title: clip(`${from + i + 1}. ${c.title ?? '…'}`, 24),
+    title: clip(`${numOf(from + i)}. ${c.title ?? '…'}`, 24),
     description: clip(
       [c.who ? (ar ? `من ${c.who}` : `from ${c.who}`) : null, c.at ? shortWhen(c.at, ar) : null, c.due ? `⏰ ${shortWhen(c.due, ar)}` : null].filter(Boolean).join(' · ') ||
         (ar ? 'من أدواتك' : 'from your tools'),
       72,
     ),
   }));
-  if (more) rows.push({ id: `tl:${from + 9}`, title: ar ? `📋 شوف الباقي (${page.length - 9})` : `📋 See the rest (${page.length - 9})` });
+  if (more) rows.push({ id: `tl:${numOf(from + 9) - 1}`, title: ar ? `📋 شوف الباقي (${page.length - 9})` : `📋 See the rest (${page.length - 9})` });
   return rows;
 }
-
 /** the message above the list button: how many, and from whom */
 export function toolListIntro(cards: WaCard[], ar: boolean) {
   const n = cards.length;
@@ -67,6 +67,8 @@ export function toolListIntro(cards: WaCard[], ar: boolean) {
       ar ? `🔌 *${n === 1 ? 'مهمة وحدة' : n === 2 ? 'مهمتين' : `${n} ${n <= 10 ? 'مهام' : 'مهمة'}`} من أدواتك* تنتظر موافقتك` : `🔌 *${n} task${n > 1 ? 's' : ''} from your tools* wait for your OK`,
       ...(top.length ? [top.join(' · ') + (by.size > 3 ? ' · …' : '')] : []),
       ar ? 'اضغط «شوف المهام» واختر مهمة تشوف تفاصيلها.' : 'Tap "See tasks" and pick one for its details.',
+      // where they live in the app too (Nouran, 10 Nov: "I discovered it by chance")
+      ar ? '📲 وتلقاها كمان في تطبيق منتج: الرئيسية ← «يحتاجك» ← «لقيت … في أدواتك»' : '📲 They’re also in the Muntej app: Home → "Needs you" → "tasks found in your tools"',
     ].join('\n'),
   );
 }
@@ -333,21 +335,6 @@ export async function lateTeamLines(admin: SupabaseClient, meId: string, ar: boo
 /** tasks found in tools as ONE numbered message (owner, 28 Oct: one card each took ages to answer, and every tap
  *  jumped to the bottom of the chat). The numbers map to the cards in this order. */
 export const MAX_LIST = 30;
-export function toolListText(cards: WaCard[], ar: boolean) {
-  const shown = cards.slice(0, MAX_LIST);
-  return rtl(
-    ar,
-    [
-      ar ? `🔌 لقيت ${cards.length === 1 ? 'مهمة وحدة' : cards.length === 2 ? 'مهمتين' : `${cards.length} ${cards.length <= 10 ? 'مهام' : 'مهمة'}`} في أدواتك:` : `🔌 I found ${cards.length} task${cards.length > 1 ? 's' : ''} in your tools:`,
-      '',
-      ...shown.map((c, n) => `${n + 1}. ${c.line ?? ''}`),
-      ...(cards.length > shown.length ? ['', ar ? `و${cards.length - shown.length} غيرها في منتج ← أدواتك` : `+${cards.length - shown.length} more in Muntej → Your tools`] : []),
-      // always: where they live in the app too (Nouran, 10 Nov: "I discovered it by chance")
-      '',
-      ar ? '📲 وتلقاها كمان في تطبيق منتج: الرئيسية ← «يحتاجك» ← «لقيت … في أدواتك»' : '📲 They’re also in the Muntej app: Home → "Needs you" → "tasks found in your tools"',
-    ].join('\n'),
-  );
-}
 export function toolListButtons(ar: boolean): { body: string; buttons: WaButton[] } {
   return {
     body: rtl(

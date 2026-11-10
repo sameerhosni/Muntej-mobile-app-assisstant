@@ -87,7 +87,9 @@ export const waButtons = (phone: string, body: string, buttons: WaButton[], foot
       type: 'button',
       body: { text: body.slice(0, 1024) },
       ...(footer ? { footer: { text: footer.slice(0, 60) } } : {}),
-      action: { buttons: buttons.slice(0, 3).map((b) => ({ type: 'reply', reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) } })) },
+      // one button per id: WhatsApp refuses repeated ids and then sends nothing at all (10 Nov: two quick dates fell on
+      // the same Sunday and «متى الموعد؟» never arrived)
+      action: { buttons: buttons.filter((b, i, all) => all.findIndex((x) => x.id.slice(0, 256) === b.id.slice(0, 256)) === i).slice(0, 3).map((b) => ({ type: 'reply', reply: { id: b.id.slice(0, 256), title: b.title.slice(0, 20) } })) },
     },
   });
 

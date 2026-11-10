@@ -494,9 +494,53 @@ async function server() {
       const tapped = await fn('whatsapp', { simulate: { from: QA_PHONE, tap: row.id } }, null, { 'x-cron-secret': secret });
       const card = JSON.stringify(tapped.sent ?? []);
       expect(card.includes(`QA list row ${tag}`) && card.includes(`ok:${it.id}:0`) && card.includes('send the signed contract'), `the tap didn't show the card: ${card.slice(0, 160)}`);
-      return 'rows with who and when; a tap opens the card';
+      // a row of a task handled meanwhile: says so (R117)
+      await sql(`update public.incoming_items set status = 'done' where id = '${it.id}'`);
+      const gone = await fn('whatsapp', { simulate: { from: QA_PHONE, tap: row.id } }, null, { 'x-cron-secret': secret });
+      expect(/انحسمت قبل|already handled/.test(texts(gone.sent ?? [])), `a handled row: ${texts(gone.sent ?? []).slice(0, 120)}`);
+      return 'rows with who and when; a tap opens the card; a handled one says so';
     } finally {
       await sql(`delete from public.incoming_items where id = '${it.id}'`);
+    }
+  });
+  // «شوف الباقي» keeps the first list's numbers, and a typed number is that same task (reviewer, 10 Nov)
+  await check('whatsapp', 'The tools list’s next page keeps its numbers, and «10» approves the task shown as 10', async () => {
+    const tag = Date.now().toString(36);
+    const sugs = Array.from({ length: 11 }, (_, k) => ({ title: `QA page ${tag} n${k + 1}`, owner_id: null, due_at: null, priority: 'medium', state: 'new', task_id: null, duplicate_of: null, confidence: 0.9, quote: '', description: null, definition_of_done: null, proof_required: 'none', budget: null, estimate_hours: null, requested_by: 'Saad QA', amends_earlier: false, owner_name: null, outside: false, asked_by_user: false, asked_of_user: true }));
+    const [it] = await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, suggestions, received_at)
+      values ('${QA_BOSS}', 'gmail', 'qa-page-${tag}', 'QA', 'QA', 'new', '${JSON.stringify(sugs)}'::jsonb, now() + interval '1 minute') returning id`);
+    try {
+      const first = await wa('وش يحتاجني');
+      const rows = first.find((m) => m.interactive?.type === 'list')?.interactive.action.sections.flatMap((s) => s.rows) ?? [];
+      const moreRow = rows.find((r) => r.id.startsWith('tl:'));
+      expect(rows.length === 10 && moreRow, `expected 9 rows + «شوف الباقي»: ${rows.map((r) => r.title).join(' | ').slice(0, 160)}`);
+      const page = await fn('whatsapp', { simulate: { from: QA_PHONE, tap: moreRow.id } }, null, { 'x-cron-secret': secret });
+      const rows2 = (page.sent ?? []).find((m) => m.interactive?.type === 'list')?.interactive.action.sections.flatMap((s) => s.rows) ?? [];
+      const ten = rows2.find((r) => r.title.startsWith('10.'));
+      expect(ten && ten.id === `tc:${it.id}:9`, `the next page's «10.» isn't the 10th task: ${rows2.map((r) => `${r.title}=${r.id}`).join(' | ').slice(0, 160)}`);
+      await wa('10');
+      const [row] = await sql(`select suggestions->9->>'state' s9, suggestions->8->>'state' s8 from public.incoming_items where id = '${it.id}'`);
+      expect(row.s9 === 'accepted' && row.s8 === 'new', `«10» approved the wrong one (9th: ${row.s8}, 10th: ${row.s9})`);
+      return 'page 2 starts at 10, and «10» is that task';
+    } finally {
+      await sql(`delete from public.tasks where id in (select (s->>'task_id')::uuid from public.incoming_items i, jsonb_array_elements(i.suggestions) s where i.id = '${it.id}' and s->>'task_id' is not null)`);
+      await sql(`delete from public.incoming_items where id = '${it.id}'`);
+      await sql(`delete from public.wa_pending where key = 'tools:${QA_BOSS}'`);
+    }
+  });
+  // Nouran, 10 Nov: «جاوب» on a due date sent nothing — two quick dates fell on the same Sunday, and WhatsApp refuses
+  // repeated button ids. Read as the person: the date buttons arrive, all different
+  await check('whatsapp', '«جاوب» on a due date always sends the date buttons, never two of the same', async () => {
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA due buttons', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`);
+    try {
+      const r = await fn('whatsapp', { simulate: { from: QA_PHONE, tap: `da:${t.id}:due` } }, null, { 'x-cron-secret': secret });
+      const ids = (r.sent ?? []).flatMap((m) => m.interactive?.action?.buttons ?? []).map((b) => b.reply.id);
+      expect(ids.length >= 2, `no date buttons: ${texts(r.sent ?? []).slice(0, 120)}`);
+      expect(new Set(ids).size === ids.length, `repeated buttons: ${ids.join(' ')}`);
+      return `${ids.length} different dates`;
+    } finally {
+      await sql(`delete from public.wa_pending where key = 'da:${QA_BOSS}'`);
+      await sql(`delete from public.tasks where id = '${t.id}'`);
     }
   });
   // The owner, 10 Nov: "Is it only 1 needs me or 23?" — the midday report said «1 تحتاجك» (30 tools tasks counted as one

@@ -528,3 +528,11 @@ Last updated: 2026-11-09.
 ### R121 · A long WhatsApp list is the drop-down, one row per item, and a row opens it
 - **Why:** 10 Nov, the owner, on the 14-line tools text («I think there is better than the view»), picked option 2: WhatsApp's own list.
 - **Check:** a list of things to decide on WhatsApp uses `waList` (rows: numbered title ≤ 24, "who · when · due" ≤ 72, «شوف الباقي» past 9); each row's tap shows that item's full card; QA reads a row and taps it.
+
+### R122 · Paged or follow-up lists keep the numbers of the first list
+- **Why:** 10 Nov, reviewer: «شوف الباقي» rebuilt the tools list fresh, so after one approval the row labelled «10.» was another task and a typed «10» approved something else.
+- **Check:** every page and every typed number points to the refs saved with the first list; handled items drop out, numbers don't shift.
+
+### R123 · WhatsApp buttons in one message never share an id
+- **Why:** 10 Nov, Nouran: «جاوب» on a due date got no reply — «بعد 3 أيام» fell on Friday → Sunday, the same as «الأحد الجاي»; WhatsApp refused the message and sent nothing.
+- **Check:** `waButtons` drops repeated ids; generated choices (dates…) are de-duplicated before they become buttons; QA checks the ids are distinct.
