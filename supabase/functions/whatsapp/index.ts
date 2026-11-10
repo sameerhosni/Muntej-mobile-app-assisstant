@@ -35,7 +35,7 @@ import {
   type WaButton,
   type WaRow,
 } from '../_shared/wa.ts';
-import { foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolCardsFor, toolListButtons, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
+import { foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolCardsFor, toolListButtons, toolListIntro, toolListRows, toolListText, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
 import { quickDates, readWhen } from '../_shared/when.ts';
 
 /** "what is it?" about the last thing Muntej sent (whole message; Arabic without \b, R112) */
@@ -802,6 +802,9 @@ async function handle(m: WaMessage, dry = false) {
       await admin.from('wa_pending').upsert({ key: `cm:${me.id}`, profile_id: me.id, body: { task_id: rest[0] }, created_at: new Date().toISOString() });
       return void (await say(ar ? 'اكتب ردك ✍️ أو سجّله صوت، وأوصله له على طول' : 'Type your answer ✍️ or say it, and I’ll pass it on right away'));
     }
+    // a task tapped in the tools list, or «شوف الباقي» (owner, 10 Nov, option 2)
+    if (verb === 'tc' && rest[0]) return void (await toolRow(rest[0], Number(rest[1] ?? 0)));
+    if (verb === 'tl') return void (await toolPage(Number(rest[0] ?? 0)));
     // «✍️ جاوب» under a question: the next message fills it on the task (owner, 10 Nov)
     if (verb === 'da' && rest[0] && rest[1]) return void (await askAnswer(rest[0], rest[1] as What));
     // a quick date under «متى الموعد؟»
@@ -1015,9 +1018,25 @@ async function handle(m: WaMessage, dry = false) {
   async function sendToolList(tools: WaCard[]) {
     const refs = tools.slice(0, MAX_LIST).map((c) => c.ref!).filter(Boolean);
     await admin.from('wa_pending').upsert({ key: `tools:${me.id}`, profile_id: me.id, body: { refs }, created_at: new Date().toISOString() });
-    await waText(from, toolListText(tools, ar));
+    // WhatsApp's drop-down list: one row per task (who · when · due), a row opens its card (owner, 10 Nov, option 2);
+    // the numbered text stays for numbers typed back («1 3 5», «تجاهل 2») and is still what «اعتمد الكل» covers
+    await waList(from, toolListIntro(tools, ar), ar ? '📋 شوف المهام' : '📋 See tasks', toolListRows(tools, ar), ar ? 'أو اكتب الأرقام: 1 3 5' : 'Or type the numbers: 1 3 5');
     const b = toolListButtons(ar);
     await waButtons(from, b.body, b.buttons);
+  }
+
+  /** a row tapped in the tools list: that task's full card */
+  async function toolRow(itemId: string, index: number) {
+    const card = (await toolCardsFor(admin, [itemId], ar)).find((c) => c.ref?.index === index);
+    if (!card) return void (await say(ar ? 'هذي انحسمت قبل ✓' : 'That one was already handled ✓'));
+    await waButtons(from, card.body, card.buttons);
+  }
+
+  /** «شوف الباقي»: the next page of the same list */
+  async function toolPage(fromIndex: number) {
+    const tools = (await needsYouCards(admin, me.id, ar)).filter((c) => c.kind === 'tool');
+    if (fromIndex >= tools.length) return void (await say(ar ? 'هذي كلها 👌' : "That's all of them 👌"));
+    await waList(from, toolListIntro(tools, ar), ar ? '📋 شوف الباقي' : '📋 See the rest', toolListRows(tools, ar, fromIndex));
   }
 
   async function needsYou(max: number) {

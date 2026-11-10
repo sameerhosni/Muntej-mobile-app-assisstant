@@ -5,7 +5,7 @@
 //   d:ok|no|mv:<decision id>   r:ok|back:<task id>   ok|no:<incoming item id>:<index>   h:done|need_time|blocked:<task id>
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { titleIn } from './task-text.ts';
-import { rtl, waButtons, waText, type WaButton } from './wa.ts';
+import { rtl, waButtons, waText, type WaButton, type WaRow } from './wa.ts';
 
 export type WaCard = {
   kind: 'decision' | 'review' | 'question' | 'tool' | 'mine';
@@ -16,7 +16,60 @@ export type WaCard = {
   /** a task found in a tool: which message and which suggestion, and its one line in the numbered list */
   ref?: { item: string; index: number };
   line?: string;
+  /** a tool card's title, who asked, when it came and when it's due: one row of the WhatsApp list */
+  title?: string;
+  who?: string | null;
+  at?: string | null;
+  due?: string | null;
 };
+
+/** "اليوم 4:02م" / "أمس" / "الأحد 8 نوفمبر": short, Riyadh time (owner, 10 Nov: the full date on every line was noise) */
+export function shortWhen(iso: string, ar: boolean, now = new Date()) {
+  const day = (d: Date) => new Date(d.getTime() + 3 * 3_600_000).toISOString().slice(0, 10);
+  const d = new Date(iso);
+  const f = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(ar ? 'ar-SA-u-nu-latn-ca-gregory' : 'en-GB', { ...o, timeZone: 'Asia/Riyadh' }).format(d);
+  const time = f({ hour: 'numeric', minute: '2-digit' }).replace(/\s?(ص|م)$/, '$1');
+  if (day(d) === day(now)) return ar ? `اليوم ${time}` : `today ${time}`;
+  if (day(d) === day(new Date(now.getTime() - 86_400_000))) return ar ? 'أمس' : 'yesterday';
+  if (day(d) === day(new Date(now.getTime() + 86_400_000))) return ar ? `بكرة ${time}` : `tomorrow ${time}`;
+  return f({ weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/** the tools list as WhatsApp's drop-down (owner, 10 Nov, option 2): one row per task — its title, then who · when ·
+ *  due. A row opens the task's full card. 10 rows at most: with more, the 10th is «شوف الباقي» */
+export function toolListRows(cards: WaCard[], ar: boolean, from = 0): WaRow[] {
+  const page = cards.slice(from);
+  const more = page.length > 10;
+  const shown = more ? page.slice(0, 9) : page.slice(0, 10);
+  // numbered like the text the numbers typed back refer to («1 3 5»)
+  const rows: WaRow[] = shown.map((c, i) => ({
+    id: `tc:${c.ref!.item}:${c.ref!.index}`,
+    title: clip(`${from + i + 1}. ${c.title ?? '…'}`, 24),
+    description: clip(
+      [c.who ? (ar ? `من ${c.who}` : `from ${c.who}`) : null, c.at ? shortWhen(c.at, ar) : null, c.due ? `⏰ ${shortWhen(c.due, ar)}` : null].filter(Boolean).join(' · ') ||
+        (ar ? 'من أدواتك' : 'from your tools'),
+      72,
+    ),
+  }));
+  if (more) rows.push({ id: `tl:${from + 9}`, title: ar ? `📋 شوف الباقي (${page.length - 9})` : `📋 See the rest (${page.length - 9})` });
+  return rows;
+}
+
+/** the message above the list button: how many, and from whom */
+export function toolListIntro(cards: WaCard[], ar: boolean) {
+  const n = cards.length;
+  const by = new Map<string, number>();
+  for (const c of cards) if (c.who) by.set(c.who, (by.get(c.who) ?? 0) + 1);
+  const top = [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w, k]) => (ar ? `${k} من ${w.split(' ')[0]}` : `${k} from ${w.split(' ')[0]}`));
+  return rtl(
+    ar,
+    [
+      ar ? `🔌 *${n === 1 ? 'مهمة وحدة' : n === 2 ? 'مهمتين' : `${n} ${n <= 10 ? 'مهام' : 'مهمة'}`} من أدواتك* تنتظر موافقتك` : `🔌 *${n} task${n > 1 ? 's' : ''} from your tools* wait for your OK`,
+      ...(top.length ? [top.join(' · ') + (by.size > 3 ? ' · …' : '')] : []),
+      ar ? 'اضغط «شوف المهام» واختر مهمة تشوف تفاصيلها.' : 'Tap "See tasks" and pick one for its details.',
+    ].join('\n'),
+  );
+}
 
 const OPEN = ['assigned', 'in_progress', 'blocked', 'returned'];
 const DAY = 86_400_000;
@@ -184,6 +237,10 @@ function toolCardsOf(it: ToolItem, ar: boolean): WaCard[] {
     out.push({
       kind: 'tool',
       ref: { item: it.id, index: i },
+      title: s.title,
+      who,
+      at: it.received_at ?? null,
+      due: s.due_at,
       line: `*${clip(s.title, 70)}*\n   ${[who ? (ar ? `من ${who}` : `from ${who}`) : null, tool, sent, s.due_at ? `⏰ ${whenText(s.due_at, ar)}` : null, dup ? (ar ? '♻️ موجودة قبل' : '♻️ already a task') : null].filter(Boolean).join(' · ')}`,
       body: rtl(
         ar,

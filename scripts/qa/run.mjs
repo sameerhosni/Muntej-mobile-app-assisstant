@@ -445,10 +445,10 @@ async function server() {
       expect(JSON.stringify(msgs2).includes(`QA other seat ${tag}`), `the other seat's alert was missed: ${texts(msgs2).slice(0, 140)}`);
       await sql(`update public.profiles set phone = ${otherPhone ? `'${otherPhone}'` : 'null'} where id = '${OTHER}'`);
       // no card for the alert's task: the task itself. Their own open task → its buttons; one they gave → its line
-      const mineT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA what is it mine ${tag}', '${QA_BOSS}', '${QA_BOSS}', 'in_progress') returning id`))[0];
-      const gaveT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA what is it gave ${tag}', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`))[0];
+      const mineT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA wii m${tag}', '${QA_BOSS}', '${QA_BOSS}', 'in_progress') returning id`))[0];
+      const gaveT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA wii g${tag}', '${QA_FAISAL}', '${QA_BOSS}', 'in_progress') returning id`))[0];
       // a task with a card of its own (waiting for their review): that card
-      const reviewT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA what is it review ${tag}', '${QA_FAISAL}', '${QA_BOSS}', 'submitted') returning id`))[0];
+      const reviewT = (await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA wii r${tag}', '${QA_FAISAL}', '${QA_BOSS}', 'submitted') returning id`))[0];
       made.tasks.push(mineT.id, gaveT.id, reviewT.id);
       for (const [t, own] of [[mineT, true], [gaveT, false], [reviewT, 'card']]) {
         made.alerts.push((await sql(`insert into public.alerts (profile_id, kind, task_id, title, body, title_ar, body_ar, dedupe_key, delivered_at)
@@ -461,7 +461,7 @@ async function server() {
           continue;
         }
         // titles get translated for the reader («سوي QA: what is it mine …»): match the unique tag, not the words
-        expect(j.includes(`${tag}`) && j.includes(own ? 'mine' : 'gave'), `the task wasn't shown (${own ? 'own' : 'given'}): ${texts(r).slice(0, 140)}`);
+        expect(j.includes(`${own ? 'm' : 'g'}${tag}`), `the task wasn't shown (${own ? 'own' : 'given'}): ${texts(r).slice(0, 140)}`);
         if (own) expect(j.includes(`h:done:${t.id}`), 'no Done / Need time / Need help on their own task');
         else expect(!j.includes('h:done:') && /تفاصيلها في منتج|Details in Muntej/.test(texts(r)), `a given task should just say where to see it: ${texts(r).slice(0, 120)}`);
       }
@@ -477,7 +477,29 @@ async function server() {
       if (made.alerts.length) await sql(`delete from public.alerts where id in (${made.alerts.map((x) => `'${x}'`).join(',')})`);
       if (made.items.length) await sql(`delete from public.incoming_items where id in (${made.items.map((x) => `'${x}'`).join(',')})`);
     }
-  });  // The owner, 10 Nov: "Is it only 1 needs me or 23?" — the midday report said «1 تحتاجك» (30 tools tasks counted as one
+  });  // The owner, 10 Nov (option 2): the tools list as WhatsApp's drop-down — one row per task with who · when, a row
+  // opens that task's full card. Read as the person: rows say who asked, and the tap shows that task with its buttons
+  await check('whatsapp', 'The tools list is a drop-down: each row says who asked, and a tap shows that task', async () => {
+    const tag = Date.now().toString(36);
+    const [it] = await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, suggestions, received_at)
+      values ('${QA_BOSS}', 'gmail', 'qa-list-${tag}', 'QA', 'QA', 'new',
+      '[{"title":"QA list row ${tag}","owner_id":null,"due_at":null,"priority":"medium","state":"new","task_id":null,"duplicate_of":null,"confidence":0.9,"quote":"send the signed contract","description":null,"definition_of_done":null,"proof_required":"none","budget":null,"estimate_hours":null,"requested_by":"Khalid QA","amends_earlier":false,"owner_name":null,"outside":false,"asked_by_user":false,"asked_of_user":true}]'::jsonb, now()) returning id`);
+    try {
+      const msgs = await wa('وش يحتاجني');
+      const list = msgs.find((m) => m.interactive?.type === 'list');
+      expect(list, `no drop-down list: ${texts(msgs).slice(0, 120)}`);
+      const row = list.interactive.action.sections.flatMap((s) => s.rows).find((r) => r.id === `tc:${it.id}:0`);
+      expect(row, 'the task has no row in the list');
+      expect(/QA list row/.test(row.title) && /Khalid QA/.test(row.description ?? ''), `the row doesn't say what and who: ${JSON.stringify(row)}`);
+      const tapped = await fn('whatsapp', { simulate: { from: QA_PHONE, tap: row.id } }, null, { 'x-cron-secret': secret });
+      const card = JSON.stringify(tapped.sent ?? []);
+      expect(card.includes(`QA list row ${tag}`) && card.includes(`ok:${it.id}:0`) && card.includes('send the signed contract'), `the tap didn't show the card: ${card.slice(0, 160)}`);
+      return 'rows with who and when; a tap opens the card';
+    } finally {
+      await sql(`delete from public.incoming_items where id = '${it.id}'`);
+    }
+  });
+  // The owner, 10 Nov: "Is it only 1 needs me or 23?" — the midday report said «1 تحتاجك» (30 tools tasks counted as one
   // line) and «وش يحتاجني» a tap later said «فيه 23 شي يحتاجك». The same number, from the same list.
   await check('whatsapp', 'The report’s “need you” number is what «وش يحتاجني» lists', async () => {
     const r = await fn('daily-summary', { test: true, kind: 'midday', dry: true }, JWT);

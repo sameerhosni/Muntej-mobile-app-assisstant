@@ -524,3 +524,7 @@ Last updated: 2026-11-09.
 ### R120 · A QA guard is loosened only for the wording that failed
 - **Why:** 10 Nov, reviewer: the harness's false-claim check was skipped for any message ending in ؟, but Saudi requests are usually questions («ممكن تعطي فيصل مهمة التقرير؟»).
 - **Check:** an exception in a QA guard names the exact pattern that failed (here: a message starting with a question word), never punctuation or other traits real requests share.
+
+### R121 · A long WhatsApp list is the drop-down, one row per item, and a row opens it
+- **Why:** 10 Nov, the owner, on the 14-line tools text («I think there is better than the view»), picked option 2: WhatsApp's own list.
+- **Check:** a list of things to decide on WhatsApp uses `waList` (rows: numbered title ≤ 24, "who · when · due" ≤ 72, «شوف الباقي» past 9); each row's tap shows that item's full card; QA reads a row and taps it.
