@@ -516,3 +516,7 @@ Last updated: 2026-11-09.
 ### R118 · A card asking for an OK carries what's needed to decide
 - **Why:** 10 Nov, the owner, on the WhatsApp tools cards: "Need some info on the task like from whom and when or any other important things to help me to confirm".
 - **Check:** an approve / ignore card names who asked, when, where (mail subject / chat), a short quote of their words, the due date and who it would go to — whatever the item has; QA reads the card and expects them.
+
+### R119 · "From whom" names a person, never a place
+- **Why:** 10 Nov, reviewer: the tools card fell back to the item's sender, which Google Chat fills with the space name when several people wrote, and Meet with "Google Meet": «من Availo team».
+- **Check:** a "from" shown to people comes from a field that names a person (the asker, or a one-message sender); channel, space and meeting names are shown as where, not who.

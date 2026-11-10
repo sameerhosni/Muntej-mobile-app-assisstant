@@ -410,6 +410,18 @@ async function server() {
       expect(all.includes(`ok:${found.id}:0`) && all.includes(`no:${found.id}:0`), 'no Approve / Ignore on it');
       // enough to decide right there (owner, 10 Nov: "from whom and when or any other important things"): who, their words
       expect(all.includes('Mohammed QA') && all.includes('please confirm the push status today'), `the card doesn't say who asked or what they wrote: ${texts(msgs).slice(0, 160)}`);
+      // …and when (the day it was sent, as the card writes it)
+      const sentDay = new Intl.DateTimeFormat('ar-SA-u-nu-latn-ca-gregory', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' }).format(new Date(Date.now() - 3 * 86_400_000));
+      expect(all.includes(sentDay), `the card doesn't say when it was sent (${sentDay}): ${texts(msgs).slice(0, 160)}`);
+      // a chat space / DM in the sender field is a place, never "who asked" (reviewer, 10 Nov)
+      const placeItem = (await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, sender, subject, suggestions, received_at)
+        values ('${QA_BOSS}', 'google_chat', 'qa-${Math.random().toString(36).slice(2)}', 'QA', 'QA', 'new', 'QA Space ${tag}', 'QA Space ${tag}',
+        '${sug(`QA place ${tag}`).replace('"requested_by":"Mohammed QA"', '"requested_by":null')}'::jsonb, now() - interval '2 days') returning id`))[0];
+      made.items.push(placeItem.id);
+      made.alerts.push((await alert(QA_BOSS, placeItem.id)).id);
+      const pm = JSON.stringify(await wa('ايه هي؟'));
+      expect(pm.includes(`QA place ${tag}`), 'the place item’s card wasn’t shown');
+      expect(!pm.includes(`من QA Space ${tag}`) && !pm.includes('من Direct message'), 'a chat space was shown as the person who asked');
       // the alert's items are settled: it says so, and shows nothing else (R117)
       await sql(`update public.incoming_items set status = 'done' where id = '${found.id}'`);
       const settled = await wa('ايه هي؟');

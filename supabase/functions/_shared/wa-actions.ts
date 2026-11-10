@@ -163,7 +163,7 @@ type ToolItem = {
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 /** a person or place a tool reports, never a placeholder ("Direct message", "Space") */
-const realName = (s: string | null | undefined) => (s && !/^(direct message|google chat|group|space|someone|unknown)$/i.test(s.trim()) ? s.trim() : null);
+const realName = (s: string | null | undefined) => (s && !/^(direct message|google chat|google meet|microsoft teams|teams|meeting|group|space|someone|unknown)$/i.test(s.trim()) ? s.trim() : null);
 
 /** an item's waiting suggestions as cards (✅ اعتمد / ✖️ تجاهل). Enough to decide right there (owner, 10 Nov: "Need some
  *  info on the task like from whom and when or any other important things to help me to confirm"): who asked, when,
@@ -174,7 +174,9 @@ function toolCardsOf(it: ToolItem, ar: boolean): WaCard[] {
   for (const [i, s] of (it.suggestions ?? []).entries()) {
     if (s.state !== 'new') continue;
     const dup = !!s.duplicate_of;
-    const who = realName(s.requested_by) ?? realName(it.sender);
+    // the sender only when it names a person: a chat space's or meeting's name in that field is a place (reviewer, 10 Nov)
+    const sender = realName(it.sender);
+    const who = realName(s.requested_by) ?? (sender && sender !== realName(it.subject) ? sender : null);
     const sent = it.received_at ? whenText(it.received_at, ar) : null;
     const where = realName(it.subject);
     const words = (s.quote ?? '').trim();
