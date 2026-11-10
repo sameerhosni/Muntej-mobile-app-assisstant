@@ -8,3 +8,4 @@ is added here; `scripts/ship.mjs` refuses to release code that changed after the
 Line format: ``- `<commit>` · <date> · ACCEPT · <what was reviewed>``
 
 - `f5dd367` · 2026-11-09 · ACCEPT · Decisions batch (header option 1, already-done via finish_from_decision, no spinner, assignable people, DM work to the right person, invited people keep tasks + reminders). 5 passes: 8 → 4 → 1 → 1 → 0 findings; rules R92–R94 added.
+- `dd883ba` · 2026-11-10 · ACCEPT · Super admin: no notifications from the console seat, system dashboard (band + Overview/Companies/Health), WhatsApp follows the company seat, company + own/team tags, one line for push and WhatsApp. 3 passes: 3 → 1 → 0 findings; rules R95–R97 added.
