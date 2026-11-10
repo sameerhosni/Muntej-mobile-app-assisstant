@@ -509,6 +509,8 @@ async function handle(m: WaMessage, dry = false) {
   // ── taps ──
   const tapped = m.interactive?.button_reply?.id ?? m.interactive?.list_reply?.id ?? (m.type === 'button' ? m.button?.payload : undefined);
   if (tapped) return void (await onTap(tapped));
+  // a typed answer to «رد عليه» / «رجّعها» needs no AI: it lands before the AI check
+  if (m.type === 'text' && (m.text?.body ?? '').trim() && (await pendingAnswer((m.text?.body ?? '').trim()))) return;
   // what they write or say goes to the AI: only once they allowed it in the app (Apple 5.1.2)
   if (!(await aiAllowed(me.id, admin)))
     return void (await say(
@@ -531,47 +533,8 @@ async function handle(m: WaMessage, dry = false) {
   text = text.trim();
   if (!text) return void (await say(ar ? 'ما سمعت شي واضح في الرسالة 🤔 جرّب مرة ثانية؟' : 'I couldn’t hear anything clear 🤔 Try again?'));
 
-  // «💬 رد عليه»: this message is the answer, a comment on the task to the other side (N17)
-  const { data: answer } = await admin
-    .from('wa_pending')
-    .select('body')
-    .eq('key', `cm:${me.id}`)
-    .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
-    .maybeSingle();
-  if (answer) {
-    await admin.from('wa_pending').delete().eq('key', `cm:${me.id}`);
-    const taskId = (answer.body as { task_id: string }).task_id;
-    const db = userDb(await userToken(admin, me.user_id));
-    const { error } = await db.rpc('add_task_comment', { p_task: taskId, p_body: text });
-    return void (await say(
-      error
-        ? (ar ? `ما قدرت أوصله 😕 ${error.message}` : `I couldn’t pass it on 😕 ${error.message}`)
-        : ar
-          ? 'وصل ✓ يشوفه في صفحة المهمة، وجاه تنبيه 👍'
-          : 'Sent ✓ They see it on the task page and got an alert 👍',
-    ));
-  }
+  if (await pendingAnswer(text)) return;
 
-  // "send it back": the next message is what needs changing
-  const { data: note } = await admin
-    .from('wa_pending')
-    .select('body')
-    .eq('key', `note:${me.id}`)
-    .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
-    .maybeSingle();
-  if (note) {
-    await admin.from('wa_pending').delete().eq('key', `note:${me.id}`);
-    const taskId = (note.body as { task_id: string }).task_id;
-    const db = userDb(await userToken(admin, me.user_id));
-    const { error } = await db.rpc('set_task_status', { p_task: taskId, p_status: 'returned', p_note: text });
-    return void (await say(
-      error
-        ? (ar ? `ما قدرت أرجّعها 😕 ${error.message}` : `I couldn’t send it back 😕 ${error.message}`)
-        : ar
-          ? 'تم ↩️ رجّعتها له مع ملاحظتك، وأتابع معه لين يعدّلها 💪'
-          : 'Done ↩️ Sent back with your note. I’ll follow up until it’s fixed 💪',
-    ));
-  }
 
   // "something's wrong" in their setup: this message says what, and goes to their manager as a task to fix it
   if (await pendingKey(`obfix:${me.id}`, 30)) {
@@ -1087,6 +1050,55 @@ async function handle(m: WaMessage, dry = false) {
             ? 'تمام ✖️ رفضته، وأبلّغهم'
             : 'OK ✖️ Declined. I’ll let them know',
     );
+  }
+
+  /** «💬 رد عليه» / «↩️ رجّعها»: this message is the answer the tap asked for. Saving it calls no AI, so a typed one goes
+   *  through before the AI check (reviewer, 10 Nov: a seat without AI consent lost the reason again). True when handled. */
+  async function pendingAnswer(text: string): Promise<boolean> {
+    // «💬 رد عليه»: this message is the answer, a comment on the task to the other side (N17)
+    const { data: answer } = await admin
+      .from('wa_pending')
+      .select('body')
+      .eq('key', `cm:${me.id}`)
+      .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
+      .maybeSingle();
+    if (answer) {
+      await admin.from('wa_pending').delete().eq('key', `cm:${me.id}`);
+      const taskId = (answer.body as { task_id: string }).task_id;
+      const db = userDb(await userToken(admin, me.user_id));
+      const { error } = await db.rpc('add_task_comment', { p_task: taskId, p_body: text });
+      await say(
+        error
+          ? (ar ? `ما قدرت أوصله 😕 ${error.message}` : `I couldn’t pass it on 😕 ${error.message}`)
+          : ar
+            ? 'وصل ✓ يشوفه في صفحة المهمة، وجاه تنبيه 👍'
+            : 'Sent ✓ They see it on the task page and got an alert 👍',
+      );
+      return true;
+    }
+
+    // "send it back": the next message is what needs changing
+    const { data: note } = await admin
+      .from('wa_pending')
+      .select('body')
+      .eq('key', `note:${me.id}`)
+      .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
+      .maybeSingle();
+    if (note) {
+      await admin.from('wa_pending').delete().eq('key', `note:${me.id}`);
+      const taskId = (note.body as { task_id: string }).task_id;
+      const db = userDb(await userToken(admin, me.user_id));
+      const { error } = await db.rpc('set_task_status', { p_task: taskId, p_status: 'returned', p_note: text });
+      await say(
+        error
+          ? (ar ? `ما قدرت أرجّعها 😕 ${error.message}` : `I couldn’t send it back 😕 ${error.message}`)
+          : ar
+            ? 'تم ↩️ رجّعتها له مع ملاحظتك، وأتابع معه لين يعدّلها 💪'
+            : 'Done ↩️ Sent back with your note. I’ll follow up until it’s fixed 💪',
+      );
+      return true;
+    }
+    return false;
   }
 
   async function review(how: 'ok' | 'back', taskId: string) {

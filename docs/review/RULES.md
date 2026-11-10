@@ -437,3 +437,7 @@ Last updated: 2026-11-09.
 ### R98 · On one number with several seats, a typed answer goes to the seat that asked for it
 - **Why:** 10 Nov: Nouran tapped «↩️ رجّعها» on her T2 seat; her typed reason went to her other seat (picked for typing), which had no pending note and didn't know which task.
 - **Check:** any WhatsApp step that waits for the next typed message (`wa_pending` note/cm/obfix…) is found from whichever seat on the number is waiting, not only the one picked for typing.
+
+### R99 · A "picked the wrong seat" QA case rebuilds the competing state
+- **Why:** 10 Nov, reviewer on R98's fix: the first case passed on the old code too, because nothing on the other seat competed (no newer pending row, AI allowed on both).
+- **Check:** a case for a wrong-seat or wrong-account fix recreates what the other seat had (a newer pending row, AI consent on one seat only) and is shown to fail on the old code.
