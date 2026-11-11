@@ -1240,7 +1240,12 @@ async function screens() {
         expect(inRep && Number(inRep[1]) === n, `the report says «${(rep.preview ?? '').slice(0, 80)}», the app says ${n}`);
         // and WhatsApp's opening line
         const [{ s: secret }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
-        const sent = (await fn('whatsapp', { simulate: { from: QA_PHONE, text: 'وش يحتاجني' } }, null, { 'x-cron-secret': secret })).sent ?? [];
+        // (the QA number on the manager for this step: outside the WhatsApp checks it has none — put back after)
+        const [{ phone: hadPhone }] = await sql(`select phone from public.profiles where id = '${QA_BOSS}'`);
+        await sql(`update public.profiles set phone = '${QA_PHONE}' where id = '${QA_BOSS}'`);
+        const sent = await fn('whatsapp', { simulate: { from: QA_PHONE, text: 'وش يحتاجني' } }, null, { 'x-cron-secret': secret })
+          .then((r) => r.sent ?? [])
+          .finally(() => sql(`update public.profiles set phone = ${hadPhone ? `'${hadPhone}'` : 'null'} where id = '${QA_BOSS}'`));
         const said = sent.map((m) => m.text?.body ?? m.interactive?.body?.text ?? '').join(' | ');
         const opening = said.match(/عندك\s+([\d٠-٩]+)\s+تنتظرك/)?.[1] ?? (/فيه شي واحد ينتظرك/.test(said) ? '1' : null);
         expect(opening && toN(opening) === n, `WhatsApp says «${said.slice(0, 80)}», the app says ${n}`);
