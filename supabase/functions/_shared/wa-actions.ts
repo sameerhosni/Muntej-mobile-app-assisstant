@@ -8,7 +8,7 @@ import { titleIn } from './task-text.ts';
 import { rtl, waButtons, waText, type WaButton, type WaRow } from './wa.ts';
 
 export type WaCard = {
-  kind: 'decision' | 'review' | 'question' | 'tool' | 'mine';
+  kind: 'decision' | 'review' | 'question' | 'comment' | 'cancel' | 'tool' | 'mine';
   body: string;
   buttons: WaButton[];
   /** the task it's about */
@@ -197,6 +197,30 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
       buttons: [{ id: `da:${a.task_id}:${what}`, title: ar ? '✍️ جاوب' : '✍️ Answer' }],
     });
   }
+  // one «يحتاجك» (owner, 11 Nov, option 2): comments and cancel requests wait here too, like in the app (testers first)
+  if ((await admin.rpc('feature_on_for', { p_key: 'one_needs_you', p_profile: meId })).data === true) {
+    const { data: waits } = await admin
+      .from('alerts')
+      .select('task_id, kind, title, title_ar, body, body_ar, task:tasks(status)')
+      .eq('profile_id', meId)
+      .in('kind', ['task_comment', 'cancel_asked'])
+      .is('read_at', null)
+      .not('task_id', 'is', null)
+      .gte('created_at', new Date(now - 14 * DAY).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(10);
+    const seen = new Set<string>();
+    for (const a of (waits ?? []) as unknown as { task_id: string; kind: string; title: string; title_ar: string | null; body: string | null; body_ar: string | null; task: { status: string } | null }[]) {
+      if (seen.has(`${a.kind}:${a.task_id}`) || ['done', 'cancelled'].includes(a.task?.status ?? '')) continue;
+      seen.add(`${a.kind}:${a.task_id}`);
+      const body = rtl(ar, `${a.kind === 'cancel_asked' ? '✕' : '💬'} *${(ar && a.title_ar) || a.title}*\n${((ar && a.body_ar) || a.body || '').slice(0, 300)}`.trim());
+      cards.push(
+        a.kind === 'cancel_asked'
+          ? { kind: 'cancel', taskId: a.task_id, body, buttons: [{ id: `xc:${a.task_id}`, title: ar ? '✕ ألغها' : '✕ Cancel it' }, { id: `xk:${a.task_id}`, title: ar ? '👍 خلّها' : '👍 Keep it' }] }
+          : { kind: 'comment', taskId: a.task_id, body, buttons: [{ id: `cm:${a.task_id}`, title: ar ? '💬 رد عليه' : '💬 Reply' }] },
+      );
+    }
+  }
   const choicesOn = await choicesOnFor(admin, meId);
   for (const it of items ?? []) cards.push(...toolCardsOf(it as ToolItem, ar, choicesOn));
   for (const t of mine ?? []) {
@@ -209,6 +233,23 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
         { id: `h:need_time:${t.id}`, title: ar ? '⏳ أبي وقت' : '⏳ Need time' },
         { id: `h:blocked:${t.id}`, title: ar ? '🆘 أبي مساعدة' : '🆘 Need help' },
       ],
+    });
+  }
+  // one «يحتاجك»: only what the shared list holds (needs_you_items, the same the app reads — reviewer, 11 Nov), one card
+  // per task for questions, comments and cancel requests; your tools and today's own tasks stay (not in the count)
+  const one = await needsYouList(admin, meId);
+  if (one) {
+    const seen = new Set<string>();
+    return cards.filter((c) => {
+      if (c.kind === 'tool' || c.kind === 'mine') return true;
+      const kind = c.kind === 'decision' ? 'request' : c.kind;
+      const hit = one.find((i) =>
+        i.kind === kind && (kind === 'request' ? c.buttons.some((b) => !!i.decision_id && b.id.endsWith(i.decision_id)) : i.task_id === c.taskId),
+      );
+      const key = `${kind}:${hit?.decision_id ?? hit?.task_id}`;
+      if (!hit || seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
   }
   return cards;
@@ -453,6 +494,48 @@ export function parsePick(raw: string): Pick | null {
     else return null;
   }
   return { approve, nums: [...nums] };
+}
+
+export type NeedItem = { kind: 'request' | 'cancel' | 'review' | 'question' | 'comment'; task_id: string | null; decision_id: string | null };
+/** the shared «يحتاجك» list (needs_you_items) when one_needs_you is on for this seat, else null */
+export async function needsYouList(admin: SupabaseClient, meId: string): Promise<NeedItem[] | null> {
+  if ((await admin.rpc('feature_on_for', { p_key: 'one_needs_you', p_profile: meId })).data !== true) return null;
+  const { data, error } = await admin.rpc('needs_you_items', { p_profile: meId });
+  if (error) {
+    console.error('needs_you_items', error.message);
+    return null;
+  }
+  return (data ?? []) as NeedItem[];
+}
+
+/** Arabic counted noun: «سؤال / سؤالين / 3 أسئلة / 11 سؤال» (R55) */
+function arCount(n: number, one: string, two: string, few: string) {
+  return n === 1 ? one : n === 2 ? two : n <= 10 ? `${n} ${few}` : `${n} ${one}`;
+}
+/** «عندك 5 تنتظرك: 3 اعتمادات، سؤال، طلب إلغاء» — the same list and number as the app's «يحتاجك» (needs_you_items):
+ *  your own tasks due today and tasks found in your tools are not in it */
+export function waitingLine(items: NeedItem[], ar: boolean): string | null {
+  if (!items.length) return null;
+  const n = (k: NeedItem['kind']) => items.filter((i) => i.kind === k).length;
+  const parts: [number, string][] = ar
+    ? [
+        [n('review'), arCount(n('review'), 'اعتماد', 'اعتمادين', 'اعتمادات')],
+        [n('request'), arCount(n('request'), 'طلب', 'طلبين', 'طلبات')],
+        [n('cancel'), arCount(n('cancel'), 'طلب إلغاء', 'طلبين إلغاء', 'طلبات إلغاء')],
+        [n('question'), arCount(n('question'), 'سؤال', 'سؤالين', 'أسئلة')],
+        [n('comment'), arCount(n('comment'), 'تعليق', 'تعليقين', 'تعليقات')],
+      ]
+    : [
+        [n('review'), `${n('review')} to approve`],
+        [n('request'), `${n('request')} request${n('request') > 1 ? 's' : ''}`],
+        [n('cancel'), `${n('cancel')} to cancel`],
+        [n('question'), `${n('question')} question${n('question') > 1 ? 's' : ''}`],
+        [n('comment'), `${n('comment')} comment${n('comment') > 1 ? 's' : ''}`],
+      ];
+  const bits = parts.filter(([k]) => k > 0).map(([, w]) => w);
+  const total = items.length;
+  if (ar) return total === 1 ? `فيه شي واحد ينتظرك: ${bits[0]} 👇` : `عندك ${total} تنتظرك: ${bits.join('، ')} 👇`;
+  return `${total} wait${total > 1 ? '' : 's'} on you: ${bits.join(', ')} 👇`;
 }
 
 /** sends up to `max` cards, then one line for the rest */

@@ -16,7 +16,7 @@ import { HttpError, getCaller, json, serve } from '../_shared/http.ts';
 import { adminClient, companyTags, sendPush } from '../_shared/push.ts';
 import { loadPrefs, type Prefs } from '../_shared/notify.ts';
 import { inWindow, REPORT_TEMPLATE, rtl, waButtons, waConfigured, waTemplate } from '../_shared/wa.ts';
-import { needsYouCards, waProfileFor } from '../_shared/wa-actions.ts';
+import { needsYouCards, needsYouList, waProfileFor } from '../_shared/wa-actions.ts';
 import { phCapture } from '../_shared/posthog.ts';
 
 type Lang = 'en' | 'ar';
@@ -567,7 +567,10 @@ async function sendOne(
   const rule = ruleOf(prefs, kind, me);
   const mgr = isManager(me, w);
   // the count «وش يحتاجني» gives (each waiting tools task, decision, review, question and today's own work), not lines
-  const needsCount = mgr ? (await needsYouCards(admin, me.id, lang === 'ar').catch(() => null))?.length : undefined;
+  // one «يحتاجك» (owner, 11 Nov): only what waits on them — not your tools, not their own work — like the app and the
+  // «عندك N تنتظرك» line
+  const one = mgr ? await needsYouList(admin, me.id).catch(() => null) : null;
+  const needsCount = !mgr ? undefined : one ? one.length : (await needsYouCards(admin, me.id, lang === 'ar').catch(() => null))?.length;
   const s = mgr ? managerReport(me, w, now, lang, kind, needsCount) : employeeReport(me, w, now, lang, kind);
   if (!s) return { profile: me.id, kind, sent: [] as string[], skipped: 'nothing to say' };
   // seats in two companies: every channel says which company this report is about ("T2 · صباح الخير…")

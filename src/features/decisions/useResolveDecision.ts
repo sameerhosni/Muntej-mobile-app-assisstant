@@ -73,7 +73,7 @@ export function useResolveDecision() {
       );
     },
     onSettled: () => {
-      for (const key of ['decisions', 'tasks', 'task', 'activity', 'homeStats']) qc.invalidateQueries({ queryKey: [key] });
+      for (const key of ['decisions', 'tasks', 'task', 'activity', 'homeStats', 'needsYouItems']) qc.invalidateQueries({ queryKey: [key] });
     },
   });
 }

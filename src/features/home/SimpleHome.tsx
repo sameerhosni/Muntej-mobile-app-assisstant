@@ -3,7 +3,10 @@
 import type { ComponentType, ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
-import { ChevronRight, ClipboardCheck, Gavel, Inbox, type LucideProps } from 'lucide-react-native';
+import { Ban, ChevronRight, ClipboardCheck, Gavel, Inbox, MessageCircle, type LucideProps } from 'lucide-react-native';
+import { useNeedsYou } from '@/features/tasks/NeedsYou';
+import { NEEDS_TAB_NS } from '@/features/decisions/needsStrings';
+import { formatNumber } from './value';
 import { AppText, Card, IconBadge } from '@/components/ui';
 import { colors, radius, sizes, spacing, type ColorToken } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -174,6 +177,26 @@ export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; 
       })),
     // late work is not here: the autopilot chases it and only brings a decision when the owner doesn't answer
   ];
+  // one «يحتاجك» (owner, 11 Nov): the same list and count as the «يحتاجك» tab, its first 3 here; your tools on top, not
+  // in the count
+  const ny = useNeedsYou();
+  const oneOn = ny.oneOn;
+  const { t: tnt } = useScreenT(NEEDS_TAB_NS);
+  const fromOne: Need[] = ny.rows.map((r) => {
+    const old = needs.find((n) => n.key === r.key);
+    if (old) return old;
+    return {
+      key: r.key,
+      Icon: r.kind === 'cancel' ? Ban : MessageCircle,
+      bg: (r.kind === 'cancel' ? 'redTint' : r.kind === 'comment' ? 'purpleTint' : 'amberTint') as ColorToken,
+      fg: r.kind === 'cancel' ? colors.red : r.kind === 'comment' ? colors.purple : colors.amberText,
+      title: r.title,
+      sub: r.sub,
+      href: (r.taskId ? { pathname: '/14-task-detail', params: { id: r.taskId } } : '/04-decisions') as Href,
+    };
+  });
+  const shownNeeds = oneOn ? [...needs.filter((n) => n.key === 'incoming'), ...fromOne] : needs;
+  const waitingCount = oneOn ? ny.rows.length : needs.length;
   const taskIds = needs.filter((n) => n.key.startsWith('r-')).map((n) => n.key.slice(2));
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
@@ -181,18 +204,18 @@ export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; 
     <View style={{ gap: spacing.md }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <AppText variant="section" style={{ flex: 1 }}>
-          {t('needsYou')}
+          {oneOn && waitingCount > 0 ? tnt('titleN', { n: formatNumber(waitingCount, lang) }) : t('needsYou')}
         </AppText>
         {/* the way into Incoming (paste a message) is a shortcut now: this block is decisions only */}
       </View>
-      {needs.length === 0 && !hasMore ? (
+      {shownNeeds.length === 0 && !hasMore ? (
         <Card padding={spacing.lg}>
           <AppText color="greenText" weight="semibold">{t('nothingNeeds')}</AppText>
           {children}
         </Card>
       ) : (
         <Card padding={spacing.sm} style={{ gap: 0 }}>
-          {needs.slice(0, 3).map((n, i) => (
+          {shownNeeds.slice(0, 3).map((n, i) => (
             // the row opens the details; the action pill sits beside it (not nested: one button per control)
             <View
               key={n.key}
@@ -242,16 +265,16 @@ export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; 
               {n.action && <ActionPill label={n.action.label} doneLabel={n.action.done} tone={n.action.tone} onPress={n.action.run} />}
             </View>
           ))}
-          {needs.length > 3 && (
+          {shownNeeds.length > 3 && (
             <Pressable
               onPress={() =>
-                router.push(taskIds.length ? { pathname: '/38-tasks', params: { ids: taskIds.slice(0, 50).join(',') } } : '/04-decisions')
+                router.push(oneOn ? '/04-decisions' : taskIds.length ? { pathname: '/38-tasks', params: { ids: taskIds.slice(0, 50).join(',') } } : '/04-decisions')
               }
               accessibilityRole="link"
               style={{ minHeight: sizes.touch, justifyContent: 'center', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.border }}
             >
               <AppText variant="small" weight="bold" color="primary">
-                {t('seeAll', { count: needs.length })}
+                {t('seeAll', { count: oneOn ? waitingCount : needs.length })}
               </AppText>
             </Pressable>
           )}

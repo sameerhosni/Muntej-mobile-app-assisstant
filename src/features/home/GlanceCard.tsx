@@ -16,6 +16,7 @@ import { formatNumber } from './value';
 import { computeOverview, DIRECT, type Overview } from '@/features/overview/model';
 import { tasksLink } from './TodayHome';
 import { BarRow } from '@/features/overview/Bars';
+import { useNeedsYou } from '@/features/tasks/NeedsYou';
 
 const en = {
   title: 'Today at a glance',
@@ -72,6 +73,7 @@ export function GlanceCard() {
   const tasks = useTasks();
   const org = useOrg();
   const decisions = useDecisions('pending');
+  const ny = useNeedsYou();
   const meId = me.data?.id ?? '';
   const ov = useMemo(
     () =>
@@ -87,7 +89,8 @@ export function GlanceCard() {
   );
   if (!tasks.data) return null;
   const L = ov.lists;
-  const waiting = L.approval.length + ov.decisions;
+  // one «يحتاجك» (owner, 11 Nov): the same number as the tab and the card above it
+  const waiting = ny.oneOn ? ny.rows.length : L.approval.length + ov.decisions;
   const line = smartLine(ov, waiting);
   const teamName = (key?: string) => {
     if (!key || key === DIRECT) return t('direct');
@@ -105,7 +108,7 @@ export function GlanceCard() {
       ids: L.approval.map((x) => x.id),
       fg: colors.purple,
       bg: 'purpleTint',
-      href: !L.approval.length && ov.decisions ? '/04-decisions' : undefined,
+      href: ny.oneOn || (!L.approval.length && ov.decisions) ? '/04-decisions' : undefined,
     },
   ];
   const Arrow = isRTL ? ArrowLeft : ArrowRight;

@@ -16,6 +16,7 @@ import { useDecisions, useMyProfile, useTasks, useTeam, type DecisionWithContext
 import { useResolveDecision } from '@/features/decisions/useResolveDecision';
 import { invalidateTaskData, keepTask, setTaskStatus } from '@/features/chat/api';
 import { useCancelFlow } from './CancelFlow';
+import { useIncomingCount } from '@/features/incoming/api';
 
 const NS = registerStrings('needsYouTab', {
   en: {
@@ -125,11 +126,24 @@ export function useNeedsYou() {
     return p ? ((ar && p.full_name_ar) || p.full_name).split(' ')[0] : '…';
   };
   const titleOf = (id: string | null) => (id ? (tasks.data ?? []).find((x) => x.id === id)?.title : undefined);
+  const oneOn = useOneNeedsYouOn();
+  const incoming = useIncomingCount();
+  const shared = useQuery({
+    queryKey: ['needsYouItems', meId],
+    enabled: oneOn && !!meId,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (fn: string) => Promise<{ data: unknown; error: { message: string } | null }>)('my_needs_you');
+      if (error) throw new Error(error.message);
+      return (data ?? []) as { kind: string; task_id: string | null; decision_id: string | null }[];
+    },
+  });
 
-  const rows: NeedRow[] = [
-    ...(tasks.data ?? [])
-      .filter((x) => x.status === 'submitted' && x.owner_id !== meId)
-      .map((x) => ({ key: `r-${x.id}`, kind: 'review' as const, title: x.title, sub: t('finished', { name: first(x.owner_id) }), taskId: x.id })),
+  const reviews: NeedRow[] = (tasks.data ?? [])
+    // finished work that is yours to approve: the shared list decides (you gave it, or a review round names you)
+    .filter((x) => x.status === 'submitted' && x.owner_id !== meId)
+    .map((x) => ({ key: `r-${x.id}`, kind: 'review' as const, title: x.title, sub: t('finished', { name: first(x.owner_id) }), taskId: x.id }));
+  const rowsRaw: NeedRow[] = [
+    ...reviews,
     ...(decisions.data ?? []).map((d) => {
       const kind: NeedRow['kind'] =
         d.type === 'extension_request' ? 'time' : d.type === 'priority_question' ? 'busy' : d.type === 'approval_request' ? 'approval' : 'decision';
@@ -164,13 +178,54 @@ export function useNeedsYou() {
       };
     }),
   ];
-  return { rows, loading: tasks.isLoading || decisions.isLoading || asks.isLoading, meId };
+  // only what the shared list holds (needs_you_items, the same one WhatsApp and the report read — reviewer, 11 Nov):
+  // one number everywhere
+  const keep = (r: NeedRow) => {
+    // the shared list didn't come (offline, an error): keep everything rather than say «nothing waits» (R61)
+    if (!shared.data) return true;
+    const list = shared.data;
+    if (r.decision) return list.some((i) => i.kind === 'request' && i.decision_id === r.decision!.id);
+    const kind = r.kind === 'ask' ? 'question' : r.kind;
+    return list.some((i) => i.kind === kind && i.task_id === r.taskId);
+  };
+  // whoever is stuck waiting on your answer first, then finished work, then questions and comments (owner, 11 Nov)
+  const ORDER: Record<NeedGroup, number> = { requests: 0, reviews: 1, questions: 2 };
+  const rows = oneOn ? rowsRaw.filter(keep).sort((a, b) => ORDER[groupOf(a.kind)] - ORDER[groupOf(b.kind)]) : rowsRaw;
+  // tasks found in your tools: their own filter, never in the count (owner, 11 Nov)
+  return {
+    rows,
+    tools: incoming.count,
+    oneOn,
+    loading: tasks.isLoading || decisions.isLoading || asks.isLoading || (oneOn && shared.isLoading),
+    // couldn't load what waits: never «ما فيه شي ينتظرك»
+    error: oneOn && (shared.isError || tasks.isError || decisions.isError),
+    meId,
+  };
 }
 
-export function NeedsYouList() {
+/** the filters on «يحتاجك» (owner, 11 Nov, option 2) */
+export type NeedGroup = 'requests' | 'reviews' | 'questions';
+export const groupOf = (k: NeedRow['kind']): NeedGroup =>
+  k === 'review' ? 'reviews' : k === 'ask' || k === 'comment' ? 'questions' : 'requests';
+
+/** one «يحتاجك» for everything waiting on you: testers first (feature one_needs_you) */
+export function useOneNeedsYouOn() {
+  return (
+    useQuery({
+      queryKey: ['featureOn', 'one_needs_you'],
+      queryFn: async () => (await supabase.rpc('feature_on' as never, { p_key: 'one_needs_you' } as never)).data === true,
+      staleTime: 5 * 60_000,
+    }).data === true
+  );
+}
+
+export function NeedsYouList({ only, noDecisions = false }: { only?: NeedGroup; noDecisions?: boolean } = {}) {
   const { t } = useScreenT(NS);
   const qc = useQueryClient();
-  const { rows, meId } = useNeedsYou();
+  const all = useNeedsYou();
+  const meId = all.meId;
+  // on «يحتاجك» (the Decisions tab) the decisions are the screen's own cards: the rest is listed here
+  const rows = all.rows.filter((r) => (!only || groupOf(r.kind) === only) && !(noDecisions && r.decision));
   const resolve = useResolveDecision();
   const cancelFlow = useCancelFlow();
   const [state, setState] = useState<Record<string, 'busy' | 'done' | 'failed'>>({});
@@ -202,6 +257,8 @@ export function NeedsYouList() {
   const decide = (r: NeedRow, outcome: 'approved' | 'declined') =>
     run(r.key, () => resolve.mutateAsync({ decision: r.decision!, outcome, meId: meId! }));
 
+  // inside «يحتاجك» the screen says when nothing waits (its own empty card)
+  if (!rows.length && noDecisions) return <View>{cancelFlow.ui}</View>;
   if (!rows.length)
     return (
       // the «رجّعها» line stays even when the last row just left

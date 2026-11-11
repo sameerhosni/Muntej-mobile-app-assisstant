@@ -2,7 +2,7 @@
 // Live data: decisions (pending). Approve / Decline / Move write decisions + tasks + activity_log.
 // When there are no live decisions the empty state offers the design's two sample cards (local state only).
 import { SetupBar } from '@/features/onboarding/SetupBar';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { CircleCheck, Clock, Hand } from 'lucide-react-native';
 import { AppText, Card, Chip, FilterChips, Hero, IconBadge } from '@/components/ui';
@@ -32,6 +32,9 @@ import { invalidateTaskData } from '@/features/chat/api';
 import { supabase } from '@/lib/supabase';
 import { useAssignable } from '@/features/tasks/assignable';
 import { NS } from '@/features/decisions/strings';
+import { NEEDS_TAB_NS } from '@/features/decisions/needsStrings';
+import { groupOf, NeedsYouList, useNeedsYou, type NeedGroup } from '@/features/tasks/NeedsYou';
+import { router, type Href } from 'expo-router';
 
 const DECISIONS_STEPS = [{ target: 'decisions.card', key: 'decisionsCard', demo: 'approve' as const }];
 
@@ -86,12 +89,43 @@ export default function DecisionsScreen() {
       // boss or another team's manager would be refused by the database after the tap (reviewer, 9 Nov)
       teamList.filter((p) => p.id !== me.data?.id && (p as { status?: string }).status !== 'deleted' && mayGive(p.id));
 
+  // one «يحتاجك» (owner, 11 Nov, option 2): everything waiting on you here, with filters; decisions stay their cards
+  const { t: tn } = useScreenT(NEEDS_TAB_NS);
+  const needs = useNeedsYou();
+  const oneOn = needs.oneOn;
+  const [nf, setNf] = useState<'all' | NeedGroup | 'tools'>('all');
+  const inGroup = (g: NeedGroup) => needs.rows.filter((r) => groupOf(r.kind) === g).length;
+  const needFilters = (
+    [
+      ['all', needs.rows.length],
+      ['requests', inGroup('requests')],
+      ['reviews', inGroup('reviews')],
+      ['questions', inGroup('questions')],
+      ['tools', needs.tools],
+    ] as const
+  ).filter(([k, n]) => k === 'all' || n > 0);
+  const needsSub = [
+    inGroup('reviews') ? tn('s_reviews', { count: inGroup('reviews') }) : null,
+    inGroup('requests') ? tn('s_requests', { count: inGroup('requests') }) : null,
+    inGroup('questions') ? tn('s_questions', { count: inGroup('questions') }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const showCards = !oneOn || nf === 'all' || nf === 'requests';
+  // never «ما فيه شي ينتظرك» while the list is still loading (R61: the owner's complaint again)
+  const nothingAtAll = oneOn && !needs.loading && !needs.error && needs.rows.length === 0 && needs.tools === 0 && cards.length === 0;
+  // the last one in a filter settled: back to «الكل», never a blank screen with no way back (reviewer, 11 Nov)
+  const nfCount = nf === 'all' ? 1 : nf === 'tools' ? needs.tools : inGroup(nf);
+  useEffect(() => {
+    if (nf !== 'all' && nfCount === 0 && !needs.loading) setNf('all');
+  }, [nf, nfCount, needs.loading]);
+
   const left = cards.filter((c) => !outcomes[c.id]).length;
   const followups = left * FOLLOWUPS_PER_DECISION;
   const minutes = followups * MIN_PER_FOLLOWUP;
   const headline =
     left === 0 ? t('headlineNone') : left === 1 ? t('headlineOne') : left === 2 ? t('headlineTwo') : t('headlineMany', { count: left });
-  const loading = decisions.isLoading && !sample;
+  const loading = (decisions.isLoading || (oneOn && needs.loading)) && !sample;
   const [pulled, setPulled] = useState(false);
   const qc = useQueryClient();
 
@@ -166,10 +200,25 @@ export default function DecisionsScreen() {
         <Hero overlap={20}>
           <View style={{ gap: spacing.sm, paddingEnd: 56 }}>
             <AppText variant="titleLg" color="onDark" style={{ fontSize: 26, lineHeight: 34 }}>
-              {loading ? t('heroPlain') : left === 0 ? headline : t('heroTitle', { n: formatNumber(left, lang) })}
+              {oneOn
+                ? needs.loading || needs.error
+                  ? tn('title')
+                  : needs.rows.length
+                    ? tn('titleN', { n: formatNumber(needs.rows.length, lang) })
+                    : tn('none')
+                : loading
+                  ? t('heroPlain')
+                  : left === 0
+                    ? headline
+                    : t('heroTitle', { n: formatNumber(left, lang) })}
             </AppText>
+            {oneOn && !!needsSub && (
+              <AppText variant="small" color="onDarkMuted">
+                {needsSub}
+              </AppText>
+            )}
             {/* shown while the cards load too (their translation can take a few seconds) */}
-            {(loading || left > 0) && (
+            {!oneOn && (loading || left > 0) && (
               <AppText variant="small" color="onDarkMuted">
                 {loading
                   ? t('heroTag')
@@ -178,7 +227,30 @@ export default function DecisionsScreen() {
               </AppText>
             )}
           </View>
-          {cards.length > 0 && (
+          {oneOn && needFilters.length > 1 && (
+            // Saree3 lights this up when he announces one «يحتاجك» (FEATURE_PLACES one_needs_you)
+            <TourTarget id="needs.filters">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: spacing.md }}>
+              {needFilters.map(([k, n]) => {
+                const on = nf === k;
+                return (
+                  <Pressable
+                    key={k}
+                    onPress={() => setNf(k)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    style={{ minHeight: sizes.touch, paddingHorizontal: spacing.lg, borderRadius: radius.pill, justifyContent: 'center', backgroundColor: on ? colors.surface : colors.glass }}
+                  >
+                    <AppText variant="small" weight="extrabold" color={on ? 'primary' : 'onDark'}>
+                      {`${tn(`f_${k}`)} ${formatNumber(n, lang)}`}
+                    </AppText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            </TourTarget>
+          )}
+          {!oneOn && cards.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingTop: spacing.md }}>
               {filterOptions
                 .filter((f) => f.key === 'all' || f.count > 0)
@@ -216,7 +288,7 @@ export default function DecisionsScreen() {
             </Card>
           )}
 
-          {decisions.isError && !sample && (
+          {(decisions.isError || (oneOn && needs.error)) && !sample && (
             <Card elevation="raised" tone="red">
               <AppText color="red" weight="semibold">
                 {t('error')}
@@ -224,7 +296,7 @@ export default function DecisionsScreen() {
             </Card>
           )}
 
-          {!loading && !decisions.isError && cards.length === 0 && (
+          {!loading && !decisions.isError && cards.length === 0 && (!oneOn || nothingAtAll) && (
             <Card elevation="raised" style={{ alignItems: 'center', paddingVertical: 28, gap: spacing.md }}>
               <IconBadge size={52} round gradient="success">
                 <CircleCheck color={colors.onDark} size={26} strokeWidth={2} />
@@ -257,7 +329,7 @@ export default function DecisionsScreen() {
             </View>
           )}
 
-          {shown.map((c, i) => {
+          {(showCards ? shown : []).map((c, i) => {
             const card = (
               <DecisionCard
                 key={c.id}
@@ -278,6 +350,18 @@ export default function DecisionsScreen() {
               card
             );
           })}
+
+          {/* the rest of what waits on you: finished work, cancel requests, questions, comments */}
+          {oneOn && nf !== 'tools' && <NeedsYouList only={nf === 'all' ? undefined : nf} noDecisions />}
+          {/* tasks found in your tools: their own filter, not in the count */}
+          {oneOn && (nf === 'all' || nf === 'tools') && needs.tools > 0 && (
+            <Card style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              <AppText weight="bold" style={{ flex: 1 }}>
+                {tn('toolsCard', { count: needs.tools })}
+              </AppText>
+              <Chip label={tn('toolsOpen')} onPress={() => router.push('/42-incoming' as Href)} />
+            </Card>
+          )}
 
           {failed && (
             <AppText variant="small" color="red" align="center">

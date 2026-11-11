@@ -80,7 +80,8 @@ export function englishStrings() {
 
   for (const file of [...walk(join(ROOT, 'src')), ...walk(join(ROOT, 'app'))]) {
     const text = readFileSync(file, 'utf8');
-    if (!text.includes('registerStrings(') || file.endsWith('register.ts')) continue;
+    // a generic call (registerStrings<T>(…)) counts too (reviewer, 11 Nov: one hid a whole screen from Hindi, R140)
+    if (!/registerStrings\s*[<(]/.test(text) || file.endsWith('register.ts')) continue;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
     const consts = constsOf(sf);
     const visit = (n) => {

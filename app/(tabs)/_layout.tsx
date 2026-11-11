@@ -2,13 +2,17 @@ import { Tabs } from 'expo-router';
 import { colors } from '@/theme/tokens';
 import { useMyProfile, usePendingDecisionCount } from '@/lib/api';
 import { TabBar } from '@/features/navigation/TabBar';
+import { useNeedsYou } from '@/features/tasks/NeedsYou';
 import { SCREENS } from '@/features/screens/registry';
 import { LadderCelebrations } from '@/features/ladder/Journey';
 
 // All role tabs live in one navigator; TabBar shows only the signed-in role's tabs.
 export default function TabsLayout() {
   const { data: me } = useMyProfile();
-  const pending = usePendingDecisionCount();
+  const decisionsOnly = usePendingDecisionCount();
+  // one «يحتاجك» (owner, 11 Nov): the badge counts everything waiting on you, the same as the screen, Home and WhatsApp
+  const needs = useNeedsYou();
+  const pending = needs.oneOn ? needs.rows.length : decisionsOnly;
   const role = me?.role === 'employee' ? 'employee' : 'manager';
 
   return (
@@ -23,7 +27,15 @@ export default function TabsLayout() {
         const tab = SCREENS.find((s) => s.route === `/${current}`)?.tab;
         // shared tabs (e.g. 38 Tasks) keep the signed-in user's bar
         const screenRole = tab && tab !== 'both' ? tab : role;
-        return <TabBar {...props} role={screenRole} badges={{ '04-decisions': pending }} />;
+        return (
+          <TabBar
+            {...props}
+            role={screenRole}
+            // employees have no «يحتاجك» tab: their count sits on Tasks, where their «يحتاجك» list is
+            badges={screenRole === 'employee' && needs.oneOn ? { '38-tasks': pending } : { '04-decisions': pending }}
+            labels={needs.oneOn ? { '04-decisions': 'tabs.needsYou' } : {}}
+          />
+        );
       }}
     >
       <Tabs.Screen name="01-home" />

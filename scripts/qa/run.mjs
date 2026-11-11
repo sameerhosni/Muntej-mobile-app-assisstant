@@ -650,7 +650,8 @@ async function server() {
     const msgs = await wa('وش يحتاجني');
     // only the first reply holds the count (the late-team lines after it have numbers of their own — reviewer, 10 Nov)
     const first = texts(msgs.slice(0, 1));
-    const listed = /فيه (\d+)/.exec(first)?.[1] ?? (/شي واحد/.test(first) ? '1' : /شيئين/.test(first) ? '2' : /ما فيه شي|ما فيه قرار ينتظرك/.test(first) ? '0' : null);
+    // (one «يحتاجك», testers first: «عندك N تنتظرك»)
+    const listed = /عندك (\d+) تنتظرك/.exec(first)?.[1] ?? /فيه (\d+)/.exec(first)?.[1] ?? (/شي واحد/.test(first) ? '1' : /شيئين/.test(first) ? '2' : /ما فيه شي|ما فيه قرار ينتظرك/.test(first) ? '0' : null);
     expect(listed !== null, `«وش يحتاجني» gave no count: ${first.slice(0, 120)}`);
     expect(Number(inReport[1] ?? inReport[2]) === Number(listed), `report says ${inReport[1] ?? inReport[2]}, «وش يحتاجني» lists ${listed}`);
     return `${listed} in both`;
@@ -812,7 +813,8 @@ async function screens() {
         // the header (owner, 9 Nov, option 1): «القرارات · N», one line, no "follow-ups saved" pills
         const head = await page.evaluate(() => document.body.innerText);
         // («ملاحقات» is still on each card's chip; the old header's own pills were «دقيقة ·» and «بس N قرارات»)
-        expect(/القرارات · /.test(head) && !/دقيقة · /.test(head) && !/بس \d+ قرار/.test(head), 'the old Decisions header is still there');
+        // («يحتاجك · N» once one_needs_you is on for this seat, owner, 11 Nov)
+        expect(/(القرارات|يحتاجك) · /.test(head) && !/دقيقة · /.test(head) && !/بس \d+ قرار/.test(head), 'the old Decisions header is still there');
         await page.getByRole('button', { name: '✓ خلصت أصلاً' }).first().click();
         await page.waitForTimeout(4000);
         const [after] = await sql(`select status, owner_id from public.tasks where id = '${task.id}'`);
@@ -842,9 +844,12 @@ async function screens() {
       const [task] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA needs you review', '${doer.id}', '${QA_BOSS}', 'submitted') returning id`);
       try {
         await page.goto('http://localhost:8099/38-tasks', { waitUntil: 'domcontentloaded', timeout: 120_000 });
+        // a manager with one «يحتاجك» (owner, 11 Nov): Tasks has one line «N تحتاجك» that opens the «يحتاجك» tab
+        const line = page.getByText(/تحتاجك$/).first();
+        if (await line.isVisible({ timeout: 8_000 }).catch(() => false)) await line.click();
         await page.getByText('QA needs you review').first().waitFor({ timeout: 30_000 });
         const text = await page.evaluate(() => document.body.innerText);
-        expect(/يحتاجك/.test(text) && /تنتظر اعتمادك/.test(text), 'no «يحتاجك» tab with the review waiting');
+        expect(/يحتاجك/.test(text) && /تنتظر اعتمادك/.test(text), 'no «يحتاجك» with the review waiting');
         return 'review waiting, on its row';
       } finally {
         await sql(`delete from public.tasks where id = '${task.id}'`);
@@ -1153,6 +1158,78 @@ async function screens() {
       } finally {
         await sql(`delete from public.alerts where task_id = '${t.id}'`);
         await sql(`delete from public.tasks where id = '${t.id}'`);
+      }
+    });
+    // The owner, 11 Nov: "I have many of the tasks should be approved… if I went to the page of the decisions, I have
+    // nothing there". Read as the manager: finished work, a more-time request, a question and a cancel request all wait
+    // on «يحتاجك», and the tab title, the Tasks line and WhatsApp's «عندك N تنتظرك» say the same N
+    await check('flows', '«يحتاجك» holds everything waiting on you, and the tab, Tasks and WhatsApp show one number', async () => {
+      const tag = Date.now().toString(36);
+      const FA = 'a0000000-0000-4000-b000-000000000011';
+      const made = [];
+      for (const [title, status] of [[`QA nyou review ${tag}`, 'submitted'], [`QA nyou time ${tag}`, 'in_progress'], [`QA nyou ask ${tag}`, 'in_progress'], [`QA nyou cancel ${tag}`, 'in_progress']])
+        made.push((await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('${title}', '${FA}', '${QA_BOSS}', '${status}') returning id`))[0].id);
+      await sql(`insert into public.decisions (task_id, manager_id, requested_by, type, title, status) values ('${made[1]}', '${QA_BOSS}', '${FA}', 'extension_request', 'QA nyou more time ${tag}', 'pending')`);
+      // every branch of the scope (reviewer, 11 Nov): finished work someone ELSE gave, with a review round naming the
+      // manager; and a comment
+      const AB = 'a0000000-0000-4000-b000-000000000012';
+      made.push((await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA nyou other giver ${tag}', '${FA}', '${AB}', 'submitted') returning id`))[0].id);
+      await sql(`insert into public.reviews (task_id, round, submitted_by, reviewer_id) values ('${made[4]}', 1, '${FA}', '${QA_BOSS}')`);
+      made.push((await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA nyou comment ${tag}', '${FA}', '${QA_BOSS}', 'in_progress') returning id`))[0].id);
+      await sql(`insert into public.alerts (profile_id, kind, task_id, subject_id, title, body, title_ar, body_ar, dedupe_key) values
+        ('${QA_BOSS}', 'detail_asked', '${made[2]}', '${FA}', 'asks', 'x', 'يسأل عن الموعد', 'x', 'ask:${made[2]}:due:${tag}'),
+        ('${QA_BOSS}', 'cancel_asked', '${made[3]}', '${FA}', 'cancel?', '', 'تلغيها؟ ${tag}', '', 'cancel_ask:${made[3]}:${FA}'),
+        ('${QA_BOSS}', 'task_comment', '${made[5]}', '${FA}', 'comment', 'x', 'تعليق ${tag}', 'x', 'qa-nyou-c-${tag}')`);
+      // the manager's own task due today: «ومهامك اليوم» on WhatsApp, never in the number
+      made.push((await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA nyou mine ${tag}', '${QA_BOSS}', '${QA_BOSS}', 'assigned', now() + interval '1 hour') returning id`))[0].id);
+      try {
+        await page.goto('http://localhost:8099/04-decisions', { waitUntil: 'domcontentloaded' });
+        const title = page.getByText(/يحتاجك · [\d٠-٩]+/).first();
+        await title.waitFor({ timeout: 25_000 });
+        await page.getByText(`QA nyou review ${tag}`).first().waitFor({ timeout: 15_000 });
+        await page.getByText(`QA nyou cancel ${tag}`).first().waitFor({ timeout: 10_000 });
+        const toN = (s) =>
+          /شي واحد|^وحدة/.test(s) ? 1 : /شيئين|ثنتين/.test(s) ? 2 : Number((s.match(/[\d٠-٩]+/)?.[0] ?? '').replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)));
+        await page.getByText(`QA nyou other giver ${tag}`).first().waitFor({ timeout: 10_000 });
+        const n = toN(await title.innerText());
+        expect(n >= 6, `«يحتاجك» counts ${n}, it should hold at least the 6 made here`);
+        const body = await page.evaluate(() => document.body.innerText);
+        expect(!/ما فيه شي ينتظرك/.test(body), '«ما فيه شي ينتظرك» shows while things wait');
+        // the tab badge carries the same number
+        const badge = await page.getByRole('tab', { name: 'يحتاجك' }).innerText().catch(() => '');
+        expect(toN(badge) === n, `the tab badge says «${badge}», the screen says ${n}`);
+        await page.screenshot({ path: join(OUT, 'flow_needs_you.png') });
+        // the Tasks line says the same
+        await page.goto('http://localhost:8099/38-tasks', { waitUntil: 'domcontentloaded' });
+        const line = page.getByText(/(تحتاجك|يحتاجك|يحتاجونك)$/).first();
+        await line.waitFor({ timeout: 20_000 });
+        expect(toN(await line.innerText()) === n, `Tasks says «${await line.innerText()}», the tab says ${n}`);
+        // Home's card too
+        await page.goto('http://localhost:8099/01-home', { waitUntil: 'domcontentloaded' });
+        const home = page.getByText(/يحتاجك · [\d٠-٩]+/).first();
+        await home.waitFor({ timeout: 25_000 });
+        expect(toN(await home.innerText()) === n, `Home says «${await home.innerText()}», the tab says ${n}`);
+        // and the midday report
+        const rep = await fn('daily-summary', { test: true, kind: 'midday', dry: true }, JWT);
+        const inRep = /(\d+) تحتاجك/.exec(rep.preview ?? '');
+        // (a skipped report would pass without comparing: it must be there — reviewer, 11 Nov)
+        expect(!rep.skipped, `no midday report to compare (${rep.skipped})`);
+        expect(inRep && Number(inRep[1]) === n, `the report says «${(rep.preview ?? '').slice(0, 80)}», the app says ${n}`);
+        // and WhatsApp's opening line
+        const [{ s: secret }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
+        const sent = (await fn('whatsapp', { simulate: { from: QA_PHONE, text: 'وش يحتاجني' } }, null, { 'x-cron-secret': secret })).sent ?? [];
+        const said = sent.map((m) => m.text?.body ?? m.interactive?.body?.text ?? '').join(' | ');
+        const opening = said.match(/عندك\s+([\d٠-٩]+)\s+تنتظرك/)?.[1] ?? (/فيه شي واحد ينتظرك/.test(said) ? '1' : null);
+        expect(opening && toN(opening) === n, `WhatsApp says «${said.slice(0, 80)}», the app says ${n}`);
+        // your own task due today still comes, after, and not in the number
+        // (the first 3 by due date: another of today's tasks may come before this one)
+        expect(/ومهامك اليوم/.test(said) && JSON.stringify(sent).includes('h:done:'), `no «ومهامك اليوم» with your own task: ${said.slice(-120)}`);
+        return `one number everywhere: ${n}`;
+      } finally {
+        await sql(`delete from public.alerts where task_id in (${made.map((x) => `'${x}'`).join(',')})`);
+        await sql(`delete from public.reviews where task_id in (${made.map((x) => `'${x}'`).join(',')})`);
+        await sql(`delete from public.decisions where task_id in (${made.map((x) => `'${x}'`).join(',')})`);
+        await sql(`delete from public.tasks where id in (${made.map((x) => `'${x}'`).join(',')})`);
       }
     });
     await check('flows', 'Send an idea', async () => {

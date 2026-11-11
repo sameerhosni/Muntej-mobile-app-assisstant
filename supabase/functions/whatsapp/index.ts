@@ -35,7 +35,7 @@ import {
   type WaButton,
   type WaRow,
 } from '../_shared/wa.ts';
-import { choicesOnFor, foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolButtons, toolCardsFor, toolListButtons, toolListIntro, toolListRows, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
+import { choicesOnFor, needsYouList, waitingLine, foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolButtons, toolCardsFor, toolListButtons, toolListIntro, toolListRows, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
 import { quickDates, readWhen } from '../_shared/when.ts';
 
 /** "what is it?" about the last thing Muntej sent (whole message; Arabic without \b, R112) */
@@ -592,7 +592,8 @@ async function handle(m: WaMessage, dry = false) {
     }
     if (last?.task_id) {
       const seat = last.profile_id as string;
-      const card = (await needsYouCards(admin, seat, ar)).find((c) => c.taskId === last.task_id);
+      // (never the comment card itself: the alert IS that comment — the task's own card or the task, R115)
+      const card = (await needsYouCards(admin, seat, ar)).find((c) => c.taskId === last.task_id && c.kind !== 'comment');
       if (card) return void (await waButtons(from, card.body, card.buttons));
       // no card for it: the task itself, never a guess (R115)
       const { data: t } = await admin.from('tasks').select('id, title, translations, due_at, status, owner_id').eq('id', last.task_id).maybeSingle();
@@ -1139,10 +1140,27 @@ async function handle(m: WaMessage, dry = false) {
       if (!late.count) return void (await say(ar ? 'ما فيه شي يحتاجك الحين 👌 أنا ماسك الباقي' : 'Nothing needs you right now 👌 I’ve got the rest'));
       return void (await say(`${ar ? 'ما فيه قرار ينتظرك 👌' : 'No decision needs you 👌'}\n\n${lateText()}`));
     }
+    const tools = cards.filter((c) => c.kind === 'tool' && c.ref);
+    // one «يحتاجك» (owner, 11 Nov, option 2): the same count as the app, what waits on you first, then your tools, then
+    // your own tasks today (not in the count)
+    const one = await needsYouList(admin, me.id);
+    if (one) {
+      const waits = cards.filter((c) => c.kind !== 'mine' && c.kind !== 'tool');
+      const mine = cards.filter((c) => c.kind === 'mine');
+      const line = waitingLine(one, ar);
+      if (line) await say(line);
+      if (waits.length) await sendCards(from, ar, waits, max);
+      if (tools.length) await sendToolList(tools);
+      if (mine.length) {
+        await say(ar ? 'ومهامك اليوم:' : 'And your tasks today:');
+        await sendCards(from, ar, mine, 3);
+      }
+      if (late.count) await say(lateText());
+      return;
+    }
     await say(ar ? (cards.length === 1 ? 'فيه شي واحد يحتاجك 👇' : cards.length === 2 ? 'فيه شيئين يحتاجونك 👇' : cards.length <= 10 ? `فيه ${cards.length} أشياء تحتاجك 👇` : `فيه ${cards.length} شي يحتاجك 👇`) : `${cards.length} thing${cards.length > 1 ? 's' : ''} need${cards.length > 1 ? '' : 's'} you 👇`);
     // decisions, reviews and your own work stay one card each (each needs its own answer); tasks found in tools
     // come as one numbered list
-    const tools = cards.filter((c) => c.kind === 'tool' && c.ref);
     const others = cards.filter((c) => !(c.kind === 'tool' && c.ref));
     if (others.length) await sendCards(from, ar, others, max);
     if (tools.length) await sendToolList(tools);

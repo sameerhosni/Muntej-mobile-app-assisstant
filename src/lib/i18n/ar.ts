@@ -15,6 +15,7 @@ const ar: Translations = {
     home: 'الرئيسية',
     autopilot: 'الطيار الآلي',
     decisions: 'القرارات',
+    needsYou: 'يحتاجك',
     brief: 'الملخص',
     tasks: 'المهام',
     myTasks: 'مهامي',

@@ -34,10 +34,10 @@ const EMPLOYEE: (TabDef | 'mic')[] = SHOW_REWARDS
     ]
   : [{ name: '25-employee-home', label: 'tabs.home', Icon: House }, 'mic', { name: '38-tasks', label: 'tabs.tasks', Icon: ListChecks }];
 
-type Props = TabBarProps & { role: Role; badges?: Record<string, number> };
+type Props = TabBarProps & { role: Role; badges?: Record<string, number>; /** a tab's label key instead of its own (owner, 11 Nov: Decisions → «يحتاجك») */ labels?: Record<string, string> };
 
 /** v2 bottom bar: white, rounded top, raised centre mic for everyone; employee bar is purple. */
-export function TabBar({ state, navigation, role, badges = {} }: Props) {
+export function TabBar({ state, navigation, role, badges = {}, labels = {} }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const active = state.routes[state.index]?.name;
@@ -107,7 +107,7 @@ export function TabBar({ state, navigation, role, badges = {} }: Props) {
             }}
             accessibilityRole="tab"
             accessibilityState={{ selected: focused }}
-            accessibilityLabel={t(item.label)}
+            accessibilityLabel={t(labels[item.name] ?? item.label)}
             style={{ flex: 1, alignItems: 'center', gap: 3, minHeight: sizes.touch }}
           >
             <View
@@ -139,7 +139,7 @@ export function TabBar({ state, navigation, role, badges = {} }: Props) {
               )}
             </View>
             <AppText variant="micro" weight={focused ? 'bold' : 'semibold'} style={{ color }}>
-              {t(item.label)}
+              {t(labels[item.name] ?? item.label)}
             </AppText>
           </Pressable>
         );

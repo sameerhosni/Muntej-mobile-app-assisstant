@@ -36,6 +36,8 @@ import { WhatsNewStrip } from '@/features/launch/WhatsNew';
 import { BiometricOffer } from '@/features/auth/BiometricOffer';
 import { JobsStrip } from '@/features/saree3/JobsStrip';
 import { MyRequests } from '@/features/home/MyRequests';
+import { useNeedsYou } from '@/features/tasks/NeedsYou';
+import { NEEDS_TAB_NS } from '@/features/decisions/needsStrings';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
 import { EmployeeJourneyCard } from '@/features/ladder/Journey';
 
@@ -54,6 +56,8 @@ export default function EmployeeHome() {
   const me = useMyProfile();
   const qc = useQueryClient();
   const w = useWallet();
+  const ny = useNeedsYou();
+  const { t: tnt } = useScreenT(NEEDS_TAB_NS);
 
   const n = (v: number) => formatNumber(v, lang);
   const fullName = me.data ? (lang === 'ar' && me.data.full_name_ar ? me.data.full_name_ar : me.data.full_name) : '';
@@ -146,6 +150,18 @@ export default function EmployeeHome() {
             <FromSaree3 />
           </TourTarget>
           {/* 2. today's real tasks (max 3) */}
+          {/* one «يحتاجك» (owner, 11 Nov): an employee who gave tasks sees what waits on them, opening Tasks → «يحتاجك» */}
+          {ny.oneOn && ny.rows.length > 0 && (
+            <Pressable
+              onPress={() => router.push({ pathname: '/38-tasks', params: { needs: '1' } })}
+              accessibilityRole="link"
+              style={({ pressed }) => ({ minHeight: sizes.touch, justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.redTint, opacity: pressed ? 0.8 : 1 })}
+            >
+              <AppText weight="bold" color="red">
+                {tnt('tasksLine', { count: ny.rows.length })}
+              </AppText>
+            </Pressable>
+          )}
           <TourTarget id="home.needs">
             <TodayTasks />
           </TourTarget>

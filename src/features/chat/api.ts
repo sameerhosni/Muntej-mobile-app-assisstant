@@ -507,6 +507,9 @@ export function invalidateTaskData(qc: QueryClient) {
     qc.invalidateQueries({ queryKey: ['tasks'] }),
     qc.invalidateQueries({ queryKey: ['homeStats'] }),
     qc.invalidateQueries({ queryKey: ['activity'] }),
+    // the one «يحتاجك» list (its number drops the moment something is settled)
+    qc.invalidateQueries({ queryKey: ['needsYouItems'] }),
+    qc.invalidateQueries({ queryKey: ['needsYouAsks'] }),
   ]);
 }
 

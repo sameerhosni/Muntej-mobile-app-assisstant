@@ -1072,6 +1072,27 @@ export default {
   "waitingTime": "⏳ \"{{task}}\" के लिए और समय: {{name}} का इंतजार हो रहा है। मैं आपको जवाब बता दूँगा/दूँगी",
   "yes": "✅ {{name}} ने हाँ किया: \"{{task}}\""
  },
+ "needsTab": {
+  "f_all": "सभी",
+  "f_questions": "प्रश्न",
+  "f_requests": "रिक्वेस्ट्स",
+  "f_reviews": "मंज़ूरी दें",
+  "f_tools": "आपके टूल्स",
+  "none": "कुछ भी आपका इंतज़ार नहीं कर रहा ☕",
+  "s_questions_one": "1 सवाल",
+  "s_questions_other": "{{count}} सवाल",
+  "s_requests_one": "1 अनुरोध",
+  "s_requests_other": "{{count}} अनुरोध",
+  "s_reviews_one": "1 स्वीकृति के लिए",
+  "s_reviews_other": "{{count}} स्वीकृति के लिए",
+  "tasksLine_one": "1 चीज़ आपको चाहिए",
+  "tasksLine_other": "{{count}} चीज़ें आपको चाहिए",
+  "title": "आपकी आवश्यकता है",
+  "titleN": "आपकी ज़रूरत है · {{n}}",
+  "toolsCard_one": "आपके टूल्स में 1 टास्क आपके ओके का इंतजार कर रहा है",
+  "toolsCard_other": "आपके टूल्स में {{count}} टास्क आपके ओके का इंतजार कर रहे हैं",
+  "toolsOpen": "उन्हें देखें"
+ },
  "needsYouTab": {
   "approval": "✅ आपकी स्वीकृति चाहता है",
   "approve": "✓ स्वीकृति दें",
@@ -4573,6 +4594,7 @@ export default {
   "decisions": "निर्णय",
   "home": "होम",
   "myTasks": "मेरे टास्क",
+  "needsYou": "आपकी आवश्यकता है",
   "rewards": "इनाम",
   "sayTask": "कोई टास्क कहें",
   "tasks": "टास्क"

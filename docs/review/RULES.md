@@ -592,3 +592,15 @@ Last updated: 2026-11-09.
 ### R137 · Helpers a tap can reach inside handle() are function declarations
 - **Why:** 11 Nov, QA: «👤 لغيري» returned 500, «Cannot access 'personName' before initialization». The helper was a const arrow written after the line where the tap is handled.
 - **Check:** inside a long handler, helpers that taps call are `function` declarations (hoisted), never `const` arrows below the dispatch; every new tap verb gets a QA step that reads its reply.
+
+### R138 · One list behind every "needs you" number
+- **Why:** 11 Nov, owner: Tasks «يحتاجك» showed 3 finished tasks to approve while the Decisions tab said «ما فيه شي ينتظرك». The tab badge, Home, Tasks and WhatsApp each counted something different.
+- **Check:** the tab badge, the «يحتاجك» title, Home's card and tile, the Tasks line and WhatsApp's «عندك N تنتظرك» come from the same list (useNeedsYou / needsYouCards, the same review scope). Tasks found in your tools have their own filter and are never in the number. A QA flow reads the tab, Tasks and WhatsApp and expects one N.
+
+### R139 · When the app and an edge function build the same list or count, they read one SQL function
+- **Why:** 11 Nov, reviewer: «يحتاجك» in the app scoped reviews by "you manage the doer", WhatsApp by "a review round names you", with different caps and grouping, so «عندك N تنتظرك» could differ from the tab.
+- **Check:** both read the same function (needs_you_items / my_needs_you). The QA case seeds one item for every branch of the scope (giver, reviewer, comment, question, cancel, request) and expects one N on the tab, its badge, Home, Tasks, WhatsApp and the report.
+
+### R140 · A check that finds code by a text pattern also matches the code's other valid forms
+- **Why:** 11 Nov, reviewer: the Hindi extractor looked for the text «registerStrings(», so a generic call «registerStrings<T>(…)» hid the whole «يحتاجك» screen from Hindi while the check said «0 need Hindi».
+- **Check:** QA and build checks that search code match the other forms too (a generic fn<T>(, an alias). An extractor that reads nothing from a strings file that changed fails, never reports «0 missing».

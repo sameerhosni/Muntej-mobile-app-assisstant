@@ -12,6 +12,7 @@ const en = {
     home: 'Home',
     autopilot: 'Autopilot',
     decisions: 'Decisions',
+    needsYou: 'Needs you',
     brief: 'Brief',
     tasks: 'Tasks',
     myTasks: 'My tasks',

@@ -1,4 +1,4 @@
-﻿// Feature launches (see supabase/migrations/20261021170000_feature_launch.sql): the features table holds what's new
+// Feature launches (see supabase/migrations/20261021170000_feature_launch.sql): the features table holds what's new
 // and for whom; feature_events holds each person's state. Here: where each feature lives in the app, the state hooks,
 // featureUsed() to call wherever a feature is really used, and the spotlight that points at the right button.
 import { useSyncExternalStore } from 'react';
@@ -29,6 +29,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   task_answers: { href: '/01-home', spot: 'home.needs' },
   quick_cancel: { href: '/38-tasks', spot: 'tasks.row' },
   found_task_choices: { href: '/42-incoming' },
+  one_needs_you: { href: '/04-decisions', spot: 'needs.filters' },
   ai_consent: { href: '/settings', spot: 'settings.ai' },
   invite_status: { href: '/39-team', spot: 'team.status' },
   confirm_new: { href: '/01-home', spot: 'home.confirm' },

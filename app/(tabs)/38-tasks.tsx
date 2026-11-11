@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SlidersHorizontal, X } from 'lucide-react-native';
+import { ChevronRight, SlidersHorizontal, X } from 'lucide-react-native';
 import { AppText, Button, Card, Chip, SearchField } from '@/components/ui';
 import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -20,6 +20,7 @@ import { NEEDS_NS, NeedsYouList, useNeedsYou } from '@/features/tasks/NeedsYou';
 import { SortToggle } from '@/features/tasks/SortToggle';
 import { TaskRow } from '@/features/tasks/TaskRow';
 import { useCancelFlow, useQuickCancelOn } from '@/features/tasks/CancelFlow';
+import { NEEDS_TAB_NS } from '@/features/decisions/needsStrings';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { NS } from '@/features/tasks/strings';
@@ -39,7 +40,8 @@ export default function TasksScreen() {
   const insets = useSafeAreaInsets();
   const [sort, setSort] = useState<SortMode>('newest');
   // ?filter=late opens the list on that filter; ?ids= shows exactly the tasks Saree3 named
-  const { filter: filterParam, ids: idsParam } = useLocalSearchParams<{ filter?: string; ids?: string }>();
+  // ?needs=1: open on «يحتاجك» (the employee's Home line, reviewer 11 Nov); a tab tap clears it (TabBar)
+  const { filter: filterParam, ids: idsParam, needs: needsParam } = useLocalSearchParams<{ filter?: string; ids?: string; needs?: string }>();
   const onlyIds = typeof idsParam === 'string' && idsParam ? new Set(idsParam.split(',')) : null;
   const wanted = FILTERS.find((f) => f === filterParam);
   const [filter, setFilter] = useState<TaskListFilter>(wanted ?? 'mine');
@@ -82,12 +84,19 @@ export default function TasksScreen() {
   const needs = useNeedsYou();
   const [needsTab, setNeedsTab] = useState(false);
   const [needsPicked, setNeedsPicked] = useState(false);
+  // one «يحتاجك» (owner, 11 Nov): a manager's lives in its own tab; here it's one line that opens it. Employees (no
+  // such tab) keep it here
+  const needsElsewhere = needs.oneOn && role !== 'employee';
   useEffect(() => {
-    if (needsPicked || needs.loading || wanted || onlyIds) return;
+    if (needsPicked || needs.loading || wanted || onlyIds || needsElsewhere) return;
     setNeedsPicked(true);
     if (needs.rows.length > 0) setNeedsTab(true);
-  }, [needsPicked, needs.loading, needs.rows.length, wanted, onlyIds]);
-  const showNeeds = needsTab && !onlyIds && !moreActive && !search;
+  }, [needsPicked, needs.loading, needs.rows.length, wanted, onlyIds, needsElsewhere]);
+  useEffect(() => {
+    if (needsParam === '1' && !needsElsewhere) setNeedsTab(true);
+  }, [needsParam, needsElsewhere]);
+  const showNeeds = needsTab && !needsElsewhere && !onlyIds && !moreActive && !search;
+  const { t: tnt } = useScreenT(NEEDS_TAB_NS);
   const cancelFlow = useCancelFlow();
   // the row ✕ goes to testers first (feature quick_cancel)
   const quickOn = useQuickCancelOn();
@@ -162,6 +171,7 @@ export default function TasksScreen() {
         // the three tabs
         <View accessibilityRole="tablist" style={{ flexDirection: 'row', backgroundColor: colors.chip, borderRadius: radius.pill, padding: 3 }}>
           {/* N20 (owner, 9 Nov): «يحتاجك» first, with how many things wait on you */}
+          {!needsElsewhere && (
           <Pressable
             onPress={() => setNeedsTab(true)}
             accessibilityRole="tab"
@@ -189,8 +199,9 @@ export default function TasksScreen() {
               {tn('tab')}
             </AppText>
           </Pressable>
+          )}
           {tabs.map((x) => {
-            const on = !needsTab && filter === x;
+            const on = !(needsTab && !needsElsewhere) && filter === x;
             return (
               <Pressable
                 key={x}
@@ -217,6 +228,29 @@ export default function TasksScreen() {
             );
           })}
         </View>
+      )}
+
+      {/* a manager's «يحتاجك» is its own tab now: one line here opens it (owner, 11 Nov) */}
+      {needsElsewhere && needs.rows.length > 0 && !onlyIds && (
+        <Pressable
+          onPress={() => router.push('/04-decisions')}
+          accessibilityRole="link"
+          style={({ pressed }) => ({
+            minHeight: sizes.touch,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            paddingHorizontal: spacing.lg,
+            borderRadius: radius.pill,
+            backgroundColor: colors.redTint,
+            opacity: pressed ? 0.8 : 1,
+          })}
+        >
+          <AppText weight="bold" color="red" style={{ flex: 1 }}>
+            {tnt('tasksLine', { count: needs.rows.length })}
+          </AppText>
+          <ChevronRight color={colors.red} size={18} strokeWidth={2.4} style={{ transform: [{ scaleX: lang === 'ar' ? -1 : 1 }] }} />
+        </Pressable>
       )}
 
       {query.isError && (
