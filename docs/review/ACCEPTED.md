@@ -27,3 +27,4 @@ Line format: ``- `<commit>` · <date> · ACCEPT · <what was reviewed>``
 - `a3585fe` · 2026-11-11 · ACCEPT · Follow-up from the ship's QA: the «يحتاجك» number is the shared list's length everywhere; the request QA step sets the QA number. 1 pass: 0 findings.
 - `98bf020` · 2026-11-11 · ACCEPT · The «يحتاجك» number waits for the shared list everywhere (no partial count, Home tile «…»). 3 passes: 1 → 1 → 0 findings.
 - `26082a6` · 2026-11-11 · ACCEPT · QA only: the «يحتاجك» flow's WhatsApp step sets QA_PHONE on the manager. 1 pass: 0 findings.
+- `be0ccf8` · 2026-11-11 · ACCEPT · QA split: core + changed areas on test releases, --full before --live (HEAD must be the tested code), inbox/network second try listed. 3 passes: 9 → 1 → 0 findings; rule R146.
