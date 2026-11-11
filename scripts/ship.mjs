@@ -8,7 +8,8 @@
 // Stops at the first failure.
 // TEST releases everything since the last test (git tag `testing`, else `shipped`):
 //   1. the work must be committed (nothing half-done goes out)
-//   2. QA robot (scripts/qa/run.mjs) must be all green
+//   2. QA robot (scripts/qa/run.mjs) must be all green: the core checks + every area this release changed
+//      (scripts/qa/core.mjs); --live runs every check (--full) on exactly the tested code
 //   3. new supabase/migrations are applied (scripts/db-apply.ps1)
 //   4. edge functions whose code changed are type-checked and deployed (a change in _shared deploys every function
 //      that imports it). There is one server for everyone: a new feature waits behind features.testing (only testers
@@ -94,6 +95,15 @@ async function goLive() {
   const tested = git('rev-parse', '--verify', '--quiet', 'testing');
   if (!tested) fail('No `testing` tag');
   console.log(`Going live: ${t.message} (tested ${t.at.slice(0, 16).replace('T', ' ')})`);
+  // the full run checks exactly what was tested: nothing but notes may have changed since the test release (R101)
+  const after = git('diff', '--name-only', 'testing', 'HEAD')
+    .split('\n')
+    .map((f) => f.trim())
+    .filter((f) => f && !f.startsWith('docs/review/') && f !== 'docs/BACKLOG.md' && !f.startsWith('scripts/release/'));
+  if (after.length) fail(`HEAD moved past the tested release (${after.slice(0, 5).join(', ')}${after.length > 5 ? ', …' : ''}). Ship a new test release first.`);
+  // test releases run the core checks + what changed; going live runs every check once (owner, 11 Nov)
+  say('QA robot (full run)');
+  if (run('node', ['scripts/qa/run.mjs', '--full']).code !== 0) fail('QA failed, see qa-out/report.md. Nothing went live.');
 
   if (t.group) {
     say('App update → store app (production), the same one that was tested');

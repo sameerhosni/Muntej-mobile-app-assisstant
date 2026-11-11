@@ -359,7 +359,7 @@ Last updated: 2026-11-09.
 
 ### R80 · QA green before any ship
 - **Why:** 28 Oct: "why are you not creating a tool to test any enhancement before applying it". Blank buttons and a broken first sign-in reached the phone (ce6bc40).
-- **Check:** `node scripts/qa/run.mjs` is all green (delivery warnings allowed). For flaky LLM cases, green twice. Android-only bugs need a source check, because the web can't show them (7c1e322).
+- **Check:** `node scripts/qa/run.mjs` is all green (delivery warnings allowed). Since 11 Nov (owner: QA took too long), a test release runs the core checks plus every area its changes touch (scripts/qa/core.mjs), and `ship --live` runs `--full` on exactly the tested code. AI-judged inbox checks and network blips (not a 500 from our own functions) get one second try, and the report lists every check that passed only on its second try, and every check left out. Android-only bugs need a source check, because the web can't show them (7c1e322).
 
 ### R81 · deno-check every changed edge function and everything that imports it
 - **Why:** 24 Oct: a duplicate `const` in `_shared/intake-core.ts` took down email reading, chat and WhatsApp for about 20 minutes (88c850e).
@@ -625,3 +625,7 @@ Last updated: 2026-11-09.
 ### R145 · Moving an action to a seat-aware *_as function moves the reads before it too
 - **Why:** 11 Nov, reviewer: WhatsApp answered a request through answer_task_request_as, but first read the decision with the user session, which only sees the seat last opened in the app. A request on the other seat said «ما لقيت هالقرار».
 - **Check:** in WhatsApp, rows for a seat-aware action are read with the service client and checked against the number's own seats before acting. A QA step runs it with the login last opened in the other company.
+
+### R146 · A partial QA run selects a check with everything it depends on
+- **Why:** 11 Nov, reviewer, on the QA split: a core check read an invitation made by a check that wasn't core, an edited check could run without the step that undoes its data, and a retried chat check was judged on both tries' tasks together.
+- **Check:** a core check never reads state a non-core check creates. An edited check runs its whole area. A file no area rule explains (anything under supabase/, the seed) selects every area. A check that's retried starts from clean state: it cleans up in finally and reads its time window inside the check. Only checks like that are in RETRY_AREAS.

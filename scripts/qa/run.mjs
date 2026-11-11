@@ -24,6 +24,7 @@ import { join } from 'node:path';
 import { cases } from './cases.mjs';
 import { inviteCases } from './invite-cases.mjs';
 import { taskCases } from './task-cases.mjs';
+import { areasFor, CORE } from './core.mjs';
 
 // the company network re-signs HTTPS; without the system certificates every call to Supabase fails ("fetch failed")
 if (!process.execArgv.includes('--use-system-ca') && !(process.env.NODE_OPTIONS ?? '').includes('--use-system-ca')) {
@@ -59,13 +60,77 @@ const ok = (area, name, detail = '') => results.push({ area, name, pass: true, d
 const bad = (area, name, detail = '') => results.push({ area, name, pass: false, detail: String(detail).slice(0, 600) });
 // setup only the owner can do (a DNS record, an account): shown as a warning, doesn't stop a release
 const WARN_ONLY = new Set(['delivery']);
+
+// ─── which checks run (owner, 11 Nov: "choose the most important test cases and run it every time … the other minor
+// and low priority cases … if we are testing anything related to it"): the core ones always; an area's others when a
+// file of that area changed since the last test release (tag `testing`); a check added or edited since then; all of
+// them with --full (ship --live runs --full) ─────────────────────────────────
+const full = args.includes('--full') || !!only;
+const since = (() => {
+  const r = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'testing'], { cwd: ROOT, encoding: 'utf8' });
+  return r.status === 0 ? 'testing' : null;
+})();
+const git = (...a) => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8' }).stdout ?? '';
+// everything since the test release, the working tree and new files included
+const changedFiles = since
+  ? [...new Set([...git('diff', '--name-only', since).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((f) => f.trim()).filter(Boolean))]
+  : [];
+const changedAreas = areasFor(changedFiles);
+// a QA check added or edited (any line of it, the working tree too) runs its whole area, with the checks that set up and
+// undo its data (reviewer, 11 Nov, R146)
+if (since)
+  for (const f of changedFiles.filter((x) => /^scripts\/qa\/.*\.mjs$/.test(x) && existsSync(join(ROOT, x)))) {
+    const lines = readFileSync(join(ROOT, f), 'utf8').split('\n');
+    // each check's span: from its `check('area'` line until its braces close (reviewer, 11 Nov). A changed line inside
+    // a span selects that area; one outside every span (a helper, a shared list, setup) selects every area the file has
+    const spans = [];
+    lines.forEach((l, i) => {
+      const m = /check\('(\w+)'/.exec(l);
+      if (!m) return;
+      let depth = 0;
+      let opened = false;
+      for (let j = i; j < lines.length; j++) {
+        for (const ch of lines[j].slice(j === i ? m.index : 0)) {
+          if (ch === '{') (depth++, (opened = true));
+          else if (ch === '}') depth--;
+        }
+        if (opened && depth <= 0) return void spans.push({ area: m[1], from: i, to: j });
+      }
+      spans.push({ area: m[1], from: i, to: lines.length - 1 });
+    });
+    const fileAreas = [...new Set(spans.map((s) => s.area))];
+    const diff = git('diff', '-U0', since, '--', f);
+    const touched = diff ? [...diff.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)].flatMap((m) => Array.from({ length: Math.max(1, Number(m[2] ?? 1)) }, (_, k) => Number(m[1]) - 1 + k)) : lines.map((_, i) => i);
+    for (const n of touched) {
+      const inside = spans.filter((s) => n >= s.from && n <= s.to);
+      for (const a of inside.length ? inside.map((s) => s.area) : fileAreas) changedAreas.add(a);
+    }
+  }
+// exact names; one ending in * matches by its start
+const isCore = (name) => CORE.some((c) => (c.endsWith('*') ? name.startsWith(c.slice(0, -1)) : name === c));
+const runs = (area, name) => full || !since || isCore(name) || changedAreas.has(area);
+const skipped = [];
+const secondTry = [];
+
+// checks the AI judges (inbox: each reads its own fresh message and the suggestions it returns), and network blips:
+// one second try before they stop a release. Never a 500 from our own functions (a crash in our code, R137)
+const RETRY_AREAS = new Set(['inbox']);
+const blip = (m) => /fetch failed|ECONNRESET|socket hang up|\b(502|503|504|52[0-4])\b/i.test(m);
 async function check(area, name, fn) {
+  if (!runs(area, name)) return void skipped.push({ area, name });
   const t0 = Date.now();
-  try {
-    const d = await fn();
-    ok(area, name, `${d ?? ''} (${Math.round((Date.now() - t0) / 100) / 10}s)`);
-  } catch (e) {
-    bad(area, name, e?.message ?? e);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const d = await fn();
+      if (attempt > 1) secondTry.push(name);
+      ok(area, name, `${d ?? ''} (${Math.round((Date.now() - t0) / 100) / 10}s)${attempt > 1 ? ' · on the second try' : ''}`);
+      return;
+    } catch (e) {
+      const m = String(e?.message ?? e);
+      if (attempt === 1 && (RETRY_AREAS.has(area) || blip(m))) continue;
+      bad(area, name, m);
+      return;
+    }
   }
 }
 const expect = (cond, msg) => {
@@ -827,7 +892,9 @@ async function screens() {
           await page.screenshot({ path: join(OUT, 'flow_already_done.png'), fullPage: true });
           throw new Error(`${e.message.split('\n')[0]} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
         });
-        // the header (owner, 9 Nov, option 1): «القرارات · N», one line, no "follow-ups saved" pills
+        // the header (owner, 9 Nov, option 1): «القرارات · N», one line, no "follow-ups saved" pills (waits for its
+        // number: «يحتاجك» shows it only once its list is in)
+        await page.getByText(/(القرارات|يحتاجك) · [\d٠-٩]+/).first().waitFor({ timeout: 20_000 }).catch(() => {});
         const head = await page.evaluate(() => document.body.innerText);
         // («ملاحقات» is still on each card's chip; the old header's own pills were «دقيقة ·» and «بس N قرارات»)
         // («يحتاجك · N» once one_needs_you is on for this seat, owner, 11 Nov)
@@ -1340,6 +1407,15 @@ const lines = [
   '',
   (failed.length ? `**${failed.length} failed** of ${results.length}` : `**All ${results.length - warned.length} passed** ✅`) +
     (warned.length ? ` · ⚠️ ${warned.length} need the owner's setup` : ''),
+  '',
+  // what this run left out, and why (owner, 11 Nov): core + what changed since the last test release, unless --full
+  full || !since
+    ? 'Full run: every check.'
+    : `Core + changed (${[...changedAreas].join(', ') || 'no area'}) since the last test release · ${skipped.length} other checks left out (run them with --full).`,
+  ...(secondTry.length ? ['', `⚠️ ${secondTry.length} passed only on the second try: ${secondTry.join(' · ')}`] : []),
+  ...(skipped.length
+    ? ['', '<details><summary>Left out this run</summary>', '', ...[...new Set(skipped.map((s) => s.area))].map((a) => `- **${a}**: ${skipped.filter((s) => s.area === a).map((s) => s.name).join(' · ')}`), '', '</details>']
+    : []),
   '',
   '| | Area | Check | Detail |',
   '|---|---|---|---|',
