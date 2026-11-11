@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-11-10
+Last updated: 2026-11-11
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -144,6 +144,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-11 · In testing: Found tasks in full before you decide; one «يحتاجك» with filters and one number; asks you can't give go to your manager; «لما تخلصها» on the task page; Meet reads meetings you attended; no stray spinner on iPhone; faster QA (server: autopilot, connect, daily-summary, intake, intercom-webhook, muntej-chat, onboarding-nudges, public-api, send-followups, sync-sources, team-alerts, team-import, whatsapp · Muntej Test update 1.0.0)
 - 2026-11-10 · In testing: Cancel a task in one tap: ✕ on each task, «تلغيها؟» then «رجّعها» for 6 seconds; ask the giver to cancel («اطلب إلغاءها») (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts, whatsapp · Muntej Test update 1.0.0)
 - 2026-11-10 · Live: One Cancel, split row with X, chat stops inventing cards; Task page buttons (N2) + close or review choice (N3); Nouran's testing N1-N23: task buttons, busy in own words, real thanks, approvals, needs-you tab, WhatsApp replies; Decisions: clean header, already-done, no spinner; DM work to the right person; reminders for invited people; reviewer + consultant agents; Super admin: system dashboard, no notifications; one report per phone with the company name and the same numbers; Tools bring only your work; answer questions on WhatsApp; AI on by default; one need-you count; closed tasks in the chat; iPhone Muntej Test build setup; Task page shows details and «جاوب»; WhatsApp tools drop-down with who/when; clearer tools alert; due-date buttons fixed; own asks never on your list; ideas send again (on for everyone: decision_finish, tools_only_mine, task_answers)
 - 2026-11-10 · In testing: Task page shows details and «جاوب»; WhatsApp tools drop-down with who/when; clearer tools alert; due-date buttons fixed; own asks never on your list; ideas send again (server: admin-login, answer-detail, autopilot, connect, daily-summary, intake, intercom-webhook, invite, muntej-chat, onboarding-nudges, phone-auth, public-api, send-followups, sync-sources, team-alerts, team-import, whatsapp · Muntej Test update 1.0.0)
