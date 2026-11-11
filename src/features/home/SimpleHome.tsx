@@ -196,7 +196,8 @@ export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; 
     };
   });
   const shownNeeds = oneOn ? [...needs.filter((n) => n.key === 'incoming'), ...fromOne] : needs;
-  const waitingCount = oneOn ? ny.count : needs.length;
+  // (no number until the shared list is in: never a partial count)
+  const waitingCount = oneOn ? (ny.loading ? 0 : ny.count) : needs.length;
   const taskIds = needs.filter((n) => n.key.startsWith('r-')).map((n) => n.key.slice(2));
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 
@@ -204,7 +205,7 @@ export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; 
     <View style={{ gap: spacing.md }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <AppText variant="section" style={{ flex: 1 }}>
-          {oneOn && waitingCount > 0 ? tnt('titleN', { n: formatNumber(waitingCount, lang) }) : t('needsYou')}
+          {oneOn && !ny.loading && waitingCount > 0 ? tnt('titleN', { n: formatNumber(waitingCount, lang) }) : t('needsYou')}
         </AppText>
         {/* the way into Incoming (paste a message) is a shortcut now: this block is decisions only */}
       </View>
