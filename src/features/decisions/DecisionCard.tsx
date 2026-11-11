@@ -46,6 +46,8 @@ export function DecisionCard({ card, outcome, raised, candidates, onResolve, can
   const ownerName = card.owner ? shortName(card.owner, lang) : '';
   const showPicker = card.reassign && !outcome && (picking || !card.suggested);
   const others = candidates.filter((p) => p.id !== card.owner?.id);
+  // a request from a message: who it was asked of (offered first)
+  const askedOf = ((card.raw?.details ?? {}) as { asked_of?: string }).asked_of ?? null;
 
   const doneLabel = (() => {
     switch (outcome) {
@@ -234,8 +236,8 @@ export function DecisionCard({ card, outcome, raised, candidates, onResolve, can
       ) : (
         <View style={{ gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <Button size="md" label={t('approve')} onPress={() => onResolve('approved')} style={{ flex: 1, minHeight: 48 }} />
-            <Button size="md" variant="outline" label={t('decline')} onPress={() => onResolve('declined')} style={{ flex: 1, minHeight: 48 }} />
+            <Button size="md" label={card.type === 'task_request' ? t('takeOn') : t('approve')} onPress={() => onResolve('approved')} style={{ flex: 1, minHeight: 48 }} />
+            <Button size="md" variant="outline" label={card.type === 'task_request' ? t('notNow') : t('decline')} onPress={() => onResolve('declined')} style={{ flex: 1, minHeight: 48 }} />
             <Pressable
               onPress={() => setVoiceHint((v) => !v)}
               accessibilityRole="button"
@@ -245,6 +247,39 @@ export function DecisionCard({ card, outcome, raised, candidates, onResolve, can
               <Mic color={colors.primary} size={20} strokeWidth={1.9} />
             </Pressable>
           </View>
+          {/* a request from a message: give it to someone you may assign instead (the asked person first) — reviewer,
+              11 Nov */}
+          {card.type === 'task_request' && others.length > 0 && (
+            picking ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                {[...others]
+                  .sort((a, b) => Number(b.id === askedOf) - Number(a.id === askedOf))
+                  .map((p) => {
+                    const name = shortName(p, lang);
+                    return (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => onResolve('moved', p)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('moveTo', { name })}
+                        style={({ pressed }) => ({ minHeight: sizes.touch, flexDirection: 'row', alignItems: 'center', gap: 6, paddingStart: 4, paddingEnd: spacing.lg, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderBlue, backgroundColor: colors.surface, opacity: pressed ? 0.85 : 1 })}
+                      >
+                        <Avatar name={name} size={30} />
+                        <AppText variant="small" weight="bold">
+                          {name}
+                        </AppText>
+                      </Pressable>
+                    );
+                  })}
+              </View>
+            ) : (
+              <Pressable onPress={() => setPicking(true)} accessibilityRole="button" style={{ minHeight: sizes.touch, alignItems: 'center', justifyContent: 'center' }}>
+                <AppText variant="caption" weight="bold" color="primary">
+                  {t('someoneElse')}
+                </AppText>
+              </Pressable>
+            )
+          )}
           {voiceHint && (
             <AppText variant="caption" color="textMuted" align="center">
               {t('voiceSoon')}

@@ -5,6 +5,7 @@
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ListChecks, Share2, Trash2, UserPlus, X } from 'lucide-react-native';
@@ -214,8 +215,6 @@ export default function TeamScreen() {
     );
   };
 
-  const refreshing = (org.isRefetching || tasks.isRefetching) && !org.isLoading;
-
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
@@ -223,8 +222,7 @@ export default function TeamScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
+          <PullRefreshControl
             onRefresh={() => {
               org.refetch();
               tasks.refetch();

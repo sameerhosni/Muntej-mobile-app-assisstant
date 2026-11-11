@@ -6,6 +6,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { intlTag } from '@/lib/i18n/locale';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router } from 'expo-router';
 import { Banknote, CalendarDays, ChevronRight, CircleCheck, Clock, Hand, Pause, Play, Send, Sparkles, TrendingUp } from 'lucide-react-native';
 import { AppText, Avatar, avatarGradientFor, Card, EmptyCard, Gradient, Hero, IconBadge, LoadingCard, PointsCoin, SampleTag, StatTile } from '@/components/ui';
@@ -165,7 +166,6 @@ export default function BriefScreen() {
   // read aloud for real (Saudi Arabic or English), made on the first tap
   const audio = useSpokenBrief(audioScript, lang);
   const waveOn = audio.playing || audio.pos > 0 ? Math.round(audio.progress * WAVE.length) : WAVE_IDLE_ON;
-  const refreshing = tasks.isRefetching || stats.isRefetching;
   const onRefresh = () => {
     tasks.refetch();
     stats.refetch();
@@ -177,7 +177,7 @@ export default function BriefScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<PullRefreshControl onRefresh={onRefresh} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
         <Hero overlap={24}>

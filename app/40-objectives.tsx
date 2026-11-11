@@ -3,6 +3,7 @@
 // "+ Objective" form (upsert_objective) and "Tell Muntej" (chat). Tap a card → screen 41 (detail).
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AlertTriangle, ChevronLeft, Link2Off, MessageSquare, Plus, Target, UserMinus, X } from 'lucide-react-native';
@@ -64,7 +65,6 @@ export default function ObjectivesScreen() {
   );
 
   const loading = objectives.isLoading || tasks.isLoading;
-  const refreshing = (objectives.isRefetching || tasks.isRefetching) && !loading;
   const total = objectives.data?.length ?? 0;
   const peopleList: Profile[] = peopleOpen === 'overloaded' ? global.overloaded : peopleOpen === 'noObjective' ? global.withoutObjective : [];
   const tellMuntej = () => router.push({ pathname: '/02-capture', params: { mode: 'text' } });
@@ -76,8 +76,7 @@ export default function ObjectivesScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
+          <PullRefreshControl
             onRefresh={() => {
               objectives.refetch();
               tasks.refetch();

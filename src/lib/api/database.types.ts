@@ -2115,6 +2115,7 @@ export type Database = {
         | "reassignment"
         | "priority_question"
         | "approval_request"
+        | "task_request"
       evidence_type: "file" | "image" | "voice" | "link"
       followup_channel: "push" | "in_app" | "whatsapp" | "email"
       followup_status:
@@ -2300,6 +2301,7 @@ export const Constants = {
         "reassignment",
         "priority_question",
         "approval_request",
+        "task_request",
       ],
       evidence_type: ["file", "image", "voice", "link"],
       followup_channel: ["push", "in_app", "whatsapp", "email"],

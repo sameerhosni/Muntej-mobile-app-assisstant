@@ -3,6 +3,7 @@
 import { useMemo, useState, type ComponentType } from 'react';
 import { intlTag } from '@/lib/i18n/locale';
 import { RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
@@ -142,7 +143,7 @@ export default function AutopilotScreen() {
         contentContainerStyle={{ paddingBottom: 32 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        refreshControl={<RefreshControl refreshing={activity.isRefetching} onRefresh={() => activity.refetch()} tintColor={colors.primary} />}
+        refreshControl={<PullRefreshControl onRefresh={() => activity.refetch()} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
         <Hero overlap={30}>

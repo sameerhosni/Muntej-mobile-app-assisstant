@@ -15,7 +15,7 @@ import { prefersArabic } from '../_shared/localize.ts';
 import { titleIn } from '../_shared/task-text.ts';
 import { adminClient } from '../_shared/push.ts';
 import { aiAllowed } from '../_shared/ai-consent.ts';
-import { createFromSuggestion, doneBefore, fillShortTitles, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
+import { assignableIds, createFromSuggestion, doneBefore, fillShortTitles, requestFromManager, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 import {
   ACTION_TEMPLATE,
   CODE_TEMPLATE,
@@ -1182,9 +1182,36 @@ async function handle(m: WaMessage, dry = false) {
   /** a decision, exactly like the Decisions screen (useResolveDecision): optional move, resolve, new date, log */
   async function decide(how: 'ok' | 'no' | 'mv', decisionId: string) {
     const db = userDb(await userToken(admin, me.user_id));
-    const { data: d } = await db.from('decisions').select('*, task:tasks(title, owner_id)').eq('id', decisionId).maybeSingle();
+    // a request from a message is read with the service client and checked against THIS number's seats (the user
+    // session only sees the seat last opened in the app — reviewer, 11 Nov); everything else as before
+    const { data: asReq } = await admin.from('decisions').select('*, task:tasks(title, owner_id)').eq('id', decisionId).eq('type', 'task_request').maybeSingle();
+    const mine = !!asReq && (people ?? []).some((p) => p.id === asReq.manager_id);
+    const { data: d } = mine ? { data: asReq } : await db.from('decisions').select('*, task:tasks(title, owner_id)').eq('id', decisionId).maybeSingle();
     if (!d) return void (await say(ar ? 'ما لقيت هالقرار 🤔' : 'I couldn’t find that decision 🤔'));
     if (d.status !== 'pending') return void (await say(ar ? 'سبق وانحسم هالقرار ✓' : 'That decision is already made ✓'));
+    // an ask someone couldn't give directly (owner, 11 Nov): «أضفها» makes it yours, «تجاهل» tells them no
+    if (d.type === 'task_request') {
+      // as the seat it went to (two company seats, R136); «👤 لـ X» gives it to the person who was asked
+      const det = (d.details ?? {}) as Record<string, string>;
+      const { error } = await admin.rpc('answer_task_request_as', {
+        p_actor: d.manager_id,
+        p_decision: decisionId,
+        p_ok: how !== 'no',
+        p_owner: how === 'mv' ? det.asked_of ?? null : null,
+      });
+      if (error) {
+        console.error('whatsapp task request', error.message);
+        return void (await say(ar ? 'ما قدرت أحفظها الحين 😕 جرّب من منتج ← يحتاجك' : 'I couldn’t save it right now 😕 Try in Muntej → Needs you'));
+      }
+      const ttl = det.title ?? d.title;
+      return void (await say(
+        how === 'no'
+          ? ar ? 'تمام 👍 ما أخذتها، وبلّغت صاحب الطلب' : 'OK 👍 Not taken; whoever asked is told'
+          : how === 'mv'
+            ? ar ? `تم ✅ «${ttl}» راحت للي انطلبت منه، وبلّغت صاحب الطلب` : `Done ✅ "${ttl}" went to the person asked; whoever asked is told`
+            : ar ? `تم ✅ «${ttl}» صارت عندك، وبلّغت صاحب الطلب` : `Done ✅ "${ttl}" is yours now; whoever asked is told`,
+      ));
+    }
     const det = (d.details ?? {}) as Record<string, unknown>;
     const task = d.task as { title: string; owner_id: string | null } | null;
     const outcome = how === 'no' ? 'declined' : 'approved';
@@ -1486,6 +1513,19 @@ async function handle(m: WaMessage, dry = false) {
     await approveFound(item, s, seat, itemId, idx);
   }
   async function approveFound(item: Item, s: Item['suggestions'][number], seat: string, itemId: string, idx: number) {
+    // someone this seat may not give work to (above them, another team): their manager gets it as a request
+    if (s.owner_id && s.owner_id !== seat) {
+      const allowed = await assignableIds(admin, seat);
+      const asksOn = (await admin.rpc('feature_on_for', { p_key: 'ask_up_requests', p_profile: seat })).data === true;
+      if (asksOn && !allowed.includes(s.owner_id) && (await requestFromManager(admin, seat, item, s, idx).catch(() => false))) {
+        await saveItem(admin, item);
+        const { data: mgr } = await admin.from('profiles').select('full_name, full_name_ar').eq('id', s.request_to ?? '').maybeSingle();
+        const name = mgr ? personName(mgr as { full_name: string; full_name_ar: string | null }).split(' ')[0] : ar ? 'مديرك' : 'your manager';
+        return void (await say(
+          ar ? `«${s.title}» ما تقدر تعطيها لهم مباشرة، فأرسلتها لـ${name} يقرر 📨 وأقول لك وش قال.` : `You can’t give "${s.title}" to them directly, so I sent it to ${name} to decide 📨 I’ll tell you the answer.`,
+        ));
+      }
+    }
     try {
       s.task_id = await createFromSuggestion(admin, seat, item, s, creator(seat));
     } catch (e) {
@@ -1507,8 +1547,7 @@ async function handle(m: WaMessage, dry = false) {
   /** who this seat may give work to, by the app's own rule (assignable_for = can_assign_to; reviewer, 11 Nov: never the
    *  whole company), invited people too, the seat itself left out */
   async function teamOf(seat: string) {
-    const { data: ids } = await admin.rpc('assignable_for', { p_actor: seat });
-    const allowed = ((ids ?? []) as unknown[]).map((x) => (typeof x === 'string' ? x : (x as Record<string, string>).assignable_for)).filter((x) => !!x && x !== seat);
+    const allowed = (await assignableIds(admin, seat)).filter((x) => x !== seat);
     if (!allowed.length) return [];
     const { data } = await admin.from('profiles').select('id, full_name, full_name_ar, title').in('id', allowed).order('full_name');
     return (data ?? []) as { id: string; full_name: string; full_name_ar: string | null; title: string | null }[];

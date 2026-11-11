@@ -40,6 +40,7 @@ import { TASK_POINTS } from '@/features/tasks/useCompleteTask';
 import { SHOW_REWARDS } from '@/features/rewards/visibility';
 import { NS } from '@/features/task-detail/strings';
 import { DetailAnswer, useAnswersOn, type What as AnswerWhat } from '@/features/task-detail/DetailAnswer';
+import { WhenFinished } from '@/features/task-detail/WhenFinished';
 
 type CheckKey = 'owner' | 'due' | 'doneDef' | 'budget';
 type SubVM = { id: string; name: string; who: string; done: boolean };
@@ -321,6 +322,8 @@ export default function TaskDetailScreen() {
           </View>
           {/* who it's from → who it's for; "to" changes who does it (owner, 8 Nov, option A) */}
           {live && d && <FromToRow task={d} me={me.data} team={team.data ?? []} />}
+          {/* when it's finished: I review it / closes by itself (Nouran, 11 Nov) */}
+          {live && d && <WhenFinished task={d} me={me.data ?? undefined} team={team.data ?? []} />}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             <MetaChip
               bg="purpleTint"

@@ -111,7 +111,14 @@ Rules:
 
 export type Suggestion = FoundTask & {
   duplicate_of: { id: string; title: string } | null;
-  state: 'new' | 'accepted' | 'ignored' | 'filtered';
+  /** requested: sent to the user's manager as a request (an ask they may not give that person, owner 11 Nov) */
+  state: 'new' | 'accepted' | 'ignored' | 'filtered' | 'requested';
+  /** the request (decision task_request) and who decides */
+  request_id?: string;
+  request_to?: string;
+  /** how the request ended (found_request_settled) and who decided */
+  request_answer?: 'taken' | 'declined' | 'withdrawn' | null;
+  answered_by?: string | null;
   /** why Saree3's own check dropped it (state 'filtered'), see review.ts */
   filtered_reason?: string;
   filtered_note?: string;
@@ -244,7 +251,8 @@ async function extract(text: string, context: { source?: string } & Record<strin
 
 export async function saveItem(admin: SupabaseClient, item: Item) {
   const open = item.suggestions.some((s) => s.state === 'new');
-  const anyAccepted = item.suggestions.some((s) => s.state === 'accepted');
+  // (sent to the manager as a request counts as handled here: it's theirs to decide now)
+  const anyAccepted = item.suggestions.some((s) => s.state === 'accepted' || s.state === 'requested');
   const status = open ? 'new' : anyAccepted ? 'done' : 'ignored';
   const { data, error } = await admin
     .from('incoming_items')
@@ -325,6 +333,55 @@ export async function fillShortTitles(admin: SupabaseClient, profileId: string, 
     await admin.from('incoming_items').update({ suggestions: cur }).eq('id', it.id);
   }
   return touched.size;
+}
+
+/** who this seat may give work to (assignable_for), one reader for every caller: the RPC may return plain ids or rows */
+export async function assignableIds(admin: SupabaseClient, seat: string): Promise<string[]> {
+  const { data, error } = await admin.rpc('assignable_for', { p_actor: seat });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown[]).map((x) => (typeof x === 'string' ? x : (x as Record<string, string>).assignable_for)).filter(Boolean);
+}
+
+/** An ask the user can't give to that person: it goes to the user's manager as a request (decision task_request) and
+ *  leaves the user's list as «أرسلتها لـX يقرر» (owner, 11 Nov, option A). False when there's no manager to ask. */
+export async function requestFromManager(admin: SupabaseClient, profileId: string, item: Item, s: Suggestion, index: number) {
+  const { data: me } = await admin.from('profiles').select('full_name, full_name_ar, manager_id').eq('id', profileId).maybeSingle();
+  if (!me?.manager_id) return false;
+  const { data: target } = s.owner_id ? await admin.from('profiles').select('full_name, full_name_ar').eq('id', s.owner_id).maybeSingle() : { data: null };
+  const first = (me.full_name as string).split(' ')[0];
+  const firstAr = ((me.full_name_ar as string | null) ?? (me.full_name as string)).split(' ')[0];
+  const { data: d, error } = await admin
+    .from('decisions')
+    .insert({
+      manager_id: me.manager_id,
+      requested_by: profileId,
+      type: 'task_request',
+      status: 'pending',
+      title: `Request from ${first}: ${s.title}`.slice(0, 200),
+      // neutral words (most of the team are men; profiles have no gender — reviewer, 11 Nov)
+      title_ar: `طلب من ${firstAr}: ${s.title}`.slice(0, 200),
+      // (no «💡 my suggestion» line: her own words come instead, as the reason)
+      recommendation: null,
+      recommendation_ar: null,
+      recommendation_reason: target ? `Asked of ${(target.full_name as string).split(' ')[0]}` : null,
+      details: { item_id: item.id, index, title: s.title, quote: s.quote, description: s.description ?? null, source: item.source, asked_of: s.owner_id, reason: s.quote },
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  s.state = 'requested' as Suggestion['state'];
+  s.request_id = d.id as string;
+  s.request_to = me.manager_id as string;
+  await admin.from('activity_log').insert({
+    actor_type: 'muntej',
+    actor_id: null,
+    subject_id: profileId,
+    action: 'task_request_sent',
+    summary: `"${s.title}" can't go to them directly: sent to your manager to decide`,
+    summary_ar: `«${s.title}» ما ينفع توصل لهم مباشرة: أرسلتها لمديرك يقرر`,
+    undoable: false,
+  });
+  return true;
 }
 
 /** «خلصتها قبل» on a found task (owner, 11 Nov): it becomes a task that is already done, so the record says who did it
@@ -823,8 +880,16 @@ export async function ingestMessage(admin: SupabaseClient, input: IngestInput): 
   const autoOn = (ap?.rules as Record<string, boolean> | undefined)?.incoming_auto !== false;
   const goes = (s: Suggestion) => (handoff(s) || (!input.confirmFirst && sure(s))) && autoOn;
   if (item.suggestions.some(goes)) {
-    for (const s of item.suggestions) {
+    // an ask the user may not give that person (above them, or another team not at their level — owner, 11 Nov) goes to
+    // their manager as a request; the manager decides (never fails quietly onto the user's own list)
+    const allowed = new Set(await assignableIds(admin, input.profileId));
+    const asksOn = (await admin.rpc('feature_on_for', { p_key: 'ask_up_requests', p_profile: input.profileId })).data === true;
+    for (const [idx, s] of item.suggestions.entries()) {
       if (!goes(s)) continue;
+      if (asksOn && handoff(s) && s.owner_id && !allowed.has(s.owner_id)) {
+        await requestFromManager(admin, input.profileId, item, s, idx).catch((e) => console.warn('request failed', (e as Error).message));
+        continue;
+      }
       try {
         s.task_id = await createFromSuggestion(admin, input.profileId, item, s, input.create);
         s.state = 'accepted';

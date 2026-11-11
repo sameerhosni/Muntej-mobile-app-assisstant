@@ -110,7 +110,7 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
   const [{ data: decisions }, { data: reviewRows }, { data: items }, { data: mine }] = await Promise.all([
     admin
       .from('decisions')
-      .select('id, task_id, requested_by, title, title_ar, recommendation, recommendation_ar, details, task:tasks(title, owner_id)')
+      .select('id, type, task_id, requested_by, title, title_ar, recommendation, recommendation_ar, details, task:tasks(title, owner_id)')
       .eq('manager_id', meId)
       .eq('status', 'pending')
       .order('created_at')
@@ -133,12 +133,18 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
     if (d.requested_by) ids.add(d.requested_by as string);
     const s = (d.details as Record<string, unknown> | null)?.suggested_owner_id;
     if (typeof s === 'string') ids.add(s);
+    const asked = (d.details as Record<string, unknown> | null)?.asked_of;
+    if (typeof asked === 'string') ids.add(asked);
   }
   for (const t of submitted ?? []) if (t.owner_id) ids.add(t.owner_id as string);
   const { data: ppl } = ids.size ? await admin.from('profiles').select('id, full_name, full_name_ar').in('id', [...ids]) : { data: [] };
   const person = new Map(((ppl ?? []) as P[]).map((p) => [p.id, p]));
 
   const cards: WaCard[] = [];
+  // a request someone couldn't give directly: «👤 لـ X» gives it to the person they asked, when you may (assign rule)
+  const mayGive = (decisions ?? []).some((d) => (d as { type?: string }).type === 'task_request')
+    ? new Set((((await admin.rpc('assignable_for', { p_actor: meId })).data ?? []) as unknown[]).map((x) => (typeof x === 'string' ? x : (x as Record<string, string>).assignable_for)))
+    : new Set<string>();
   for (const d of decisions ?? []) {
     const det = (d.details ?? {}) as Record<string, unknown>;
     const sug = typeof det.suggested_owner_id === 'string' ? person.get(det.suggested_owner_id) : undefined;
@@ -155,11 +161,21 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
           ...(rec ? [`💡 ${ar ? 'اقتراحي' : 'My suggestion'}: ${rec}`] : []),
         ].join('\n'),
       ),
-      buttons: [
-        { id: `d:ok:${d.id}`, title: ar ? '✅ موافق' : '✅ Approve' },
-        { id: `d:no:${d.id}`, title: ar ? '✖️ لا' : '✖️ Decline' },
-        ...(sug && d.task_id ? [{ id: `d:mv:${d.id}`, title: `👤 ${ar ? 'لـ' : 'To'} ${first(sug, ar)}` }] : []),
-      ],
+      // an ask someone couldn't give directly: add it to you, or not (owner, 11 Nov)
+      buttons:
+        (d as { type?: string }).type === 'task_request'
+          ? [
+              { id: `d:ok:${d.id}`, title: ar ? '✅ أضفها لي' : '✅ Take it on' },
+              ...(typeof det.asked_of === 'string' && det.asked_of !== meId && mayGive.has(det.asked_of) && person.get(det.asked_of)
+                ? [{ id: `d:mv:${d.id}`, title: clip(`👤 ${ar ? 'لـ' : 'To'} ${first(person.get(det.asked_of), ar)}`, 20) }]
+                : []),
+              { id: `d:no:${d.id}`, title: ar ? '✖️ تجاهل' : '✖️ Not now' },
+            ]
+          : [
+              { id: `d:ok:${d.id}`, title: ar ? '✅ موافق' : '✅ Approve' },
+              { id: `d:no:${d.id}`, title: ar ? '✖️ لا' : '✖️ Decline' },
+              ...(sug && d.task_id ? [{ id: `d:mv:${d.id}`, title: `👤 ${ar ? 'لـ' : 'To'} ${first(sug, ar)}` }] : []),
+            ],
     });
   }
   for (const t of submitted ?? [])

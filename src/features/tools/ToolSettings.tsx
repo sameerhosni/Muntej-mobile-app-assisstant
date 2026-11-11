@@ -7,6 +7,7 @@ import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
 import { useConnectionActions, useConnections, type Connection, type ProviderId, type Target } from '@/features/sources/connections';
 import { CONN_NS } from '@/features/sources/connStrings';
+import { useFeatureOn } from '@/lib/useFeatureOn';
 
 export const GOOGLE_PARTS = ['gmail', 'calendar', 'meet', 'chat'] as const;
 export type GooglePart = (typeof GOOGLE_PARTS)[number];
@@ -223,8 +224,8 @@ export function GoogleParts({ onNote, part: only }: { onNote: (n: { tone: 'green
             // Google refused to switch on automatic transcripts (usually a plan without transcripts)
             const txRefused = part === 'meet' && allowed && c.features?.meet !== false && !!c.cursor?.tx_error;
             return (
+              <View key={part} style={{ gap: 4 }}>
               <View
-                key={part}
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -255,10 +256,37 @@ export function GoogleParts({ onNote, part: only }: { onNote: (n: { tone: 'green
                   <Button label={t('meetAllow')} size="md" onPress={() => actions.connect('google').catch(() => {})} />
                 )}
               </View>
+              {part === 'meet' && allowed && c.features?.meet !== false && <MeetWhy c={c} onAllow={() => actions.connect('google').catch(() => {})} />}
+              </View>
             );
           })}
         </View>
       ))}
+    </View>
+  );
+}
+
+/** why a Meet read brought nothing (Nouran, 11 Nov: "none of our meetings are showing any tasks… zero"): what the last
+ *  read saw — meetings, how many had no transcript — and, without it, the one tap to read meetings you only attended */
+function MeetWhy({ c, onAllow }: { c: Connection; onAllow: () => void }) {
+  const { t } = useScreenT(CONN_NS);
+  const cur = (c.cursor ?? {}) as { meet_seen?: { chars: number }[]; drive_ok?: boolean };
+  const seen = cur.meet_seen ?? [];
+  const empty = seen.filter((m) => (m.chars ?? 0) < 15).length;
+  // reading meetings you only attended: testers first (feature meet_attended)
+  const attendedOn = useFeatureOn('meet_attended');
+  return (
+    <View style={{ gap: 4, paddingBottom: spacing.xs }}>
+      <AppText variant="caption" color="textSoft">
+        {seen.length === 0 ? t('meetSeenNone') : empty > 0 ? t('meetSeenEmpty', { n: seen.length, empty }) : t('meetSeenOk', { n: seen.length })}
+      </AppText>
+      {attendedOn && cur.drive_ok !== true && (
+        <Pressable onPress={onAllow} accessibilityRole="button" style={{ minHeight: sizes.touch, justifyContent: 'center' }}>
+          <AppText variant="small" weight="bold" color="primary">
+            {t('meetAttendedAllow')}
+          </AppText>
+        </Pressable>
+      )}
     </View>
   );
 }

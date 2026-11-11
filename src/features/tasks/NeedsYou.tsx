@@ -37,6 +37,9 @@ const NS = registerStrings('needsYouTab', {
     keepIt: '✕ No, they keep it',
     openReply: '💬 Open and reply',
     cancel: '✕ Asks you to cancel it',
+    askup: '📨 A request for you',
+    takeOn: '✓ Take it on',
+    notNow: 'Not now',
     cancelIt: '✕ Cancel it',
     keepTask: '👍 Keep it',
     done: 'Done ✓',
@@ -61,6 +64,9 @@ const NS = registerStrings('needsYouTab', {
     keepIt: '✕ لا، يكمّل',
     openReply: '💬 افتحها وردّ',
     cancel: '✕ يطلب تلغيها',
+    askup: '📨 طلب لك',
+    takeOn: '✓ أضفها لي',
+    notNow: 'تجاهل',
     cancelIt: '✕ ألغها',
     keepTask: '👍 خلّها',
     done: 'تم ✓',
@@ -74,7 +80,7 @@ type AskAlert = { id: string; kind: 'detail_asked' | 'task_comment' | 'cancel_as
 
 export type NeedRow = {
   key: string;
-  kind: 'review' | 'ask' | 'comment' | 'time' | 'busy' | 'approval' | 'decision' | 'cancel';
+  kind: 'review' | 'ask' | 'comment' | 'time' | 'busy' | 'approval' | 'decision' | 'cancel' | 'askup';
   title: string;
   sub: string;
   taskId: string | null;
@@ -91,6 +97,7 @@ const TONE: Record<NeedRow['kind'], { bg: ColorToken; fg: ColorToken }> = {
   approval: { bg: 'greenTint', fg: 'greenText' },
   decision: { bg: 'purpleTint', fg: 'purple' },
   cancel: { bg: 'redTint', fg: 'red' },
+  askup: { bg: 'primaryTint', fg: 'primary' },
 };
 
 /** Everything waiting on the signed-in person (also gives the tab its count). */
@@ -146,7 +153,7 @@ export function useNeedsYou() {
     ...reviews,
     ...(decisions.data ?? []).map((d) => {
       const kind: NeedRow['kind'] =
-        d.type === 'extension_request' ? 'time' : d.type === 'priority_question' ? 'busy' : d.type === 'approval_request' ? 'approval' : 'decision';
+        d.type === 'extension_request' ? 'time' : d.type === 'priority_question' ? 'busy' : d.type === 'approval_request' ? 'approval' : (d.type as string) === 'task_request' ? 'askup' : 'decision';
       const words = (ar && d.recommendation_ar) || d.recommendation || d.recommendation_reason || '';
       return {
         key: `d-${d.id}`,
@@ -299,8 +306,8 @@ export function NeedsYouList({ only, noDecisions = false }: { only?: NeedGroup; 
                 ]
               : r.decision
               ? [
-                  { label: r.kind === 'busy' ? t('takeBack') : t('yes'), primary: true, onPress: () => decide(r, 'approved') },
-                  { label: r.kind === 'busy' ? t('keepIt') : t('no'), onPress: () => decide(r, 'declined') },
+                  { label: r.kind === 'busy' ? t('takeBack') : r.kind === 'askup' ? t('takeOn') : t('yes'), primary: true, onPress: () => decide(r, 'approved') },
+                  { label: r.kind === 'busy' ? t('keepIt') : r.kind === 'askup' ? t('notNow') : t('no'), onPress: () => decide(r, 'declined') },
                 ]
               : [{ label: t('openReply'), primary: true, onPress: () => open(r) }];
         return (

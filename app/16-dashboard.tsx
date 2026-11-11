@@ -5,6 +5,7 @@
 // "Show me an example" on an empty workspace, marked with SampleTag. While loading: spinner. Insight = template over the numbers.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router } from 'expo-router';
 import { Banknote, ChevronLeft, Clock, Eye, Flame, Hand, Heart, Sparkles, SquareCheck, Star } from 'lucide-react-native';
 import { AppText, Card, EmptyCard, Gradient, Hero, IconBadge, IconButton, LoadingCard, PointsCoin, SampleTag } from '@/components/ui';
@@ -85,15 +86,13 @@ export default function DashboardScreen() {
   // real data always wins: the example only on an empty workspace, after the tap
   const showDemo = sample && noTasks;
   const eng = showDemo ? ENGAGEMENT_DEMO[p] : { pts: 0, kudos: 0, streaks: 0 };
-  const refreshing = tasks.isRefetching || reviews.isRefetching || activity.isRefetching;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
+          <PullRefreshControl
             onRefresh={() => { tasks.refetch(); reviews.refetch(); activity.refetch(); }}
             tintColor={colors.primary}
           />

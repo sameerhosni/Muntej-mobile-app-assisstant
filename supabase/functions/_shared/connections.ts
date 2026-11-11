@@ -250,7 +250,9 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
 
     // ── 1. in: tool → Muntej ──
     if (conn.import_on !== false) {
-      const { items, cursor } = await provider.fetchNew(tokens, cur, (conn.features ?? {}) as Record<string, boolean>);
+      // meetings you only attended: testers first, decided here for the connection's owner (R69)
+      const attended = (await admin.rpc('feature_on_for', { p_key: 'meet_attended', p_profile: conn.profile_id })).data === true;
+      const { items, cursor } = await provider.fetchNew(tokens, cur, { ...((conn.features ?? {}) as Record<string, boolean>), meet_attended: attended });
       // items already linked: their title / due date changes come over
       for (const it of items) {
         const l = linkByExt.get(it.externalId);

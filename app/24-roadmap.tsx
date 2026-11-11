@@ -7,6 +7,7 @@
 // sample projects (incl. "Qiwa integration", marked "Sample"); Apply there is local state only.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View, type ViewStyle } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CalendarDays, Check, ChevronLeft, Flag, PieChart, Sparkles, TrendingUp, UserRoundCog } from 'lucide-react-native';
@@ -160,7 +161,7 @@ export default function RoadmapScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 32 }}
-        refreshControl={<RefreshControl refreshing={tasks.isRefetching} onRefresh={() => tasks.refetch()} tintColor={colors.primary} />}
+        refreshControl={<PullRefreshControl onRefresh={() => tasks.refetch()} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
         <Hero overlap={26}>

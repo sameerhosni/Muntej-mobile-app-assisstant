@@ -5,6 +5,7 @@
 // (nudge_waiting) for live items.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronLeft, Clock, Hand, Lock, Mic, Send } from 'lucide-react-native';
@@ -92,8 +93,7 @@ export default function ReverseFollowupScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 56 + 30 + Math.max(insets.bottom, spacing.lg) + spacing.xxl }}
         refreshControl={
-          <RefreshControl
-            refreshing={tasks.isRefetching || decisions.isRefetching}
+          <PullRefreshControl
             onRefresh={() => {
               tasks.refetch();
               decisions.refetch();

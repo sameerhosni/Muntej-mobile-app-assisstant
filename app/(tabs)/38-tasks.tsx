@@ -7,6 +7,7 @@
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronRight, SlidersHorizontal, X } from 'lucide-react-native';
@@ -311,7 +312,7 @@ export default function TasksScreen() {
         contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingTop: 20, paddingBottom: 32 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => query.refetch()} tintColor={accent} />}
+        refreshControl={<PullRefreshControl onRefresh={() => query.refetch()} tintColor={accent} />}
         showsVerticalScrollIndicator={false}
       />
 

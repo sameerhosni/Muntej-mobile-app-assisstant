@@ -4,6 +4,7 @@
 // Without ?id= (prototype hub) it opens the most urgent visible objective.
 import { useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -163,8 +164,7 @@ function ObjectiveDetail({ id, waiting }: { id: string | undefined; waiting: boo
         contentContainerStyle={{ paddingHorizontal: spacing.screen, paddingTop: 20, paddingBottom: 48, gap: spacing.lg }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={(objective.isRefetching || tasks.isRefetching) && !isLoading}
+          <PullRefreshControl
             onRefresh={() => {
               objective.refetch();
               tasks.refetch();

@@ -5,6 +5,7 @@
 // Tap a workspace → /21-achievements?workspace=<id> (prototype tip t19).
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router } from 'expo-router';
 import { AlertTriangle, Banknote, Check, ChevronLeft, Clock, Hand, ListChecks, Plus, RotateCw, Sparkles, Users } from 'lucide-react-native';
 import {
@@ -81,7 +82,6 @@ export default function WorkspacesScreen() {
   const tip = useMemo(() => suggestion(cards, tasks.data ?? [], team.data ?? []), [cards, tasks.data, team.data]);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
-  const refreshing = workspaces.isRefetching || tasks.isRefetching || activity.isRefetching;
   const loading = workspaces.isLoading || tasks.isLoading;
   /** hero numbers stay blank until the activity log is in */
   const heroValue = (v: string) => (activity.isLoading ? '–' : v);
@@ -91,8 +91,7 @@ export default function WorkspacesScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: BOTTOM_CTA_SPACE + 12 }}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
+          <PullRefreshControl
             onRefresh={() => { workspaces.refetch(); tasks.refetch(); activity.refetch(); }}
             tintColor={colors.primary}
           />

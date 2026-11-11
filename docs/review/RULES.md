@@ -604,3 +604,24 @@ Last updated: 2026-11-09.
 ### R140 · A check that finds code by a text pattern also matches the code's other valid forms
 - **Why:** 11 Nov, reviewer: the Hindi extractor looked for the text «registerStrings(», so a generic call «registerStrings<T>(…)» hid the whole «يحتاجك» screen from Hindi while the check said «0 need Hindi».
 - **Check:** QA and build checks that search code match the other forms too (a generic fn<T>(, an alias). An extractor that reads nothing from a strings file that changed fails, never reports «0 missing».
+
+### R141 · No pull-to-refresh spinner unless the person pulled
+- **Why:** 11 Nov, Nouran (iOS): the Alerts screen showed the spinner and sat pushed down after every switch and each return to the app, because `refreshing` followed the query's isRefetching.
+- **Check:** every RefreshControl uses PullRefreshControl / usePullRefresh (or a pull flag). A QA code check fails on any `refreshing={…isRefetching}` without one.
+
+### R142 · An ask you can't give to that person goes to your manager as a request, never a stuck task
+- **Why:** 11 Nov, owner: Nouran asked her manager in a chat; Muntej made it his task, the assign rule refused it quietly, and it sat on her list with a raw two-language error. «No one can send tasks to someone above them or in another team not at their level.»
+- **Check:** before a hand-off (by itself, «أضف» in the app, «✅ لـ X» on WhatsApp) the assign rule is checked (assignable_for). If it says no, a task_request goes to the asker's manager. Her list says «أرسلتها لـX يقرر» and she can take it back. The manager's «يحتاجك» shows it with «أضفها لي / تجاهل», she's told the answer, and told again when it's done. The raw rule text never shows.
+
+### R143 · What happens when a task is finished is the giver's to change
+- **Why:** 11 Nov, Nouran: «لما تخلصها» showed only in the chat; on the task page the doer could have flipped it to «تنقفل لحالها» and skipped the review.
+- **Check:** the task page shows it to everyone in words that say what will really happen. Only the giver side can switch it (a trigger refuses the doer), never once it's sent or closed, and each change is logged.
+
+
+### R144 · A request leaves the asker's list in the decider's words, with no undo for what someone else made
+- **Why:** 11 Nov, reviewer: after the manager answered, Nouran's list said «تجاهلتها» or «انضافت ✓ · رجّعها», as if she had done it, and the undo could only fail.
+- **Check:** the found task and Home's «طلباتك» show who decided and what: «سمير أضافها ✓», «ما أخذها», «سحبت الطلب». Undo is offered only for her own ignore, her own withdraw, or her own add.
+
+### R145 · Moving an action to a seat-aware *_as function moves the reads before it too
+- **Why:** 11 Nov, reviewer: WhatsApp answered a request through answer_task_request_as, but first read the decision with the user session, which only sees the seat last opened in the app. A request on the other seat said «ما لقيت هالقرار».
+- **Check:** in WhatsApp, rows for a seat-aware action are read with the service client and checked against the number's own seats before acting. A QA step runs it with the login last opened in the other company.

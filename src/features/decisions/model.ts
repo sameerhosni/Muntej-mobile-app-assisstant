@@ -150,8 +150,12 @@ export function liveCard(
     if (free !== null && suggested) chips.push({ label: t('freeHours', { h: formatNumber(free, lang) }), tone: 'green', avatar: shortName(suggested, lang) });
     const left = jsonNum(d.details, 'days_left');
     if (left !== null) chips.push({ label: t('daysLeft', { n: formatNumber(left, lang) }), tone: 'neutral' });
+  } else if (d.type === 'task_request') {
+    // an ask they couldn't give directly (owner, 11 Nov): their own words, so you decide without opening anything
+    const quote = jsonStr(d.details, 'quote');
+    if (quote) chips.push({ label: `«${quote.slice(0, 140)}»`, tone: 'neutral', icon: 'inbox' });
   }
-  chips.push(saves);
+  if (d.type !== 'task_request') chips.push(saves);
 
   const rec = (lang === 'ar' ? d.recommendation_ar ?? d.recommendation : d.recommendation) ?? '';
   const sep = rec.search(/[:：]/);
@@ -161,6 +165,7 @@ export function liveCard(
     recWhy = rec || null;
     recAction = t('moveTo', { name: shortName(suggested, lang) });
   }
+  if (d.type === 'task_request') recAction = t('takeOn');
   if (!recAction) recAction = t('approve');
 
   return {

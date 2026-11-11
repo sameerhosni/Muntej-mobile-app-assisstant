@@ -8,6 +8,7 @@
 // Prototype tip t21: switch to By person and tap the dots.
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, RefreshControl, ScrollView, Share, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Banknote, Check, ChevronLeft, ChevronRight, Clock, Hand, Sparkles, Trophy, Upload, User } from 'lucide-react-native';
@@ -94,8 +95,7 @@ export default function AchievementsScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: BOTTOM_CTA_SPACE + 12 }}
         refreshControl={
-          <RefreshControl
-            refreshing={achievements.isRefetching || workspaces.isRefetching}
+          <PullRefreshControl
             onRefresh={() => { achievements.refetch(); workspaces.refetch(); team.refetch(); }}
             tintColor={colors.primary}
           />

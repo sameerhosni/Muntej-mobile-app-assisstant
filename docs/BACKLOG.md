@@ -36,6 +36,18 @@ Last updated: 2026-11-10
 | N23 | ✅ (built 9 Nov) Tasks from tools say who sent them («من: X · إيميل»), not «لسه ما أحد» |
 | N21 | ✅ (built 9 Nov) WhatsApp (manager's side, Nouran's screenshot 9 Nov): the review requests all arrived at once; the last one («يسأل Nouranemira عن الموعد / عن تعريف الإنجاز») needs an answer but doesn't say how to send it |
 
+## 0b. Owner and Nouran, 10–11 Nov (in testing, testers first)
+| # | Item |
+|---|---|
+| O1 | 🧪 Cancel a task in one tap: ✕ on each row, «تلغيها؟» then 6 s «رجّعها», «اطلب إلغاءها» (quick_cancel) |
+| O2 | 🧪 A found task in full before you decide (WhatsApp card + «⋯ خيارات», Your tools «خلصتها قبل», date, undo) (found_task_choices) |
+| O3 | 🧪 One «يحتاجك»: everything waiting on you in one tab with filters, one number everywhere (one_needs_you) |
+| O4 | 🧪 An ask you can't give (above you, another team) goes to your manager as a request (ask_up_requests) |
+| O5 | 🧪 «لما تخلصها» on the task page, the giver's switch (when_finished); the doer can no longer change it (live) |
+| O6 | 🧪 Meet: read meetings you only attended (needs a fresh Google sign-in, Google Drive API enabled) + why-zero line (meet_attended) |
+| O7 | 🧪 No pull-to-refresh spinner unless you pulled (iOS Alerts, every screen) |
+| O8 | ⏳ «❓ اسأل المرسل» from a found task (consultant item 8, 11 Nov) — not built yet |
+
 ## 1. Needs the owner (accounts, keys, settings outside the app)
 
 | # | Item | What's left | Code status |

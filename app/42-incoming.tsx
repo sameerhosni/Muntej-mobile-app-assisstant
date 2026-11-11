@@ -6,6 +6,7 @@
 import { SetupBar } from '@/features/onboarding/SetupBar';
 import { useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronDown, ChevronLeft, ChevronRight, ClipboardPaste, Plus } from 'lucide-react-native';
@@ -132,8 +133,7 @@ export default function IncomingScreen() {
       <ScrollView
         contentContainerStyle={{ padding: spacing.screen, paddingTop: 20, gap: spacing.lg, paddingBottom: 40 }}
         refreshControl={
-          <RefreshControl
-            refreshing={incoming.isRefetching}
+          <PullRefreshControl
             onRefresh={() => {
               incoming.refetch();
               conns.refetch();

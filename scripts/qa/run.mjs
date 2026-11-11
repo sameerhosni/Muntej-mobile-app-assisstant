@@ -185,6 +185,23 @@ async function code() {
     expect(r.code === 0, `${r.out.slice(0, 500)} Run: npm run i18n:hi`);
     return r.out.split('\n')[0];
   });
+  // Nouran, 11 Nov (iOS): the Alerts screen kept a spinner on top and sat pushed down after every save and each return
+  // to the app — `refreshing` followed the query, not a pull. R141: no spinner unless you pulled
+  await check('code', 'No pull-to-refresh spinner unless you pulled', async () => {
+    const files = [...readdirSync(join(ROOT, 'app'), { recursive: true }), ...readdirSync(join(ROOT, 'src'), { recursive: true }).map((f) => join('..', 'src', String(f)))]
+      .map(String)
+      .filter((f) => f.endsWith('.tsx'));
+    // (a pull flag in it is fine: «pulled && q.isRefetching»); comments are not code; a name set from isRefetching and
+    // then used as `refreshing={name}` counts too (reviewer, 11 Nov, R140)
+    const bad = files.filter((f) => {
+      const code = readFileSync(join(ROOT, 'app', f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+      if (/refreshing=\{(?![^}]*pull)[^}]*(isRefetching|isFetching)/.test(code)) return true;
+      const names = [...code.matchAll(/const\s+(\w+)\s*=\s*[^;\n]*\b(isRefetching|isFetching)\b/g)].map((m) => m[1]);
+      return names.some((n) => new RegExp(`refreshing=\\{\\s*${n}\\s*\\}`).test(code));
+    });
+    expect(!bad.length, `refreshing follows the query in: ${bad.join(', ')}`);
+    return `${files.length} screens checked`;
+  });
   await check('code', 'Edge functions type-check (deno)', async () => {
     const fns = readdirSync(join(ROOT, 'supabase', 'functions')).filter((d) => existsSync(join(ROOT, 'supabase', 'functions', d, 'index.ts')));
     const r = run('npx', ['-y', 'deno', 'check', '--node-modules-dir=none', ...fns.map((f) => `${f}/index.ts`)], { cwd: join(ROOT, 'supabase', 'functions'), timeout: 900_000 });
@@ -845,9 +862,12 @@ async function screens() {
       try {
         await page.goto('http://localhost:8099/38-tasks', { waitUntil: 'domcontentloaded', timeout: 120_000 });
         // a manager with one «يحتاجك» (owner, 11 Nov): Tasks has one line «N تحتاجك» that opens the «يحتاجك» tab
-        const line = page.getByText(/تحتاجك$/).first();
-        if (await line.isVisible({ timeout: 8_000 }).catch(() => false)) await line.click();
-        await page.getByText('QA needs you review').first().waitFor({ timeout: 30_000 });
+        const line = page.getByText(/[\d٠-٩]+ (أشياء|شي) (تحتاجك|يحتاجك)|شي واحد يحتاجك|شيئين يحتاجونك/).first();
+        await page.waitForTimeout(4000);
+        if (await line.isVisible().catch(() => false)) await line.click();
+        await page.getByText('QA needs you review').first().waitFor({ timeout: 30_000 }).catch(async (e) => {
+          throw new Error(`${e.message.split('\n')[0]} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
+        });
         const text = await page.evaluate(() => document.body.innerText);
         expect(/يحتاجك/.test(text) && /تنتظر اعتمادك/.test(text), 'no «يحتاجك» with the review waiting');
         return 'review waiting, on its row';
@@ -1201,8 +1221,11 @@ async function screens() {
         await page.screenshot({ path: join(OUT, 'flow_needs_you.png') });
         // the Tasks line says the same
         await page.goto('http://localhost:8099/38-tasks', { waitUntil: 'domcontentloaded' });
-        const line = page.getByText(/(تحتاجك|يحتاجك|يحتاجونك)$/).first();
-        await line.waitFor({ timeout: 20_000 });
+        const line = page.getByText(/[\d٠-٩]+ (أشياء|شي) (تحتاجك|يحتاجك)|شي واحد يحتاجك|شيئين يحتاجونك/).first();
+        await line.waitFor({ timeout: 20_000 }).catch(async (e) => {
+          await page.screenshot({ path: join(OUT, 'flow_needs_tasks_failed.png'), fullPage: true });
+          throw new Error(`${e.message.split('\n')[0]} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
+        });
         expect(toN(await line.innerText()) === n, `Tasks says «${await line.innerText()}», the tab says ${n}`);
         // Home's card too
         await page.goto('http://localhost:8099/01-home', { waitUntil: 'domcontentloaded' });

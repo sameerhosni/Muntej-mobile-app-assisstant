@@ -15,7 +15,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
 import { emailFromMailbox } from '../_shared/connections.ts';
-import { createFromSuggestion, doneBefore, ingestMessage, recheckOwners, rereadWaiting, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
+import { assignableIds, createFromSuggestion, doneBefore, requestFromManager, ingestMessage, recheckOwners, rereadWaiting, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 
 async function loadItem(admin: SupabaseClient, profileId: string, id: unknown): Promise<Item> {
   const { data, error } = await admin.from('incoming_items').select('*').eq('id', String(id ?? '')).maybeSingle();
@@ -107,6 +107,12 @@ serve(async (req) => {
       if (typeof edit.title === 'string' && edit.title.trim()) s.title = edit.title.trim().slice(0, 200);
       if (edit.owner_id !== undefined) s.owner_id = edit.owner_id || null;
       if (edit.due_at !== undefined) s.due_at = edit.due_at || null;
+      // someone you may not give work to (above you, another team): your manager gets it as a request (owner, 11 Nov)
+      if (s.owner_id && s.owner_id !== profileId) {
+        const allowed = await assignableIds(admin, profileId);
+        const asksOn = (await db.rpc('feature_on', { p_key: 'ask_up_requests' })).data === true;
+        if (asksOn && !allowed.includes(s.owner_id) && (await requestFromManager(admin, profileId, item, s, i))) return json(await saveItem(admin, item));
+      }
       s.task_id = await createFromSuggestion(admin, profileId, item, s, create);
       s.state = 'accepted';
       await linkToTool(admin, profileId, item, s.task_id);
@@ -167,7 +173,14 @@ serve(async (req) => {
       const item = await loadItem(admin, profileId, body.id);
       const s = item.suggestions[Number(body.index)];
       if (!s || s.state !== 'ignored') throw new HttpError(409, 'Not ignored');
+      // the manager's «no» is theirs: only her own ignore or her own withdraw comes back (R144)
+      if (s.request_answer === 'declined') throw new HttpError(409, 'Not yours to bring back');
       s.state = 'new';
+      // a fresh start: no trace of the old request (reviewer, 11 Nov)
+      delete s.request_answer;
+      delete s.answered_by;
+      delete s.request_id;
+      delete s.request_to;
       return json(await saveItem(admin, item));
     }
 

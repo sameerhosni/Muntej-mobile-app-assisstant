@@ -4,6 +4,7 @@
 // (said not for me). Data: features + feature_events (admins read everyone's) + team.
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -56,7 +57,7 @@ export default function AdoptionScreen() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.screen, paddingTop: 20, gap: spacing.lg, paddingBottom: 40 }}
-        refreshControl={<RefreshControl refreshing={events.isRefetching} onRefresh={() => events.refetch()} tintColor={colors.primary} />}
+        refreshControl={<PullRefreshControl onRefresh={() => events.refetch()} tintColor={colors.primary} />}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <IconButton label={t('back')} onPress={back}>

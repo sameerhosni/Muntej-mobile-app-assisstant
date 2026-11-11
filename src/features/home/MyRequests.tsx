@@ -30,6 +30,10 @@ const en = {
   updates_one: '✅ {{count}} update on your requests · see',
   updates_other: '✅ {{count}} updates on your requests · see',
   missing: '📎 “{{task}}” is missing: {{items}}. Add it and I’ll send it on',
+  reqWaiting: '📨 “{{task}}”: sent to {{name}} to decide. I’ll tell you the answer',
+  reqTaken: '✅ {{name}} took on “{{task}}”',
+  reqDeclined: '“{{task}}”: {{name}} won’t take it on now',
+  reqWithdrawn: '“{{task}}”: you took the request back',
 };
 const ar: typeof en & Record<string, string> = {
   title: 'طلباتك',
@@ -46,6 +50,10 @@ const ar: typeof en & Record<string, string> = {
   updates_other: '✅ {{count}} تحديثات على طلباتك · شوف',
   updates_two: '✅ تحديثين على طلباتك · شوف',
   missing: '📎 «{{task}}» ناقصها: {{items}}. أضفها وأنا أوصلها',
+  reqWaiting: '📨 «{{task}}»: أرسلتها لـ{{name}} يقرر، وأبلّغك أول ما يرد',
+  reqTaken: '✅ {{name}} أضاف «{{task}}»',
+  reqDeclined: '«{{task}}»: {{name}} ما أخذها الحين',
+  reqWithdrawn: '«{{task}}»: سحبت الطلب',
 };
 const NS = registerStrings('myRequests', { en, ar });
 
@@ -144,11 +152,20 @@ export function MyRequests({ bare = false }: { bare?: boolean } = {}) {
   );
 
   function line(r: Req) {
-        const task = titleFor(r.task, lang, meId) ?? '…';
+        // a request from a message (no task until it's taken): its own title and its own words (reviewer, 11 Nov)
+        const asked = (r.type as string) === 'task_request';
+        const task = (asked ? (r.details as { title?: string } | null)?.title : null) ?? titleFor(r.task, lang, meId) ?? '…';
         const name = nameOf(r.manager_id);
         const time = r.type === 'extension_request';
-        const text =
-          r.status === 'pending'
+        const text = asked
+          ? r.status === 'pending'
+            ? t('reqWaiting', { task, name })
+            : r.status === 'approved'
+              ? t('reqTaken', { task, name })
+              : (r.status as string) === 'expired'
+                ? t('reqWithdrawn', { task })
+                : t('reqDeclined', { task, name })
+          : r.status === 'pending'
             ? t(time ? 'waitingTime' : 'waitingOther', { task, name })
             : (r.status as string) === 'finished'
               ? // closed with «خلصت أصلاً» (reviewer, 9 Nov: it read as "declined")

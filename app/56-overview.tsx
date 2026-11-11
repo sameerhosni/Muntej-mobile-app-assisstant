@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react';
 import { intlTag } from '@/lib/i18n/locale';
 import { Modal, Pressable, RefreshControl, ScrollView, useWindowDimensions, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, RefreshCw } from 'lucide-react-native';
@@ -90,7 +91,7 @@ export default function OverviewScreen() {
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.screen, paddingTop: 20, gap: spacing.lg, paddingBottom: 48, maxWidth: 1200, width: '100%', alignSelf: 'center' }}
-        refreshControl={<RefreshControl refreshing={tasks.isRefetching} onRefresh={refresh} tintColor={colors.primary} />}
+        refreshControl={<PullRefreshControl onRefresh={refresh} tintColor={colors.primary} />}
       >
         {/* header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>

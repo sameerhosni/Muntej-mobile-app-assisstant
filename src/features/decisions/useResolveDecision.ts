@@ -28,6 +28,17 @@ export function useResolveDecision() {
     mutationFn: async ({ decision: d, outcome, meId, moveTo, ownerId }: ResolveInput) => {
       const now = new Date().toISOString();
       const taskTitle = d.task?.title ?? d.title;
+      // an ask someone couldn't give directly (owner, 11 Nov): yes makes it yours (or the person you pick, by your own
+      // assign rule), no tells them; the server does it all, logged
+      if ((d as { type?: string }).type === 'task_request') {
+        const { error } = await (supabase.rpc as unknown as (fn: string, a: object) => Promise<{ error: { message: string } | null }>)('answer_task_request', {
+          p_decision: d.id,
+          p_ok: outcome === 'approved',
+          p_owner: moveTo?.id ?? null,
+        });
+        if (error) throw new Error(error.message);
+        return;
+      }
 
       if (moveTo && d.task_id) {
         check(await supabase.from('tasks').update({ owner_id: moveTo.id }).eq('id', d.task_id));

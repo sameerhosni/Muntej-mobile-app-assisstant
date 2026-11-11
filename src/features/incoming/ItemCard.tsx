@@ -31,7 +31,9 @@ export function ItemCard({ item }: { item: IncomingItem }) {
       await fn();
     } catch (e) {
       console.error('your tools action failed:', e instanceof Error ? e.message : String(e));
-      setError((e as Error).message === 'moved_on' ? t('movedOn') : (e as Error).message || t('actionError'));
+      // never the server's raw two-language rule text (owner, 11 Nov): what it means, in your language
+      const m = (e as Error).message ?? '';
+      setError(m === 'moved_on' ? t('movedOn') : /You can give tasks|تقدر تعطي مهام/.test(m) ? t('cantGive') : m || t('actionError'));
     } finally {
       setBusy(null);
     }
@@ -88,6 +90,7 @@ export function ItemCard({ item }: { item: IncomingItem }) {
             onDoneBefore={choicesOn ? () => run(`s${i}`, () => actions.doneBefore(item.id, i)) : undefined}
             onRestore={choicesOn ? () => run(`s${i}`, () => actions.restore(item.id, i)) : undefined}
                 onUndo={choicesOn ? () => run(`s${i}`, () => actions.undoFound(item.id, i)) : undefined}
+                onWithdraw={s.request_id ? () => run(`s${i}`, () => actions.withdraw(s.request_id!)) : undefined}
           />
         ))}
       </View>
@@ -262,6 +265,7 @@ function MeetingCard({
                 onDoneBefore={choicesOn ? () => run(`s${i}`, () => actions.doneBefore(item.id, i)) : undefined}
                 onRestore={choicesOn ? () => run(`s${i}`, () => actions.restore(item.id, i)) : undefined}
                 onUndo={choicesOn ? () => run(`s${i}`, () => actions.undoFound(item.id, i)) : undefined}
+                onWithdraw={s.request_id ? () => run(`s${i}`, () => actions.withdraw(s.request_id!)) : undefined}
               />
             ))}
             {more > 0 && !expanded[g.key] && (
@@ -313,7 +317,10 @@ function SuggestionRow({
   onDoneBefore,
   onRestore,
   onUndo,
+  onWithdraw,
 }: {
+  /** «اسحب الطلب» on one sent to the manager */
+  onWithdraw?: () => void;
   /** «رجّعها» on one just added (Add / «خلصتها قبل»): only that tap, within 5 minutes */
   onUndo?: () => void;
   /** «خلصتها قبل» (owner, 11 Nov) */
@@ -434,10 +441,34 @@ function SuggestionRow({
       {done ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <AppText variant="small" weight="bold" color={s.state === 'accepted' ? 'greenText' : 'textMuted'} style={{ flexShrink: 1 }}>
-            {s.state === 'accepted' ? (s.done_before ? (s.done_status === 'submitted' ? t('doneBeforeReview') : t('doneBeforeOk')) : t('added')) : t('ignored')}
+            {s.state === 'requested'
+              ? t('requestedTo', { name: nameOf(people.find((p) => p.id === s.request_to)) ?? t('yourManager') })
+              : // the manager's answer, in their name — never her own verbs (reviewer, 11 Nov)
+                s.request_answer === 'taken'
+                ? t('reqTaken', { name: nameOf(people.find((p) => p.id === s.answered_by)) ?? t('yourManager') })
+                : s.request_answer === 'declined'
+                  ? t('reqDeclined', { name: nameOf(people.find((p) => p.id === s.answered_by)) ?? t('yourManager') })
+                  : s.request_answer === 'withdrawn'
+                    ? t('reqWithdrawn')
+                    : s.state === 'accepted'
+                ? s.done_before
+                  ? s.done_status === 'submitted'
+                    ? t('doneBeforeReview')
+                    : t('doneBeforeOk')
+                  : t('added')
+                : t('ignored')}
           </AppText>
+          {/* sent to the manager and not answered yet: she can take it back */}
+          {s.state === 'requested' && !!s.request_id && !!onWithdraw && (
+            <Pressable onPress={onWithdraw} disabled={busy} accessibilityRole="button" hitSlop={8} style={{ minHeight: sizes.touch, justifyContent: 'center' }}>
+              <AppText variant="small" weight="bold" color="primary">
+                {t('withdraw')}
+              </AppText>
+            </Pressable>
+          )}
           {/* one tap brings it back (owner, 11 Nov): an ignored one, or one just added */}
-          {((s.state === 'ignored' && !!onRestore) || (s.state === 'accepted' && !!s.task_id && !!onUndo)) && (
+          {/* no undo for what someone else decided: only her own ignore, her own withdraw, or her own add */}
+          {((s.state === 'ignored' && !!onRestore && s.request_answer !== 'declined') || (s.state === 'accepted' && !!s.task_id && !!onUndo && !s.request_answer)) && (
             <Pressable onPress={s.state === 'ignored' ? onRestore : onUndo} disabled={busy} accessibilityRole="button" hitSlop={8} style={{ minHeight: sizes.touch, justifyContent: 'center' }}>
               <AppText variant="small" weight="bold" color="primary">
                 {`↩️ ${t('bringBack')}`}

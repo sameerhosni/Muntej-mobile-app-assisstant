@@ -19,7 +19,10 @@ const SCOPES =
   // Google Chat (Workspace accounts only; enable "Google Chat API" + its Configuration page in Google Cloud)
   ' https://www.googleapis.com/auth/chat.spaces.readonly https://www.googleapis.com/auth/chat.messages.readonly https://www.googleapis.com/auth/chat.memberships.readonly' +
   // turn on automatic transcripts for the meetings you organise, so nobody has to press "Start transcription"
-  ' https://www.googleapis.com/auth/meetings.space.settings';
+  ' https://www.googleapis.com/auth/meetings.space.settings' +
+  // the transcripts and "Notes by Gemini" of meetings you only attended (shared with you in Drive): only files Google
+  // Meet made, nothing else in Drive (owner, 11 Nov). Needs "Google Drive API" enabled, and a fresh Google sign-in
+  ' https://www.googleapis.com/auth/drive.meet.readonly';
 const CHAT = 'https://chat.googleapis.com/v1';
 const MEET = 'https://meet.googleapis.com/v2';
 const FIRST_LOOK_BACK_MS = 7 * 24 * 3_600_000; // the first check reads the last week, not years of history
@@ -356,6 +359,48 @@ export const google: Provider = {
         console.warn('google meet', meetError);
       }
 
+    // Meetings you only attended (owner, 11 Nov: "Muntej read meetings she only attended"): the Meet API gives
+    // transcripts to the organiser, but the transcript and "Notes by Gemini" docs are shared with the people invited.
+    // drive.meet.readonly sees only files Google Meet made: read the ones others own, changed since the last check.
+    const driveOk = (t.scope ?? '').includes('drive.meet');
+    let meetDocs = 0;
+    // testers first on the server too (meet_attended, R69): a granted scope alone never reads them
+    // (the caller passes features.meet_attended from feature_on_for for the connection's owner)
+    const attendedOn = driveOk && on('meet') && (features as Record<string, boolean | undefined>).meet_attended === true;
+    if (attendedOn)
+      try {
+        const after = new Date(Date.parse(since) - 24 * 3_600_000).toISOString();
+        const q = `mimeType='application/vnd.google-apps.document' and modifiedTime > '${after}' and trashed = false`;
+        const list = await api<{ files?: { id: string; name: string; modifiedTime: string; ownedByMe?: boolean; owners?: { displayName?: string; emailAddress?: string }[] }[] }>(
+          t,
+          `https://www.googleapis.com/drive/v3/files?${new URLSearchParams({ q, pageSize: '15', orderBy: 'modifiedTime desc', fields: 'files(id,name,modifiedTime,ownedByMe,owners(displayName,emailAddress))', includeItemsFromAllDrives: 'true', supportsAllDrives: 'true' })}`,
+        );
+        for (const f of list.files ?? []) {
+          // your own meetings come from the Meet API above (never read twice)
+          if (f.ownedByMe) continue;
+          const res = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}/export?mimeType=text/plain`, { headers: { Authorization: `Bearer ${t.access_token}` } });
+          if (res.status === 401) throw new Error('Sign in again');
+          if (!res.ok) continue;
+          const text = (await res.text()).trim();
+          meetSeen.push({ end: f.modifiedTime, chars: text.length });
+          if (text.length < 15) continue;
+          meetDocs++;
+          const owner = f.owners?.[0]?.displayName ?? f.owners?.[0]?.emailAddress ?? null;
+          items.push({
+            externalId: `meetdoc:${f.id}`,
+            source: 'meet',
+            text: `Google Meet notes: ${f.name}\n${owner ? `Organiser: ${owner}\n` : ''}You attended this meeting. Lines are "speaker: words" when it is a transcript; "Notes by Gemini" lists the action items.\n\n${text}`.slice(0, 38_000),
+            sender: owner ?? 'Google Meet',
+            subject: f.name.replace(/\s*[-–]\s*(Transcript|Notes by Gemini|نص|ملاحظات).*$/i, '') || f.name,
+            receivedAt: f.modifiedTime,
+          });
+        }
+      } catch (e) {
+        if ((e as Error).message === 'Sign in again') throw e;
+        meetError = (meetError ? `${meetError} · ` : '') + `drive: ${(e as Error).message.slice(0, 150)}`;
+        console.warn('google meet docs', (e as Error).message);
+      }
+
     // Automatic transcripts: every meeting you organise in the next week gets "transcribe automatically" switched on
     // (Meet settings API), so the transcript exists without anyone pressing a button and Saree3 can read it after.
     const txOk = (t.scope ?? '').includes('meetings.space.settings');
@@ -444,7 +489,7 @@ export const google: Provider = {
     // a little overlap: the same message is never read twice (external id), so nothing slips between runs
     return {
       items,
-      cursor: { ...cursor, meet_ok: meetOk, meet_error: meetError, meet_seen: meetSeen, tx_ok: txOk, tx_done: tx.done, tx_error: tx.error, meet_checked: on('meet') && meetOk ? now.toISOString() : (cursor.meet_checked ?? null), chat_ok: chatOk, chat_error: chatError, since: new Date(now.getTime() - 2 * 60_000).toISOString() },
+      cursor: { ...cursor, meet_ok: meetOk, meet_error: meetError, meet_seen: meetSeen, drive_ok: driveOk, meet_docs: meetDocs, tx_ok: txOk, tx_done: tx.done, tx_error: tx.error, meet_checked: on('meet') && meetOk ? now.toISOString() : (cursor.meet_checked ?? null), chat_ok: chatOk, chat_error: chatError, since: new Date(now.getTime() - 2 * 60_000).toISOString() },
     };
   },
 };

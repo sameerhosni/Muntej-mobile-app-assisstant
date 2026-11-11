@@ -3,6 +3,7 @@
 // (src/features/agents/useAgents). Hours/SAR tiles are estimates (2 h per active agent per month).
 import { useState, type ComponentType } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { PullRefreshControl } from '@/components/PullRefreshControl';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -99,7 +100,7 @@ export default function AgentsScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 110 + insets.bottom }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<PullRefreshControl onRefresh={refetch} tintColor={colors.primary} />}
       >
         <Hero overlap={22}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg }}>

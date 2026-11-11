@@ -45,6 +45,7 @@ import {
 import { AppText, Button, Card, Hero, IconBadge, IconButton, SectionTitle, StatTile, TimedProgress, Toggle } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useMyProfile } from '@/lib/api/hooks';
+import { usePullRefresh } from '@/lib/usePullRefresh';
 import { featureUsed } from '@/features/launch/launch';
 import { Spotlight } from '@/features/launch/Spotlight';
 import { colors, radius, shadows, spacing, type ColorToken } from '@/theme/tokens';
@@ -239,7 +240,7 @@ export default function AlertsScreen() {
   const stats = useAlertStats();
   const { t } = useScreenT(NS);
   const { lang, isRTL } = useDirection();
-  const { prefs, isLoading, isError, isRefetching, refetch, saveError, toggleChannel, toggleRule, toggleQuietHours } =
+  const { prefs, isLoading, isError, refetch, saveError, toggleChannel, toggleRule, toggleQuietHours } =
     useAlertPrefs();
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -269,10 +270,8 @@ export default function AlertsScreen() {
   };
 
   const qc = useQueryClient();
-  const onRefresh = () => {
-    refetch();
-    qc.invalidateQueries({ queryKey: ['alerts'] });
-  };
+  // spins only when pulled, and waits for both (Nouran, 11 Nov, iOS)
+  const pull = usePullRefresh(() => Promise.all([refetch(), qc.invalidateQueries({ queryKey: ['alerts'] }), me.refetch()]));
 
   const esc = prefs?.escalation;
   const quietOn = !!prefs?.quiet_hours.enabled;
@@ -282,7 +281,7 @@ export default function AlertsScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={onRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={colors.primary} />}
       >
         <Hero overlap={40}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg }}>

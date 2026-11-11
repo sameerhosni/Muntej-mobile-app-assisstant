@@ -176,6 +176,9 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         expect(!live(s).some((x) => x.owner_id === QA_BOSS || (x.state === 'new' && !x.owner_id)), 'it waits on your list');
         const made = await madeFor(FAISAL, t0);
         expect(made.length >= 1, `no task for ${FAISAL_NAME}: ${s.map((x) => `${x.title}/${x.state}/${NAME[x.owner_id] ?? x.owner_id}`).join(' · ') || 'nothing read'}`);
+        // someone you MAY give work to: straight to them, never a request to your manager (reviewer, 11 Nov)
+        const [req] = await sql(`select id from public.decisions where type = 'task_request' and requested_by = '${QA_BOSS}' and created_at > '${t0}'`);
+        expect(!req, 'an allowed hand-off became a request to the manager');
         return `${made[0].title} → ${NAME[FAISAL]}`;
       });
       await check('inbox', 'Tools: your chat ask to a teammate goes straight to them', async () => {
@@ -781,6 +784,77 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
     const bar = readFileSync(new URL('../../src/features/review/ReviewBar.tsx', import.meta.url), 'utf8');
     expect(/const cancelSlot = OPEN_STATUSES\.includes\(task\.status\) \? \(mayCancel \? cancelBtn/.test(bar), 'the page decides Cancel by role, not by the server’s rule');
     return 'self-given, nobody-gave and two-up get Cancel; a given task asks instead';
+  });
+  // The owner, 11 Nov (option A): "no one can send tasks to above person or another person in another team not in the same
+  // level". Nouran asked her manager in a chat; it sat on her list and «أضف» showed a raw error. Read as both of them:
+  // it reaches her manager as a request, her list says so, and his «أضفها» makes it his
+  await check('invites', 'An ask to your manager reaches them as a request they decide, never a stuck task', async () => {
+    const [conn] = await sql(`insert into public.connections (profile_id, provider, account_label, import_on) values ('${FAISAL}', 'google', 'faisal@qa.muntej.test', false) returning id`);
+    const [{ full_name: fa }] = await sql(`select full_name from public.profiles where id = '${FAISAL}'`);
+    const [{ full_name: boss }] = await sql(`select full_name from public.profiles where id = '${QA_BOSS}'`);
+    // (testers first: ask_up_requests — Faisal is one for this check, put back after)
+    const [{ tester: faisalTester }] = await sql(`select tester from public.profiles where id = '${FAISAL}'`);
+    await sql(`update public.profiles set tester = true where id = '${FAISAL}'`);
+    const faisal = await jwtFor(FAISAL, QA_ACCOUNT);
+    let itemId = null;
+    try {
+      const chat = [`Google Chat · Direct message between: ${fa}, ${boss}`, `[2026-11-11T09:00:00Z] ${fa}: ${boss.split(' ')[0]}, please fix the login bugs on the QA site today`].join('\n');
+      const r = await fn('intake', { action: 'ingest', text: `${chat}\n\n[qa ${Date.now()}]`, sender: fa, subject: 'Direct message', source: 'google_chat', connection_id: conn.id }, faisal);
+      itemId = r.id;
+      const [req] = await sql(`select id, manager_id, status from public.decisions where type = 'task_request' and requested_by = '${FAISAL}' and details->>'item_id' = '${r.id}'`);
+      expect(req && req.manager_id === QA_BOSS && req.status === 'pending', `no request reached the manager: ${JSON.stringify((r.suggestions ?? []).map((s) => [s.title, s.state, s.owner_id]))}`);
+      const [st] = await sql(`select suggestions->${(r.suggestions ?? []).findIndex((s) => s.request_id === req.id)}->>'state' st from public.incoming_items where id = '${r.id}'`);
+      expect(st.st === 'requested', `her list shows it as ${st.st}`);
+      // his «✅ أضفها لي» on WhatsApp — with his login last opened in ANOTHER company (two seats, reviewer 11 Nov)
+      const [{ user_id: bossUser, phone: bossPhone }] = await sql(`select user_id, phone from public.profiles where id = '${QA_BOSS}'`);
+      const [session] = await sql(`select account_id, updated_at from public.account_sessions where user_id = '${bossUser}'`);
+      const [twin] = await sql(`insert into public.profiles (account_id, full_name, role, status, user_id) values ('c0000000-0000-4000-b000-000000000001', 'QA boss other seat req', 'manager', 'active', '${bossUser}') returning id`);
+      await sql(`insert into public.account_sessions (user_id, account_id, updated_at) values ('${bossUser}', 'c0000000-0000-4000-b000-000000000001', now()) on conflict (user_id) do update set account_id = excluded.account_id, updated_at = now()`);
+      let task = null;
+      try {
+        const [{ s: secret }] = await sql("select decrypted_secret as s from vault.decrypted_secrets where name='cron_secret'");
+        const out = await fn('whatsapp', { simulate: { from: bossPhone, tap: `d:ok:${req.id}` } }, null, { 'x-cron-secret': secret });
+        const said = (out.sent ?? []).map((m) => m.text?.body ?? '').join(' | ');
+        [{ task_id: task }] = await sql(`select task_id from public.decisions where id = '${req.id}'`);
+        expect(task, `WhatsApp «أضفها لي» didn't take it (other seat active): «${said.slice(0, 120)}»`);
+      } finally {
+        if (session) await sql(`update public.account_sessions set account_id = '${session.account_id}', updated_at = '${session.updated_at}' where user_id = '${bossUser}'`);
+        else await sql(`delete from public.account_sessions where user_id = '${bossUser}'`);
+        await sql(`delete from public.profiles where id = '${twin.id}'`);
+      }
+      const [t] = await sql(`select owner_id from public.tasks where id = '${task}'`);
+      const [told] = await sql(`select title_ar from public.alerts where profile_id = '${FAISAL}' and dedupe_key = 'answer:${req.id}'`);
+      expect(t.owner_id === QA_BOSS && told && /أضاف/.test(told.title_ar), `after «أضفها»: owner ${t.owner_id}, told «${told?.title_ar}»`);
+      await sql(`delete from public.tasks where id = '${task}'`);
+      return `request → «${told.title_ar}»`;
+    } finally {
+      if (itemId) {
+        await sql(`delete from public.alerts where dedupe_key like 'answer:%' and profile_id = '${FAISAL}' and created_at > now() - interval '10 minutes'`);
+        await sql(`delete from public.decisions where type = 'task_request' and details->>'item_id' = '${itemId}'`);
+        await sql(`delete from public.incoming_items where id = '${itemId}'`);
+      }
+      await sql(`delete from public.connections where id = '${conn.id}'`);
+      await sql(`update public.profiles set tester = ${faisalTester ? 'true' : 'false'} where id = '${FAISAL}'`);
+    }
+  });
+  // Nouran, 11 Nov: «لما تخلصها» on the task page; only the giver side may change it (the doer could skip the review)
+  await check('invites', '«لما تخلصها» is the giver’s to change, never the doer’s', async () => {
+    const [t] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status) values ('QA closes itself', '${FAISAL}', '${QA_BOSS}', 'in_progress') returning id`);
+    try {
+      // the doer flips it straight on the row: refused
+      const refused = await sql(`begin; select set_config('request.jwt.claims', json_build_object('sub', (select user_id from public.profiles where id = '${FAISAL}'), 'role', 'authenticated')::text, true); set local role authenticated; update public.tasks set closes_itself = true where id = '${t.id}'; commit;`).then(() => false, (e) => /لللي عطى المهمة|Only whoever gave/.test(e.message));
+      const [still] = await sql(`select closes_itself from public.tasks where id = '${t.id}'`);
+      expect(refused && !still.closes_itself, `the doer changed it (refused ${refused}, now ${still.closes_itself})`);
+      // the giver does: saved and logged
+      await sql(`begin; select set_config('request.jwt.claims', json_build_object('sub', (select user_id from public.profiles where id = '${QA_BOSS}'), 'role', 'authenticated')::text, true); set local role authenticated; update public.tasks set closes_itself = true where id = '${t.id}'; commit;`);
+      const [now] = await sql(`select closes_itself, (select count(*) from public.activity_log where task_id = '${t.id}' and action = 'closes_itself_changed') logged from public.tasks where id = '${t.id}'`);
+      expect(now.closes_itself && Number(now.logged) === 1, `the giver's change: ${JSON.stringify(now)}`);
+      return 'doer refused, giver saved and logged';
+    } finally {
+      await sql(`delete from public.activity_log where task_id = '${t.id}'`);
+      await sql(`delete from public.alerts where task_id = '${t.id}'`);
+      await sql(`delete from public.tasks where id = '${t.id}'`);
+    }
   });
   await check('invites', 'Internal notes never reach people as alert text', async () => {
     const [log] = await sql(`insert into public.activity_log (actor_type, actor_id, subject_id, action, summary, summary_ar, reason, undoable)

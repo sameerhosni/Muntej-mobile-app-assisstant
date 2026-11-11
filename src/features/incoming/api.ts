@@ -31,7 +31,13 @@ export type Suggestion = {
   quote: string;
   duplicate_of: { id: string; title: string } | null;
   /** filtered: Saree3's own check dropped it (stale, already done, your own update…): never shown */
-  state: 'new' | 'accepted' | 'ignored' | 'filtered';
+  /** requested: sent to your manager to decide (someone you can't give work to directly, owner 11 Nov) */
+  state: 'new' | 'accepted' | 'ignored' | 'filtered' | 'requested';
+  request_id?: string;
+  request_to?: string;
+  /** how the request ended: the manager took it on / declined it, or she withdrew it (and who) */
+  request_answer?: 'taken' | 'declined' | 'withdrawn' | null;
+  answered_by?: string | null;
   task_id: string | null;
   /** added by Muntej without asking (it was sure) */
   auto?: boolean;
@@ -86,7 +92,8 @@ export function useHandledIgnored(enabled = true) {
         .order('decided_at', { ascending: false })
         .limit(20);
       if (error) throw new Error(error.message);
-      return ((data ?? []) as IncomingItem[]).filter((it) => it.suggestions.some((s) => s.state === 'ignored'));
+      // (and what went to your manager as a request, to follow it)
+      return ((data ?? []) as IncomingItem[]).filter((it) => it.suggestions.some((s) => s.state === 'ignored' || s.state === 'requested'));
     },
   });
 }
@@ -230,8 +237,9 @@ export function useIncomingActions() {
     },
     accept: async (id: string, index: number, edit?: SuggestionEdit, keep = false) => {
       const saved = await call<IncomingItem>({ action: 'accept', id, index, edit });
-      // with the new choices on: «أضيفت · رجّعها» stays on the card for 6 seconds (owner, 11 Nov)
-      if (keep && saved) keepOnCard(saved, true);
+      // with the new choices on: «أضيفت · رجّعها» stays on the card for 6 seconds (owner, 11 Nov); sent to the manager
+      // as a request: «أرسلتها لـX يقرر» stays too, for everyone
+      if (saved && (keep || saved.suggestions[index]?.state === 'requested')) keepOnCard(saved, true);
       else await done(true);
     },
     acceptAll: async (id: string) => {
@@ -277,6 +285,12 @@ export function useIncomingActions() {
       keepOnCard(saved, true);
     },
     /** «رجّعها» after Add / «خلصتها قبل»: only that tap, within 5 minutes, untouched since (else the server says moved_on) */
+    /** «اسحب الطلب»: take back a request while the manager hasn't answered */
+    withdraw: async (requestId: string) => {
+      const { error } = await untyped.rpc('withdraw_task_request', { p_decision: requestId });
+      if (error) throw new Error(error.message);
+      await done();
+    },
     undoFound: async (id: string, index: number) => {
       await call({ action: 'undo_found', id, index });
       await done(true);
