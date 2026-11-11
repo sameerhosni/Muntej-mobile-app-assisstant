@@ -26,3 +26,4 @@ Line format: ``- `<commit>` · <date> · ACCEPT · <what was reviewed>``
 - `94f8f4c` · 2026-11-11 · ACCEPT · Nouran's four (owner approved A–D): asks you can't give go to your manager as a request, «لما تخلصها» on the task page (giver-only), Meet reads attended meetings + why-zero line, no pull spinner unless pulled; testers first. 3 passes: 10 → 3 → 0 findings; rules R141–R145.
 - `a3585fe` · 2026-11-11 · ACCEPT · Follow-up from the ship's QA: the «يحتاجك» number is the shared list's length everywhere; the request QA step sets the QA number. 1 pass: 0 findings.
 - `98bf020` · 2026-11-11 · ACCEPT · The «يحتاجك» number waits for the shared list everywhere (no partial count, Home tile «…»). 3 passes: 1 → 1 → 0 findings.
+- `26082a6` · 2026-11-11 · ACCEPT · QA only: the «يحتاجك» flow's WhatsApp step sets QA_PHONE on the manager. 1 pass: 0 findings.
