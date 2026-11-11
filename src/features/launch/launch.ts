@@ -28,6 +28,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   tools_only_mine: { href: '/01-home', spot: 'home.needs' },
   task_answers: { href: '/01-home', spot: 'home.needs' },
   quick_cancel: { href: '/38-tasks', spot: 'tasks.row' },
+  found_task_choices: { href: '/42-incoming' },
   ai_consent: { href: '/settings', spot: 'settings.ai' },
   invite_status: { href: '/39-team', spot: 'team.status' },
   confirm_new: { href: '/01-home', spot: 'home.confirm' },

@@ -576,3 +576,19 @@ Last updated: 2026-11-09.
 ### R133 · A button from an older message checks the task again, and its reply says only what really happened
 - **Why:** 10 Nov, reviewer: an old [✕ ألغها] could cancel a task the doer had since finished, and [👍 خلّها] always said «قلت له يكمّل» even when nothing was settled.
 - **Check:** WhatsApp taps and «يحتاجك» rows re-read the task's status before acting (done / cancelled get their own line), the RPC refuses a closed task too, and the reply follows what the RPC returned (its count or status), never a fixed sentence.
+
+### R134 · Anything someone must decide on shows what it is in full, and offers every way out
+- **Why:** 11 Nov, owner: the WhatsApp tools list cut each title at 24 characters ("Investigate AI assig…"), and the card had only Approve / Ignore, so «how can I approve any task without any details of it?».
+- **Check:** a list row names the item in words that read whole (Muntej's short name, or a cut at a word, never mid-word). The card shows what is asked, who asked and when, when it counts as done, due, priority, proof and who it's for. The buttons say whose it becomes, and there is a way to give it to someone else, ignore it, mark it already done, change its date, and see the full message. Every choice replies with what really happened, plus «↩️ تراجع» and the way back to the rest, on WhatsApp and in the app alike.
+
+### R135 · An undo button undoes only what its own tap did, and only while nobody has acted since
+- **Why:** 11 Nov, reviewer: the WhatsApp «↩️ تراجع» under a found task treated any done task as «خلصتها قبل» and cancelled it directly, with no time limit, so an old tap could wipe out work the doer had really finished.
+- **Check:** the undo finds, in the log, the row its own tap wrote (by that seat, within 5 minutes). Nobody else may have acted since: no one else's log row, no proof, no review, and the status still the one the tap left. The undo then goes through the normal cancel, so the doer is told. Anything else replies «مشت من بعدها», never a guess from the current status.
+
+### R136 · Closing a task for work already finished clears the proof first, and acts as the seat that owns it
+- **Why:** 11 Nov, reviewer: «خلصتها قبل» on a found task that asked for a photo always failed (require_proof refused the close), and with two company seats it ran as the seat last opened in the app, so the close and its undo failed.
+- **Check:** a path that closes finished work sets proof to none, or attaches the proof, before the status change. Server-side actions for a seat go through the *_as functions (create_task_as, set_task_status_as), which act in that seat's own account (muntej.acting_account). A QA step covers one login with two seats.
+
+### R137 · Helpers a tap can reach inside handle() are function declarations
+- **Why:** 11 Nov, QA: «👤 لغيري» returned 500, «Cannot access 'personName' before initialization». The helper was a const arrow written after the line where the tap is handled.
+- **Check:** inside a long handler, helpers that taps call are `function` declarations (hoisted), never `const` arrows below the dispatch; every new tap verb gets a QA step that reads its reply.

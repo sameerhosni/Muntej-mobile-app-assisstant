@@ -77,7 +77,7 @@ const ar: typeof en = {
 const NS = registerStrings('detailAnswer', { en, ar });
 
 /** quick dates at 17:00 Riyadh, weekend skipped, never two on the same day (the server's quickDates, same rule) */
-function quickDates(now = new Date()): { key: 'tomorrow' | 'in3' | 'sunday' | 'week'; at: string }[] {
+export function quickDates(now = new Date()): { key: 'tomorrow' | 'in3' | 'sunday' | 'week'; at: string }[] {
   const R = 3 * 3_600_000;
   const dayStart = (d: Date) => {
     const r = new Date(d.getTime() + R);

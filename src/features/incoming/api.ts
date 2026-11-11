@@ -35,7 +35,22 @@ export type Suggestion = {
   task_id: string | null;
   /** added by Muntej without asking (it was sure) */
   auto?: boolean;
+  /** «خلصتها قبل»: added as already done */
+  done_before?: boolean;
+  /** how it closed: 'done', or 'submitted' (gone to the manager to approve) */
+  done_status?: string;
 };
+
+/** a found task's new choices (already done, a date in Edit, «رجّعها»): testers first (feature found_task_choices) */
+export function useFoundChoicesOn() {
+  return (
+    useQuery({
+      queryKey: ['featureOn', 'found_task_choices'],
+      queryFn: async () => (await supabase.rpc('feature_on' as never, { p_key: 'found_task_choices' } as never)).data === true,
+      staleTime: 5 * 60_000,
+    }).data === true
+  );
+}
 
 export type IncomingItem = {
   id: string;
@@ -53,6 +68,28 @@ export type IncomingItem = {
 export type SuggestionEdit = { title?: string; owner_id?: string | null; due_at?: string | null };
 
 const KEY = ['incoming'] as const;
+/** how long «تجاهلتها · رجّعها» stays on a card (the same 6 seconds as a cancelled task) */
+export const UNDO_MS = 6000;
+
+/** what you ignored in the last 7 days, to bring one back (owner, 11 Nov) */
+export function useHandledIgnored(enabled = true) {
+  return useQuery({
+    queryKey: [...KEY, 'handled'],
+    enabled,
+    queryFn: async (): Promise<IncomingItem[]> => {
+      const { data, error } = await untyped
+        .from('incoming_items')
+        .select('id, source, sender, subject, body, summary, received_at, status, suggestions')
+        // a message with one task ignored and another added is 'done' (reviewer, 11 Nov)
+        .in('status', ['ignored', 'done'])
+        .gte('decided_at', new Date(Date.now() - 7 * 86_400_000).toISOString())
+        .order('decided_at', { ascending: false })
+        .limit(20);
+      if (error) throw new Error(error.message);
+      return ((data ?? []) as IncomingItem[]).filter((it) => it.suggestions.some((s) => s.state === 'ignored'));
+    },
+  });
+}
 
 /** Items still waiting for a decision, newest first (RLS: your own). */
 export function useIncoming() {
@@ -130,6 +167,7 @@ const AT_ONCE = 5;
 export function useIncomingActions() {
   const qc = useQueryClient();
   const done = async (tasks = false) => {
+    // (the handled list too: KEY is its prefix)
     await qc.invalidateQueries({ queryKey: KEY });
     if (tasks) await invalidateTaskData(qc);
   };
@@ -148,6 +186,27 @@ export function useIncomingActions() {
       return pages ? { ...(old as object), pages: pages.map(without) } : old;
     };
     qc.setQueriesData({ queryKey: KEY }, update);
+  };
+  // the row reads «تجاهلتها · رجّعها» while the 6 seconds run
+  const markIgnored = (id: string, index: number) => {
+    const mark = (list: IncomingItem[]) =>
+      list.map((it) => (it.id !== id ? it : { ...it, suggestions: it.suggestions.map((s, i) => (i === index ? { ...s, state: 'ignored' as const } : s)) }));
+    qc.setQueriesData({ queryKey: KEY }, (old: unknown) => {
+      if (Array.isArray(old)) return mark(old as IncomingItem[]);
+      const pages = (old as { pages?: IncomingItem[][] } | undefined)?.pages;
+      return pages ? { ...(old as object), pages: pages.map(mark) } : old;
+    });
+  };
+  // the item as the server saved it stays on the card for 6 seconds (its «رجّعها»), then the list catches up
+  const keepOnCard = (saved: IncomingItem, tasks: boolean) => {
+    const put = (list: IncomingItem[]) => list.map((it) => (it.id === saved.id ? { ...it, suggestions: saved.suggestions } : it));
+    qc.setQueriesData({ queryKey: KEY }, (old: unknown) => {
+      if (Array.isArray(old)) return put(old as IncomingItem[]);
+      const pages = (old as { pages?: IncomingItem[][] } | undefined)?.pages;
+      return pages ? { ...(old as object), pages: pages.map(put) } : old;
+    });
+    if (tasks) void invalidateTaskData(qc);
+    setTimeout(() => void done(), UNDO_MS);
   };
   /** each message: off the list, then done on the server; onProgress counts them */
   const everything = async (ids: string[], one: (id: string) => Promise<unknown>, onProgress?: (done: number, total: number) => void) => {
@@ -169,9 +228,11 @@ export function useIncomingActions() {
       await done();
       return item;
     },
-    accept: async (id: string, index: number, edit?: SuggestionEdit) => {
-      await call({ action: 'accept', id, index, edit });
-      await done(true);
+    accept: async (id: string, index: number, edit?: SuggestionEdit, keep = false) => {
+      const saved = await call<IncomingItem>({ action: 'accept', id, index, edit });
+      // with the new choices on: «أضيفت · رجّعها» stays on the card for 6 seconds (owner, 11 Nov)
+      if (keep && saved) keepOnCard(saved, true);
+      else await done(true);
     },
     acceptAll: async (id: string) => {
       await call({ action: 'accept_all', id });
@@ -192,13 +253,33 @@ export function useIncomingActions() {
         await done();
       }
     },
-    ignore: async (id: string, index?: number) => {
-      hide(id, index);
+    ignore: async (id: string, index?: number, keep = false) => {
+      // one task, with the new choices on: it stays on the card as «تجاهلتها · رجّعها» for 6 seconds, then leaves (owner,
+      // 11 Nov); otherwise (and a whole message) it leaves at once
+      const stay = keep && index !== undefined;
+      if (stay) markIgnored(id, index);
+      else hide(id, index);
       try {
         await call({ action: 'ignore', id, index });
       } finally {
-        await done();
+        if (stay) setTimeout(() => void done(), UNDO_MS);
+        else await done();
       }
+    },
+    /** «رجّعها»: an ignored task back in the list */
+    restore: async (id: string, index: number) => {
+      await call({ action: 'restore', id, index });
+      await done();
+    },
+    /** «خلصتها قبل»: on the record as done, nothing to follow up */
+    doneBefore: async (id: string, index: number) => {
+      const saved = await call<IncomingItem>({ action: 'done_before', id, index });
+      keepOnCard(saved, true);
+    },
+    /** «رجّعها» after Add / «خلصتها قبل»: only that tap, within 5 minutes, untouched since (else the server says moved_on) */
+    undoFound: async (id: string, index: number) => {
+      await call({ action: 'undo_found', id, index });
+      await done(true);
     },
     /** a person was just added to the team: this task goes to them */
     setOwner: async (id: string, index: number, ownerId: string) => {

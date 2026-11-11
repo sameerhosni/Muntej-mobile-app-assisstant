@@ -3,7 +3,8 @@
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
-import { Check, CopyCheck, Pencil, X } from 'lucide-react-native';
+import { Check, CheckCheck, CopyCheck, Pencil, X } from 'lucide-react-native';
+import { quickDates } from '@/features/task-detail/DetailAnswer';
 import { AppText, Avatar, Button, Card, Chip, TextField } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -13,13 +14,14 @@ import { formatDue } from '@/features/capture/format';
 import { contentDirection } from '@/features/chat/Bubbles';
 import { FromTag } from '@/features/tasks/FromTag';
 import { FoundFromTo } from '@/features/tasks/FromTo';
-import { useIncomingActions, type IncomingItem, type Suggestion, type SuggestionEdit } from './api';
+import { useFoundChoicesOn, useIncomingActions, type IncomingItem, type Suggestion, type SuggestionEdit } from './api';
 import { NS } from './strings';
 
 export function ItemCard({ item }: { item: IncomingItem }) {
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const actions = useIncomingActions();
+  const choicesOn = useFoundChoicesOn();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const run = async (key: string, fn: () => Promise<void>) => {
@@ -28,7 +30,8 @@ export function ItemCard({ item }: { item: IncomingItem }) {
     try {
       await fn();
     } catch (e) {
-      setError((e as Error).message || t('actionError'));
+      console.error('your tools action failed:', e instanceof Error ? e.message : String(e));
+      setError((e as Error).message === 'moved_on' ? t('movedOn') : (e as Error).message || t('actionError'));
     } finally {
       setBusy(null);
     }
@@ -78,10 +81,13 @@ export function ItemCard({ item }: { item: IncomingItem }) {
             s={s}
             from={item.sender}
             busy={busy === `s${i}`}
-            onAccept={(edit) => run(`s${i}`, () => actions.accept(item.id, i, edit))}
-            onIgnore={() => run(`s${i}`, () => actions.ignore(item.id, i))}
+            onAccept={(edit) => run(`s${i}`, () => actions.accept(item.id, i, edit, choicesOn))}
+            onIgnore={() => run(`s${i}`, () => actions.ignore(item.id, i, choicesOn))}
             onAddOwner={() => router.push({ pathname: '/39-team', params: { add: '1', name: s.owner_name ?? '', item: item.id, index: String(i) } })}
             onSetOwner={(ownerId) => run(`s${i}`, () => actions.setOwner(item.id, i, ownerId))}
+            onDoneBefore={choicesOn ? () => run(`s${i}`, () => actions.doneBefore(item.id, i)) : undefined}
+            onRestore={choicesOn ? () => run(`s${i}`, () => actions.restore(item.id, i)) : undefined}
+                onUndo={choicesOn ? () => run(`s${i}`, () => actions.undoFound(item.id, i)) : undefined}
           />
         ))}
       </View>
@@ -155,6 +161,7 @@ function MeetingCard({
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const actions = useIncomingActions();
+  const choicesOn = useFoundChoicesOn();
   const team = useTeam();
   const me = useMyProfile();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -248,10 +255,13 @@ function MeetingCard({
                 from={item.sender}
                 compact
                 busy={busy === `s${i}`}
-                onAccept={(edit) => run(`s${i}`, () => actions.accept(item.id, i, edit))}
-                onIgnore={() => run(`s${i}`, () => actions.ignore(item.id, i))}
+                onAccept={(edit) => run(`s${i}`, () => actions.accept(item.id, i, edit, choicesOn))}
+                onIgnore={() => run(`s${i}`, () => actions.ignore(item.id, i, choicesOn))}
                 onAddOwner={() => router.push({ pathname: '/39-team', params: { add: '1', name: s.owner_name ?? '', item: item.id, index: String(i) } })}
                 onSetOwner={(ownerId) => run(`s${i}`, () => actions.setOwner(item.id, i, ownerId))}
+                onDoneBefore={choicesOn ? () => run(`s${i}`, () => actions.doneBefore(item.id, i)) : undefined}
+                onRestore={choicesOn ? () => run(`s${i}`, () => actions.restore(item.id, i)) : undefined}
+                onUndo={choicesOn ? () => run(`s${i}`, () => actions.undoFound(item.id, i)) : undefined}
               />
             ))}
             {more > 0 && !expanded[g.key] && (
@@ -300,7 +310,16 @@ function SuggestionRow({
   onIgnore,
   onAddOwner,
   onSetOwner,
+  onDoneBefore,
+  onRestore,
+  onUndo,
 }: {
+  /** «رجّعها» on one just added (Add / «خلصتها قبل»): only that tap, within 5 minutes */
+  onUndo?: () => void;
+  /** «خلصتها قبل» (owner, 11 Nov) */
+  onDoneBefore?: () => void;
+  /** «رجّعها» on an ignored one */
+  onRestore?: () => void;
   s: Suggestion;
   /** inside a meeting card: the person heading the group already says who, so no owner or "from" chips */
   compact?: boolean;
@@ -322,6 +341,7 @@ function SuggestionRow({
   const [more, setMore] = useState(false);
   const [title, setTitle] = useState(s.title);
   const [owner, setOwner] = useState<string | null>(s.owner_id);
+  const [due, setDue] = useState<string | null>(s.due_at);
   const people = (team.data ?? []).filter((p) => p.status !== 'deleted');
   const nameOf = (p: Profile | undefined) => (p ? ((lang === 'ar' && p.full_name_ar) || p.full_name).split(' ')[0] : null);
   const ownerName = nameOf(people.find((p) => p.id === s.owner_id));
@@ -412,9 +432,19 @@ function SuggestionRow({
       )}
 
       {done ? (
-        <AppText variant="small" weight="bold" color={s.state === 'accepted' ? 'greenText' : 'textMuted'}>
-          {s.state === 'accepted' ? t('added') : t('ignored')}
-        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <AppText variant="small" weight="bold" color={s.state === 'accepted' ? 'greenText' : 'textMuted'} style={{ flexShrink: 1 }}>
+            {s.state === 'accepted' ? (s.done_before ? (s.done_status === 'submitted' ? t('doneBeforeReview') : t('doneBeforeOk')) : t('added')) : t('ignored')}
+          </AppText>
+          {/* one tap brings it back (owner, 11 Nov): an ignored one, or one just added */}
+          {((s.state === 'ignored' && !!onRestore) || (s.state === 'accepted' && !!s.task_id && !!onUndo)) && (
+            <Pressable onPress={s.state === 'ignored' ? onRestore : onUndo} disabled={busy} accessibilityRole="button" hitSlop={8} style={{ minHeight: sizes.touch, justifyContent: 'center' }}>
+              <AppText variant="small" weight="bold" color="primary">
+                {`↩️ ${t('bringBack')}`}
+              </AppText>
+            </Pressable>
+          )}
+        </View>
       ) : editing ? (
         <View style={{ gap: spacing.md }}>
           <TextField label={t('editTitle')} value={title} onChangeText={setTitle} />
@@ -427,6 +457,21 @@ function SuggestionRow({
               <Chip key={p.id} label={nameOf(p) ?? ''} selected={owner === p.id} onPress={() => setOwner(p.id)} />
             ))}
           </View>
+          {/* the due date too (owner, 11 Nov): the message's own, a quick one, or none (with the new choices on) */}
+          {!!onDoneBefore && (
+          <AppText variant="small" weight="semibold" color="textMuted">
+            {t('editDue')}
+          </AppText>
+          )}
+          {!!onDoneBefore && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            {!!s.due_at && <Chip label={formatDue(s.due_at, lang)} selected={due === s.due_at} onPress={() => setDue(s.due_at)} />}
+            {quickDates().map((q) => (
+              <Chip key={q.key} label={t(`d${q.key === 'in3' ? 'In3' : q.key[0].toUpperCase() + q.key.slice(1)}`)} selected={due === q.at} onPress={() => setDue(q.at)} />
+            ))}
+            <Chip label={t('noDate')} selected={due === null} onPress={() => setDue(null)} />
+          </View>
+          )}
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Button label={t('cancel')} variant="outline" size="md" onPress={() => setEditing(false)} style={{ flex: 1 }} />
             <Button
@@ -434,7 +479,7 @@ function SuggestionRow({
               size="md"
               loading={busy}
               disabled={!title.trim()}
-              onPress={() => onAccept({ title, owner_id: owner })}
+              onPress={() => onAccept({ title, owner_id: owner, ...(onDoneBefore ? { due_at: due } : {}) })}
               style={{ flex: 1 }}
             />
           </View>
@@ -466,6 +511,11 @@ function SuggestionRow({
           <RoundIcon label={t('edit')} disabled={busy} onPress={() => setEditing(true)}>
             <Pencil color={colors.primary} size={18} />
           </RoundIcon>
+          {!!onDoneBefore && (
+            <RoundIcon label={t('doneBefore')} disabled={busy} onPress={onDoneBefore}>
+              <CheckCheck color={colors.greenText} size={19} />
+            </RoundIcon>
+          )}
           <RoundIcon label={t('ignore')} disabled={busy} onPress={onIgnore}>
             <X color={colors.textMuted} size={20} />
           </RoundIcon>

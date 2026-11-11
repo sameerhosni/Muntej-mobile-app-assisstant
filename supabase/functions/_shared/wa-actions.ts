@@ -18,6 +18,8 @@ export type WaCard = {
   line?: string;
   /** a tool card's title, who asked, when it came and when it's due: one row of the WhatsApp list */
   title?: string;
+  /** Muntej's own ≤20-character name for it (owner, 11 Nov, option B) */
+  short?: string | null;
   who?: string | null;
   at?: string | null;
   due?: string | null;
@@ -45,7 +47,8 @@ export function toolListRows(cards: WaCard[], ar: boolean, from = 0, nums?: numb
   const shown = more ? page.slice(0, 9) : page.slice(0, 10);
   const rows: WaRow[] = shown.map((c, i) => ({
     id: `tc:${c.ref!.item}:${c.ref!.index}`,
-    title: clip(`${numOf(from + i)}. ${c.title ?? '…'}`, 24),
+    // a name that reads whole, never cut mid-word (owner, 11 Nov, option B: «Investigate AI assig…» said nothing)
+    title: ((n) => `${n} ${shortTitle({ title: c.title ?? '…', short_title: c.short }, 24 - n.length - 1)}`)(`${numOf(from + i)}.`),
     description: clip(
       [c.who ? (ar ? `من ${c.who}` : `from ${c.who}`) : null, c.at ? shortWhen(c.at, ar) : null, c.due ? `⏰ ${shortWhen(c.due, ar)}` : null].filter(Boolean).join(' · ') ||
         (ar ? 'من أدواتك' : 'from your tools'),
@@ -113,7 +116,7 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
       .order('created_at')
       .limit(10),
     admin.from('reviews').select('task_id').eq('reviewer_id', meId).is('decision', null).limit(30),
-    admin.from('incoming_items').select('id, source, sender, subject, received_at, suggestions').eq('owner_id', meId).eq('status', 'new').order('received_at', { ascending: false }).limit(10),
+    admin.from('incoming_items').select(TOOL_ITEM_COLS).eq('owner_id', meId).eq('status', 'new').order('received_at', { ascending: false }).limit(10),
     admin.from('tasks').select('id, title, translations, due_at, status').eq('owner_id', meId).in('status', OPEN).not('due_at', 'is', null).lt('due_at', new Date(endToday).toISOString()).order('due_at').limit(10),
   ]);
   const reviewIds = (reviewRows ?? []).map((r) => r.task_id as string);
@@ -194,7 +197,8 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
       buttons: [{ id: `da:${a.task_id}:${what}`, title: ar ? '✍️ جاوب' : '✍️ Answer' }],
     });
   }
-  for (const it of items ?? []) cards.push(...toolCardsOf(it as ToolItem, ar));
+  const choicesOn = await choicesOnFor(admin, meId);
+  for (const it of items ?? []) cards.push(...toolCardsOf(it as ToolItem, ar, choicesOn));
   for (const t of mine ?? []) {
     const late = Date.parse(t.due_at as string) < now;
     cards.push({
@@ -212,21 +216,66 @@ export async function needsYouCards(admin: SupabaseClient, meId: string, ar: boo
 
 type ToolItem = {
   id: string;
+  owner_id?: string | null;
   source: string;
   sender?: string | null;
   subject?: string | null;
   received_at?: string | null;
-  suggestions: { state: string; title: string; due_at: string | null; duplicate_of?: unknown; requested_by?: string | null; quote?: string | null; owner_name?: string | null }[] | null;
+  suggestions:
+    | {
+        state: string;
+        title: string;
+        short_title?: string | null;
+        due_at: string | null;
+        duplicate_of?: unknown;
+        requested_by?: string | null;
+        quote?: string | null;
+        owner_id?: string | null;
+        owner_name?: string | null;
+        description?: string | null;
+        definition_of_done?: string | null;
+        priority?: string | null;
+        proof_required?: string | null;
+      }[]
+    | null;
 };
+export const TOOL_ITEM_COLS = 'id, owner_id, source, sender, subject, received_at, suggestions';
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+/** a found task's name for a list row (owner, 11 Nov, option B): Muntej's own short title (≤20, so a numbered row shows it whole), else the full title cut
+ *  at a word, never mid-word */
+export function shortTitle(s: { title: string; short_title?: string | null }, max = 22) {
+  const t = ((s.short_title ?? '').trim() || s.title).trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max - 1);
+  const sp = cut.lastIndexOf(' ');
+  return `${(sp > 8 ? cut.slice(0, sp) : cut).trim()}…`;
+}
+const PRIORITY: Record<string, [string, string]> = { urgent: ['🔴 عاجلة', '🔴 urgent'], high: ['🟠 مهمة', '🟠 high'] };
+const PROOF: Record<string, [string, string]> = { image: ['📎 يرسل صورة', '📎 send a photo'], file: ['📎 يرسل ملف', '📎 send a file'], link: ['📎 يرسل رابط', '📎 send a link'], any: ['📎 يرسل إثبات', '📎 send proof'] };
+
+/** the three buttons under a found task (owner, 11 Nov): approve for whoever it's for, «لغيري», «⋯ خيارات» */
+export function toolButtons(it: { id: string; owner_id?: string | null }, i: number, s: { owner_id?: string | null; owner_name?: string | null }, ar: boolean): WaButton[] {
+  const forMe = !s.owner_id || s.owner_id === it.owner_id;
+  const name = (realName(s.owner_name) ?? '').split(' ')[0];
+  return [
+    { id: `ok:${it.id}:${i}`, title: forMe || !name ? (ar ? '✅ اعتمدها لي' : '✅ Mine, approve') : clip(`✅ ${ar ? 'لـ' : 'To'} ${name}`, 20) },
+    { id: `tg:${it.id}:${i}`, title: ar ? '👤 لغيري' : '👤 Someone else' },
+    { id: `tx:${it.id}:${i}`, title: ar ? '⋯ خيارات' : '⋯ More' },
+  ];
+}
 /** a person or place a tool reports, never a placeholder ("Direct message", "Space") */
 const realName = (s: string | null | undefined) => (s && !/^(direct message|google chat|google meet|microsoft teams|teams|meeting|group|space|someone|unknown)$/i.test(s.trim()) ? s.trim() : null);
 
 /** an item's waiting suggestions as cards (✅ اعتمد / ✖️ تجاهل). Enough to decide right there (owner, 10 Nov: "Need some
  *  info on the task like from whom and when or any other important things to help me to confirm"): who asked, when,
  *  where (the mail subject or the chat), their words, the due date, and who it would go to */
-function toolCardsOf(it: ToolItem, ar: boolean): WaCard[] {
+/** the new card buttons go to testers first (feature found_task_choices); the others keep ✅ اعتمد / ✖️ تجاهل */
+export async function choicesOnFor(admin: SupabaseClient, profileId: string | null | undefined) {
+  return !!profileId && (await admin.rpc('feature_on_for', { p_key: 'found_task_choices', p_profile: profileId })).data === true;
+}
+
+function toolCardsOf(it: ToolItem, ar: boolean, choicesOn = true): WaCard[] {
   const out: WaCard[] = [];
   const tool = (SOURCE[it.source] ?? [it.source, it.source])[ar ? 0 : 1];
   for (const [i, s] of (it.suggestions ?? []).entries()) {
@@ -238,31 +287,48 @@ function toolCardsOf(it: ToolItem, ar: boolean): WaCard[] {
     const sent = it.received_at ? whenText(it.received_at, ar) : null;
     const where = realName(it.subject);
     const words = (s.quote ?? '').trim();
-    const forWho = realName(s.owner_name);
+    const forMe = !!s.owner_id && s.owner_id === it.owner_id;
+    const forWho = forMe ? (ar ? 'لك' : 'you') : realName(s.owner_name);
+    const desc = (s.description ?? '').trim();
+    const done = (s.definition_of_done ?? '').trim();
+    const flags = [
+      s.due_at ? `⏰ ${ar ? 'مطلوبة' : 'due'} ${whenText(s.due_at, ar)}` : null,
+      s.priority && PRIORITY[s.priority] ? PRIORITY[s.priority][ar ? 0 : 1] : null,
+      s.proof_required && PROOF[s.proof_required] ? PROOF[s.proof_required][ar ? 0 : 1] : null,
+    ].filter(Boolean);
     out.push({
       kind: 'tool',
       ref: { item: it.id, index: i },
       title: s.title,
+      short: s.short_title ?? null,
       who,
       at: it.received_at ?? null,
       due: s.due_at,
       line: `*${clip(s.title, 70)}*\n   ${[who ? (ar ? `من ${who}` : `from ${who}`) : null, tool, sent, s.due_at ? `⏰ ${whenText(s.due_at, ar)}` : null, dup ? (ar ? '♻️ موجودة قبل' : '♻️ already a task') : null].filter(Boolean).join(' · ')}`,
-      body: rtl(
-        ar,
-        [
-          `🔌 ${ar ? 'لقيتها في' : 'Found in'} ${tool}${where ? ` · «${clip(where, 50)}»` : ''}:`,
-          `📝 *${s.title}*`,
-          ...(who || sent ? [`👤 ${[who ? (ar ? `من ${who}` : `from ${who}`) : null, sent].filter(Boolean).join(' · ')}`] : []),
-          ...(words && words !== s.title ? [`💬 «${clip(words, 160)}»`] : []),
-          ...(s.due_at ? [`⏰ ${ar ? 'مطلوبة' : 'due'} ${whenText(s.due_at, ar)}`] : []),
-          ...(forWho ? [`➡️ ${ar ? 'لـ' : 'for'} ${forWho}`] : []),
-          ...(dup ? [ar ? '♻️ فيه مهمة مثلها من قبل' : '♻️ there is already a task like it'] : []),
-        ].join('\n'),
+      // everything needed to decide, within WhatsApp's 1024 (owner, 11 Nov: "how can I approve any task without any
+      // details of it?"): where, what exactly, who asked and when, what's needed, when it's done, due, who it's for
+      body: clip(
+        rtl(
+          ar,
+          [
+            `🔌 ${ar ? 'لقيتها في' : 'Found in'} ${tool}${where ? ` · «${clip(where, 50)}»` : ''}`,
+            `📝 *${s.title}*`,
+            ...(who || sent ? [`👤 ${[who ? (ar ? `من ${who}` : `from ${who}`) : null, sent].filter(Boolean).join(' · ')}`] : []),
+            ...(desc ? [`📄 ${ar ? 'المطلوب' : 'What'}: ${clip(desc, 320)}`] : words && words !== s.title ? [`💬 «${clip(words, 200)}»`] : []),
+            ...(done ? [`✓ ${ar ? 'تنتهي لما' : 'Done when'}: ${clip(done, 160)}`] : []),
+            ...(flags.length ? [flags.join(' · ')] : []),
+            `➡️ ${forWho ? (forMe ? forWho : `${ar ? 'لـ' : 'for'} ${forWho}`) : ar ? 'ما لها أحد للحين' : 'nobody yet'}`,
+            ...(dup ? [ar ? '♻️ فيه مهمة مثلها من قبل' : '♻️ there is already a task like it'] : []),
+          ].join('\n'),
+        ),
+        1000,
       ),
-      buttons: [
-        { id: `ok:${it.id}:${i}`, title: ar ? '✅ اعتمد' : '✅ Approve' },
-        { id: `no:${it.id}:${i}`, title: ar ? '✖️ تجاهل' : '✖️ Ignore' },
-      ],
+      buttons: choicesOn
+        ? toolButtons(it, i, s, ar)
+        : [
+            { id: `ok:${it.id}:${i}`, title: ar ? '✅ اعتمد' : '✅ Approve' },
+            { id: `no:${it.id}:${i}`, title: ar ? '✖️ تجاهل' : '✖️ Ignore' },
+          ],
     });
   }
   return out;
@@ -274,9 +340,12 @@ export const foundItemIds = (dedupeKey: string | null | undefined) => (/^tools_f
 /** cards for exactly those items, still waiting (reviewer, 10 Nov: never "the newest waiting ones") */
 export async function toolCardsFor(admin: SupabaseClient, itemIds: string[], ar: boolean): Promise<WaCard[]> {
   if (!itemIds.length) return [];
-  const { data } = await admin.from('incoming_items').select('id, source, sender, subject, received_at, suggestions').in('id', itemIds).eq('status', 'new');
+  const { data } = await admin.from('incoming_items').select(TOOL_ITEM_COLS).in('id', itemIds).eq('status', 'new');
   const byId = new Map(((data ?? []) as ToolItem[]).map((x) => [x.id, x]));
-  return itemIds.flatMap((id) => (byId.get(id) ? toolCardsOf(byId.get(id)!, ar) : []));
+  // each item by its own seat's switch
+  const on = new Map<string, boolean>();
+  for (const seat of new Set([...byId.values()].map((x) => x.owner_id ?? ''))) on.set(seat, await choicesOnFor(admin, seat));
+  return itemIds.flatMap((id) => (byId.get(id) ? toolCardsOf(byId.get(id)!, ar, on.get(byId.get(id)!.owner_id ?? '') ?? false) : []));
 }
 
 /** The one profile a WhatsApp number speaks for when it's on several accounts: the account its person works in now

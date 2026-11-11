@@ -15,7 +15,7 @@ import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
 import { emailFromMailbox } from '../_shared/connections.ts';
-import { createFromSuggestion, ingestMessage, recheckOwners, rereadWaiting, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
+import { createFromSuggestion, doneBefore, ingestMessage, recheckOwners, rereadWaiting, MAX_MEETING_TEXT, MAX_TEXT, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 
 async function loadItem(admin: SupabaseClient, profileId: string, id: unknown): Promise<Item> {
   const { data, error } = await admin.from('incoming_items').select('*').eq('id', String(id ?? '')).maybeSingle();
@@ -56,6 +56,11 @@ serve(async (req) => {
     const { data, error } = await db.rpc('create_task_with_plan', { p });
     if (error) throw new HttpError(400, error.message);
     return data as string;
+  };
+
+  // a found task's new choices go to testers first (feature found_task_choices)
+  const choicesOn = async () => {
+    if ((await db.rpc('feature_on', { p_key: 'found_task_choices' })).data !== true) throw new HttpError(403, 'Not available yet');
   };
 
   switch (body.action) {
@@ -138,6 +143,45 @@ serve(async (req) => {
         if (!s || s.state !== 'new') throw new HttpError(409, 'Already handled');
         s.state = 'ignored';
       }
+      return json(await saveItem(admin, item));
+    }
+
+    // «خلصتها قبل» (owner, 11 Nov): on the record as done, nothing to follow up
+    case 'done_before': {
+      await choicesOn();
+      const item = await loadItem(admin, profileId, body.id);
+      const s = item.suggestions[Number(body.index)];
+      if (!s || s.state !== 'new') throw new HttpError(409, 'Already handled');
+      // closed the normal way, as them (set_task_status)
+      await doneBefore(admin, profileId, item, s, create, async (taskId) => {
+        const { data, error } = await db.rpc('set_task_status', { p_task: taskId, p_status: 'done' });
+        if (error) throw new HttpError(400, error.message);
+        return String(data ?? 'done');
+      });
+      return json(await saveItem(admin, item));
+    }
+
+    // «رجّعها» after Ignore, or from the handled ones: back in the list as it was
+    case 'restore': {
+      await choicesOn();
+      const item = await loadItem(admin, profileId, body.id);
+      const s = item.suggestions[Number(body.index)];
+      if (!s || s.state !== 'ignored') throw new HttpError(409, 'Not ignored');
+      s.state = 'new';
+      return json(await saveItem(admin, item));
+    }
+
+    // «رجّعها» after Add or «خلصتها قبل»: only what that tap did, in the last 5 minutes, untouched since
+    case 'undo_found': {
+      await choicesOn();
+      const item = await loadItem(admin, profileId, body.id);
+      const s = item.suggestions[Number(body.index)];
+      if (!s || s.state !== 'accepted' || !s.task_id) throw new HttpError(409, 'Nothing to undo');
+      const { error } = await db.rpc('undo_found_task', { p_task: s.task_id });
+      if (error) throw new HttpError(409, /moved_on/.test(error.message) ? 'moved_on' : error.message);
+      s.state = 'new';
+      s.task_id = null;
+      s.done_before = false;
       return json(await saveItem(admin, item));
     }
 

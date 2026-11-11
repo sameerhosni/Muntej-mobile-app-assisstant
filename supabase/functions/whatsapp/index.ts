@@ -15,7 +15,7 @@ import { prefersArabic } from '../_shared/localize.ts';
 import { titleIn } from '../_shared/task-text.ts';
 import { adminClient } from '../_shared/push.ts';
 import { aiAllowed } from '../_shared/ai-consent.ts';
-import { createFromSuggestion, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
+import { createFromSuggestion, doneBefore, fillShortTitles, ingestMessage, OPEN, saveItem, type Creator, type Item } from '../_shared/intake-core.ts';
 import {
   ACTION_TEMPLATE,
   CODE_TEMPLATE,
@@ -35,7 +35,7 @@ import {
   type WaButton,
   type WaRow,
 } from '../_shared/wa.ts';
-import { foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolCardsFor, toolListButtons, toolListIntro, toolListRows, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
+import { choicesOnFor, foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolButtons, toolCardsFor, toolListButtons, toolListIntro, toolListRows, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
 import { quickDates, readWhen } from '../_shared/when.ts';
 
 /** "what is it?" about the last thing Muntej sent (whole message; Arabic without \b, R112) */
@@ -358,7 +358,7 @@ async function whoseTap(m: WaMessage, people: { id: string; account_id: string }
   } else if ((verb === 'r' || verb === 'h') && b) {
     const { data } = await admin.from('tasks').select('assigner_id, owner_id').eq('id', b).maybeSingle();
     related = verb === 'h' ? [data?.owner_id ?? null, data?.assigner_id ?? null] : [data?.assigner_id ?? null, data?.owner_id ?? null];
-  } else if ((verb === 'ok' || verb === 'no' || verb === 'tc') && a) {
+  } else if (['ok', 'no', 'tc', 'tg', 'tw', 'tn', 'tx', 'td', 'tt', 'tu', 'tv', 'tf', 'tz'].includes(verb) && a) {
     // (tc = a row of the tools drop-down: the seat that owns the item — reviewer, 10 Nov)
     const { data } = await admin.from('incoming_items').select('owner_id').eq('id', a).maybeSingle();
     related = [data?.owner_id ?? null];
@@ -845,6 +845,25 @@ async function handle(m: WaMessage, dry = false) {
       ));
     }
     if (verb === 'ok' || verb === 'no') return void (await suggestion(verb, rest[0], Number(rest[1])));
+    // a found task's other choices (owner, 11 Nov: "I need to have multiple actions on it")
+    if (rest[0] && ['tg', 'tw', 'tn', 'tx', 'td', 'tt', 'tu', 'tv', 'tf', 'tz'].includes(verb)) {
+      const [item, i, extra] = [rest[0], Number(rest[1] ?? 0), rest[2]];
+      // testers first (found_task_choices); an old button for someone not in it yet says so
+      if (!(await choicesOnFor(admin, me.id))) return void (await say(ar ? 'هالخيار لسه ما وصلك 🙏 اعتمدها أو تجاهلها من منتج ← أدواتك' : 'That choice isn’t on for you yet 🙏 Approve or ignore it in Muntej → Your tools'));
+      if (verb === 'tg') return void (await giveList(item, i));
+      if (verb === 'tw' && extra) return void (await giveTo(item, i, extra));
+      if (verb === 'tx') return void (await toolOptions(item, i));
+      if (verb === 'td') return void (await toolDone(item, i));
+      if (verb === 'tt') return void (await toolDueChoices(item, i));
+      if (verb === 'tu' && extra) return void (await toolSetDue(item, i, new Date(Number(extra) * 1000).toISOString()));
+      if (verb === 'tf') return void (await toolFull(item, i));
+      if (verb === 'tz') return void (await toolUndo(item, i));
+      if (verb === 'tn' || verb === 'tv') {
+        if (!(await foundTask(item, i))) return void (await notFound());
+        await admin.from('wa_pending').upsert({ key: `${verb}:${me.id}`, profile_id: me.id, body: { item, index: i }, created_at: new Date().toISOString() });
+        return void (await say(verb === 'tn' ? (ar ? 'اكتب اسمه ✍️' : 'Type their name ✍️') : ar ? 'اكتب الموعد ✍️ (بكرة الساعة 3، الخميس…)' : 'Type the date ✍️ (tomorrow at 3, Thursday…)'));
+      }
+    }
     // the setup on WhatsApp: right / something's wrong / remind my team
     if (verb === 'ob') {
       if (rest[0] === 'ok') return void (await obOk());
@@ -1049,7 +1068,17 @@ async function handle(m: WaMessage, dry = false) {
   }
 
   /** tasks found in tools: one numbered message + all / none / choose (the numbers are kept for the reply) */
-  async function sendToolList(tools: WaCard[]) {
+  async function sendToolList(found: WaCard[]) {
+    // tasks found before Muntej wrote short names get them now, so no row is cut mid-word (owner, 11 Nov, option B)
+    let tools = found;
+    const ids = [...new Set(found.slice(0, MAX_LIST).map((c) => c.ref?.item).filter((x): x is string => !!x))];
+    const seatOf = (await admin.from('incoming_items').select('owner_id').in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000'])).data ?? [];
+    let named = 0;
+    for (const seat of new Set(seatOf.map((r) => r.owner_id as string))) named += await fillShortTitles(admin, seat, ids).catch(() => 0);
+    if (named) {
+      const fresh = await toolCardsFor(admin, ids, ar);
+      tools = found.map((c) => fresh.find((x) => x.ref?.item === c.ref?.item && x.ref?.index === c.ref?.index) ?? c);
+    }
     const refs = tools.slice(0, MAX_LIST).map((c) => c.ref!).filter(Boolean);
     await admin.from('wa_pending').upsert({ key: `tools:${me.id}`, profile_id: me.id, body: { refs }, created_at: new Date().toISOString() });
     // WhatsApp's drop-down list: one row per task (who · when · due), a row opens its card (owner, 10 Nov, option 2);
@@ -1237,6 +1266,52 @@ async function handle(m: WaMessage, dry = false) {
       return true;
     }
 
+    // «✍️ اكتب اسمه» / «✍️ اكتب التاريخ» under a found task (owner, 11 Nov)
+    for (const verb of ['tn', 'tv'] as const) {
+      const { data: p } = await admin
+        .from('wa_pending')
+        .select('body')
+        .eq('key', `${verb}:${me.id}`)
+        .gte('created_at', new Date(Date.now() - 30 * 60_000).toISOString())
+        .maybeSingle();
+      if (!p) continue;
+      const { item, index } = p.body as { item: string; index: number };
+      const f = await foundTask(item, index);
+      if (!f) {
+        await admin.from('wa_pending').delete().eq('key', `${verb}:${me.id}`);
+        await notFound();
+        return true;
+      }
+      if (verb === 'tn') {
+        // whole words only, «و / ل / ال» stripped (R112: «مها» never matches inside «مهامي»)
+        const words = (s: string) =>
+          s
+            .toLowerCase()
+            .replace(/[.,،!؟?]/g, ' ')
+            .split(/\s+/)
+            .map((w) => w.replace(/^(و|ل|ال|لل)(?=\S{2,})/, ''))
+            .filter((w) => w.length >= 2);
+        const said = words(text);
+        const team = await teamOf(f.seat);
+        const hits = said.length ? team.filter((x) => [x.full_name, x.full_name_ar].some((n) => !!n && words(n).some((w) => said.includes(w)))) : [];
+        if (hits.length === 1) {
+          await admin.from('wa_pending').delete().eq('key', `tn:${me.id}`);
+          await giveTo(item, index, hits[0].id);
+        } else if (hits.length > 1) {
+          // a few fit: pick one (the wait stays open for another try)
+          await waList(from, rtl(ar ? 'أكثر من واحد بهالاسم، مين؟' : 'More than one by that name, who?'), ar ? '👤 اختر' : '👤 Pick', hits.slice(0, 10).map((x) => ({ id: `tw:${item}:${index}:${x.id}`, title: personName(x).slice(0, 24), description: (x.title ?? '').slice(0, 72) || undefined })));
+        } else await say(ar ? 'ما لقيت أحد بهالاسم في فريقك 🤔 اكتبه مرة ثانية' : 'No one by that name in your team 🤔 Try again');
+        return true;
+      }
+      // a date in their own words (AI, for those who allowed it); unclear → the quick choices again
+      const due = (await aiAllowed(me.id, admin)) ? await readWhen(text).catch(() => null) : null;
+      if (due) {
+        await admin.from('wa_pending').delete().eq('key', `tv:${me.id}`);
+        await toolSetDue(item, index, due);
+      } else await toolDueChoices(item, index, true);
+      return true;
+    }
+
     // "send it back": the next message is what needs changing
     const { data: note } = await admin
       .from('wa_pending')
@@ -1344,32 +1419,216 @@ async function handle(m: WaMessage, dry = false) {
     await say(ar ? s[0] : s[1]);
   }
 
-  /** Approve / Ignore under a task found in a message: same as in the app (Your tools) */
-  async function suggestion(verb: 'ok' | 'no', itemId: string, idx: number) {
-    const { data: row } = await admin.from('incoming_items').select('*').eq('id', itemId).eq('owner_id', me.id).maybeSingle();
+  /** a found task of ANY of this number's seats (owner, 11 Nov: the card opened, but its buttons only looked at the seat
+   *  WhatsApp picked and said «ما لقيت هالمهمة»): the item, the suggestion, and the seat it belongs to */
+  async function foundTask(itemId: string, idx: number) {
+    const seats = (people ?? []).map((p) => p.id);
+    const { data: row } = await admin.from('incoming_items').select('*').eq('id', itemId).in('owner_id', seats.length ? seats : [me.id]).maybeSingle();
     const item = row as Item | null;
     const s = item?.suggestions[idx];
-    if (!item || !s) return void (await say(ar ? 'ما لقيت هالمهمة 🤔 شيّك عليها في منتج ← أدواتك' : 'I couldn’t find that task 🤔 Check Muntej → Your tools'));
-    if (s.state !== 'new') return void (await say(ar ? `سبق وتعاملنا معها ✓ (${s.state === 'accepted' ? 'معتمدة' : 'متجاهلة'})\n📝 ${s.title}` : `Already handled ✓ (${s.state})\n📝 ${s.title}`));
+    return item && s ? { item, s, seat: item.owner_id } : null;
+  }
+  function notFound() {
+    return say(ar ? 'ما لقيت هالمهمة 🤔 شيّك عليها في منتج ← أدواتك' : 'I couldn’t find that task 🤔 Check Muntej → Your tools');
+  }
+  function handled(s: { state: string; title: string }) {
+    return say(ar ? `سبق وتعاملنا معها ✓ (${s.state === 'accepted' ? 'معتمدة' : 'متجاهلة'})\n📝 ${s.title}` : `Already handled ✓ (${s.state})\n📝 ${s.title}`);
+  }
+
+  /** how many found tasks still wait in the list I sent (or, without one, at all) */
+  async function toolsLeft() {
+    const refs = await toolList();
+    if (!refs) return (await needsYouCards(admin, me.id, ar)).filter((c) => c.kind === 'tool').length;
+    const cards = await toolCardsFor(admin, [...new Set(refs.map((r) => r.item))], ar);
+    return refs.filter((r) => cards.some((c) => c.ref?.item === r.item && c.ref?.index === r.index)).length;
+  }
+  /** what really happened, then «↩️ تراجع» and «📋 الباقي (n)» (owner, 11 Nov: every tap was final, and the next task
+   *  meant scrolling back up) */
+  async function afterTool(text: string, itemId: string, idx: number) {
+    const left = await toolsLeft();
+    await waButtons(from, rtl(text), [
+      { id: `tz:${itemId}:${idx}`, title: ar ? '↩️ تراجع' : '↩️ Undo' },
+      ...(left > 0 ? [{ id: 'tl:0', title: ar ? `📋 الباقي (${left})` : `📋 The rest (${left})` }] : []),
+    ]);
+  }
+
+  /** «✅ اعتمدها لي» / «✅ لـ فيصل» / «✖️ مو مهمة» under a found task: same as in the app (Your tools) */
+  async function suggestion(verb: 'ok' | 'no', itemId: string, idx: number) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    const { item, s, seat } = f;
+    if (s.state !== 'new') return void (await handled(s));
     if (verb === 'no') {
       s.state = 'ignored';
       await saveItem(admin, item);
-      return void (await say(ar ? `تمام 👍 تجاهلتها\n📝 ${s.title}` : `OK 👍 Ignored\n📝 ${s.title}`));
+      return void (await afterTool(ar ? `تجاهلتها 👍\n📝 ${s.title}` : `Ignored 👍\n📝 ${s.title}`, itemId, idx));
     }
-    s.task_id = await createFromSuggestion(admin, me.id, item, s, creator());
+    // the button said «اعتمدها لي» when nobody was named: it's yours
+    if (!s.owner_id) s.owner_id = seat;
+    await approveFound(item, s, seat, itemId, idx);
+  }
+  async function approveFound(item: Item, s: Item['suggestions'][number], seat: string, itemId: string, idx: number) {
+    try {
+      s.task_id = await createFromSuggestion(admin, seat, item, s, creator(seat));
+    } catch (e) {
+      console.error('whatsapp approve found', (e as Error).message);
+      return void (await say(ar ? 'ما قدرت أضيفها الحين 😕 جرّب من منتج ← أدواتك' : 'I couldn’t add it right now 😕 Try in Muntej → Your tools'));
+    }
     s.state = 'accepted';
     await saveItem(admin, item);
-    const who = s.owner_id ? await nameOf(s.owner_id) : null;
-    await say(
+    const who = s.owner_id && s.owner_id !== seat ? await nameOf(s.owner_id) : null;
+    await afterTool(
       ar
-        ? `تم ✅ اعتمدتها\n📝 ${s.title}\n${who ? (s.owner_id === me.id ? '👤 هي عندك، وأذكّرك قبل الموعد ⏰' : `👤 وصلت لـ ${who}، وأنا أتابع معه لين يخلص 💪`) : '👤 ما لها أحد للحين، اختر لها شخص من منتج'}`
-        : `Done ✅ Approved\n📝 ${s.title}\n${who ? (s.owner_id === me.id ? '👤 It’s yours, I’ll remind you before it’s due ⏰' : `👤 Sent to ${who}, I’ll follow up until it’s done 💪`) : '👤 Nobody owns it yet, pick someone in Muntej'}`,
+        ? who ? `تم ✅ «${s.title}» وصلت لـ${who.split(' ')[0]}، وأتابع معه لين يخلص 💪` : `تم ✅ «${s.title}» عندك، وأذكّرك قبل الموعد ⏰`
+        : who ? `Done ✅ "${s.title}" went to ${who.split(' ')[0]}; I’ll follow up until it’s done 💪` : `Done ✅ "${s.title}" is yours; I’ll remind you before it’s due ⏰`,
+      itemId,
+      idx,
     );
   }
 
-  function creator(): Creator {
+  /** who this seat may give work to, by the app's own rule (assignable_for = can_assign_to; reviewer, 11 Nov: never the
+   *  whole company), invited people too, the seat itself left out */
+  async function teamOf(seat: string) {
+    const { data: ids } = await admin.rpc('assignable_for', { p_actor: seat });
+    const allowed = ((ids ?? []) as unknown[]).map((x) => (typeof x === 'string' ? x : (x as Record<string, string>).assignable_for)).filter((x) => !!x && x !== seat);
+    if (!allowed.length) return [];
+    const { data } = await admin.from('profiles').select('id, full_name, full_name_ar, title').in('id', allowed).order('full_name');
+    return (data ?? []) as { id: string; full_name: string; full_name_ar: string | null; title: string | null }[];
+  }
+  // a function, not a const: taps can run before this line of handle() (QA, 11 Nov: «Cannot access before initialization»)
+  function personName(p: { full_name: string; full_name_ar: string | null }) {
+    return (ar && p.full_name_ar) || p.full_name;
+  }
+
+  /** «👤 لغيري»: pick who does it */
+  async function giveList(itemId: string, idx: number) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    if (f.s.state !== 'new') return void (await handled(f.s));
+    const team = await teamOf(f.seat);
+    const sorted = [...team.filter((p) => p.id === f.s.owner_id), ...team.filter((p) => p.id !== f.s.owner_id)].slice(0, 9);
+    const rows: WaRow[] = [
+      ...sorted.map((p) => ({ id: `tw:${itemId}:${idx}:${p.id}`, title: personName(p).slice(0, 24), description: (p.title ?? '').slice(0, 72) || undefined })),
+      { id: `tn:${itemId}:${idx}`, title: ar ? '✍️ اكتب اسمه' : '✍️ Type a name' },
+    ];
+    await waList(from, rtl(ar ? `مين يسوي «${f.s.title}»؟` : `Who should do "${f.s.title}"?`), ar ? '👤 اختر' : '👤 Pick', rows);
+  }
+  async function giveTo(itemId: string, idx: number, personId: string) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    if (f.s.state !== 'new') return void (await handled(f.s));
+    const team = await teamOf(f.seat);
+    if (!team.some((p) => p.id === personId)) return void (await say(ar ? 'ما لقيت هالشخص في فريقك 🤔' : 'I couldn’t find that person in your team 🤔'));
+    f.s.owner_id = personId;
+    f.s.outside = false;
+    await approveFound(f.item, f.s, f.seat, itemId, idx);
+  }
+
+  /** «⋯ خيارات»: everything else to do with it */
+  async function toolOptions(itemId: string, idx: number) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    if (f.s.state !== 'new') return void (await handled(f.s));
+    const rows: WaRow[] = [
+      { id: `no:${itemId}:${idx}`, title: ar ? '✖️ مو مهمة، تجاهلها' : '✖️ Not a task, ignore' },
+      { id: `td:${itemId}:${idx}`, title: ar ? '✔️ خلصتها قبل' : '✔️ Already done' },
+      { id: `tt:${itemId}:${idx}`, title: ar ? '⏰ غيّر الموعد' : '⏰ Change the date' },
+      { id: `tf:${itemId}:${idx}`, title: ar ? '📄 الرسالة كاملة' : '📄 The full message' },
+    ];
+    await waList(from, rtl(ar ? `وش تبي تسوي بـ«${f.s.title}»؟` : `What should I do with "${f.s.title}"?`), ar ? '⋯ خيارات' : '⋯ More', rows);
+  }
+  /** «✔️ خلصتها قبل»: on the record as done, nothing to follow up */
+  async function toolDone(itemId: string, idx: number) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    if (f.s.state !== 'new') return void (await handled(f.s));
+    let status = '';
+    try {
+      // closed the normal way, as THIS seat (who may close it; a review when it goes to their manager): never the seat
+      // the person last opened in the app (reviewer, 11 Nov)
+      status = await doneBefore(admin, f.seat, f.item, f.s, creator(f.seat), async (taskId) => {
+        const { data, error } = await admin.rpc('set_task_status_as', { p_task: taskId, p_status: 'done', p_actor: f.seat });
+        if (error) throw new Error(error.message);
+        return String(data ?? 'done');
+      });
+    } catch (e) {
+      console.error('whatsapp done before', (e as Error).message);
+      return void (await say(ar ? 'ما قدرت أسجّلها الحين 😕 جرّب من منتج ← أدواتك' : 'I couldn’t save it right now 😕 Try in Muntej → Your tools'));
+    }
+    await saveItem(admin, f.item);
+    await afterTool(
+      status === 'submitted'
+        ? ar ? `تمام ✔️ «${f.s.title}» سجّلتها خلصت، وراحت لمديرك يعتمدها` : `OK ✔️ "${f.s.title}" is marked done and went to your manager to approve`
+        : ar ? `تمام ✔️ سجّلت «${f.s.title}» إنها خلصت قبل` : `OK ✔️ "${f.s.title}" is on the record as already done`,
+      itemId,
+      idx,
+    );
+  }
+  /** «⏰ غيّر الموعد»: a quick date, or one typed in their words */
+  async function toolDueChoices(itemId: string, idx: number, again = false) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    if (f.s.state !== 'new') return void (await handled(f.s));
+    const labels = { tomorrow: ar ? 'بكرة' : 'Tomorrow', in3: ar ? 'بعد 3 أيام' : 'In 3 days', sunday: ar ? 'الأحد الجاي' : 'Next Sunday', week: ar ? 'بعد أسبوع' : 'In a week' };
+    const rows: WaRow[] = [
+      ...quickDates().map((d) => ({ id: `tu:${itemId}:${idx}:${Math.floor(Date.parse(d.at) / 1000)}`, title: labels[d.key], description: whenText(d.at, ar) })),
+      { id: `tv:${itemId}:${idx}`, title: ar ? '✍️ اكتب التاريخ' : '✍️ Type the date' },
+    ];
+    await waList(
+      from,
+      rtl(again ? (ar ? 'ما فهمت التاريخ 🤔 اختر واحد، أو اكتبه بطريقة ثانية (مثل: الخميس الساعة 3)' : 'I didn’t get the date 🤔 Pick one, or write it another way (e.g. Thursday at 3)') : ar ? `متى تبي «${f.s.title}»؟` : `When is "${f.s.title}" due?`),
+      ar ? '⏰ اختر' : '⏰ Pick',
+      rows,
+    );
+  }
+  async function toolSetDue(itemId: string, idx: number, iso: string) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    if (f.s.state !== 'new') return void (await handled(f.s));
+    f.s.due_at = iso;
+    await saveItem(admin, f.item);
+    await say(ar ? `✓ الموعد صار ${whenText(iso, ar)}` : `✓ Now due ${whenText(iso, ar)}`);
+    await toolRow(itemId, idx);
+  }
+  /** «📄 الرسالة كاملة»: what they wrote, with the same three buttons under it */
+  async function toolFull(itemId: string, idx: number) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    if (f.s.state !== 'new') return void (await handled(f.s));
+    const head = [f.item.sender, f.item.subject].filter(Boolean).join(' · ');
+    const body = f.item.body.replace(/\n{3,}/g, '\n\n').trim();
+    await waButtons(from, rtl(`📄 ${head ? `*${head.slice(0, 120)}*\n` : ''}${body.length > 880 ? `${body.slice(0, 879)}…` : body}`), toolButtons(f.item, idx, f.s, ar));
+  }
+  /** «↩️ تراجع»: ignored → back in the list; approved or done → the task is cancelled the normal way (who got it is told) */
+  async function toolUndo(itemId: string, idx: number) {
+    const f = await foundTask(itemId, idx);
+    if (!f) return void (await notFound());
+    const { item, s, seat } = f;
+    if (s.state === 'new') return void (await say(ar ? 'هي في قائمتك للحين 👍' : 'It’s still in your list 👍'));
+    if (s.state === 'accepted' && s.task_id) {
+      // only what this tap did, in the last 5 minutes, untouched since (undo_found_core; reviewer, 11 Nov): the doer is
+      // told the normal way; anything else stays as it is
+      const { error } = await admin.rpc('undo_found_core', { p_task: s.task_id, p_actor: seat });
+      if (error) {
+        console.error('whatsapp tool undo', error.message);
+        return void (await say(
+          /moved_on/.test(error.message)
+            ? ar ? `«${s.title}» مشت من بعدها، ما أقدر أتراجع عنها 🙏 لو تبي تلغيها: من صفحة المهمة` : `"${s.title}" has moved on since, so I can’t undo it 🙏 To cancel it, use the task page`
+            : ar ? 'ما قدرت أتراجع عنها الحين 😕 جرّب من منتج' : 'I couldn’t undo it right now 😕 Try in Muntej',
+        ));
+      }
+    } else if (s.state !== 'ignored') return void (await handled(s));
+    s.state = 'new';
+    s.task_id = null;
+    s.done_before = false;
+    await saveItem(admin, item);
+    await say(ar ? `رجعت ↩️ «${s.title}» في قائمتك` : `Back ↩️ "${s.title}" is in your list again`);
+    await toolRow(itemId, idx);
+  }
+
+  function creator(actor: string = me.id): Creator {
     return async (p) => {
-      const { data, error } = await admin.rpc('create_task_as', { p, actor: me.id });
+      const { data, error } = await admin.rpc('create_task_as', { p, actor });
       if (error) throw new Error(error.message);
       return data as string;
     };

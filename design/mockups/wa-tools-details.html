@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WhatsApp task details</title>
+<style>
+:root{--bg:#0B141A;--panel:#1F2C34;--bubble:#005C4B;--in:#202C33;--ink:#E9EDEF;--sub:#8696A0;--line:#2A3942;--btn:#53BDEB;--hl:#F7C948}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,"Segoe UI",Tahoma,sans-serif;padding:16px}
+h1{font-size:19px;margin:0 0 4px}h2{font-size:16px;margin:26px 0 6px;color:var(--hl)}p.s{color:var(--sub);font-size:13.5px;margin:0 0 10px;line-height:1.6}
+.sheet{background:var(--panel);border-radius:18px;max-width:380px;overflow:hidden;margin-bottom:10px}
+.sheet .hd{padding:14px;text-align:center;font-weight:700;border-bottom:1px solid var(--line)}
+.row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.row .t{flex:1;min-width:0}.row b{display:block;font-size:15px;font-weight:600}.row span{display:block;font-size:13px;color:var(--sub);margin-top:3px;line-height:1.45}
+.o{width:20px;height:20px;border-radius:50%;border:2px solid var(--sub)}
+.msg{background:var(--in);border-radius:12px;max-width:340px;padding:10px 12px;font-size:14px;line-height:1.75;margin-bottom:2px}
+.btns{max-width:364px;display:grid;gap:2px;margin-bottom:10px}
+.btns div{background:var(--in);color:var(--btn);text-align:center;padding:10px;border-radius:10px;font-weight:600;font-size:14px}
+.tag{display:inline-block;background:#F7C94822;color:var(--hl);border-radius:8px;padding:1px 8px;font-size:12px;font-weight:700;margin-inline-start:6px}
+.cols{display:flex;gap:14px;flex-wrap:wrap}.cols>div{flex:1;min-width:300px}
+.reply{background:var(--bubble);border-radius:12px;max-width:340px;padding:10px 12px;font-size:14px;margin-bottom:2px}
+</style></head><body>
+<h1>تفاصيل المهمة قبل ما توافق</h1>
+<p class="s">ثلاث خطوات: القائمة تبيّن المهمة كاملة، والضغطة تفتح كل تفاصيلها، وتحتها كل الخيارات. كل خطوة ترد عليك بـ«↩️ تراجع» و«📋 الباقي».</p>
+
+<h2>١ · القائمة: اختر شكل السطر</h2>
+<div class="cols">
+<div>
+<b>الخيار A · المهمة كاملة في السطر الثاني</b> <span class="tag">يقرأ أكثر</span>
+<p class="s">فوق: مين ومتى. تحت: عنوان المهمة كامل (لين ٧٢ حرف).</p>
+<div class="sheet"><div class="hd">📋 شوف المهام</div>
+<div class="row"><div class="t"><b>3. نوران · اليوم 5م</b><span>Investigate AI assignment failing for new users</span></div><div class="o"></div></div>
+<div class="row"><div class="t"><b>4. نوران · بدون موعد</b><span>Fix WhatsApp → UI sync for definition of done</span></div><div class="o"></div></div>
+<div class="row"><div class="t"><b>1. MarCom Ads · أمس</b><span>أعطِ صلاحية وصول على حساب الإعلانات لفريق التسويق</span></div><div class="o"></div></div>
+</div></div>
+<div>
+<b>الخيار B · منتج يكتب عنوان قصير</b> <span class="tag">أنظف</span>
+<p class="s">منتج يختصر كل مهمة لـ٢٢ حرف واضحة، وتحتها مين ومتى.</p>
+<div class="sheet"><div class="hd">📋 شوف المهام</div>
+<div class="row"><div class="t"><b>3. افحص توزيع AI</b><span>من نوران · أمس · ⏰ اليوم 5:00م</span></div><div class="o"></div></div>
+<div class="row"><div class="t"><b>4. اربط تعريف الإنجاز</b><span>من نوران · أمس · بدون موعد</span></div><div class="o"></div></div>
+<div class="row"><div class="t"><b>1. صلاحية حساب الإعلانات</b><span>من MarCom Ads · أمس</span></div><div class="o"></div></div>
+</div></div>
+</div>
+
+<h2>٢ · تضغط المهمة: كل التفاصيل</h2>
+<div class="msg">🔌 لقيتها في جيميل · «Re: AI assignment»<br>📝 <b>Investigate AI assignment failing for new users</b><br>👤 من نوران إميرة · أمس 4:10م<br>📄 المطلوب: المستخدمين الجدد ما توصلهم المهام اللي يوزعها منتج تلقائيًا، شوف السبب وصلّحه…<br>✓ تنتهي لما: كل مستخدم جديد يستلم مهامه خلال دقيقة<br>⏰ مطلوبة اليوم 5:00م · 🔴 عاجلة<br>➡️ لك</div>
+<div class="btns"><div>✅ اعتمدها لي</div><div>👤 لغيري</div><div>⋯ خيارات</div></div>
+
+<h2>٣ · «⋯ خيارات»</h2>
+<div class="sheet"><div class="hd">⋯ خيارات</div>
+<div class="row"><div class="t"><b>✖️ مو مهمة، تجاهلها</b></div><div class="o"></div></div>
+<div class="row"><div class="t"><b>✔️ خلصتها قبل</b></div><div class="o"></div></div>
+<div class="row"><div class="t"><b>⏰ غيّر الموعد</b><span>اليوم · بكرة · بعد ٣ أيام · الأحد · اكتب تاريخ</span></div><div class="o"></div></div>
+<div class="row"><div class="t"><b>📄 الرسالة كاملة</b></div><div class="o"></div></div>
+<div class="row"><div class="t"><b>❓ اسأل نوران</b><span>لما المرسل من فريقك</span></div><div class="o"></div></div>
+</div>
+<p class="s">«👤 لغيري» تفتح قائمة فريقك (المقترح أول واحد)، وتقدر تكتب الاسم بنفسك.</p>
+
+<h2>٤ · بعد أي خيار</h2>
+<div class="reply">تم ✅ «Investigate AI…» وصلت لفيصل وأتابع معه</div>
+<div class="btns" style="grid-template-columns:1fr 1fr"><div>↩️ تراجع</div><div>📋 الباقي (7)</div></div>
+<p class="s">ونفس الخيارات في التطبيق ← أدواتك: «خلصتها قبل»، تغيير الموعد، و«رجّعها» ٦ ثواني بعد التجاهل.</p>
+</body></html>

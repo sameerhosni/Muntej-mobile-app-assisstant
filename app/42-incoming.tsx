@@ -14,7 +14,8 @@ import { colors, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { formatDue } from '@/features/capture/format';
-import { useIncoming, useIncomingActions } from '@/features/incoming/api';
+import { useFoundChoicesOn, useHandledIgnored, useIncoming, useIncomingActions } from '@/features/incoming/api';
+import { ItemCard } from '@/features/incoming/ItemCard';
 import { BulkProgress } from '@/features/incoming/BulkProgress';
 import { NS } from '@/features/incoming/strings';
 import { useConnections, useProviders } from '@/features/sources/connections';
@@ -28,6 +29,37 @@ import { Spotlight } from '@/features/launch/Spotlight';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 
 const EMAIL_STEPS = [{ target: 'email.connect', key: 'emailConnect' }];
+
+/** what you ignored in the last 7 days, folded: «رجّعها» brings one back (owner, 11 Nov) */
+function HandledIgnored() {
+  const { t } = useScreenT(NS);
+  const [open, setOpen] = useState(false);
+  // testers first (feature found_task_choices)
+  const on = useFoundChoicesOn();
+  const handled = useHandledIgnored(on);
+  const items = handled.data ?? [];
+  if (!on || !items.length) return null;
+  const count = items.reduce((n, it) => n + it.suggestions.filter((s) => s.state === 'ignored').length, 0);
+  return (
+    <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
+      <Pressable onPress={() => setOpen((o) => !o)} accessibilityRole="button" style={{ minHeight: sizes.touch, justifyContent: 'center' }}>
+        <AppText variant="small" weight="bold" color="primary">
+          {open ? t('handledHide') : t('handledShow', { count })}
+        </AppText>
+      </Pressable>
+      {open && (
+        <>
+          <AppText variant="small" weight="semibold" color="textMuted">
+            {t('handledTitle')}
+          </AppText>
+          {items.map((it) => (
+            <ItemCard key={it.id} item={it} />
+          ))}
+        </>
+      )}
+    </View>
+  );
+}
 
 export default function IncomingScreen() {
   const { t } = useScreenT(NS);
@@ -192,6 +224,7 @@ export default function IncomingScreen() {
               {providers.isLoading ? '…' : tt('addToolNone')}
             </AppText>
           ))}
+        <HandledIgnored />
       </ScrollView>
     </SafeAreaView>
   );

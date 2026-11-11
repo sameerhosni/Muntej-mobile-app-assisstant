@@ -407,7 +407,8 @@ async function server() {
       const all = JSON.stringify(msgs);
       expect(all.includes(`QA found ${tag}`), `the alert's task wasn't shown: ${texts(msgs).slice(0, 140)}`);
       expect(!all.includes(`QA newer other ${tag}`), 'showed another waiting task instead');
-      expect(all.includes(`ok:${found.id}:0`) && all.includes(`no:${found.id}:0`), 'no Approve / Ignore on it');
+      // Approve and a way to say no: «✖️ تجاهل», or «⋯ خيارات» (found_task_choices, testers first)
+      expect(all.includes(`ok:${found.id}:0`) && (all.includes(`no:${found.id}:0`) || all.includes(`tx:${found.id}:0`)), 'no Approve / Ignore on it');
       // enough to decide right there (owner, 10 Nov: "from whom and when or any other important things"): who, their words
       expect(all.includes('Mohammed QA') && all.includes('please confirm the push status today'), `the card doesn't say who asked or what they wrote: ${texts(msgs).slice(0, 160)}`);
       // …and when (the day it was sent, as the card writes it)
@@ -483,7 +484,7 @@ async function server() {
     const tag = Date.now().toString(36);
     const [it] = await sql(`insert into public.incoming_items (owner_id, source, external_id, body, summary, status, suggestions, received_at)
       values ('${QA_BOSS}', 'gmail', 'qa-list-${tag}', 'QA', 'QA', 'new',
-      '[{"title":"QA list row ${tag}","owner_id":null,"due_at":null,"priority":"medium","state":"new","task_id":null,"duplicate_of":null,"confidence":0.9,"quote":"send the signed contract","description":null,"definition_of_done":null,"proof_required":"none","budget":null,"estimate_hours":null,"requested_by":"Khalid QA","amends_earlier":false,"owner_name":null,"outside":false,"asked_by_user":false,"asked_of_user":true}]'::jsonb, now()) returning id`);
+      '[{"title":"QA list row ${tag}","short_title":"QA list row ${tag}","owner_id":null,"due_at":null,"priority":"medium","state":"new","task_id":null,"duplicate_of":null,"confidence":0.9,"quote":"send the signed contract","description":null,"definition_of_done":null,"proof_required":"none","budget":null,"estimate_hours":null,"requested_by":"Khalid QA","amends_earlier":false,"owner_name":null,"outside":false,"asked_by_user":false,"asked_of_user":true}]'::jsonb, now()) returning id`);
     try {
       const msgs = await wa('وش يحتاجني');
       const list = msgs.find((m) => m.interactive?.type === 'list');
@@ -503,10 +504,101 @@ async function server() {
       await sql(`delete from public.incoming_items where id = '${it.id}'`);
     }
   });
+  // The owner, 11 Nov: "how can I agree or approve any task without any details of it? … I need to have multiple actions
+  // on it". Read as the person: a short name in the row, the full card with three buttons, and every choice does what it
+  // says and replies with «↩️ تراجع»
+  await check('whatsapp', 'A found task shows all its details, three buttons, and every choice works (and undoes)', async () => {
+    const tag = Date.now().toString(36);
+    const sug = (title, extra = {}) => ({ title, owner_id: null, due_at: null, priority: 'urgent', state: 'new', task_id: null, duplicate_of: null, confidence: 0.9, quote: 'please look at it', description: `Details for ${title}: new users get no tasks`, definition_of_done: 'every new user gets their tasks within a minute', proof_required: 'image', budget: null, estimate_hours: null, requested_by: 'Khalid QA', amends_earlier: false, owner_name: null, outside: false, asked_by_user: false, asked_of_user: true, ...extra });
+    const sugs = [sug(`QA details ${tag} investigate AI assignment failing for new users`), sug(`QA give ${tag}`, { short_title: 'QA give' }), sug(`QA done ${tag}`, { short_title: 'QA done' })];
+    const [it] = await sql(`insert into public.incoming_items (owner_id, source, external_id, sender, subject, body, summary, status, suggestions, received_at)
+      values ('${QA_BOSS}', 'gmail', 'qa-details-${tag}', 'Khalid QA', 'Re: AI assignment', 'Hi Ahmed, the full message about AI assignment ${tag}.', 'QA', 'new', '${JSON.stringify(sugs).replace(/'/g, "''")}'::jsonb, now()) returning id`);
+    const tap = async (id) => (await fn('whatsapp', { simulate: { from: QA_PHONE, tap: id } }, null, { 'x-cron-secret': secret })).sent ?? [];
+    const state = async (i) => (await sql(`select suggestions->${i}->>'state' st, suggestions->${i}->>'task_id' task, suggestions->${i}->>'due_at' due from public.incoming_items where id = '${it.id}'`))[0];
+    try {
+      // the row: a name that reads whole (never cut mid-word), ≤24
+      const msgs = await wa('وش يحتاجني');
+      const rows = msgs.find((m) => m.interactive?.type === 'list')?.interactive.action.sections.flatMap((s) => s.rows) ?? [];
+      const row = rows.find((r) => r.id === `tc:${it.id}:0`);
+      expect(row && row.title.length <= 24, `no row, or too long: ${JSON.stringify(row)}`);
+      // Muntej's own short name, or the title cut where a word ends
+      const shown = row.title.replace(/^\d+\.\s/, '');
+      const base = shown.replace(/…$/, '').trim();
+      expect(!shown.endsWith('…') || (sugs[0].title.startsWith(base) && sugs[0].title[base.length] === ' '), `the row is cut mid-word: «${row.title}»`);
+      // the card: what, who, what's needed, when it's done, flags, for whom; three distinct buttons
+      const card = (await tap(row.id)).find((m) => m.interactive?.type === 'button');
+      const body = card?.interactive.body.text ?? '';
+      const ids = (card?.interactive.action.buttons ?? []).map((b) => b.reply.id);
+      expect(/Details for/.test(body) && /every new user/.test(body) && /عاجلة|urgent/.test(body) && /صورة|photo/.test(body) && /Khalid/.test(body), `the card lacks details: ${body.slice(0, 200)}`);
+      expect(ids.length === 3 && new Set(ids).size === 3 && ids[0] === `ok:${it.id}:0` && ids[1] === `tg:${it.id}:0` && ids[2] === `tx:${it.id}:0`, `buttons: ${ids.join(' | ')}`);
+      // «⋯ خيارات»: exactly these four
+      const opts = (await tap(`tx:${it.id}:0`)).find((m) => m.interactive?.type === 'list')?.interactive.action.sections.flatMap((s) => s.rows).map((r) => r.id.split(':')[0]) ?? [];
+      expect(opts.join(',') === 'no,td,tt,tf', `options: ${opts.join(',')}`);
+      // the full message, with the same three buttons
+      const full = (await tap(`tf:${it.id}:0`)).find((m) => m.interactive?.type === 'button');
+      expect(full && full.interactive.body.text.includes(`full message about AI assignment ${tag}`) && full.interactive.action.buttons.length === 3, 'the full message is missing');
+      // change the date: a quick one
+      const dates = (await tap(`tt:${it.id}:0`)).find((m) => m.interactive?.type === 'list')?.interactive.action.sections.flatMap((s) => s.rows) ?? [];
+      const pick = dates.find((r) => r.id.startsWith('tu:'));
+      expect(pick, 'no quick dates');
+      await tap(pick.id);
+      expect((await state(0)).due, 'the date wasn’t saved');
+      // ignore, then undo: back in the list
+      const ignored = await tap(`no:${it.id}:0`);
+      expect((await state(0)).st === 'ignored' && JSON.stringify(ignored).includes(`tz:${it.id}:0`), 'ignore has no «تراجع»');
+      await tap(`tz:${it.id}:0`);
+      expect((await state(0)).st === 'new', 'undo didn’t bring it back');
+      // «👤 لغيري» → Faisal: his task, and the reply says so
+      const team = (await tap(`tg:${it.id}:1`)).find((m) => m.interactive?.type === 'list')?.interactive.action.sections.flatMap((s) => s.rows) ?? [];
+      const faisal = team.find((r) => r.id === `tw:${it.id}:1:${QA_FAISAL}`);
+      expect(faisal, `Faisal isn't in the list: ${team.map((r) => r.title).join(', ')}`);
+      const gave = texts(await tap(faisal.id));
+      const g = await state(1);
+      const [owner] = g.task ? await sql(`select owner_id from public.tasks where id = '${g.task}'`) : [{}];
+      expect(g.st === 'accepted' && owner.owner_id === QA_FAISAL && /فيصل|Faisal/.test(gave), `not given to Faisal: ${g.st} ${owner.owner_id} «${gave.slice(0, 80)}»`);
+      // undo right after: the task is cancelled the normal way and Faisal is told, the suggestion is back
+      await tap(`tz:${it.id}:1`);
+      const [gt] = await sql(`select status from public.tasks where id = '${g.task}'`);
+      const [told] = await sql(`select title_ar from public.alerts where profile_id = '${QA_FAISAL}' and task_id = '${g.task}' and title_ar like '%ألغى%'`);
+      expect(gt.status === 'cancelled' && told && (await state(1)).st === 'new', `undo after approve: ${gt.status}, told ${!!told}`);
+      // given again, then Faisal finishes it: an old «↩️ تراجع» never undoes his work (R133)
+      await tap(faisal.id);
+      const g2 = await state(1);
+      await sql(`update public.tasks set status = 'done' where id = '${g2.task}'`);
+      const refused = texts(await tap(`tz:${it.id}:1`));
+      const [still] = await sql(`select status from public.tasks where id = '${g2.task}'`);
+      expect(still.status === 'done' && /مشت من بعدها|moved on/.test(refused), `an old undo touched finished work: ${still.status} «${refused.slice(0, 80)}»`);
+      // «✔️ خلصتها قبل»: a task that is already done, and its own undo takes it back — with the login last opened in
+      // ANOTHER company (one login, two seats: reviewer, 11 Nov, R98/R99), and a card that asks for proof
+      const [{ user_id: bossUser }] = await sql(`select user_id from public.profiles where id = '${QA_BOSS}'`);
+      const [session] = await sql(`select account_id, updated_at from public.account_sessions where user_id = '${bossUser}'`);
+      const DEMO = 'c0000000-0000-4000-b000-000000000001';
+      const [twin] = await sql(`insert into public.profiles (account_id, full_name, role, status, user_id) values ('${DEMO}', 'QA boss other seat ${tag}', 'manager', 'active', '${bossUser}') returning id`);
+      await sql(`insert into public.account_sessions (user_id, account_id, updated_at) values ('${bossUser}', '${DEMO}', now()) on conflict (user_id) do update set account_id = excluded.account_id, updated_at = now()`);
+      try {
+      await tap(`td:${it.id}:2`);
+      const d = await state(2);
+      const [dt] = d.task ? await sql(`select status from public.tasks where id = '${d.task}'`) : [{}];
+      expect(d.st === 'accepted' && dt.status === 'done', `not done before: ${d.st} ${dt.status}`);
+      await tap(`tz:${it.id}:2`);
+      const [du] = await sql(`select status from public.tasks where id = '${d.task}'`);
+      expect(du.status === 'cancelled' && (await state(2)).st === 'new', `undo after already done: ${du.status}`);
+      } finally {
+        if (session) await sql(`update public.account_sessions set account_id = '${session.account_id}', updated_at = '${session.updated_at}' where user_id = '${bossUser}'`);
+        else await sql(`delete from public.account_sessions where user_id = '${bossUser}'`);
+        await sql(`delete from public.profiles where id = '${twin.id}'`);
+      }
+      return 'short row, full card, 3 buttons, 4 options; date, ignore/approve/done-before undo, old undo refused, give to Faisal';
+    } finally {
+      await sql(`delete from public.tasks where id in (select (s->>'task_id')::uuid from public.incoming_items i, jsonb_array_elements(i.suggestions) s where i.id = '${it.id}' and s->>'task_id' is not null)`);
+      await sql(`delete from public.incoming_items where id = '${it.id}'`);
+      await sql(`delete from public.wa_pending where key = 'tools:${QA_BOSS}'`);
+    }
+  });
   // «شوف الباقي» keeps the first list's numbers, and a typed number is that same task (reviewer, 10 Nov)
   await check('whatsapp', 'The tools list’s next page keeps its numbers, and «10» approves the task shown as 10', async () => {
     const tag = Date.now().toString(36);
-    const sugs = Array.from({ length: 11 }, (_, k) => ({ title: `QA page ${tag} n${k + 1}`, owner_id: null, due_at: null, priority: 'medium', state: 'new', task_id: null, duplicate_of: null, confidence: 0.9, quote: '', description: null, definition_of_done: null, proof_required: 'none', budget: null, estimate_hours: null, requested_by: 'Saad QA', amends_earlier: false, owner_name: null, outside: false, asked_by_user: false, asked_of_user: true }));
+    const sugs = Array.from({ length: 11 }, (_, k) => ({ title: `QA page ${tag} n${k + 1}`, short_title: `QA p${k + 1}`, owner_id: null, due_at: null, priority: 'medium', state: 'new', task_id: null, duplicate_of: null, confidence: 0.9, quote: '', description: null, definition_of_done: null, proof_required: 'none', budget: null, estimate_hours: null, requested_by: 'Saad QA', amends_earlier: false, owner_name: null, outside: false, asked_by_user: false, asked_of_user: true }));
     // «10» approves 10 and ignores the rest of the list: set the QA manager's other waiting items aside so only this
     // one is in the list, and put them back after (reviewer, 10 Nov)
     const aside = (await sql(`update public.incoming_items set status = 'nothing' where owner_id = '${QA_BOSS}' and status = 'new' returning id`)).map((r) => r.id);
