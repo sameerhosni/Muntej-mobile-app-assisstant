@@ -201,6 +201,9 @@ export function useNeedsYou() {
   // tasks found in your tools: their own filter, never in the count (owner, 11 Nov)
   return {
     rows,
+    // the number everywhere is the shared list's own length (the rows may still be loading behind it — QA, 11 Nov:
+    // Tasks said 4 while the tab said 8)
+    count: oneOn && shared.data ? shared.data.length : rows.length,
     tools: incoming.count,
     oneOn,
     loading: tasks.isLoading || decisions.isLoading || asks.isLoading || (oneOn && shared.isLoading),

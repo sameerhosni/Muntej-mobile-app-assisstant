@@ -196,7 +196,7 @@ export function NeedsYou({ children, hasMore = false }: { children?: ReactNode; 
     };
   });
   const shownNeeds = oneOn ? [...needs.filter((n) => n.key === 'incoming'), ...fromOne] : needs;
-  const waitingCount = oneOn ? ny.rows.length : needs.length;
+  const waitingCount = oneOn ? ny.count : needs.length;
   const taskIds = needs.filter((n) => n.key.startsWith('r-')).map((n) => n.key.slice(2));
   const flip = { transform: [{ scaleX: isRTL ? -1 : 1 }] };
 

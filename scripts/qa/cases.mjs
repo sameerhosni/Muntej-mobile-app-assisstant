@@ -806,7 +806,10 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
       const [st] = await sql(`select suggestions->${(r.suggestions ?? []).findIndex((s) => s.request_id === req.id)}->>'state' st from public.incoming_items where id = '${r.id}'`);
       expect(st.st === 'requested', `her list shows it as ${st.st}`);
       // his «✅ أضفها لي» on WhatsApp — with his login last opened in ANOTHER company (two seats, reviewer 11 Nov)
-      const [{ user_id: bossUser, phone: bossPhone }] = await sql(`select user_id, phone from public.profiles where id = '${QA_BOSS}'`);
+      // (the QA number on the manager for this step: outside the WhatsApp checks it has none — put back after)
+      const [{ user_id: bossUser, phone: hadPhone }] = await sql(`select user_id, phone from public.profiles where id = '${QA_BOSS}'`);
+      const bossPhone = '966500000010';
+      await sql(`update public.profiles set phone = '${bossPhone}' where id = '${QA_BOSS}'`);
       const [session] = await sql(`select account_id, updated_at from public.account_sessions where user_id = '${bossUser}'`);
       const [twin] = await sql(`insert into public.profiles (account_id, full_name, role, status, user_id) values ('c0000000-0000-4000-b000-000000000001', 'QA boss other seat req', 'manager', 'active', '${bossUser}') returning id`);
       await sql(`insert into public.account_sessions (user_id, account_id, updated_at) values ('${bossUser}', 'c0000000-0000-4000-b000-000000000001', now()) on conflict (user_id) do update set account_id = excluded.account_id, updated_at = now()`);
@@ -821,6 +824,7 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         if (session) await sql(`update public.account_sessions set account_id = '${session.account_id}', updated_at = '${session.updated_at}' where user_id = '${bossUser}'`);
         else await sql(`delete from public.account_sessions where user_id = '${bossUser}'`);
         await sql(`delete from public.profiles where id = '${twin.id}'`);
+        await sql(`update public.profiles set phone = ${hadPhone ? `'${hadPhone}'` : 'null'} where id = '${QA_BOSS}'`);
       }
       const [t] = await sql(`select owner_id from public.tasks where id = '${task}'`);
       const [told] = await sql(`select title_ar from public.alerts where profile_id = '${FAISAL}' and dedupe_key = 'answer:${req.id}'`);

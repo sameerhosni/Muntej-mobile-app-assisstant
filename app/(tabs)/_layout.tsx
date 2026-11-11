@@ -12,7 +12,7 @@ export default function TabsLayout() {
   const decisionsOnly = usePendingDecisionCount();
   // one «يحتاجك» (owner, 11 Nov): the badge counts everything waiting on you, the same as the screen, Home and WhatsApp
   const needs = useNeedsYou();
-  const pending = needs.oneOn ? needs.rows.length : decisionsOnly;
+  const pending = needs.oneOn ? needs.count : decisionsOnly;
   const role = me?.role === 'employee' ? 'employee' : 'manager';
 
   return (

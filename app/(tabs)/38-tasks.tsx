@@ -232,7 +232,7 @@ export default function TasksScreen() {
       )}
 
       {/* a manager's «يحتاجك» is its own tab now: one line here opens it (owner, 11 Nov) */}
-      {needsElsewhere && needs.rows.length > 0 && !onlyIds && (
+      {needsElsewhere && needs.count > 0 && !onlyIds && (
         <Pressable
           onPress={() => router.push('/04-decisions')}
           accessibilityRole="link"
@@ -248,7 +248,7 @@ export default function TasksScreen() {
           })}
         >
           <AppText weight="bold" color="red" style={{ flex: 1 }}>
-            {tnt('tasksLine', { count: needs.rows.length })}
+            {tnt('tasksLine', { count: needs.count })}
           </AppText>
           <ChevronRight color={colors.red} size={18} strokeWidth={2.4} style={{ transform: [{ scaleX: lang === 'ar' ? -1 : 1 }] }} />
         </Pressable>

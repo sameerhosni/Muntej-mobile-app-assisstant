@@ -151,14 +151,14 @@ export default function EmployeeHome() {
           </TourTarget>
           {/* 2. today's real tasks (max 3) */}
           {/* one «يحتاجك» (owner, 11 Nov): an employee who gave tasks sees what waits on them, opening Tasks → «يحتاجك» */}
-          {ny.oneOn && ny.rows.length > 0 && (
+          {ny.oneOn && ny.count > 0 && (
             <Pressable
               onPress={() => router.push({ pathname: '/38-tasks', params: { needs: '1' } })}
               accessibilityRole="link"
               style={({ pressed }) => ({ minHeight: sizes.touch, justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: radius.pill, backgroundColor: colors.redTint, opacity: pressed ? 0.8 : 1 })}
             >
               <AppText weight="bold" color="red">
-                {tnt('tasksLine', { count: ny.rows.length })}
+                {tnt('tasksLine', { count: ny.count })}
               </AppText>
             </Pressable>
           )}

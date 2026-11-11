@@ -90,7 +90,7 @@ export function GlanceCard() {
   if (!tasks.data) return null;
   const L = ov.lists;
   // one «يحتاجك» (owner, 11 Nov): the same number as the tab and the card above it
-  const waiting = ny.oneOn ? ny.rows.length : L.approval.length + ov.decisions;
+  const waiting = ny.oneOn ? ny.count : L.approval.length + ov.decisions;
   const line = smartLine(ov, waiting);
   const teamName = (key?: string) => {
     if (!key || key === DIRECT) return t('direct');

@@ -203,8 +203,8 @@ export default function DecisionsScreen() {
               {oneOn
                 ? needs.loading || needs.error
                   ? tn('title')
-                  : needs.rows.length
-                    ? tn('titleN', { n: formatNumber(needs.rows.length, lang) })
+                  : needs.count
+                    ? tn('titleN', { n: formatNumber(needs.count, lang) })
                     : tn('none')
                 : loading
                   ? t('heroPlain')
