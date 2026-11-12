@@ -650,3 +650,6 @@ Last updated: 2026-11-09.
 ### R152 · A QA listener on the shared page never fails other checks with navigation aborts
 - **Why:** 12 Nov, reviewer, on the idea-check fix: a requestfailed listener writing into the shared errors list would fail every screen check, because each page.goto cancels requests (net::ERR_ABORTED), and a hung request left open would still abort inside the next check.
 - **Check:** network failures go to their own list that only the check that needs them reads; aborts are ignored. A check that waits on a hung request ends it inside itself (about:blank) before it throws.
+### R153 · Renumbering a rule updates every place that names it, in the same commit
+- **Why:** 12 Nov, reviewer, before going live: a duplicate R149 was renumbered to R152 in RULES.md, but ACCEPTED.md still said «rule R149» for 0fce3e3. That pointed the record at another rule.
+- **Check:** `grep -rn "R<old>" docs scripts` and update every hit, including past ACCEPTED.md lines.
