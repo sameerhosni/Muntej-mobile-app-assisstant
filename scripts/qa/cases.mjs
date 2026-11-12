@@ -435,7 +435,7 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
   // every failed sign-in step with the ref it shows; the server keeps it without the code or the full email.
   await check('review', 'A failed sign-in is kept with its ref and device, never the full email', async () => {
     const ref = String(100000 + Math.floor(Math.random() * 899999));
-    await fn('client-error', { ref, step: 'send_code', kind: 'network', message: 'Network request failed', platform: 'ios', os_version: '27.2', device: 'iPad Air 11-inch (M3)', ipad: true, app_version: '1.0.0', build: '3', email: 'play-review@muntej.app', code: '123456' });
+    await fn('client-error', { ref, step: 'send_code', kind: 'network', message: 'Email address "play-review@muntej.app" failed with code 123456', client_at: new Date().toISOString(), platform: 'ios', os_version: '27.2', device: 'iPad Air 11-inch (M3)', ipad: true, app_version: '1.0.0', build: '3', email: 'play-review@muntej.app', code: '123456' });
     try {
       const [row] = await sql(`select step, kind, ipad, email_domain, review_login, to_jsonb(c)::text whole from public.client_errors c where ref = '${ref}'`);
       expect(row, 'the report was not kept');
@@ -454,6 +454,19 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
     expect(/insert into public\.accounts/.test(row?.def ?? '') && /'admin', 'active'/.test(row.def), 'sign-up no longer makes a workspace for a new email');
     const [n] = await sql(`select count(*)::int n from public.activity_log where action = 'account_signed_up' and created_at > now() - interval '30 days'`);
     return `${n.n} self sign-up(s) in 30 days`;
+  });
+
+  // R147: a sign-in failure always shows its cause with a ref (no bare "couldn't sign you in" left on a sign-in screen)
+  await check('review', 'Every sign-in failure shows its cause with a ref', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    const dir = new URL('../../app/(auth)/', import.meta.url);
+    const bare = [];
+    for (const f of readdirSync(dir).filter((x) => x.endsWith('.tsx'))) {
+      const src = readFileSync(new URL(f, dir), 'utf8');
+      for (const key of ['genericError', 'wrongCode', 'rateLimited', 'mfaWrong', 'wrongPassword']) if (new RegExp(`t\\('auth\\.${key}'\\)`).test(src)) bare.push(`${f}: auth.${key}`);
+    }
+    expect(!bare.length, `failure text without a ref: ${bare.join(', ')}`);
+    return 'all sign-in failures carry a ref';
   });
 
   // Apple 2.5.4, 11 Nov: no background audio (the app records and plays only while it's open)

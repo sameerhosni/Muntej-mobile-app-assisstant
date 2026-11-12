@@ -1,15 +1,21 @@
 // Sign-in failures say their real cause, with a ref number (Apple, 11 Nov: "an error occurred when we tapped login" on
 // an iPad, and our server never saw the request). Each failure is also sent to supabase/functions/client-error with the
 // same ref, the step, the device and the build, so a screenshot with "ref 4821" points straight to the log line.
-// Never sent: the code, the password, or the full email (only its domain, worked out on the server).
+// A report that can't be sent (no internet: the very case Apple hit) is kept on the phone and sent on the next try.
+// Never sent: the code, the password, or the full email (the server keeps only its domain).
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
-export type SignInStep = 'send_code' | 'verify' | 'quick_login' | 'resend' | 'whatsapp' | 'biometric' | 'admin';
+export type SignInStep = 'send_code' | 'verify' | 'quick_login' | 'resend' | 'whatsapp' | 'biometric' | 'admin' | 'mfa';
 export type FailureKind = 'network' | 'wrong_code' | 'rate_limited' | 'other';
 
 type Translate = (key: string, opts?: Record<string, unknown>) => string;
+type Report = Record<string, string | number | boolean | null>;
+
+const WAITING = 'muntej.signInReports';
+const KEEP = 20;
 
 /** the HTTP status inside a Supabase auth / functions error, when there is one */
 export function statusOf(err: unknown): number | undefined {
@@ -24,17 +30,30 @@ export function kindOf(step: SignInStep, err: unknown): FailureKind {
   const status = statusOf(err);
   if (status === 429) return 'rate_limited';
   if (/RetryableFetch|FunctionsFetchError|FunctionsRelayError/.test(name) || /network request failed|failed to fetch|load failed|network|timed? ?out|offline/i.test(message)) return 'network';
-  if ((step === 'verify' || step === 'quick_login' || step === 'admin') && status && [400, 401, 403, 404, 422].includes(status)) return 'wrong_code';
+  if ((step === 'verify' || step === 'quick_login' || step === 'admin' || step === 'mfa') && status && [400, 401, 403, 404, 422].includes(status)) return 'wrong_code';
   return 'other';
 }
 
-/** what the device and build are: helps tell an iPad running the iPhone app from a phone */
-function deviceInfo() {
-  const info: Record<string, string | boolean | null> = { platform: Platform.OS, os_version: String(Platform.Version ?? '') };
+/** a short cause for "other" failures: the HTTP status, else the error's name */
+function causeOf(err: unknown) {
+  const status = statusOf(err);
+  if (status) return String(status);
+  const name = String((err as { name?: unknown } | null)?.name ?? '').replace(/Error$/, '');
+  return name && name !== 'Error' ? name.slice(0, 24) : 'app';
+}
+
+/** what the device and build are. An iPad running the iPhone app reports a phone screen, so the model name decides. */
+function deviceInfo(): Report {
+  const info: Report = { platform: Platform.OS, os_version: String(Platform.Version ?? '') };
   try {
     const Device = require('expo-device') as typeof import('expo-device');
-    info.device = Device.modelName ?? null;
-    info.ipad = (Platform.OS === 'ios' && (Platform as { isPad?: boolean }).isPad === true) || Device.deviceType === Device.DeviceType.TABLET;
+    info.device = Device.modelName ?? Device.modelId ?? null;
+    info.ipad =
+      (Platform.OS === 'ios' && (Platform as { isPad?: boolean }).isPad === true) ||
+      Device.deviceType === Device.DeviceType.TABLET ||
+      /^iPad/i.test(Device.modelName ?? '') ||
+      /^iPad/i.test(Device.modelId ?? '') ||
+      Device.osName === 'iPadOS';
   } catch {
     // older build without the module
   }
@@ -54,25 +73,74 @@ function deviceInfo() {
   return info;
 }
 
-/** report the failure (never throws, never waits more than 4 s) */
-function report(ref: string, step: SignInStep, kind: FailureKind, err: unknown, email?: string) {
-  const message = String((err as { message?: unknown } | null)?.message ?? err ?? '').slice(0, 300);
-  const body = { ref, step, kind, message, status: statusOf(err) ?? null, email: email ?? null, ...deviceInfo() };
-  const timeout = new Promise((ok) => setTimeout(ok, 4000));
+/** send one report; true when the server has it (4 s at most) */
+async function send(body: Report) {
   try {
-    void Promise.race([supabase.functions.invoke('client-error', { body }), timeout]).catch(() => {});
+    const sent = supabase.functions.invoke('client-error', { body }).then((r) => !r.error || statusOf(r.error) === 400);
+    const late = new Promise<boolean>((ok) => setTimeout(() => ok(false), 4000));
+    return await Promise.race([sent, late]);
   } catch {
-    // reporting must never break sign-in
+    return false;
   }
 }
 
-/** the words to show for this failure; the failure is reported with the same ref */
-export function signInFailure(t: Translate, step: SignInStep, err: unknown, email?: string): string {
+async function waiting(): Promise<Report[]> {
+  try {
+    const raw = await AsyncStorage.getItem(WAITING);
+    const list = raw ? (JSON.parse(raw) as Report[]) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+async function keep(list: Report[]) {
+  try {
+    if (list.length) await AsyncStorage.setItem(WAITING, JSON.stringify(list.slice(-KEEP)));
+    else await AsyncStorage.removeItem(WAITING);
+  } catch {
+    // nothing more we can do on this phone
+  }
+}
+
+let flushing = false;
+/** send the reports kept on this phone (called on the sign-in screen and before each new report); never throws */
+export async function sendWaitingReports() {
+  if (flushing) return;
+  flushing = true;
+  try {
+    const list = await waiting();
+    if (!list.length) return;
+    const left: Report[] = [];
+    for (const r of list) if (!(await send(r))) left.push(r);
+    await keep(left);
+  } finally {
+    flushing = false;
+  }
+}
+
+async function report(body: Report) {
+  await sendWaitingReports();
+  if (await send(body)) return;
+  await keep([...(await waiting()), body]);
+}
+
+/** the failure reported (or kept until it can be) with a new ref, and the words to show for it */
+export function signInFailureRef(t: Translate, step: SignInStep, err: unknown, email?: string) {
   const kind = kindOf(step, err);
   const ref = String(1000 + Math.floor(Math.random() * 9000));
-  report(ref, step, kind, err, email);
-  if (kind === 'rate_limited') return t('auth.rateLimited');
-  if (kind === 'wrong_code') return t('auth.wrongCode');
-  if (kind === 'network') return t('auth.noServer', { ref });
-  return t('auth.failedRef', { ref });
+  const message = String((err as { message?: unknown } | null)?.message ?? err ?? '').slice(0, 300);
+  void report({ ref, step, kind, message, status: statusOf(err) ?? null, email: email ?? null, client_at: new Date().toISOString(), ...deviceInfo() }).catch(() => {});
+  const text =
+    kind === 'rate_limited'
+      ? t('auth.rateLimitedRef', { ref })
+      : kind === 'wrong_code'
+        ? t(step === 'mfa' ? 'auth.mfaWrongRef' : 'auth.wrongCodeRef', { ref })
+        : kind === 'network'
+          ? t('auth.noServer', { ref })
+          : t('auth.failedRef', { ref, cause: causeOf(err) });
+  return { kind, ref, text };
 }
+
+/** the words to show for this failure (see signInFailureRef) */
+export const signInFailure = (t: Translate, step: SignInStep, err: unknown, email?: string) => signInFailureRef(t, step, err, email).text;

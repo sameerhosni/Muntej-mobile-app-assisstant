@@ -633,3 +633,7 @@ Last updated: 2026-11-09.
 ### R147 · What we tell a store is what the app does, checked as a brand-new user on the reviewer's device
 - **Why:** 11 Nov, Apple rejected build 2 again. On an iPad (the iPhone app in compatibility mode), "an error occurred when we tapped login", and our logs had nothing because the request never reached us. The screen also said "Work email", which made the app look company-only while we told Apple anyone can start free. Separately, the expo-audio plugin turned on background audio by default, which Apple flagged (2.5.4).
 - **Check:** every sign-in failure shows its cause with a ref and reaches client_errors. Store answers are checked against the app as a new email on a fresh install, including an iPad running the iPhone app. A native plugin's default capabilities (UIBackgroundModes, permissions) are listed before each store build, and anything the app doesn't use is turned off.
+
+### R148 · A failure report that exists because "the request never reached us" survives having no network
+- **Why:** 12 Nov, reviewer, on the sign-in reports for Apple's iPad: the report was fire-and-forget, so in the exact case it was built for (no connection to our server) it would be lost too.
+- **Check:** a report that can't be sent is kept on the device (with its ref and the phone's time) and sent on the next try; the server keeps a repeat once. Error texts are scrubbed of emails and codes on the server before they are stored.

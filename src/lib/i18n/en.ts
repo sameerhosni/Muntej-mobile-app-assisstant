@@ -209,7 +209,11 @@ const en = {
     genericError: "I couldn't sign you in. Double-check the email or code and try again.",
     rateLimited: "That's a lot of codes in a row. Give it a few minutes, then try again.",
     noServer: "Couldn't reach Muntej. Check your internet and try again. (ref {{ref}})",
-    failedRef: "Something went wrong signing you in. Try again; if it keeps happening, send us this number: ref {{ref}}",
+    failedRef: "I couldn't sign you in this time. Try again; if it keeps happening, send us this number: ref {{ref}} · {{cause}}",
+    wrongCodeRef: "That code isn't right. Check it or ask for a new one. (ref {{ref}})",
+    mfaWrongRef: "That code didn't work. Codes change every 30 seconds, so try the current one. (ref {{ref}})",
+    wrongPasswordRef: 'Wrong username or password. (ref {{ref}})',
+    rateLimitedRef:"That's a lot of tries in a row. Give it a few minutes, then try again. (ref {{ref}})",
   },
   push: {
     row: 'Notifications',

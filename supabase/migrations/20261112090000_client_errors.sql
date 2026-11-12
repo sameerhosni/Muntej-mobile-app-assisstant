@@ -6,6 +6,8 @@ create table if not exists public.client_errors (
   id bigint generated always as identity primary key,
   at timestamptz not null default now(),
   ref text not null,
+  -- when it happened on the phone (a report kept while offline arrives later)
+  client_at text,
   step text not null,
   kind text not null,
   message text,

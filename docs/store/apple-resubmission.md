@@ -67,7 +67,8 @@ Screen recording of account deletion on an iPhone: <RECORDING LINK>
 ```
 
 ## 3. Reply to the 11 Nov review
-Attach `store/journey/muntej-user-journey.pdf`.
+**Send it only after section 0b passed on build 3.** The reply says the iPad and iPhone tests were done. If one
+wasn't, take its sentence out. Attach `store/journey/muntej-user-journey.pdf`.
 ```
 Hello,
 

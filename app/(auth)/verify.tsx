@@ -43,8 +43,12 @@ export default function VerifyScreen() {
   const onSubmit = handleSubmit(async ({ code }) => {
     setServerError(null);
     if (adminUser) {
-      const res = await verifyAdminLogin(adminUser, code);
-      if (!res.ok) setServerError(res.status === 429 ? t('auth.rateLimited') : t('auth.wrongCode'));
+      try {
+        const res = await verifyAdminLogin(adminUser, code);
+        if (!res.ok) setServerError(signInFailure(t, 'admin', { name: 'AdminLogin', status: res.status ?? 401, message: `admin-login verify ${res.status ?? ''}` }));
+      } catch (e) {
+        setServerError(signInFailure(t, 'admin', e));
+      }
       return;
     }
     // every failure says its cause with a ref, and is logged (Apple, 11 Nov: the iPad showed only "an error")

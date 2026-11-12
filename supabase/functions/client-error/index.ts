@@ -7,9 +7,12 @@ import { HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
 import { tooMany } from '../_shared/phone-session.ts';
 
-const STEPS = ['send_code', 'verify', 'quick_login', 'resend', 'whatsapp', 'biometric', 'admin'];
+const STEPS = ['send_code', 'verify', 'quick_login', 'resend', 'whatsapp', 'biometric', 'admin', 'mfa'];
 const KINDS = ['network', 'wrong_code', 'rate_limited', 'other'];
 const cut = (v: unknown, n: number) => (v == null || v === '' ? null : String(v).slice(0, n));
+/** an error text can carry the address ("Email address x@y.com is invalid") or a code: keep neither */
+const scrub = (v: string | null) =>
+  v == null ? null : v.replace(/[^\s@"'<>()]+@([^\s@"'<>()]+)/g, '***@$1').replace(/\b\d{4,8}\b/g, (d) => '*'.repeat(d.length));
 
 serve(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'POST only');
@@ -24,13 +27,21 @@ serve(async (req) => {
   const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown';
   if (await tooMany(admin, `client-error:${ip}`, 30, 15)) return json({ ok: true, kept: false });
 
+  // a report kept on the phone (no internet) can arrive twice: the same ref, step and phone time is kept once
+  const clientAt = cut(b.client_at, 40);
+  if (clientAt) {
+    const { count } = await admin.from('client_errors').select('id', { count: 'exact', head: true }).eq('ref', ref).eq('step', step).eq('client_at', clientAt);
+    if (count) return json({ ok: true, kept: true });
+  }
+
   const email = String(b.email ?? '').trim().toLowerCase();
   const reviewEmail = (Deno.env.get('REVIEW_LOGIN_EMAIL') ?? '').trim().toLowerCase();
   const { error } = await admin.from('client_errors').insert({
     ref,
     step,
     kind,
-    message: cut(b.message, 300),
+    client_at: clientAt,
+    message: scrub(cut(b.message, 300)),
     status: Number.isFinite(Number(b.status)) && b.status != null ? Number(b.status) : null,
     platform: cut(b.platform, 20),
     os_version: cut(b.os_version, 40),

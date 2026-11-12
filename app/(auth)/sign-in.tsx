@@ -1,5 +1,5 @@
 // Screen · Sign in (email code; optional authenticator step after) — no mockup; v2 light style per design/TOKENS.md
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
@@ -16,10 +16,14 @@ import { isAdminUsername, startAdminLogin } from '@/features/auth/adminLogin';
 import { useBiometricSignIn } from '@/features/auth/BiometricCard';
 import { signInWithBiometric } from '@/features/auth/deviceKey';
 import { emailSchema, type EmailForm } from '@/features/auth/validation';
-import { kindOf, signInFailure } from '@/features/auth/signInError';
+import { kindOf, sendWaitingReports, signInFailure, signInFailureRef } from '@/features/auth/signInError';
 
 export default function SignInScreen() {
   const { t } = useTranslation();
+  // a failure kept on this phone while it had no internet goes to our log now
+  useEffect(() => {
+    void sendWaitingReports();
+  }, []);
   return (
     <AuthShell title={t('auth.emailTitle')} hint={t('auth.emailHint')}>
       {/* this phone signs in with the fingerprint: one tap */}
@@ -64,10 +68,6 @@ function BiometricButton() {
   );
 }
 
-function errorText(t: (k: string) => string, status?: number) {
-  return status === 429 ? t('auth.rateLimited') : t('auth.genericError');
-}
-
 function EmailSignIn() {
   const { t } = useTranslation();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -84,7 +84,10 @@ function EmailSignIn() {
     if (isAdminUsername(email)) {
       if (!password) return void setServerError(t('auth.passwordNeeded'));
       const { data, status } = await startAdminLogin(email, password);
-      if (!data) return void setServerError(status === 401 ? t('auth.wrongPassword') : errorText(t, status));
+      if (!data) {
+        const failed = signInFailureRef(t, 'admin', { name: 'AdminLogin', status, message: `admin-login start ${status ?? ''}` });
+        return void setServerError(status === 401 ? t('auth.wrongPasswordRef', { ref: failed.ref }) : failed.text);
+      }
       setPassword('');
       setPendingLogin({ admin: email, to: data.to });
       router.push('/verify');
@@ -161,7 +164,7 @@ function DemoPersonas() {
     setError(null);
     const { error: err } = await supabase.auth.signInWithOtp({ phone: p.phone });
     setBusy(null);
-    if (err) return setError(errorText(t, err.status));
+    if (err) return setError(signInFailure(t, 'send_code', err));
     setPendingLogin({ phone: p.phone });
     router.push('/verify');
   };

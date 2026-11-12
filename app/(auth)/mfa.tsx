@@ -11,6 +11,7 @@ import { AuthShell } from '@/features/auth/AuthShell';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { deviceUser, signInWithBiometric } from '@/features/auth/deviceKey';
 import { otpSchema, type OtpForm } from '@/features/auth/validation';
+import { signInFailure } from '@/features/auth/signInError';
 
 export default function MfaScreen() {
   const { t } = useTranslation();
@@ -31,8 +32,8 @@ export default function MfaScreen() {
     setServerError(null);
     try {
       await signInWithBiometric(t('auth.bioPrompt'));
-    } catch {
-      setServerError(t('auth.genericError'));
+    } catch (e) {
+      setServerError(signInFailure(t, 'biometric', e));
     } finally {
       setBioBusy(false);
     }
@@ -52,13 +53,17 @@ export default function MfaScreen() {
 
   const onSubmit = handleSubmit(async ({ code }) => {
     setServerError(null);
-    const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
-    const factor = factors?.totp.find((f) => f.status === 'verified');
-    if (listError || !factor) return setServerError(t('auth.genericError'));
-    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
-    if (error) {
-      setValue('code', '');
-      setServerError(t('auth.mfaWrong'));
+    try {
+      const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+      const factor = factors?.totp.find((f) => f.status === 'verified');
+      if (listError || !factor) return setServerError(signInFailure(t, 'mfa', listError ?? new Error('no factor')));
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+      if (error) {
+        setValue('code', '');
+        setServerError(signInFailure(t, 'mfa', error));
+      }
+    } catch (e) {
+      setServerError(signInFailure(t, 'mfa', e));
     }
     // on success the session becomes aal2 and the guard in app/_layout.tsx opens the app
   });
