@@ -13,7 +13,7 @@ export default function TabsLayout() {
   // one «يحتاجك» (owner, 11 Nov): the badge counts everything waiting on you, the same as the screen, Home and WhatsApp
   const needs = useNeedsYou();
   // (no number until the shared list is in: never a partial count)
-  const pending = needs.oneOn ? (needs.loading ? 0 : needs.count) : decisionsOnly;
+  const pending = needs.oneOn ? (needs.counting ? 0 : needs.count) : decisionsOnly;
   const role = me?.role === 'employee' ? 'employee' : 'manager';
 
   return (

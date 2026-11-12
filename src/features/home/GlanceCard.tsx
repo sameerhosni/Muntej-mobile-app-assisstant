@@ -90,7 +90,7 @@ export function GlanceCard() {
   if (!tasks.data) return null;
   const L = ov.lists;
   // one «يحتاجك» (owner, 11 Nov): the same number as the tab and the card above it
-  const waiting = ny.oneOn ? (ny.loading ? 0 : ny.count) : L.approval.length + ov.decisions;
+  const waiting = ny.oneOn ? (ny.counting ? 0 : ny.count) : L.approval.length + ov.decisions;
   const line = smartLine(ov, waiting);
   const teamName = (key?: string) => {
     if (!key || key === DIRECT) return t('direct');
@@ -157,7 +157,7 @@ export function GlanceCard() {
           >
             <AppText variant="titleLg" style={{ color: x.n ? x.fg : colors.textFaint }}>
               {/* «…» while the shared «يحتاجك» list loads: never a 0 that jumps (reviewer, 11 Nov) */}
-              {x.key === 'waiting' && ny.oneOn && ny.loading ? '…' : formatNumber(x.n, lang)}
+              {x.key === 'waiting' && ny.oneOn && ny.counting ? '…' : formatNumber(x.n, lang)}
             </AppText>
             <AppText variant="small" weight="bold" color={x.n ? 'textSoft' : 'textMuted'}>
               {t(x.key)}

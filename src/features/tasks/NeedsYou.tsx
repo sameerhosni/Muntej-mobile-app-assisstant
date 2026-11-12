@@ -207,6 +207,9 @@ export function useNeedsYou() {
     tools: incoming.count,
     oneOn,
     loading: tasks.isLoading || decisions.isLoading || asks.isLoading || (oneOn && shared.isLoading),
+    // the number isn't known until the shared list came: a failed or dropped request shows no number rather than one
+    // the other screens don't say (QA, 12 Nov: Home said 4 while the tab said 8 after a dropped request)
+    counting: tasks.isLoading || decisions.isLoading || asks.isLoading || (oneOn && !shared.data),
     // couldn't load what waits: never «ما فيه شي ينتظرك»
     error: oneOn && (shared.isError || tasks.isError || decisions.isError),
     meId,

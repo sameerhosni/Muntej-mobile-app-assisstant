@@ -201,7 +201,7 @@ export default function DecisionsScreen() {
           <View style={{ gap: spacing.sm, paddingEnd: 56 }}>
             <AppText variant="titleLg" color="onDark" style={{ fontSize: 26, lineHeight: 34 }}>
               {oneOn
-                ? needs.loading || needs.error
+                ? needs.counting || needs.error
                   ? tn('title')
                   : needs.count
                     ? tn('titleN', { n: formatNumber(needs.count, lang) })

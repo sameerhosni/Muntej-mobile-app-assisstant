@@ -232,7 +232,7 @@ export default function TasksScreen() {
       )}
 
       {/* a manager's «يحتاجك» is its own tab now: one line here opens it (owner, 11 Nov) */}
-      {needsElsewhere && !needs.loading && needs.count > 0 && !onlyIds && (
+      {needsElsewhere && !needs.counting && needs.count > 0 && !onlyIds && (
         <Pressable
           onPress={() => router.push('/04-decisions')}
           accessibilityRole="link"
