@@ -1,6 +1,6 @@
 {
-  "message": "Cancel a task in one tap: ✕ on each task, «تلغيها؟» then «رجّعها» for 6 seconds; ask the giver to cancel («اطلب إلغاءها»); Found tasks in full before you decide; one «يحتاجك» with filters and one number; asks you can't give go to your manager; «لما تخلصها» on the task page; Meet reads meetings you attended; no stray spinner on iPhone; faster QA",
-  "group": "5d97f128-57a7-4a4f-86fd-9dbb2ad9a3c5",
-  "at": "2026-11-11T13:55:24.898Z",
-  "commit": "c661c6e6989f41a35482c99731df7696da003b0e"
+  "message": "Cancel a task in one tap: ✕ on each task, «تلغيها؟» then «رجّعها» for 6 seconds; ask the giver to cancel («اطلب إلغاءها»); Found tasks in full before you decide; one «يحتاجك» with filters and one number; asks you can't give go to your manager; «لما تخلصها» on the task page; Meet reads meetings you attended; no stray spinner on iPhone; faster QA; Sign in or start free; every sign-in failure shows its cause with a ref and reaches our log; background audio off (Apple 11 Nov); read now you can follow; one «يحتاجك» number",
+  "group": "26b0a1a4-c4df-46f0-8e25-4c3c3a01aaf9",
+  "at": "2026-11-12T10:49:17.609Z",
+  "commit": "ad5bf5d2a4bcb3467b8afef2b541d3e354f21b69"
 }
