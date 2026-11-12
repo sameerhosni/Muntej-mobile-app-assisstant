@@ -47,6 +47,7 @@ Last updated: 2026-11-11
 | O6 | 🧪 Meet: read meetings you only attended (needs a fresh Google sign-in, Google Drive API enabled) + why-zero line (meet_attended) |
 | O7 | 🧪 No pull-to-refresh spinner unless you pulled (iOS Alerts, every screen) |
 | O8 | ⏳ «❓ اسأل المرسل» from a found task (consultant item 8, 11 Nov) — not built yet |
+| O9 | 🧪 «اقرا الحين» you can follow: one line per source (Gmail ✓ · Chat ✓ · Meet …), «خلصت ✓» even after leaving, plain errors (read_progress, owner 12 Nov) |
 
 ## 1. Needs the owner (accounts, keys, settings outside the app)
 
