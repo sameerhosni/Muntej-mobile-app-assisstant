@@ -103,26 +103,38 @@ async function keep(list: Report[]) {
   }
 }
 
+// every read and write of the kept list goes through one chain, so a report added while others are being sent is
+// never written over (reviewer, 12 Nov)
+let chain: Promise<unknown> = Promise.resolve();
+function serial<T>(f: () => Promise<T>): Promise<T> {
+  const next = chain.then(f, f);
+  chain = next.catch(() => {});
+  return next;
+}
+const same = (a: Report, b: Report) => a.ref === b.ref && a.step === b.step && a.client_at === b.client_at;
+
 let flushing = false;
-/** send the reports kept on this phone (called on the sign-in screen and before each new report); never throws */
+/** send the reports kept on this phone (on the sign-in screen and after each new report); never throws */
 export async function sendWaitingReports() {
   if (flushing) return;
   flushing = true;
   try {
-    const list = await waiting();
-    if (!list.length) return;
-    const left: Report[] = [];
-    for (const r of list) if (!(await send(r))) left.push(r);
-    await keep(left);
+    const list = await serial(waiting);
+    const sent: Report[] = [];
+    for (const r of list) if (await send(r)) sent.push(r);
+    // drop only what was sent, from the list as it is now (new reports may have been added meanwhile)
+    if (sent.length) await serial(async () => keep((await waiting()).filter((r) => !sent.some((s) => same(r, s)))));
+  } catch {
+    // sending later is all that can happen
   } finally {
     flushing = false;
   }
 }
 
+/** keep the report first, then try to send everything kept */
 async function report(body: Report) {
+  await serial(async () => keep([...(await waiting()), body]));
   await sendWaitingReports();
-  if (await send(body)) return;
-  await keep([...(await waiting()), body]);
 }
 
 /** the failure reported (or kept until it can be) with a new ref, and the words to show for it */
