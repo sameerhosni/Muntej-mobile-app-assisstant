@@ -647,6 +647,6 @@ Last updated: 2026-11-09.
 ### R151 · Every place that builds a text gives it all its {{variables}}
 - **Why:** 12 Nov, reviewer, on «اقرا الحين»: the hook gave `e_tool_down` its `{{retry}}`, but the tool card built the same text without it. i18next shows a missing variable as raw «{{retry}}», so the card would have said «Gmail ما رد: {{retry}}».
 - **Check:** for each changed string with a variable, grep every `t('key'`/`` t(`e_${…}` `` call site and pass every variable. A text that several screens build comes from one shared helper.
-### R149 · A QA listener on the shared page never fails other checks with navigation aborts
+### R152 · A QA listener on the shared page never fails other checks with navigation aborts
 - **Why:** 12 Nov, reviewer, on the idea-check fix: a requestfailed listener writing into the shared errors list would fail every screen check, because each page.goto cancels requests (net::ERR_ABORTED), and a hung request left open would still abort inside the next check.
 - **Check:** network failures go to their own list that only the check that needs them reads; aborts are ignored. A check that waits on a hung request ends it inside itself (about:blank) before it throws.
