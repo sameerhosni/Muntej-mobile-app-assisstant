@@ -28,3 +28,4 @@ Line format: ``- `<commit>` · <date> · ACCEPT · <what was reviewed>``
 - `98bf020` · 2026-11-11 · ACCEPT · The «يحتاجك» number waits for the shared list everywhere (no partial count, Home tile «…»). 3 passes: 1 → 1 → 0 findings.
 - `26082a6` · 2026-11-11 · ACCEPT · QA only: the «يحتاجك» flow's WhatsApp step sets QA_PHONE on the manager. 1 pass: 0 findings.
 - `be0ccf8` · 2026-11-11 · ACCEPT · QA split: core + changed areas on test releases, --full before --live (HEAD must be the tested code), inbox/network second try listed. 3 passes: 9 → 1 → 0 findings; rule R146.
+72cc592 · 2026-11-12 · ACCEPT · Apple 11 Nov: sign-in 'start free' wording, every sign-in failure shows its cause with a ref and reaches client_errors (kept on the phone offline), background audio off
