@@ -829,9 +829,13 @@ async function screens() {
     const inFlight = new Map();
     page.on('request', (r) => ours(r) && r.method() !== 'OPTIONS' && inFlight.set(r, Date.now()));
     page.on('requestfinished', (r) => inFlight.delete(r));
+    // kept apart from `errors`: a page.goto cancels requests (net::ERR_ABORTED), which must not fail other checks;
+    // only the idea check reads this list (reviewer, 12 Nov)
+    const netErrors = [];
     page.on('requestfailed', (r) => {
       inFlight.delete(r);
-      if (ours(r)) errors.push(`request failed: ${r.failure()?.errorText ?? 'net::ERR_UNKNOWN'} ${r.method()} ${new URL(r.url()).pathname}`);
+      const why = r.failure()?.errorText ?? 'net::ERR_UNKNOWN';
+      if (ours(r) && why !== 'net::ERR_ABORTED') netErrors.push(`request failed: ${why} ${r.method()} ${new URL(r.url()).pathname}`);
     });
     const hung = () =>
       [...inFlight]
@@ -1347,6 +1351,7 @@ async function screens() {
     });
     await check('flows', 'Send an idea', async () => {
       errors.length = 0;
+      netErrors.length = 0;
       inFlight.clear();
       await page.goto('http://localhost:8099/59-ideas', { waitUntil: 'domcontentloaded' });
       // wait for the box itself (a fixed wait sometimes typed before the screen was ready: the text was lost)
@@ -1362,7 +1367,10 @@ async function screens() {
         const stuck = hung();
         // let a hung request end here (up to 40 s), so its late «Failed to fetch» can't land in the next check
         for (let i = 0; i < 40 && [...inFlight.keys()].some((r) => r.method() === 'POST'); i++) await page.waitForTimeout(1000);
-        if (stuck.length) errors.unshift(...stuck);
+        // still open: end it here, so its abort and late error belong to this check, not Customize Home
+        await page.goto('about:blank').catch(() => {});
+        inFlight.clear();
+        errors.unshift(...stuck, ...netErrors);
         // the page's own errors too, so the cause shows next time (it failed several runs while the server check passed)
         throw new Error(`${e.message.split('\n')[0]} · errors: ${errors.slice(0, 3).join(' | ').slice(0, 300) || 'none'} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 200)}`);
       });
