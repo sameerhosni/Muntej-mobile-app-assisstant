@@ -145,6 +145,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-12 · In testing: Apple review status docs (no app change)
 - 2026-11-12 · In testing: Sign in or start free; every sign-in failure shows its cause with a ref and reaches our log; background audio off (Apple 11 Nov); read now you can follow; one «يحتاجك» number (server: client-error, connect, intake, sync-sources, team-import · Muntej Test update 1.0.0)
 - 2026-11-11 · In testing: Found tasks in full before you decide; one «يحتاجك» with filters and one number; asks you can't give go to your manager; «لما تخلصها» on the task page; Meet reads meetings you attended; no stray spinner on iPhone; faster QA (server: autopilot, connect, daily-summary, intake, intercom-webhook, muntej-chat, onboarding-nudges, public-api, send-followups, sync-sources, team-alerts, team-import, whatsapp · Muntej Test update 1.0.0)
 - 2026-11-10 · In testing: Cancel a task in one tap: ✕ on each task, «تلغيها؟» then «رجّعها» for 6 seconds; ask the giver to cancel («اطلب إلغاءها») (server: autopilot, daily-summary, intercom-webhook, muntej-chat, onboarding-nudges, send-followups, sync-sources, team-alerts, whatsapp · Muntej Test update 1.0.0)
