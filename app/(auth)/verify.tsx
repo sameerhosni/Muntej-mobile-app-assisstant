@@ -14,6 +14,7 @@ import { otpSchema, type OtpForm } from '@/features/auth/validation';
 import { DEMO_CODE, isDemoPhone } from '@/features/auth/demoPersonas';
 import { getPendingLogin } from '@/features/auth/pending';
 import { verifyAdminLogin } from '@/features/auth/adminLogin';
+import { kindOf, signInFailure } from '@/features/auth/signInError';
 
 // "Paste code" needs expo-clipboard (in builds after 1.1): hidden where the native part is missing
 const canPaste = Platform.OS === 'web' || !!requireOptionalNativeModule('ExpoClipboard');
@@ -46,19 +47,23 @@ export default function VerifyScreen() {
       if (!res.ok) setServerError(res.status === 429 ? t('auth.rateLimited') : t('auth.wrongCode'));
       return;
     }
-    const { error } = phone
-      ? await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' })
-      : await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
-    if (!error) return;
-    // TEMPORARY: not the emailed code → try the shared code (while sign-in emails don't reach everyone);
-    // quick-login turns it into a one-time sign-in token
-    if (email) {
+    // every failure says its cause with a ref, and is logged (Apple, 11 Nov: the iPad showed only "an error")
+    try {
+      const { error } = phone
+        ? await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' })
+        : await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+      if (!error) return;
+      if (!email || kindOf('verify', error) === 'network') return void setServerError(signInFailure(t, 'verify', error, email || undefined));
+      // not the emailed code → the review login's fixed code (or the temporary shared one): quick-login turns it
+      // into a one-time sign-in token
       const { data, error: fnError } = await supabase.functions.invoke<{ token_hash: string }>('quick-login', { body: { email, code } });
-      const res = data?.token_hash ? await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' }) : null;
-      if (!fnError && res && !res.error) return;
+      if (fnError || !data?.token_hash) return void setServerError(signInFailure(t, 'quick_login', fnError ?? new Error('no token'), email));
+      const res = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' });
+      if (res.error) setServerError(signInFailure(t, 'verify', res.error, email));
+      // on success the auth guard in app/_layout.tsx swaps to the app automatically
+    } catch (e) {
+      setServerError(signInFailure(t, phone ? 'verify' : 'quick_login', e, email || undefined));
     }
-    setServerError(t('auth.genericError'));
-    // on success the auth guard in app/_layout.tsx swaps to the app automatically
   });
 
   // demo personas: the code is fixed, so sign straight in
@@ -74,11 +79,15 @@ export default function VerifyScreen() {
     setServerError(null);
     // a new admin code needs the password again
     if (adminUser) return void router.back();
-    const { error } = phone
-      ? await supabase.auth.signInWithOtp({ phone })
-      : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
-    if (error) setServerError(error.status === 429 ? t('auth.rateLimited') : t('auth.genericError'));
-    else setNotice(t('auth.resent'));
+    try {
+      const { error } = phone
+        ? await supabase.auth.signInWithOtp({ phone })
+        : await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
+      if (error) setServerError(signInFailure(t, 'resend', error, email || undefined));
+      else setNotice(t('auth.resent'));
+    } catch (e) {
+      setServerError(signInFailure(t, 'resend', e, email || undefined));
+    }
   };
 
   return (

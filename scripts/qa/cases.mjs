@@ -431,6 +431,41 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
     return `${row.decisions} decision(s)`;
   });
 
+  // Apple, 11 Nov: "an error occurred when we tapped login" on an iPad, and our logs had nothing. The app now reports
+  // every failed sign-in step with the ref it shows; the server keeps it without the code or the full email.
+  await check('review', 'A failed sign-in is kept with its ref and device, never the full email', async () => {
+    const ref = String(100000 + Math.floor(Math.random() * 899999));
+    await fn('client-error', { ref, step: 'send_code', kind: 'network', message: 'Network request failed', platform: 'ios', os_version: '27.2', device: 'iPad Air 11-inch (M3)', ipad: true, app_version: '1.0.0', build: '3', email: 'play-review@muntej.app', code: '123456' });
+    try {
+      const [row] = await sql(`select step, kind, ipad, email_domain, review_login, to_jsonb(c)::text whole from public.client_errors c where ref = '${ref}'`);
+      expect(row, 'the report was not kept');
+      expect(row.kind === 'network' && row.ipad === true, `kept as ${row.kind}, ipad ${row.ipad}`);
+      expect(row.email_domain === 'muntej.app' && row.review_login === true, `email kept as ${row.email_domain}, review ${row.review_login}`);
+      expect(!row.whole.includes('play-review') && !row.whole.includes('123456'), 'the full email or the code was kept');
+    } finally {
+      await sql(`delete from public.client_errors where ref = '${ref}'`);
+    }
+    return 'kept: step, kind, device, domain only';
+  });
+
+  // What we tell Apple (3.2) must be what the app does for a brand-new email: its own free workspace, as its admin
+  await check('review', 'A brand-new email gets its own free workspace (what we tell Apple)', async () => {
+    const [row] = await sql(`select pg_get_functiondef('public.handle_new_user'::regproc) def`);
+    expect(/insert into public\.accounts/.test(row?.def ?? '') && /'admin', 'active'/.test(row.def), 'sign-up no longer makes a workspace for a new email');
+    const [n] = await sql(`select count(*)::int n from public.activity_log where action = 'account_signed_up' and created_at > now() - interval '30 days'`);
+    return `${n.n} self sign-up(s) in 30 days`;
+  });
+
+  // Apple 2.5.4, 11 Nov: no background audio (the app records and plays only while it's open)
+  await check('review', 'The app does not ask iOS for background audio', async () => {
+    const { readFileSync } = await import('node:fs');
+    const plugins = JSON.parse(readFileSync(new URL('../../app.json', import.meta.url), 'utf8')).expo.plugins;
+    const audio = plugins.find((p) => (Array.isArray(p) ? p[0] : p) === 'expo-audio');
+    const opts = Array.isArray(audio) ? audio[1] ?? {} : {};
+    expect(opts.enableBackgroundPlayback === false && opts.enableBackgroundRecording !== true, 'expo-audio still turns on background audio (UIBackgroundModes audio)');
+    return 'background audio off';
+  });
+
   // ─── account deletion ───────────────────────────────────────────────────────
   // Apple needs every account deletable in the app, admins too (5 Nov), and a company must keep an admin afterwards.
   await check('deletion', 'An admin can delete their account and the next person takes over', async () => {

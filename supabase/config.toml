@@ -455,6 +455,10 @@ verify_jwt = false
 [functions.quick-login]
 verify_jwt = false
 
+# sign-in failures are reported before anyone is signed in
+[functions.client-error]
+verify_jwt = false
+
 [functions.suggest-steps]
 verify_jwt = false
 

@@ -16,6 +16,7 @@ import { isAdminUsername, startAdminLogin } from '@/features/auth/adminLogin';
 import { useBiometricSignIn } from '@/features/auth/BiometricCard';
 import { signInWithBiometric } from '@/features/auth/deviceKey';
 import { emailSchema, type EmailForm } from '@/features/auth/validation';
+import { kindOf, signInFailure } from '@/features/auth/signInError';
 
 export default function SignInScreen() {
   const { t } = useTranslation();
@@ -47,8 +48,8 @@ function BiometricButton() {
           setError(null);
           try {
             if (await signInWithBiometric(t('auth.bioPrompt'))) router.replace('/' as Href);
-          } catch {
-            setError(t('auth.genericError'));
+          } catch (e) {
+            setError(signInFailure(t, 'biometric', e));
           } finally {
             setBusy(false);
           }
@@ -89,10 +90,17 @@ function EmailSignIn() {
       router.push('/verify');
       return;
     }
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } });
+    let error: unknown = null;
+    try {
+      ({ error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: emailRedirectTo() } }));
+    } catch (e) {
+      error = e;
+    }
+    // no internet / our server unreachable: say so here (Apple, 11 Nov: the iPad showed only "an error")
+    if (error && kindOf('send_code', error) === 'network') return void setServerError(signInFailure(t, 'send_code', error, email));
     // the email may not be deliverable yet (no verified domain) or codes may be rate-limited: go on to the code
-    // screen anyway — the temporary shared code works there
-    if (error) console.warn('[sign-in] code email not sent', error.status);
+    // screen anyway (the review login's fixed code works there), and keep the reason in our log
+    if (error) signInFailure(t, 'send_code', error, email);
     setPendingLogin({ email });
     router.push('/verify');
   });
@@ -105,7 +113,7 @@ function EmailSignIn() {
         render={({ field }) => (
           <TextField
             label={t('auth.emailLabel')}
-            placeholder="name@company.sa"
+            placeholder="name@example.com"
             keyboardType="email-address"
             textContentType="emailAddress"
             autoComplete="email"

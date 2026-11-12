@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign-in wording</title>
+<style>
+:root{--bg:#F3F6FB;--card:#fff;--ink:#14213D;--soft:#5B6B88;--brand:#6D4AFF;--line:#DCE3EF;--red:#D64545}
+body{margin:0;background:var(--bg);font-family:-apple-system,Segoe UI,Tahoma,sans-serif;color:var(--ink);padding:16px}
+h1{font-size:18px;margin:0 0 4px}p.lead{color:var(--soft);margin:0 0 16px;font-size:14px}
+.row{display:flex;gap:16px;flex-wrap:wrap}
+.opt{flex:1 1 300px;max-width:360px}
+.tag{font-weight:700;margin-bottom:8px}
+.phone{background:var(--card);border:1px solid var(--line);border-radius:28px;padding:24px 18px}
+.t{font-size:20px;font-weight:800;margin:6px 0}.h{color:var(--soft);font-size:14px;margin:0 0 14px}
+label{font-size:13px;color:var(--soft)}
+.in{border:1px solid var(--line);border-radius:12px;padding:12px;margin:4px 0 12px;color:#9AA6BC;direction:ltr}
+.btn{background:var(--brand);color:#fff;text-align:center;border-radius:12px;padding:13px;font-weight:700}
+.out{border:1px solid var(--brand);color:var(--brand);text-align:center;border-radius:12px;padding:12px;font-weight:700;margin-top:10px}
+.new{background:#F1EDFF;border-radius:12px;padding:10px 12px;font-size:13px;margin:0 0 12px}
+.err{color:var(--red);font-size:13px;margin:-6px 0 12px}
+.was{font-size:12px;color:var(--soft);margin-top:10px}
+</style></head><body>
+<h1>Sign-in screen: wording for Apple's "one business" point</h1>
+<p class="lead">Only the text changes. The layout and buttons stay the same. Arabic follows the same words.</p>
+<div class="row">
+ <div class="opt"><div class="tag">Option A: one line for new people</div>
+  <div class="phone">
+   <div class="t">Sign in or start free</div>
+   <p class="h">We'll email you a 6-digit code.</p>
+   <div class="new">New to Muntej? Signing in with your email creates your own free workspace. Invite your team later, or use it alone.</div>
+   <label>Email</label><div class="in">name@example.com</div>
+   <div class="btn">Send code</div>
+   <div class="out">Sign in with WhatsApp (added by mobile)</div>
+  </div>
+  <div class="was">Today: "Sign in with your email" · "Work email" · name@company.sa · "Sign in with WhatsApp"</div>
+ </div>
+ <div class="opt"><div class="tag">Option B: same, plus clear errors</div>
+  <div class="phone">
+   <div class="t">Sign in or start free</div>
+   <p class="h">We'll email you a 6-digit code. New here? This creates your own free workspace.</p>
+   <label>Email</label><div class="in">name@example.com</div>
+   <div class="err">Couldn't reach Muntej. Check your internet and try again. (ref 4821)</div>
+   <div class="btn">Send code</div>
+   <div class="out">Sign in with WhatsApp (added by mobile)</div>
+  </div>
+  <div class="was">The error line shows only when something fails. Its ref number matches a line in our server log.</div>
+ </div>
+</div>
+</body></html>

@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { AuthShell } from '@/features/auth/AuthShell';
 import { Munti } from '@/features/munti/Munti';
 import { track } from '@/lib/analytics';
+import { signInFailure } from '@/features/auth/signInError';
 
 export default function WhatsAppSignInScreen() {
   const { t } = useTranslation();
@@ -38,7 +39,7 @@ export default function WhatsAppSignInScreen() {
     if (!data?.token_hash) return;
     stop();
     const { error: e2 } = await supabase.auth.verifyOtp({ token_hash: data.token_hash, type: 'magiclink' });
-    if (e2) return setError(t('auth.genericError'));
+    if (e2) return setError(signInFailure(t, 'whatsapp', e2));
     track('signed_in_whatsapp');
     router.replace('/' as Href);
   };
@@ -51,9 +52,15 @@ export default function WhatsAppSignInScreen() {
   const start = async () => {
     setError(null);
     setBusy(true);
-    const { data, error: e } = await supabase.functions.invoke<{ nonce: string; number: string }>('phone-auth', { body: { action: 'wa_start' } });
+    let data: { nonce: string; number: string } | null = null;
+    let e: unknown = null;
+    try {
+      ({ data, error: e } = await supabase.functions.invoke<{ nonce: string; number: string }>('phone-auth', { body: { action: 'wa_start' } }));
+    } catch (err) {
+      e = err;
+    }
     setBusy(false);
-    if (e || !data?.nonce) return setError(t('auth.genericError'));
+    if (e || !data?.nonce) return setError(signInFailure(t, 'whatsapp', e ?? new Error('no nonce')));
     setNonce(data.nonce);
     track('whatsapp_sign_in_started');
     stop();
