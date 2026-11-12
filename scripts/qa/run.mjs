@@ -117,7 +117,9 @@ const secondTry = [];
 const RETRY_AREAS = new Set(['inbox']);
 // «Failed to fetch» / net::ERR_ is the browser's own word for a request the network dropped (12 Nov: the office
 // network drops some HeadlessChrome requests after their OPTIONS)
-const blip = (m) => /fetch failed|Failed to fetch|net::ERR_|ECONNRESET|socket hang up|\b(502|503|504|52[0-4])\b/i.test(m);
+// «no answer from the network»: a request to our server still open after 10 s that never reached it (12 Nov: the
+// idea POST hung after its OPTIONS; the gateway log had no POST at all)
+const blip = (m) => /fetch failed|Failed to fetch|net::ERR_|ECONNRESET|socket hang up|no answer from the network|\b(502|503|504|52[0-4])\b/i.test(m);
 async function check(area, name, fn) {
   if (!runs(area, name)) return void skipped.push({ area, name });
   const t0 = Date.now();
@@ -822,6 +824,19 @@ async function screens() {
     const errors = [];
     page.on('pageerror', (e) => errors.push(`page error: ${e.message}`));
     page.on('console', (m) => m.type() === 'error' && !NOISE.test(m.text()) && errors.push(m.text()));
+    // requests to our server: a dropped one shows as net::ERR_…, a hung one as «no answer from the network» (blip)
+    const ours = (r) => r.url().includes('.supabase.co/');
+    const inFlight = new Map();
+    page.on('request', (r) => ours(r) && r.method() !== 'OPTIONS' && inFlight.set(r, Date.now()));
+    page.on('requestfinished', (r) => inFlight.delete(r));
+    page.on('requestfailed', (r) => {
+      inFlight.delete(r);
+      if (ours(r)) errors.push(`request failed: ${r.failure()?.errorText ?? 'net::ERR_UNKNOWN'} ${r.method()} ${new URL(r.url()).pathname}`);
+    });
+    const hung = () =>
+      [...inFlight]
+        .filter(([, at]) => Date.now() - at > 10_000)
+        .map(([r]) => `no answer from the network: ${r.method()} ${new URL(r.url()).pathname}`);
 
     await check('screens', 'Sign in with the test link', async () => {
       const token = await qaLinkToken();
@@ -1332,6 +1347,7 @@ async function screens() {
     });
     await check('flows', 'Send an idea', async () => {
       errors.length = 0;
+      inFlight.clear();
       await page.goto('http://localhost:8099/59-ideas', { waitUntil: 'domcontentloaded' });
       // wait for the box itself (a fixed wait sometimes typed before the screen was ready: the text was lost)
       const box = page.getByPlaceholder(/وش اللي يخلي منتج أحسن لك/);
@@ -1343,8 +1359,12 @@ async function screens() {
       await page.getByRole('button', { name: 'أرسل' }).click();
       await page.getByText(/وصلت، شكرًا لك/).waitFor({ timeout: 20_000 }).catch(async (e) => {
         await page.screenshot({ path: join(OUT, 'flow_idea_failed.png'), fullPage: true });
+        const stuck = hung();
+        // let a hung request end here (up to 40 s), so its late «Failed to fetch» can't land in the next check
+        for (let i = 0; i < 40 && [...inFlight.keys()].some((r) => r.method() === 'POST'); i++) await page.waitForTimeout(1000);
+        if (stuck.length) errors.unshift(...stuck);
         // the page's own errors too, so the cause shows next time (it failed several runs while the server check passed)
-        throw new Error(`${e.message.split('\n')[0]} · errors: ${errors.slice(-3).join(' | ').slice(0, 300) || 'none'} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 200)}`);
+        throw new Error(`${e.message.split('\n')[0]} · errors: ${errors.slice(0, 3).join(' | ').slice(0, 300) || 'none'} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 200)}`);
       });
       await page.screenshot({ path: join(OUT, 'flow_idea.png') });
       return 'sent and thanked';
