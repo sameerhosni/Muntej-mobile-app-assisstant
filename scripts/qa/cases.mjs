@@ -128,6 +128,41 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
     return s[0].title;
   });
 
+  // ─── «اقرا الحين» you can follow (owner, 12 Nov: "How can I know it is finished") ─────────────
+  // His Google read took 4 minutes; the app's one long call gave up with «Failed to send a request to the Edge Function»
+  // while the server finished fine. Now: the call answers at once, the row tells where the read is, a second start joins
+  // the running read, and an error comes back as a kind the app says in plain words. A QA Google account with no sign-in
+  // kept: its read fails at once with "Sign in again", which is the error to judge.
+  await check('inbox', 'Read now answers at once and the row says when it’s finished', async () => {
+    const [conn] = await sql(`insert into public.connections (profile_id, provider, account_label, import_on, read_every_min) values ('${QA_BOSS}', 'google', 'qa-read@qa.muntej.test', true, 0) returning id`);
+    try {
+      // a read already running (the 10-min job, another tap): this one joins it, never a second read
+      await sql(`update public.connections set reading = jsonb_build_object('state', 'reading', 'by', 'auto', 'started_at', now()) where id = '${conn.id}'`);
+      const j = await fn('connect', { action: 'read', provider: 'google', id: conn.id }, jwt);
+      expect((j.joined ?? []).includes(conn.id) && !(j.started ?? []).includes(conn.id), `a second read started: ${JSON.stringify(j)}`);
+      // one that started 9 minutes ago and never ended is dead: a new one may start
+      await sql(`update public.connections set reading = jsonb_build_object('state', 'reading', 'by', 'auto', 'started_at', now() - interval '9 minutes') where id = '${conn.id}'`);
+      const t0 = Date.now();
+      const r = await fn('connect', { action: 'read', provider: 'google', id: conn.id }, jwt);
+      const took = Date.now() - t0;
+      expect((r.started ?? []).includes(conn.id), `didn't start: ${JSON.stringify(r)}`);
+      expect(took < 15_000, `the call waited ${Math.round(took / 1000)} s for the read`);
+      // the row ends by itself: failed, with the kind the app turns into «انتهى دخولك …»
+      let row;
+      for (let i = 0; i < 30; i++) {
+        [row] = await sql(`select reading from public.connections where id = '${conn.id}'`);
+        if (row.reading?.state && row.reading.state !== 'reading') break;
+        await new Promise((res) => setTimeout(res, 1000));
+      }
+      expect(row.reading?.state === 'failed', `the row still says ${row.reading?.state ?? 'nothing'}`);
+      expect(row.reading.by === 'you' && row.reading.finished_at, `who / when missing: ${JSON.stringify(row.reading)}`);
+      expect(row.reading.error_code === 'signin', `error kind ${row.reading.error_code} for "${row.reading.error}"`);
+      return `answered in ${Math.round(took / 100) / 10} s, joined the running read, ended «signin»`;
+    } finally {
+      await sql(`delete from public.connections where id = '${conn.id}'`);
+    }
+  });
+
   // ─── tools: only the user's work (Nouran, 10 Nov) ─────────────────────────────
   // "these are the tasks people ask me PLUS the tasks I ask to people, we need only the ones addressed to me … disregard
   // any task that is sent from my email to others … assign them to other users if they are already on Montej … auto

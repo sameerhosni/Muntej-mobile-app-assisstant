@@ -3,8 +3,9 @@
 // when it's read next, so the page answers "is it working?" before anything else.
 import { useEffect, useRef, useState } from 'react';
 import { intlTag } from '@/lib/i18n/locale';
-import { Animated, Easing, View } from 'react-native';
-import { RefreshCw } from 'lucide-react-native';
+import { ActivityIndicator, Animated, Easing, View } from 'react-native';
+import { CheckCircle2, RefreshCw } from 'lucide-react-native';
+import { useFollowRead } from '@/features/tools/readProgress';
 import { AppText, Button, Card } from '@/components/ui';
 import { colors, radius, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
@@ -60,7 +61,10 @@ export function ReadBar({ conns, onRead }: { conns: Connection[]; onRead?: () =>
   const { t } = useScreenT(NS);
   const { lang } = useDirection();
   const actions = useConnectionActions();
-  const [busy, setBusy] = useState(false);
+  const follow = useFollowRead(conns, onRead);
+  const [busyOld, setBusy] = useState(false);
+  // testers (read_progress): the server's own progress, which survives leaving the page; others: the old wait
+  const busy = follow.on ? follow.running : busyOld;
   const [count, setCount] = useState(0);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const slide = useRef(new Animated.Value(0)).current;
@@ -90,6 +94,7 @@ export function ReadBar({ conns, onRead }: { conns: Connection[]; onRead?: () =>
   };
 
   const read = async () => {
+    if (follow.on) return follow.start();
     setBusy(true);
     setResult(null);
     setCount(0);
@@ -140,7 +145,27 @@ export function ReadBar({ conns, onRead }: { conns: Connection[]; onRead?: () =>
           icon={<RefreshCw color={colors.onDark} size={16} />}
         />
       </View>
-      {busy && (
+      {follow.on && busy && (
+        <View style={{ gap: 6 }}>
+          {follow.lines.map((l) => (
+            <View key={l.key} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              {l.done ? <CheckCircle2 color={colors.green} size={16} /> : <ActivityIndicator size="small" color={colors.primary} />}
+              <AppText variant="small" weight="semibold" color={l.done ? 'text' : 'primary'} style={{ flex: 1 }}>
+                {l.text}
+              </AppText>
+            </View>
+          ))}
+          <AppText variant="caption" color="textMuted">
+            {follow.canLeave}
+          </AppText>
+        </View>
+      )}
+      {follow.on && !busy && follow.outcome && (
+        <AppText variant="small" weight="bold" color={follow.outcome.ok ? 'greenText' : 'red'}>
+          {follow.outcome.text}
+        </AppText>
+      )}
+      {!follow.on && busy && (
         <View style={{ gap: 6 }}>
           <View style={{ height: 6, borderRadius: radius.pill, backgroundColor: colors.primaryTint, overflow: 'hidden' }}>
             <Animated.View style={{ width: 120, height: 6, borderRadius: radius.pill, backgroundColor: colors.primary, transform: [{ translateX: x }] }} />
@@ -150,7 +175,7 @@ export function ReadBar({ conns, onRead }: { conns: Connection[]; onRead?: () =>
           </AppText>
         </View>
       )}
-      {!busy && result && (
+      {!follow.on && !busy && result && (
         <AppText variant="small" weight="bold" color={result.ok ? 'greenText' : 'red'}>
           {result.text}
         </AppText>

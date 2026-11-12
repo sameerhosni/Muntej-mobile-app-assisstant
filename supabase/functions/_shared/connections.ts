@@ -177,7 +177,7 @@ type Conn = {
   status?: string;
   last_error?: string | null;
 };
-export type SyncResult = { read: number; tasks: number; sent: number; closedHere: number; closedThere: number; updated: number; error?: string };
+export type SyncResult = { read: number; tasks: number; sent: number; closedHere: number; closedThere: number; updated: number; error?: string; more?: boolean };
 
 export const TOOL_NAME: Record<ProviderId, { en: string; ar: string }> = {
   microsoft: { en: 'Microsoft 365', ar: 'مايكروسوفت ٣٦٥' },
@@ -217,8 +217,73 @@ const sameDue = (a: string | null | undefined, b: string | null | undefined) =>
 /** tools whose items arrive as tasks already (no AI reading) */
 const TASK_TOOLS = ['clickup', 'jira', 'trello'];
 
-export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise<SyncResult> {
+// ─── a read the app can follow (owner, 12 Nov: "How can I know it is finished") ──────────────────────────────
+// The read writes where it is to connections.reading: one line per source (option 1: Gmail ✓ · Chat ✓ · Meet …),
+// then done / failed with a short code the app turns into one plain sentence (never the raw error, R7).
+
+export type ReadSource = { key: string; total: number; read: number; added: number; done: boolean };
+export type ReadErrorCode = 'signin' | 'ai_off' | 'tool_down' | 'other';
+type Progress = (p: { sources: ReadSource[]; read: number; tasks: number }) => Promise<void>;
+
+/** the parts a connection reads, so a part with nothing new still shows «✓» */
+export function sourcesOf(conn: Pick<Conn, 'provider' | 'features'>): string[] {
+  const on = (k: string) => (conn.features ?? {})[k] !== false;
+  if (conn.provider === 'google')
+    return [on('gmail') && 'gmail', on('chat') && 'google_chat', on('meet') && 'meet', on('calendar') && 'calendar'].filter(Boolean) as string[];
+  if (conn.provider === 'microsoft') return ['outlook', 'teams', 'calendar'];
+  return [conn.provider];
+}
+
+export function readErrorCode(msg: string): ReadErrorCode {
+  if (/AI is off/i.test(msg)) return 'ai_off';
+  if (/expired|revoked|invalid_grant|sign in again|unauthori[sz]ed|\b401\b|\b403\b/i.test(msg)) return 'signin';
+  if (/\b5\d\d\b|timed? ?out|fetch failed|ECONN|unavailable|socket/i.test(msg)) return 'tool_down';
+  return 'other';
+}
+
+/**
+ * Read one connection so the app can follow it. Only one read at a time per connection: if one is running (your tap,
+ * the 10-min job), this one joins it and returns null.
+ */
+export async function readConnection(admin: SupabaseClient, conn: Conn, by: 'you' | 'auto'): Promise<SyncResult | null> {
+  if (!(await claimRead(admin, conn.id, by))) return null;
+  return await runRead(admin, conn, by);
+}
+
+/** true = this caller owns the read now; false = one is already running (join it) */
+export async function claimRead(admin: SupabaseClient, connId: string, by: 'you' | 'auto'): Promise<boolean> {
+  const { data, error } = await admin.rpc('claim_read', { p_conn: connId, p_by: by });
+  if (error) throw new Error(error.message);
+  return data === true;
+}
+
+/** the read itself, after claimRead said yes */
+export async function runRead(admin: SupabaseClient, conn: Conn, by: 'you' | 'auto'): Promise<SyncResult> {
+  const startedAt = new Date().toISOString();
+  const base = { by, started_at: startedAt };
+  let last: { sources: ReadSource[]; read: number; tasks: number } = { sources: sourcesOf(conn).map((key) => ({ key, total: 0, read: 0, added: 0, done: false })), read: 0, tasks: 0 };
+  const write = (reading: Record<string, unknown>) => admin.from('connections').update({ reading }).eq('id', conn.id);
+  await write({ ...base, state: 'reading', ...last });
+  const r = await syncConnection(admin, conn, async (p) => {
+    last = p;
+    await write({ ...base, state: 'reading', ...p });
+  }).catch((e) => ({ read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0, error: (e as Error).message }) as SyncResult);
+  const finished = new Date().toISOString();
+  await write(
+    r.error
+      ? { ...base, state: 'failed', finished_at: finished, ...last, read: r.read, tasks: r.tasks, error_code: readErrorCode(r.error), error: r.error.slice(0, 200) }
+      : { ...base, state: 'done', finished_at: finished, sources: last.sources.map((s) => ({ ...s, done: true })), read: r.read, tasks: r.tasks, more: r.more === true },
+  );
+  return r;
+}
+
+/** stop taking new items after this long, so a read always ends before the function's ~400 s limit (R150); the rest
+ *  come next read (they aren't marked read) */
+const TIME_BUDGET_MS = 300_000;
+
+export async function syncConnection(admin: SupabaseClient, conn: Conn, progress?: Progress): Promise<SyncResult> {
   const out: SyncResult = { read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0 };
+  const began = Date.now();
   const provider = PROVIDERS[conn.provider];
   if (!provider) return { ...out, error: 'not available yet' };
   // mail, chats and meetings are read by the AI: wait (cursor untouched) until the owner allows it; task tools aren't
@@ -297,7 +362,28 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
       const waitingTitles: string[] = [];
       // the items themselves, kept on the alert: its cards and «ايه هي؟» show exactly these (reviewer, 10 Nov)
       const waitingItems: string[] = [];
-      for (const it of fresh.slice(0, MAX_ITEMS)) {
+      // one source after another, so the page ticks Gmail ✓, then Chat ✓, then Meet ✓ (option 1, owner 12 Nov)
+      const keys = sourcesOf(conn);
+      const keyOf = (s: string) => (keys.includes(s) ? s : (keys[0] ?? s));
+      const batch = fresh.slice(0, MAX_ITEMS).sort((a, b) => keys.indexOf(keyOf(a.source)) - keys.indexOf(keyOf(b.source)));
+      const sources: ReadSource[] = keys.map((key) => ({ key, total: 0, read: 0, added: 0, done: false }));
+      for (const it of batch) {
+        const s = sources.find((x) => x.key === keyOf(it.source));
+        if (s) s.total++;
+      }
+      const tell = async () => {
+        for (const s of sources) s.done = s.read >= s.total;
+        await progress?.({ sources: sources.map((s) => ({ ...s })), read: out.read, tasks: out.tasks }).catch(() => {});
+      };
+      // the fetch is done: parts with nothing new tick at once
+      await tell();
+      let cut = false;
+      for (const it of batch) {
+        if (Date.now() - began > TIME_BUDGET_MS) {
+          cut = true;
+          break;
+        }
+        const src = sources.find((x) => x.key === keyOf(it.source));
         const item = await ingestMessage(admin, {
           profileId: conn.profile_id,
           text: it.text,
@@ -314,8 +400,15 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
           confirmFirst: provider.confirmFirst,
           connectionId: conn.id,
         });
-        if (item.duplicate_message) continue;
+        if (src) src.read++;
+        if (item.duplicate_message) {
+          await tell();
+          continue;
+        }
         out.read++;
+        // the line's own count adds up to the done line's total (reviewer, 12 Nov: duplicates counted on the line only)
+        if (src) src.added++;
+        await tell();
         // a meeting that brought tasks: one push, so the organiser knows right after it ends (owner: "go with transcript")
         if ((it.source === 'meet' || it.source === 'meeting') && item.suggestions.length) {
           const { data: who } = await admin.from('profiles').select('locale').eq('id', conn.profile_id).maybeSingle();
@@ -358,7 +451,10 @@ export async function syncConnection(admin: SupabaseClient, conn: Conn): Promise
           );
         }
       }
-      nextCursor = fresh.length > MAX_ITEMS ? cur : cursor;
+      if (cut) out.more = true;
+      else for (const s of sources) s.done = true;
+      await tell();
+      nextCursor = fresh.length > MAX_ITEMS || cut ? cur : cursor;
       // an everyday alert (not a direct push): quiet hours, Friday and the daily budget apply, it shows on the Alerts
       // screen, and a tap opens "From your tools" (reviewer, 10 Nov). One per connection per check.
       if (waitingNew > 0) {

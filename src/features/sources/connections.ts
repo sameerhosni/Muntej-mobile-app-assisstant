@@ -31,7 +31,25 @@ export type Connection = {
   read_every_min: number;
   /** the tool's own bookkeeping; Google's meet_ok = this sign-in allowed Google Meet */
   cursor: Record<string, unknown> | null;
+  /** the read in progress or the last one (server writes it as it goes; owner, 12 Nov: "How can I know it is finished") */
+  reading: Reading | null;
 };
+export type ReadSource = { key: string; total: number; read: number; added?: number; done: boolean };
+export type Reading = {
+  state: 'reading' | 'done' | 'failed';
+  by: 'you' | 'auto';
+  started_at: string;
+  finished_at?: string;
+  sources: ReadSource[];
+  read: number;
+  tasks: number;
+  /** stopped at the time limit: the rest come next read */
+  more?: boolean;
+  error_code?: 'signin' | 'ai_off' | 'tool_down' | 'other';
+};
+/** a read the server is running now (one that started 8+ min ago and never ended is dead, as on the server) */
+export const isReading = (c: Pick<Connection, 'reading'>) =>
+  c.reading?.state === 'reading' && Date.now() - Date.parse(c.reading.started_at) < 8 * 60_000;
 /** configured = sign-in is set up on the server; token = the person can connect with their own personal API token */
 export type ProviderInfo = { id: ProviderId; available: boolean; configured: boolean; token: boolean; tokenFields: string[]; twoWay: boolean };
 export type Target = { id: string; name: string };
@@ -53,11 +71,13 @@ export function useConnections() {
       const { data, error } = await untyped
         .from('connections')
         .select(
-          'id, provider, status, account_label, last_sync_at, last_error, found_today, found_day, import_on, export_on, export_target, features, read_every_min, cursor',
+          'id, provider, status, account_label, last_sync_at, last_error, found_today, found_day, import_on, export_on, export_target, features, read_every_min, cursor, reading',
         );
       if (error) throw new Error(error.message);
       return (data ?? []) as Connection[];
     },
+    // while a read runs, its lines move every 2 s; otherwise as before
+    refetchInterval: (q) => ((q.state.data ?? []).some(isReading) ? 2000 : false),
   });
 }
 
@@ -110,7 +130,15 @@ export function useConnectionActions() {
       await call({ action: 'settings', provider, id, ...patch });
       await refresh();
     },
-    /** read now: one account (id) or every account of that tool */
+    /** start reading now (answers at once; follow it on `reading`): one account (id) or every account of that tool */
+    startRead: async (provider: ProviderId, id?: string) => {
+      // the raw error is kept (not toError): the screen tells no internet / signed out / other apart and retries a 401
+      const { data: r, error } = await supabase.functions.invoke<{ started: string[]; joined: string[] }>('connect', { body: { action: 'read', provider, id } });
+      if (error) throw error;
+      await refresh();
+      return r;
+    },
+    /** read now and wait for it (before 12 Nov; still used while read_progress is off) */
     syncNow: async (provider: ProviderId, id?: string) => {
       const r = await call<{ read: number; tasks: number; sent: number; closedHere: number; closedThere: number; updated: number; error?: string }>({
         action: 'sync',

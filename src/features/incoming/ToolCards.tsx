@@ -4,7 +4,8 @@
 // schedule. WhatsApp (Muntej's own number) has no schedule: messages arrive the moment they're sent.
 import { useState } from 'react';
 import { intlTag } from '@/lib/i18n/locale';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { READ_NS, useFollowRead } from '@/features/tools/readProgress';
 import { CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react-native';
 import { AppText, Card } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
@@ -89,7 +90,14 @@ export function ToolCard({ c, hideRead }: { c: Connection; hideRead?: boolean })
   const { t: tc } = useScreenT(CONN_NS);
   const { lang } = useDirection();
   const actions = useConnectionActions();
-  const [busy, setBusy] = useState<'read' | 'every' | null>(null);
+  const follow = useFollowRead([c]);
+  const { t: tr } = useScreenT(READ_NS);
+  const [busyOld, setBusy] = useState<'read' | 'every' | null>(null);
+  const busy = follow.on && follow.running ? 'read' : busyOld;
+  // the last error in plain words when the server gave its kind (R7), the raw text only on older reads
+  const errText = follow.on && c.reading?.state === 'failed' && c.reading.error_code
+    ? tr(`e_${c.reading.error_code}`, { tool: tr(`s_${c.provider}`), retry: follow.retry(c) })
+    : c.last_error;
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const every = c.read_every_min ?? 10;
   const now = Date.now();
@@ -110,6 +118,8 @@ export function ToolCard({ c, hideRead }: { c: Connection; hideRead?: boolean })
   const today = c.found_day === new Date(now + 3 * 3_600_000).toISOString().slice(0, 10) ? c.found_today : 0;
 
   const readNow = async () => {
+    // testers (read_progress): start it on the server and follow the row; the card shows the lines and the result
+    if (follow.on) return follow.start();
     setBusy('read');
     setNote(null);
     try {
@@ -150,7 +160,7 @@ export function ToolCard({ c, hideRead }: { c: Connection; hideRead?: boolean })
       </View>
       <AppText variant="small" color={ok ? 'textSoft' : 'red'}>
         {!ok && c.last_error
-          ? t('error', { msg: c.last_error })
+          ? t('error', { msg: errText })
           : [c.last_sync_at ? t('lastRead', { when: ago(c.last_sync_at) }) : t('never'), today ? t('found', { count: today }) : null]
               .filter(Boolean)
               .join(' · ')}
@@ -183,8 +193,33 @@ export function ToolCard({ c, hideRead }: { c: Connection; hideRead?: boolean })
         </AppText>
       </Pressable>
       )}
-      {!!note && (
+      {follow.on && busy === 'read' && !hideRead && (
+        <View style={{ gap: 4 }}>
+          {follow.lines.map((l) => (
+            <View key={l.key} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              {l.done ? <CheckCircle2 color={colors.green} size={14} /> : <ActivityIndicator size="small" color={colors.primary} />}
+              <AppText variant="caption" weight="semibold" color={l.done ? 'text' : 'primary'} style={{ flex: 1 }}>
+                {l.text}
+              </AppText>
+            </View>
+          ))}
+          <AppText variant="caption" color="textMuted">
+            {follow.canLeave}
+          </AppText>
+        </View>
+      )}
+      {follow.on && busy !== 'read' && !hideRead && follow.outcome && (
+        <AppText variant="small" weight="semibold" color={follow.outcome.ok ? 'green' : 'red'}>
+          {follow.outcome.text}
+        </AppText>
+      )}
+      {!follow.on && !!note && (
         <AppText variant="small" weight="semibold" color={note.ok ? 'green' : 'red'}>
+          {note.text}
+        </AppText>
+      )}
+      {follow.on && !!note && !note.ok && (
+        <AppText variant="small" weight="semibold" color="red">
           {note.text}
         </AppText>
       )}

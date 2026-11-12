@@ -9,6 +9,7 @@ import { AppText, Card } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useScreenT } from '@/lib/i18n/register';
 import { useConnectionActions, useConnections, useProviders, type ProviderId } from '@/features/sources/connections';
+import { useFollowRead } from '@/features/tools/readProgress';
 import { readSince } from './api';
 import { NS } from './strings';
 
@@ -36,9 +37,12 @@ export function EmailAccounts() {
   // another account of it, Google asks which one)
   const offered = mine.length >= MAX_EMAILS ? [] : EMAIL_TOOLS.filter((id) => (providers.data ?? []).some((p) => p.id === id && p.configured));
   const [removing, setRemoving] = useState<string | null>(null);
+  const follow = useFollowRead(mine);
 
   const checkNow = async () => {
     if (!mine.length) return;
+    // testers (read_progress): started on the server, followed on the row (one line per source, the result after)
+    if (follow.on) return follow.start();
     setChecking(true);
     setNote(null);
     startedAt.current = Date.now();
@@ -197,7 +201,27 @@ export function EmailAccounts() {
           )}
         </View>
       )}
-      {mine.length > 0 && !progress && (
+      {follow.on && follow.running && (
+        <View accessibilityLiveRegion="polite" style={{ gap: 4 }}>
+          {follow.lines.map((l) => (
+            <View key={l.key} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              {l.done ? <CheckCircle2 color={colors.green} size={14} /> : <ActivityIndicator size="small" color={colors.primary} />}
+              <AppText variant="caption" weight="semibold" color={l.done ? 'text' : 'primary'} style={{ flex: 1 }}>
+                {l.text}
+              </AppText>
+            </View>
+          ))}
+          <AppText variant="caption" color="textMuted">
+            {follow.canLeave}
+          </AppText>
+        </View>
+      )}
+      {follow.on && !follow.running && follow.outcome && (
+        <AppText variant="small" weight="semibold" color={follow.outcome.ok ? 'green' : 'red'}>
+          {follow.outcome.text}
+        </AppText>
+      )}
+      {mine.length > 0 && !progress && !(follow.on && follow.running) && (
         <Pressable
           onPress={checkNow}
           disabled={checking}

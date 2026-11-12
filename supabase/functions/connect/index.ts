@@ -5,7 +5,8 @@
 //   GET  /connect/callback?code&state                 → the tool sends the person back here; we save the connection
 //                                                       and send them on to `redirect` (?connected=… or ?error=…)
 //   POST { action: 'disconnect', provider }           → forget the connection and its tokens
-//   POST { action: 'sync', provider }                 → check that tool right now, both ways (otherwise every 10 min)
+//   POST { action: 'read', provider, id? }            → start reading now; answers at once, the app follows connections.reading
+//   POST { action: 'sync', provider }                 → (older apps) check that tool right now and wait for the whole read
 //   POST { action: 'targets', provider }              → lists / projects tasks can be sent to
 //   POST { action: 'settings', provider, import_on?, export_on?, export_target? } → the two switches + where tasks go
 import { getCaller, HttpError, json, serve } from '../_shared/http.ts';
@@ -18,9 +19,26 @@ import {
   PROVIDERS,
   randomToken,
   seal,
-  syncConnection,
+  claimRead,
+  readConnection,
+  runRead,
   type ProviderId,
+  type SyncResult,
 } from '../_shared/connections.ts';
+
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void } | undefined;
+
+/** the numbers of a read someone else started, once it ends (up to ~2 min, then what it has so far) */
+async function waitForRead(admin: ReturnType<typeof adminClient>, connId: string): Promise<SyncResult> {
+  for (let i = 0; i < 60; i++) {
+    const { data } = await admin.from('connections').select('reading').eq('id', connId).maybeSingle();
+    const r = (data?.reading ?? null) as { state?: string; read?: number; tasks?: number; error?: string } | null;
+    if (!r || r.state !== 'reading' || i === 59)
+      return { read: r?.read ?? 0, tasks: r?.tasks ?? 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0, ...(r?.state === 'failed' && r.error ? { error: r.error } : {}) };
+    await new Promise((res) => setTimeout(res, 2000));
+  }
+  return { read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0 };
+}
 import { directoryAuthorizeUrl, directoryConfigured, directoryDraft, isDirectory } from '../_shared/directory.ts';
 
 const STATE_TTL_MS = 10 * 60_000;
@@ -258,7 +276,7 @@ serve(async (req) => {
         undoable: false,
       });
       // first read right away, so the person sees their tasks arrive
-      const first = await syncConnection(admin, conn);
+      const first = (await readConnection(admin, conn, 'you')) ?? (await waitForRead(admin, conn.id));
       return json({ ok: true, label: account.label, ...first });
     }
 
@@ -315,8 +333,37 @@ serve(async (req) => {
       return json({ ok: true });
     }
 
+    case 'read': {
+      // start the read and answer at once; the app follows connections.reading (owner, 12 Nov: "How can I know it is
+      // finished"). A read already running (your tap, the 10-min job) is joined, never run twice.
+      // testers first, decided here too (R69): the app only calls this when it's on for you
+      if ((await admin.rpc('feature_on_for', { p_key: 'read_progress', p_profile: profileId })).data !== true)
+        throw new HttpError(403, 'Not available yet');
+      let q = admin
+        .from('connections')
+        .select('*')
+        .eq('profile_id', profileId)
+        .eq('provider', body.provider ?? '');
+      if (body.id) q = q.eq('id', body.id);
+      const { data: conns } = await q;
+      if (!conns?.length) throw new HttpError(404, 'Not connected');
+      const started: string[] = [];
+      const joined: string[] = [];
+      for (const c of conns) {
+        if (!(await claimRead(admin, c.id, 'you'))) {
+          joined.push(c.id);
+          continue;
+        }
+        started.push(c.id);
+        const work = runRead(admin, c, 'you').catch((e) => console.error('read failed', c.provider, (e as Error).message));
+        if (typeof EdgeRuntime !== 'undefined') EdgeRuntime.waitUntil(work);
+        else await work;
+      }
+      return json({ started, joined });
+    }
+
     case 'sync': {
-      // one account (id) or every account of that tool, results added up
+      // the app before 12 Nov: waits for the whole read (one account (id) or every account of that tool, added up)
       let q = admin
         .from('connections')
         .select('*')
@@ -327,7 +374,8 @@ serve(async (req) => {
       if (!conns?.length) throw new HttpError(404, 'Not connected');
       const total = { read: 0, tasks: 0, sent: 0, closedHere: 0, closedThere: 0, updated: 0 } as Record<string, number> & { error?: string };
       for (const c of conns) {
-        const r = await syncConnection(admin, c);
+        // one at a time per connection: a read already running is waited for, and its numbers count
+        const r = (await readConnection(admin, c, 'you')) ?? (await waitForRead(admin, c.id));
         for (const k of ['read', 'tasks', 'sent', 'closedHere', 'closedThere', 'updated']) total[k] += (r as unknown as Record<string, number>)[k] ?? 0;
         if (r.error) total.error = r.error;
       }

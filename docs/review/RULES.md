@@ -637,3 +637,13 @@ Last updated: 2026-11-09.
 ### R148 · A failure report that exists because "the request never reached us" survives having no network
 - **Why:** 12 Nov, reviewer, on the sign-in reports for Apple's iPad: the report was fire-and-forget, so in the exact case it was built for (no connection to our server) it would be lost too.
 - **Check:** a report that can't be sent is kept on the device (with its ref and the phone's time) and sent on the next try; the server keeps a repeat once. Error texts are scrubbed of emails and codes on the server before they are stored.
+
+### R149 · A job that can take minutes answers at once and reports through the database
+- **Why:** 12 Nov, owner on the Google Meet page: "How can I know it is finished". «اقرا الحين» waited on one call to the server; the read took 4 minutes, the call gave up after about 3 with «Failed to send a request to the Edge Function» (raw English), and «آخر قراءة» never moved, though the server finished fine.
+- **Check:** anything that can run longer than ~30 s (reading tools, imports, bulk work) starts on the server and answers at once. The work writes where it is to a row the app watches, so the screen shows progress and «خلصت ✓» even after you leave and come back. Only one run at a time per thing: a second tap or the scheduled job joins the running one, and a run that never ended is dead after a set time. A failure reaches the app as a kind (sign-in, tool down, AI off …) that it says in one plain sentence, never the raw error.
+### R150 · A job left running in the background ends itself before the platform stops it
+- **Why:** 12 Nov, reviewer, on «اقرا الحين» running in the background: a long Meet read can pass the function's ~400 s limit and get killed, and then the row says "reading" until it counts as dead, with no «خلصت» and no error. That is the owner's "How can I know it is finished" again.
+- **Check:** a job started with EdgeRuntime.waitUntil has its own time limit below the function's (reads: 300 s). It always writes its end ('done', with what's left for next time, or 'failed'). The app still says something for a run that never ended («ما كملت القراءة هالمرة …»), never just stops spinning.
+### R151 · Every place that builds a text gives it all its {{variables}}
+- **Why:** 12 Nov, reviewer, on «اقرا الحين»: the hook gave `e_tool_down` its `{{retry}}`, but the tool card built the same text without it. i18next shows a missing variable as raw «{{retry}}», so the card would have said «Gmail ما رد: {{retry}}».
+- **Check:** for each changed string with a variable, grep every `t('key'`/`` t(`e_${…}` `` call site and pass every variable. A text that several screens build comes from one shared helper.

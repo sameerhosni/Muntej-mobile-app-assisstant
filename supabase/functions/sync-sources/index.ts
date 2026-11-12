@@ -3,7 +3,7 @@
 // Each tool reads on its owner's schedule (connections.read_every_min): due ones only; 0 = manual ("Read now") only.
 import { HttpError, json, serve } from '../_shared/http.ts';
 import { adminClient } from '../_shared/push.ts';
-import { syncConnection } from '../_shared/connections.ts';
+import { readConnection } from '../_shared/connections.ts';
 import { deliverPending } from '../_shared/notify.ts';
 
 serve(async (req) => {
@@ -22,7 +22,11 @@ serve(async (req) => {
     if (every === 0) return false;
     return !c.last_sync_at || now - Date.parse(c.last_sync_at) >= (every - 1) * 60_000;
   };
-  for (const c of (conns ?? []).filter(due)) results.push({ provider: c.provider, ...(await syncConnection(admin, c)) });
+  // one read at a time per connection: one you started from the app is left to finish (owner, 12 Nov)
+  for (const c of (conns ?? []).filter(due)) {
+    const r = await readConnection(admin, c, 'auto');
+    results.push(r ? { provider: c.provider, ...r } : { provider: c.provider, joined: true });
+  }
   await deliverPending(admin);
   return json({ connections: results.length, results });
 });

@@ -33,6 +33,7 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   ask_up_requests: { href: '/42-incoming' },
   when_finished: { href: '/38-tasks' },
   meet_attended: { href: '/42-incoming' },
+  read_progress: { href: '/42-incoming', spot: 'tools.tiles' },
   ai_consent: { href: '/settings', spot: 'settings.ai' },
   invite_status: { href: '/39-team', spot: 'team.status' },
   confirm_new: { href: '/01-home', spot: 'home.confirm' },
