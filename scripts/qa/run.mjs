@@ -115,7 +115,9 @@ const secondTry = [];
 // checks the AI judges (inbox: each reads its own fresh message and the suggestions it returns), and network blips:
 // one second try before they stop a release. Never a 500 from our own functions (a crash in our code, R137)
 const RETRY_AREAS = new Set(['inbox']);
-const blip = (m) => /fetch failed|ECONNRESET|socket hang up|\b(502|503|504|52[0-4])\b/i.test(m);
+// «Failed to fetch» / net::ERR_ is the browser's own word for a request the network dropped (12 Nov: the office
+// network drops some HeadlessChrome requests after their OPTIONS)
+const blip = (m) => /fetch failed|Failed to fetch|net::ERR_|ECONNRESET|socket hang up|\b(502|503|504|52[0-4])\b/i.test(m);
 async function check(area, name, fn) {
   if (!runs(area, name)) return void skipped.push({ area, name });
   const t0 = Date.now();
@@ -930,7 +932,8 @@ async function screens() {
         await page.goto('http://localhost:8099/38-tasks', { waitUntil: 'domcontentloaded', timeout: 120_000 });
         // a manager with one «يحتاجك» (owner, 11 Nov): Tasks has one line «N تحتاجك» that opens the «يحتاجك» tab
         const line = page.getByText(/[\d٠-٩]+ (أشياء|شي) (تحتاجك|يحتاجك)|شي واحد يحتاجك|شيئين يحتاجونك/).first();
-        await page.waitForTimeout(4000);
+        // the number shows only once the shared list is in (QA, 12 Nov): wait for it rather than a fixed 4 s
+        await line.waitFor({ timeout: 20_000 }).catch(() => {});
         if (await line.isVisible().catch(() => false)) await line.click();
         await page.getByText('QA needs you review').first().waitFor({ timeout: 30_000 }).catch(async (e) => {
           throw new Error(`${e.message.split('\n')[0]} · page: ${(await page.evaluate(() => document.body.innerText)).replace(/\s+/g, ' ').slice(0, 300)}`);
