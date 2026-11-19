@@ -8,7 +8,7 @@
 //   4. this week's wins · 5. shortcuts: Your week, Team, Your tools, More
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
 import { TourTarget } from '@/features/walkthrough/TourTarget';
-import { FromSaree3, TeamRisks, TeamWins } from '@/features/home/TeamRadar';
+import { FromSaree3, TeamWins } from '@/features/home/TeamRadar';
 import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
@@ -135,8 +135,9 @@ export default function ManagerHome() {
           </TourTarget>
           )}
 
-          {/* 3. Saree3, one card: what he's working on, what he did since your last visit, the risks he's watching,
-                 and what's new in Muntej */}
+          {/* 3. Saree3, one card: what he's working on, what he did since your last visit, and what's new in Muntej.
+                 No «اللي عيني عليه عنك» list here (owner, 19 Nov: "not urgent for me to see what Saree3 is doing"):
+                 late and blocked tasks live in Tasks, and what needs you in «يحتاجك» */}
           {(show('saree3') || show('whatsnew')) && (
           <TourTarget id="home.from">
             <FromSaree3
@@ -146,11 +147,6 @@ export default function ManagerHome() {
                 </TourTarget>
               }
             >
-              {show('saree3') && (
-                <TourTarget id="home.risks">
-                  <TeamRisks embedded />
-                </TourTarget>
-              )}
               {show('whatsnew') && <WhatsNewStrip />}
               <BiometricOffer />
             </FromSaree3>

@@ -6,7 +6,7 @@ import { JourneyCard } from '@/features/ladder/Journey';
 import { NeedsYou } from '@/features/home/SimpleHome';
 import { ConfirmNew } from '@/features/home/ConfirmNew';
 import { MyRequests } from '@/features/home/MyRequests';
-import { FromSaree3, TeamRisks, TeamWins } from '@/features/home/TeamRadar';
+import { FromSaree3, TeamWins } from '@/features/home/TeamRadar';
 import { JobsStrip } from '@/features/saree3/JobsStrip';
 import { WhatsNewStrip } from '@/features/launch/WhatsNew';
 import type { HomeSection } from './appPrefs';
@@ -23,9 +23,7 @@ export function CorePreview({ section }: { section: HomeSection }) {
         <MyRequests bare />
       </NeedsYou>
     ) : section === 'saree3' ? (
-      <FromSaree3 top={<JobsStrip />}>
-        <TeamRisks embedded />
-      </FromSaree3>
+      <FromSaree3 top={<JobsStrip />} />
     ) : section === 'wins' ? (
       <TeamWins />
     ) : section === 'whatsnew' ? (

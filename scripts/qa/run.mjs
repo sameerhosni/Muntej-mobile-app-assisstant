@@ -1387,6 +1387,27 @@ async function screens() {
       expect(!errors.length, errors.slice(0, 3).join('\n'));
       return 'preview opens';
     });
+    // owner, 19 Nov: "not urgent for me to see what Saree3 is doing": Home's Saree3 card has no «اللي عيني عليه عنك»
+    // list, even with a late team task; that task is still in Tasks
+    await check('flows', 'Home shows no «اللي عيني عليه عنك» list; the late task is still in Tasks', async () => {
+      const tag = Date.now().toString(36);
+      const FA = 'a0000000-0000-4000-b000-000000000011';
+      const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA watched late ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '3 days') returning id`);
+      try {
+        await page.goto('http://localhost:8099/01-home', { waitUntil: 'domcontentloaded' });
+        await page.getByText('من سريع').first().waitFor({ timeout: 20_000 });
+        await page.waitForTimeout(2500);
+        const body = await page.evaluate(() => document.body.innerText);
+        expect(!/اللي عيني عليه عنك/.test(body), 'Home still shows «اللي عيني عليه عنك»');
+        expect(!body.includes(`QA watched late ${tag}`), 'the late task is listed on Home');
+        await page.screenshot({ path: join(OUT, 'flow_home_no_watch.png') });
+        await page.goto(`http://localhost:8099/38-tasks?ids=${late.id}`, { waitUntil: 'domcontentloaded' });
+        await page.getByText(`QA watched late ${tag}`).first().waitFor({ timeout: 20_000 });
+        return 'not on Home, still in Tasks';
+      } finally {
+        await sql(`delete from public.tasks where id = '${late.id}'`);
+      }
+    });
   } catch (e) {
     bad('screens', 'Screen run', e?.message ?? e);
   } finally {

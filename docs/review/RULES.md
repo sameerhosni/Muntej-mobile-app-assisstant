@@ -653,3 +653,9 @@ Last updated: 2026-11-09.
 ### R153 · Renumbering a rule updates every place that names it, in the same commit
 - **Why:** 12 Nov, reviewer, before going live: a duplicate R149 was renumbered to R152 in RULES.md, but ACCEPTED.md still said «rule R149» for 0fce3e3. That pointed the record at another rule.
 - **Check:** `grep -rn "R<old>" docs scripts` and update every hit, including past ACCEPTED.md lines.
+### R154 · Home shows what needs the manager, not what Saree3 is doing
+- **Why:** 19 Nov, owner, on Home's «اللي عيني عليه عنك» (five tall red cards, no order): "This takes space with no priorities … not urgent for me to see what Saree3 is doing".
+- **Check:** a new Home block holds only things that wait on the reader (decide, answer, approve). Saree3's own work (watching, following up) lives in Tasks, the Saree3 page or the summary, never as a list on Home.
+### R155 · Saree3 looks formal: the Muntej mark, calm motion, status never by colour alone
+- **Why:** 19 Nov, owner: "Change Saree3 to be more formal to fit with big clients" (picked option 2: the mark, no face). The cartoon robot hopped, waved, cried and threw confetti on every screen.
+- **Check:** `Munti.tsx` draws only the orb, spark, ring and status sign; no face, arms, tears or confetti; the only motion is a slow breathe or one glow, and none with reduce motion. Each status has its own sign as well as its colour.
