@@ -54,9 +54,12 @@ function run(cmd, argv, opts = {}) {
 const git = (...a) => run('git', a, { quiet: true }).out.trim();
 /** QA, with one second try (owner, 20 Nov: "Loooooong time for testing"): when only AI-judged or browser areas failed,
  *  QA runs once more, and since every area that came out green is reused (qa-out/green.json), that second run repeats
- *  just the failed areas, a few minutes instead of the whole run. Never for `code` (a type error is not luck), and never
- *  for an area that already needed a second try twice in a row (a third time is a real "sometimes wrong", not luck) */
+ *  just the failed areas, a few minutes instead of the whole run. Never for the database and code areas (permissions,
+ *  types: not luck), a 500 from our own functions (a crash, R137), a run that stopped part-way, or an area that already
+ *  needed a second try twice in a row (a third time is a real "sometimes wrong") */
+const SECOND_TRY_AREAS = ['inbox', 'chat', 'numbers', 'ai', 'translation', 'hindi', 'screens', 'flows', 'whatsapp'];
 function qa(argv, failMsg) {
+  const started = Date.now();
   if (run('node', ['scripts/qa/run.mjs', ...argv]).code === 0) return;
   let s = null;
   try {
@@ -64,10 +67,26 @@ function qa(argv, failMsg) {
   } catch {
     // no saved state: no second try
   }
-  const failedAreas = s?.last?.failedAreas ?? [];
+  const last = s?.last;
+  // the state must be this run's (a run that died before writing it leaves an older one)
+  const fresh = last && Date.parse(last.at) >= started && last.commit === git('rev-parse', 'HEAD');
+  const failedAreas = last?.failedAreas ?? [];
   const tooOften = failedAreas.filter((a) => (s?.streak?.[a] ?? 0) >= 2);
-  if (!failedAreas.length || failedAreas.includes('code') || tooOften.length)
-    fail(`${failMsg}${tooOften.length ? ` (${tooOften.join(', ')} needed a second try twice in a row already: fix it, it's not luck)` : ''}`);
+  const why = !fresh
+    ? 'the run stopped before saving its result'
+    : last.crashed
+      ? 'the run stopped part-way'
+      : failedAreas.find((a) => !SECOND_TRY_AREAS.includes(a))
+        ? `${failedAreas.filter((a) => !SECOND_TRY_AREAS.includes(a)).join(', ')} is not luck`
+        : (last.failed ?? []).some((f) => /\b500\b/.test(f.detail))
+          ? 'a 500 from our own functions is a crash'
+          : tooOften.length
+            ? `${tooOften.join(', ')} needed a second try twice in a row already: fix it, it's not luck`
+            : !failedAreas.length
+              ? 'nothing to try again'
+              : null;
+  if (why) fail(`${failMsg} (no second try: ${why})`);
+  writeFileSync(join(ROOT, 'qa-out', 'report-first-try.md'), readFileSync(join(ROOT, 'qa-out', 'report.md')));
   say(`QA second try: only ${failedAreas.join(', ')}`);
   if (run('node', ['scripts/qa/run.mjs', ...argv, '--second']).code !== 0) fail(failMsg);
 }
@@ -191,6 +210,20 @@ async function test() {
   qa([], 'QA failed, see qa-out/report.md');
   stillSame('the database changes');
 
+  // QA ran against the server as it was. Anything about to be deployed (database, functions) changes what every area,
+  // the screens too, stands on, so nothing stays "already green" for the next run or --live. Dropped before the deploy
+  // starts, so a deploy that fails half-way is never covered by an old green (reviewer, 20 Nov)
+  if (changed.some((f) => f.startsWith('supabase/'))) {
+    const file = join(ROOT, 'qa-out', 'green.json');
+    try {
+      const s = JSON.parse(readFileSync(file, 'utf8'));
+      s.areas = {};
+      writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
+    } catch {
+      // nothing saved: nothing to forget
+    }
+  }
+
   // ─── 3. database ────────────────────────────────────────────────────────────
   if (changed.some((f) => f.startsWith('supabase/migrations/'))) {
     say('Database changes');
@@ -231,24 +264,6 @@ async function test() {
       const d = run('npx', ['supabase', 'functions', 'deploy', fn, '--project-ref', REF, '--use-api', '--yes'], { quiet: true });
       if (d.code !== 0 || !d.out.includes('Deployed Functions')) fail(`Deploying ${fn} failed:\n${d.out.slice(-800)}`);
       console.log(`  ✓ ${fn}`);
-    }
-  }
-
-  // QA ran against the server as it was; what was just deployed (database, functions) hasn't been checked live yet, so
-  // its areas are no longer "already green" for the next run or --live
-  {
-    const deployed = changed.filter((f) => f.startsWith('supabase/'));
-    if (deployed.length) {
-      const { areasFor } = await import('./qa/core.mjs');
-      const areas = areasFor(deployed);
-      const file = join(ROOT, 'qa-out', 'green.json');
-      try {
-        const s = JSON.parse(readFileSync(file, 'utf8'));
-        for (const a of areas) delete s.areas?.[a];
-        writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
-      } catch {
-        // nothing saved: nothing to forget
-      }
     }
   }
 

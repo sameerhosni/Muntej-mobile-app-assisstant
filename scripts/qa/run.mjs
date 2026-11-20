@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { cases } from './cases.mjs';
 import { inviteCases } from './invite-cases.mjs';
 import { taskCases } from './task-cases.mjs';
-import { areasFor, CORE } from './core.mjs';
+import { AREA_PATHS, areasFor, CORE } from './core.mjs';
 
 // the company network re-signs HTTPS; without the system certificates every call to Supabase fails ("fetch failed")
 if (!process.execArgv.includes('--use-system-ca') && !(process.env.NODE_OPTIONS ?? '').includes('--use-system-ca')) {
@@ -133,7 +133,7 @@ state.areas ??= {};
 state.streak ??= {};
 const second = args.includes('--second');
 const HEAD = git('rev-parse', 'HEAD').trim();
-const NOT_CODE = (f) => f.startsWith('docs/') || f.startsWith('qa-out/') || f.startsWith('scripts/release/');
+const NOT_CODE = (f) => f.startsWith('docs/') || f.startsWith('qa-out/') || f.startsWith('scripts/release/') || /^[^/]+\.md$/.test(f);
 // the working tree as it is (uncommitted and new files included) against a commit
 const filesSince = (base) =>
   [...new Set([...git('diff', '--name-only', base).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((f) => f.trim()).filter(Boolean))].filter((f) => !NOT_CODE(f));
@@ -148,6 +148,10 @@ if (!args.includes('--fresh') && !only)
     if (rec.level !== 'all' && need(area) === 'all') continue;
     if (git('cat-file', '-t', rec.commit).trim() !== 'commit') continue;
     const files = filesSince(rec.commit);
+    // a changed file no area rule explains (package.json, app.json, assets, a config…) may change anything: reuse
+    // nothing (reviewer, 20 Nov)
+    const unexplained = files.some((f) => !f.startsWith('scripts/qa/') && !f.startsWith('supabase/') && !AREA_PATHS.some(([re]) => re.test(f)));
+    if (unexplained) continue;
     if (area === 'code' ? files.length : areasFor(files).has(area) || qaScriptAreas(rec.commit, files).has(area)) continue;
     reused.set(area, rec);
   }
@@ -1515,6 +1519,10 @@ if (want('code') && !reused.has('code')) {
   early.tsc = runAsync('npx', ['tsc', '--noEmit']);
   early.deno = runAsync('npx', DENO_ARGS(), { cwd: join(ROOT, 'supabase', 'functions'), timeout: 900_000 });
 }
+// a throw outside any check (a setup query) stops the run: it's reported, the web app is closed, nothing is saved as
+// green, and ship gives it no second try (reviewer, 20 Nov)
+let crash = null;
+try {
 if (want('server') || want('ui') || want('screens') || want('cases') || want('invites') || want('tasks')) await server();
 if (JWT && (want('server') || want('cases') || want('tasks'))) {
   await taskCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, insert, get, ids: { QA_ACCOUNT, QA_BOSS } });
@@ -1547,16 +1555,24 @@ if (JWT && (want('server') || want('cases'))) {
 }
 if (want('code')) await code();
 if (uiNeeded) await screens();
-else if (early.web) spawnSync('taskkill', ['/pid', String(early.web.proc.pid), '/T', '/F'], { shell: true });
+} catch (e) {
+  crash = String(e?.message ?? e);
+  bad('run', 'QA run stopped', crash);
+} finally {
+  // screens() closes it too; once more for a run that never got there (taskkill on a closed one does nothing)
+  if (early.web) spawnSync('taskkill', ['/pid', String(early.web.proc.pid), '/T', '/F'], { shell: true });
+}
 
 const failed = results.filter((r) => !r.pass && !WARN_ONLY.has(r.area));
 const warned = results.filter((r) => !r.pass && WARN_ONLY.has(r.area));
 
 // save what came out green (see «what already passed»): only from a clean tree (the commit is the code) and a whole run
 // (not --only; a runner that crashed part-way saves nothing, its later checks never ran)
-const crashed = results.some((r) => !r.pass && ['Screen run', 'Real cases'].includes(r.name));
+const crashed = !!crash || results.some((r) => !r.pass && ['Screen run', 'Real cases'].includes(r.name));
 const ranAreas = [...new Set(results.map((r) => r.area))].filter((a) => !reused.has(a));
 const failedAreas = [...new Set(failed.map((r) => r.area))];
+// what failed on the first try, kept for the second try's report (R80: every check that passed only on a second try)
+const firstFailed = second ? (state.last?.failed ?? []) : [];
 if (clean && !only && !crashed) {
   for (const a of ranAreas) {
     if (results.filter((r) => r.area === a).every((r) => r.pass)) {
@@ -1567,9 +1583,24 @@ if (clean && !only && !crashed) {
     } else delete state.areas[a];
   }
 }
-// a second try that passed (ship.mjs): the area needed it once more in a row; a first try that passed starts it over
-for (const a of ranAreas) if (!failedAreas.includes(a)) state.streak[a] = second ? (state.streak[a] ?? 0) + 1 : 0;
-state.last = { commit: HEAD, at: new Date().toISOString(), failedAreas, second };
+// the second-try streak, from clean whole runs only: an area that failed the first try and passed the second needed it
+// once more in a row; one that passed its first try starts over (reviewer, 20 Nov: only the areas that failed count)
+if (clean && !only && !crashed) {
+  const firstAreas = new Set(firstFailed.map((f) => f.area));
+  for (const a of ranAreas) {
+    if (failedAreas.includes(a)) continue;
+    if (!second) state.streak[a] = 0;
+    else if (firstAreas.has(a)) state.streak[a] = (state.streak[a] ?? 0) + 1;
+  }
+}
+state.last = {
+  commit: HEAD,
+  at: new Date().toISOString(),
+  failedAreas,
+  second,
+  crashed,
+  failed: failed.map((r) => ({ area: r.area, name: r.name, detail: r.detail.slice(0, 300) })),
+};
 writeFileSync(GREEN, JSON.stringify(state, null, 2) + '\n');
 const lines = [
   `# Muntej QA — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
@@ -1584,7 +1615,13 @@ const lines = [
   ...(reused.size
     ? ['', `♻️ Already green, nothing changed since (${reusedChecks.length} checks not run again): ${[...reused].map(([a, r]) => `${a} @${r.commit.slice(0, 7)}`).join(' · ')}. Run with --fresh to repeat them.`]
     : []),
-  ...(second ? ['', `🔁 Second try: only the areas that failed (${[...ranAreas].join(', ')}).`] : []),
+  ...(second
+    ? [
+        '',
+        `🔁 Second try of only the areas that failed (${[...new Set(firstFailed.map((f) => f.area))].join(', ')}). The first try's report: qa-out/report-first-try.md. What failed the first time:`,
+        ...firstFailed.map((f) => `- ${f.area} · ${f.name}: ${f.detail.replace(/\n/g, ' ').slice(0, 200)}`),
+      ]
+    : []),
   ...(secondTry.length ? ['', `⚠️ ${secondTry.length} passed only on the second try: ${secondTry.join(' · ')}`] : []),
   ...(skipped.length
     ? ['', '<details><summary>Left out this run</summary>', '', ...[...new Set(skipped.map((s) => s.area))].map((a) => `- **${a}**: ${skipped.filter((s) => s.area === a).map((s) => s.name).join(' · ')}`), '', '</details>']
