@@ -1104,7 +1104,8 @@ serve(async (req) => {
         const restCancelled = rest.some((t) => t.status === 'cancelled');
         const head = modelListed ? '' : intro.replace(/[:：]\s*$/, '');
         parsed.reply = [
-          head || (ar0 ? 'هذي مهامك المقفلة' : 'Your closed tasks'),
+          // whose list it is: yours, or the named person's (reviewer, 20 Nov)
+          head || (named ? (ar0 ? `هذي مهام ${full(named)} المقفلة` : `${full(named)}'s closed tasks`) : ar0 ? 'هذي مهامك المقفلة' : 'Your closed tasks'),
           ...lines,
           ...(rest.length
             ? [ar0

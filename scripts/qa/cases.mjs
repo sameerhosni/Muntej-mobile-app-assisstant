@@ -634,6 +634,8 @@ export async function cases({ check, expect, fn, sql, jwt, jwtFor, rpc, ids, ref
         const d = await talk('مهام مهند الأول المقفلة كلها');
         expect(!/تقصد مين/.test(d.said), `asked which one again: «${d.said.slice(0, 110)}»`);
         expect(!/مهند الثاني/.test(d.said), `listed the other one: «${d.said.slice(0, 110)}»`);
+        // a teammate's list is headed with their name, never «مهامك» (reviewer, 20 Nov)
+        expect(!/مهامك/.test(d.said), `a teammate's list called yours: «${d.said.slice(0, 110)}»`);
         // one family name for both (common in family companies): the most name words wins, no loop (reviewer, 10 Nov)
         await sql(`update public.profiles set full_name_ar = 'مهند سعد العتيبي' where id = '${NOURA}'`);
         await sql(`update public.profiles set full_name_ar = 'مهند خالد العتيبي' where id = '${KHALID}'`);
