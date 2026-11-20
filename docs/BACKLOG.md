@@ -145,6 +145,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-20 · In testing: Your shortcuts: side tab or from Saree3, chosen in Settings; Home drops the shortcut row (Muntej Test update 1.0.0)
 - 2026-11-20 · In testing: Saree3 is a lightning bolt on a light turquoise orb (Muntej Test update 1.0.0)
 - 2026-11-20 · In testing: Saree3 is the Muntej mark; Home drops «اللي عيني عليه عنك»; closed-tasks list from the data; faster QA (server: muntej-chat · Muntej Test update 1.0.0)
 - 2026-11-12 · In testing: Apple review status docs (no app change)
