@@ -3,8 +3,9 @@
 // over him, its name toward the middle of the screen. Then "Ask Saree3" (his usual quick asks), Everything, Edit.
 // A tap outside, Back, or picking a place closes it. Hold him to talk, as before.
 // Placed by where Saree3 really is on screen (measured), inside a left-to-right box, so it lines up in Arabic too.
-import { useEffect, type ReactNode } from 'react';
-import { BackHandler, Pressable, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { BackHandler, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, type Href } from 'expo-router';
 import { MessageCircle, Pencil } from 'lucide-react-native';
 import { AppText, IconBadge } from '@/components/ui';
@@ -22,6 +23,8 @@ export function SpeedDial({ anchor, onAsk }: { anchor: Anchor; onAsk: () => void
   const { t } = useScreenT(LAUNCHER_NS);
   const sc = useShortcuts();
   const { width: screenW, height: screenH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const list = useRef<ScrollView>(null);
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => (shortcutsOpen.set(false), true));
     return () => sub.remove();
@@ -48,8 +51,14 @@ export function SpeedDial({ anchor, onAsk }: { anchor: Anchor; onAsk: () => void
     { key: 'edit', label: t('edit'), icon: <Pencil color={colors.textSoft} size={18} />, bg: 'chip', link: false, run: () => go('/64-shortcuts' as Href) },
   ];
   const onLeft = anchor.x + anchor.size / 2 < screenW / 2;
-  const above = anchor.y + anchor.size / 2 > screenH / 2;
+  // opens on the side with more room, and scrolls past it: never under the status bar or off the screen (reviewer, 20 Nov)
+  const roomAbove = anchor.y - insets.top - spacing.md;
+  const roomBelow = screenH - anchor.y - anchor.size - insets.bottom - spacing.md;
+  const above = roomAbove >= roomBelow;
+  const room = Math.max(ICON, (above ? roomAbove : roomBelow) - spacing.sm);
   const inset = (anchor.size - ICON) / 2;
+  // nearest to Saree3 first: above him the list is turned over, so the first places sit just over him
+  const ordered = above ? [...rows].reverse() : rows;
   return (
     <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, direction: 'ltr' }}>
       <Pressable
@@ -58,17 +67,19 @@ export function SpeedDial({ anchor, onAsk }: { anchor: Anchor; onAsk: () => void
         accessibilityLabel={t('close')}
         style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.scrim }}
       />
-      <View
+      <ScrollView
+        ref={list}
+        onContentSizeChange={() => above && list.current?.scrollToEnd({ animated: false })}
+        showsVerticalScrollIndicator={false}
         style={{
           position: 'absolute',
+          maxHeight: room,
           ...(onLeft ? { left: anchor.x + inset } : { right: screenW - anchor.x - anchor.size + inset }),
           ...(above ? { bottom: screenH - anchor.y + spacing.sm } : { top: anchor.y + anchor.size + spacing.sm }),
-          flexDirection: above ? 'column-reverse' : 'column',
-          alignItems: onLeft ? 'flex-start' : 'flex-end',
-          gap: spacing.sm,
         }}
+        contentContainerStyle={{ alignItems: onLeft ? 'flex-start' : 'flex-end', gap: spacing.sm, paddingVertical: 2 }}
       >
-        {rows.map((r) => (
+        {ordered.map((r) => (
           <Pressable
             key={r.key}
             onPress={r.run}
@@ -88,7 +99,7 @@ export function SpeedDial({ anchor, onAsk }: { anchor: Anchor; onAsk: () => void
             </View>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
     </View>
   );
 }

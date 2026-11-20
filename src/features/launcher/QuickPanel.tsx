@@ -3,7 +3,7 @@
 // opens the panel, the same tab (now on the panel's edge) closes it, and so do a tap outside, Android Back, or picking a
 // place. A tap, never a swipe: the edges belong to Android's Back gesture. Reduce motion on → no slide.
 import { useCallback, useEffect, useRef } from 'react';
-import { Animated, BackHandler, Easing, Pressable, ScrollView, View } from 'react-native';
+import { Animated, BackHandler, Easing, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect, type Href } from 'expo-router';
 import { ChevronLeft, ChevronRight, Pencil } from 'lucide-react-native';
 import { AppText, IconBadge } from '@/components/ui';
@@ -11,6 +11,7 @@ import { colors, radius, shadows, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { useReduceMotion } from '@/features/munti/Munti';
+import { useMunti } from '@/features/munti/store';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { featureUsed } from '@/features/launch/launch';
 import { shortcutsOpen, useShortcuts, useShortcutsOpen, type ShortcutItem } from './shortcuts';
@@ -49,6 +50,8 @@ export function QuickPanel() {
   const sc = useShortcuts();
   const open = useShortcutsOpen();
   const reduce = useReduceMotion();
+  const ms = useMunti();
+  const { height: screenH } = useWindowDimensions();
   // 0 = closed (only the tab shows), 1 = open
   const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -64,25 +67,32 @@ export function QuickPanel() {
   // leaving Home closes it
   useFocusEffect(useCallback(() => () => shortcutsOpen.set(false), []));
 
-  if (!sc.ready || sc.style !== 'panel') return null;
-  // closed: the panel waits off the start edge, only its tab shows
-  const hidden = (isRTL ? 1 : -1) * W;
-  const Toward = isRTL ? (open ? ChevronRight : ChevronLeft) : open ? ChevronLeft : ChevronRight;
+  // "From Saree3" needs Saree3 on screen: while he's off or hidden, the side tab stands in (reviewer, 20 Nov)
+  const saree3Away = !ms.enabled || ms.hidden;
+  if (!sc.ready || (sc.style !== 'panel' && !saree3Away)) return null;
+  // the screen edge Arabic readers start from (right), English ones the left. Laid out in a left-to-right box with fixed
+  // left/right, so it is the same on every phone and on the web; closed, the panel waits off that edge and only its tab
+  // shows (QA, 20 Nov: a start-based layout slid the wrong way on the web)
+  const right = isRTL;
+  const hidden = (right ? 1 : -1) * W;
+  const Toward = right ? (open ? ChevronRight : ChevronLeft) : open ? ChevronLeft : ChevronRight;
+  // rounded on the side toward the middle of the screen
+  const inner = (r: number) => (right ? { borderTopLeftRadius: r, borderBottomLeftRadius: r } : { borderTopRightRadius: r, borderBottomRightRadius: r });
 
   return (
-    <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, bottom: 0, start: 0, end: 0 }}>
+    <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, direction: 'ltr' }}>
       {open && (
         <Pressable
           onPress={() => shortcutsOpen.set(false)}
           accessibilityRole="button"
           accessibilityLabel={t('close')}
-          style={{ position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, backgroundColor: colors.scrim }}
+          style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: colors.scrim }}
         />
       )}
-      <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, bottom: 0, start: 0, justifyContent: 'center' }}>
+      <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, bottom: 0, ...(right ? { right: 0 } : { left: 0 }), justifyContent: 'center' }}>
         <Animated.View
           style={{
-            flexDirection: 'row',
+            flexDirection: right ? 'row-reverse' : 'row',
             alignItems: 'center',
             transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [hidden, 0] }) }],
           }}
@@ -90,12 +100,14 @@ export function QuickPanel() {
           <View
             accessibilityElementsHidden={!open}
             importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+            aria-hidden={!open}
             style={{
               width: W,
-              maxHeight: 620,
+              // fits short phones too (it scrolls past that)
+              maxHeight: Math.min(620, screenH * 0.75),
               paddingVertical: spacing.md,
-              borderTopEndRadius: radius.cardLg,
-              borderBottomEndRadius: radius.cardLg,
+              ...inner(radius.cardLg),
+              direction: right ? 'rtl' : 'ltr',
               backgroundColor: colors.panel,
               boxShadow: shadows.raised,
             }}
@@ -134,8 +146,7 @@ export function QuickPanel() {
               style={({ pressed }) => ({
                 width: 26,
                 height: 84,
-                borderTopEndRadius: 14,
-                borderBottomEndRadius: 14,
+                ...inner(14),
                 backgroundColor: open ? colors.panel : colors.primary,
                 alignItems: 'center',
                 justifyContent: 'center',

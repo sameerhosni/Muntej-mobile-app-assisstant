@@ -44,11 +44,15 @@ export function useShortcuts() {
   };
   const items = keys.map(item).filter((x): x is ShortcutItem => !!x);
   const more: ShortcutItem = { key: 'more', label: tl('more'), Icon: LayoutGrid, bg: 'chip', fg: colors.textSoft, href: '/44-more' as Href };
+  // never before the saved prefs are in: writing from an empty start would wipe the rest of saree3 (reviewer, 20 Nov)
   const write = (patch: { launcher?: LauncherStyle; shortcuts?: string[] }) => {
+    if (!prefs.data) return;
     save.mutate({ saree3: { ...s, ...patch } });
   };
   return {
     ready: !!prefs.data && !!me.data,
+    failed: prefs.isError,
+    retry: () => prefs.refetch(),
     style,
     keys,
     items,

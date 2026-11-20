@@ -8,6 +8,7 @@ import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
 import { Munti } from '@/features/munti/Munti';
+import { useMunti } from '@/features/munti/store';
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { useShortcuts, type LauncherStyle } from './shortcuts';
 import { LAUNCHER_NS } from './strings';
@@ -16,16 +17,20 @@ export function ShortcutsSetting() {
   const { t } = useScreenT(LAUNCHER_NS);
   const { isRTL } = useDirection();
   const sc = useShortcuts();
+  const ms = useMunti();
   if (!sc.ready) return null;
   const Chevron = isRTL ? ChevronLeft : ChevronRight;
   const option = (style: LauncherStyle) => {
     const on = sc.style === style;
+    // "From Saree3" needs him on (while he's off, Home shows the side tab anyway)
+    const off = style === 'saree3' && !ms.enabled;
     return (
       <Pressable
         key={style}
         onPress={() => sc.setStyle(style)}
+        disabled={off}
         accessibilityRole="radio"
-        accessibilityState={{ checked: on }}
+        accessibilityState={{ checked: on, disabled: off }}
         accessibilityLabel={t(style === 'panel' ? 'stylePanel' : 'styleSaree3')}
         style={({ pressed }) => ({
           flex: 1,
@@ -36,7 +41,7 @@ export function ShortcutsSetting() {
           borderWidth: on ? 2 : 1,
           borderColor: on ? colors.primary : colors.border,
           backgroundColor: on ? colors.primaryTint : colors.surface,
-          opacity: pressed ? 0.85 : 1,
+          opacity: off ? 0.5 : pressed ? 0.85 : 1,
         })}
       >
         <View style={{ height: 32, justifyContent: 'center' }}>
@@ -46,7 +51,7 @@ export function ShortcutsSetting() {
           {t(style === 'panel' ? 'stylePanel' : 'styleSaree3')}
         </AppText>
         <AppText variant="caption" color="textMuted">
-          {t(style === 'panel' ? 'stylePanelSub' : 'styleSaree3Sub')}
+          {off ? t('saree3Off') : t(style === 'panel' ? 'stylePanelSub' : 'styleSaree3Sub')}
         </AppText>
       </Pressable>
     );

@@ -27,6 +27,9 @@ const en = {
   add: 'Add',
   empty: 'Nothing yet: add a place below.',
   back: 'Back',
+  loadFailed: 'I couldn’t load your shortcuts.',
+  retry: 'Try again',
+  saree3Off: 'Turn Saree3 on above to use this.',
 };
 
 const ar: typeof en = {
@@ -54,6 +57,9 @@ const ar: typeof en = {
   add: 'أضف',
   empty: 'ما فيه شي للحين: أضف مكان من تحت.',
   back: 'رجوع',
+  loadFailed: 'ما قدرت أجيب اختصاراتك.',
+  retry: 'جرّب مرة ثانية',
+  saree3Off: 'شغّل سريع من فوق عشان تستخدم هذا.',
 };
 
 export const LAUNCHER_NS = registerStrings('launcher', { en, ar });

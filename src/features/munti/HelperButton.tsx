@@ -438,7 +438,8 @@ export function HelperButton() {
   if (!active) return null;
 
   const toast = s.toast;
-  const showFab = !!route?.fab;
+  // he steps aside while the side panel is open, so he never sits on its tiles (reviewer, 20 Nov)
+  const showFab = !!route?.fab && !(dialOpen && shortcuts.style === 'panel');
   if (!showFab && !toast && !(open && route)) return null;
 
   const size = FAB * (supportOn ? SUPPORT_SCALE : 1);
@@ -819,8 +820,8 @@ export function HelperButton() {
             delayLongPress={HOLD_MS}
             accessibilityRole="button"
             accessibilityLabel={supportOn ? `${t('name')}. ${t('sup_head', { count: support.count, n: fmt(support.count) })}` : t('name')}
-            accessibilityHint={t('a11yHint')}
-            accessibilityState={{ expanded: !!open }}
+            accessibilityHint={t(shortcuts.style === 'saree3' ? 'a11yHintDial' : 'a11yHint')}
+            accessibilityState={{ expanded: !!open || (dialOpen && shortcuts.style === 'saree3') }}
             accessibilityActions={[{ name: 'longpress', label: t('hide') }]}
             onAccessibilityAction={(e) => e.nativeEvent.actionName === 'longpress' && hide()}
             style={{ width: FAB, height: FAB, borderRadius: FAB / 2 }}
@@ -870,7 +871,7 @@ export function HelperButton() {
       )}
 
       {/* "Ask Saree3": next to him while it's new (hidden while a bubble is open or he's busy) */}
-      {showFab && showAsk && !bubbleText && !dragging && talk === 'idle' && (
+      {showFab && showAsk && !bubbleText && !dragging && talk === 'idle' && !dialOpen && (
         <Pressable
           onPress={() => {
             askUsed();

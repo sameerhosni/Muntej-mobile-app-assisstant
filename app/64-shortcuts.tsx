@@ -6,7 +6,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { router, type Href } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowDown, ArrowUp, ChevronLeft, Minus, Plus } from 'lucide-react-native';
-import { AppText, Card, IconBadge, IconButton } from '@/components/ui';
+import { AppText, Card, IconBadge, IconButton, LoadingCard } from '@/components/ui';
 import { colors, radius, sizes, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
 import { useScreenT } from '@/lib/i18n/register';
@@ -79,6 +79,22 @@ export default function ShortcutsScreen() {
         </View>
         <AppText color="textMuted">{t('sub', { max })}</AppText>
 
+        {/* nothing to change until your saved list is in (an early tap would overwrite it) */}
+        {!sc.ready ? (
+          sc.failed ? (
+            <Card style={{ gap: spacing.sm }}>
+              <AppText color="textSoft">{t('loadFailed')}</AppText>
+              <Pressable onPress={sc.retry} accessibilityRole="button" style={{ minHeight: sizes.touch, justifyContent: 'center' }}>
+                <AppText weight="bold" color="primary">
+                  {t('retry')}
+                </AppText>
+              </Pressable>
+            </Card>
+          ) : (
+            <LoadingCard />
+          )
+        ) : (
+          <>
         <AppText variant="section">{t('onList')}</AppText>
         <Card style={{ paddingVertical: 2, gap: 0 }}>
           {sc.items.length ? (
@@ -110,6 +126,8 @@ export default function ShortcutsScreen() {
           <Card style={{ paddingVertical: 2, gap: 0 }}>
             {rest.map((it, i) => line(it, i === rest.length - 1, small(t('add'), Plus, () => set([...keys, it.key]), full)))}
           </Card>
+        )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>

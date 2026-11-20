@@ -53,6 +53,8 @@ const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
 const QA_ACCOUNT = 'a0000000-0000-4000-b000-000000000001';
 const QA_BOSS = 'a0000000-0000-4000-b000-000000000010';
 const QA_PHONE = '966500000010';
+/** SQL for "later today in Riyadh": an hour from now, or 23:59 when that would already be tomorrow (checks at night) */
+const TODAY_LATER = `least(now() + interval '1 hour', (date_trunc('day', now() at time zone 'Asia/Riyadh') + interval '23 hours 59 minutes') at time zone 'Asia/Riyadh')`;
 
 // ─── results ──────────────────────────────────────────────────────────────────
 const results = [];
@@ -474,7 +476,8 @@ async function server() {
   const texts = (msgs) => msgs.map((m) => m.text?.body ?? m.interactive?.body?.text ?? JSON.stringify(m)).join(' | ');
   for (const [say, need] of [
     ['مساعدة', /سريع|Saree3/],
-    ['وش يحتاجني', /يحتاج|تحتاج|need/],
+    // (the one «يحتاجك» list says «عندك 2 تنتظرك» / «فيه شي واحد ينتظرك» since 11 Nov — QA, 20 Nov)
+    ['وش يحتاجني', /يحتاج|تحتاج|تنتظرك|ينتظرك|need/],
     ['وش المتأخر؟', /.{10}/],
     ['رمز الدخول', /رمز|code/],
   ])
@@ -856,6 +859,7 @@ const ROUTES = [
   '/', '/38-tasks', '/04-decisions', '/17-summaries', '/18-alerts', '/39-team', '/40-objectives', '/42-incoming', '/44-more',
   '/50-whats-new', '/53-profile', '/54-saree3', '/56-overview', '/58-home-sections', '/59-ideas', '/60-wishlist', '/61-build-team',
   '/16-dashboard', '/32-receipt', '/settings', '/security', '/48-invite', '/12-sources', '/03-autopilot', '/09-reverse-followup',
+  '/64-shortcuts',
 ];
 const NOISE = /favicon|DevTools|Download the React DevTools|expo-notifications|push token|Intercom|posthog|ResizeObserver|Unable to resolve host|net::ERR|Failed to load resource/i;
 
@@ -1383,7 +1387,8 @@ async function screens() {
         ('${QA_BOSS}', 'cancel_asked', '${made[3]}', '${FA}', 'cancel?', '', 'تلغيها؟ ${tag}', '', 'cancel_ask:${made[3]}:${FA}'),
         ('${QA_BOSS}', 'task_comment', '${made[5]}', '${FA}', 'comment', 'x', 'تعليق ${tag}', 'x', 'qa-nyou-c-${tag}')`);
       // the manager's own task due today: «ومهامك اليوم» on WhatsApp, never in the number
-      made.push((await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA nyou mine ${tag}', '${QA_BOSS}', '${QA_BOSS}', 'assigned', now() + interval '1 hour') returning id`))[0].id);
+      // (due later TODAY in Riyadh: "in an hour" after 11 pm is tomorrow, and the check failed at night — QA, 20 Nov)
+      made.push((await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA nyou mine ${tag}', '${QA_BOSS}', '${QA_BOSS}', 'assigned', ${TODAY_LATER}) returning id`))[0].id);
       try {
         await page.goto('http://localhost:8099/04-decisions', { waitUntil: 'domcontentloaded' });
         const title = page.getByText(/يحتاجك · [\d٠-٩]+/).first();
@@ -1508,34 +1513,56 @@ async function screens() {
     // options in saree3 settings and the side bar one to be closed and opened easily" (R158): no shortcut row on Home;
     // one tap on the side tab opens your shortcuts, the same tab closes them; "From Saree3" in Settings → no tab
     await check('flows', 'Your shortcuts: one tap opens the side panel, one tap closes it; From Saree3 hides the tab', async () => {
-      const off = (box) => !box || box.x + box.width <= 1 || box.x >= 389;
+      // on screen = inside the 390 px viewport (Playwright counts an off-screen element as "visible"); read from the DOM
+      // so a closed panel (aria-hidden) is found too
+      const box = (label) =>
+        page.evaluate((l) => {
+          const el = [...document.querySelectorAll(`[aria-label="${l}"]`)].at(-1);
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { x: r.x, width: r.width, y: r.y, height: r.height };
+        }, label);
+      const onScreen = (b) => !!b && b.width > 0 && b.x + b.width > 1 && b.x < 389 && b.y < 844 && b.y + b.height > 0;
       await sql(`update public.app_prefs set saree3 = coalesce(saree3, '{}'::jsonb) - 'launcher' - 'shortcuts' where profile_id = '${QA_BOSS}'`);
       try {
         await page.goto('http://localhost:8099/01-home', { waitUntil: 'domcontentloaded' });
         await page.getByText('من سريع').first().waitFor({ timeout: 20_000 });
+        // the old shortcut row (Your week · Team · tools · More tiles) is gone from Home
+        // (its last tile was the «المزيد» link; the panel's own is «كل شي»)
+        const oldRow = await page.evaluate(() => document.querySelectorAll('[role="link"][aria-label="المزيد"]').length);
+        expect(!oldRow, 'the old shortcut row is still on Home');
         const tab = page.getByRole('button', { name: 'اختصاراتك', exact: true });
         await tab.waitFor({ timeout: 20_000 });
-        const edit = page.getByRole('button', { name: 'اختر اختصاراتك' });
-        expect(off(await edit.boundingBox()), 'the panel is open before the tab was tapped');
+        expect(!onScreen(await box('اختر اختصاراتك')), 'the panel is open before the tab was tapped');
         await tab.click();
         await page.waitForTimeout(700);
-        expect(!off(await edit.boundingBox()), 'one tap on the tab did not open the panel');
-        expect(await page.getByRole('link', { name: 'كل شي' }).first().isVisible(), '«كل شي» is not in the panel');
+        expect(onScreen(await box('اختر اختصاراتك')), 'one tap on the tab did not open the panel');
+        expect(onScreen(await box('كل شي')), '«كل شي» is not in the open panel');
         await page.screenshot({ path: join(OUT, 'flow_shortcuts_open.png') });
         await page.getByRole('button', { name: 'سكّر الاختصارات' }).last().click();
         await page.waitForTimeout(700);
-        expect(off(await edit.boundingBox()), 'one tap on the tab did not close the panel');
-        // Settings → From Saree3: the tab leaves Home
+        expect(!onScreen(await box('اختر اختصاراتك')), 'one tap on the tab did not close the panel');
+        // Settings → From Saree3: the tab leaves Home, and a tap on Saree3 opens the same places, a second tap closes them
         await page.goto('http://localhost:8099/settings', { waitUntil: 'domcontentloaded' });
         await page.getByRole('radio', { name: 'من سريع', exact: true }).click({ timeout: 20_000 });
         await page.waitForTimeout(1500);
+        await page.screenshot({ path: join(OUT, 'flow_shortcuts_setting.png') });
         await page.goto('http://localhost:8099/01-home', { waitUntil: 'domcontentloaded' });
         await page.getByText('من سريع').first().waitFor({ timeout: 20_000 });
         await page.waitForTimeout(1500);
         expect(!(await tab.count()), 'the side tab still shows with «From Saree3» chosen');
         const [{ launcher }] = await sql(`select saree3->>'launcher' as launcher from public.app_prefs where profile_id = '${QA_BOSS}'`);
         expect(launcher === 'saree3', `the choice was not saved (${launcher})`);
-        return 'tab opens and closes; From Saree3 saved, tab gone';
+        const saree3 = page.getByRole('button', { name: /^سريع/ }).last();
+        await saree3.click();
+        await page.waitForTimeout(800);
+        expect(onScreen(await box('كل شي')), 'a tap on Saree3 did not open your shortcuts');
+        expect(onScreen(await box('عدّل')), '«عدّل» is not reachable in Saree3’s list');
+        await page.screenshot({ path: join(OUT, 'flow_shortcuts_saree3.png') });
+        await saree3.click({ force: true });
+        await page.waitForTimeout(800);
+        expect(!onScreen(await box('كل شي')), 'a second tap on Saree3 did not close your shortcuts');
+        return 'no old row; tab opens and closes; From Saree3 saved, tab gone, Saree3 opens and closes them';
       } finally {
         await sql(`update public.app_prefs set saree3 = coalesce(saree3, '{}'::jsonb) - 'launcher' - 'shortcuts' where profile_id = '${QA_BOSS}'`);
       }
