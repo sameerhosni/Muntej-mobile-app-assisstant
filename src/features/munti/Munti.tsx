@@ -1,4 +1,4 @@
-// Munti — Saree3's look: the Muntej mark (owner, 19 Nov 2026, option 2: "more formal to fit big clients"). A blue orb
+// Munti — Saree3's look: the Muntej mark (owner, 19 Nov 2026, option 2: "more formal to fit big clients"). A light turquoise → blue orb (20 Nov, option D)
 // with a white lightning bolt (سريع = fast; 20 Nov: the spark looked like a star) and no face, inside a ring. Pure SVG + React Native Animated (works in Expo Go and on web).
 // `tone` is the status: the ring takes its colour AND a small sign sits on the ring (★ great, ✓ good, ! watch out,
 // ↓ behind, ≡ overloaded, – quiet), so status never rests on colour alone. brand = no status (chat, tour…).
@@ -149,8 +149,8 @@ export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, label, 
         <Svg width={S} height={S} viewBox="0 0 100 100">
           <Defs>
             <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor={gradients.primary[0]} />
-              <Stop offset="1" stopColor={colors.navy} />
+              <Stop offset="0" stopColor={gradients.saree3[0]} />
+              <Stop offset="1" stopColor={gradients.saree3[1]} />
             </LinearGradient>
           </Defs>
           {/* the ring: status colour (thicker when there is a status, so it reads at 28 px) */}

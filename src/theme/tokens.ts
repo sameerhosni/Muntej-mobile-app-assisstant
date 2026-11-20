@@ -75,6 +75,8 @@ export const gradients = {
   success: ['#16A37A', '#34D399'],
   warning: ['#FFC24D', '#F59E0B'],
   avatarBlue: ['#1F6FEB', '#2EC4D6'],
+  // Saree3's orb, light turquoise → blue (owner, 20 Nov: the bolt "with light coloring", option D)
+  saree3: ['#5ED6F0', '#3B82F6'],
   avatarPurple: ['#6D4AFF', '#A78BFA'],
   avatarGreen: ['#0EA5A4', '#34D399'],
   avatarOrange: ['#F26A1B', '#FFB547'],

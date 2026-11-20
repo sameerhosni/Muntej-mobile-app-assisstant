@@ -662,7 +662,7 @@ Last updated: 2026-11-09.
 - **Why:** 19 Nov, owner: "Change Saree3 to be more formal to fit with big clients" (picked option 2: the mark, no face). The cartoon robot hopped, waved, cried and threw confetti on every screen.
 - **Check:** `Munti.tsx` draws only the orb, the bolt (R157), ring and status sign; no face, arms, tears or confetti; the only motion is a slow breathe or one glow, and none with reduce motion. Each status has its own sign as well as its colour. Nothing drawn on top of the mark (like the floating button's count badge) may cover the sign. QA: «Saree3 is the formal Muntej mark».
 ### R157 · Saree3's symbol reads as AI at a glance, never as a star
-- **Why:** 20 Nov, owner, on Home: "Saree3 seems like star, let's make simple AI symbol". He saw 9 options and picked the lightning bolt (سريع = fast).
+- **Why:** 20 Nov, owner, on Home: "Saree3 seems like star, let's make simple AI symbol". He saw 9 options and picked the lightning bolt (سريع = fast), then "with light coloring": option D, a light turquoise → blue orb (`gradients.saree3`) with a white bolt.
 - **Check:** the glyph in the orb is the drawn `BOLT` path (no text, so no RTL flip or font change); no 4- or 5-point star shape in the orb. The only star left is the gold «great» status sign on the ring. QA: «Saree3 is the formal Muntej mark».
 ### R156 · Moving something off a screen updates everything that still points at it
 - **Why:** 20 Nov, reviewer, on R154: «اللي عيني عليه عنك» left Home, but What's new still said "Risks and achievements on Home", "Show me" opened Tasks with nothing lit, and Customize Home still said "the risks I'm watching".

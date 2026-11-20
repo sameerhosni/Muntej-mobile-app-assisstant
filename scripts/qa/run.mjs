@@ -341,6 +341,8 @@ async function code() {
     expect(!robot.length, `the robot is back in Munti.tsx: ${robot.join(', ')}`);
     // owner, 20 Nov: the white spark "seems like star" → Saree3's bolt (option 8), drawn as a path (R157)
     expect(!/\bspark\(/.test(code) && /d=\{BOLT\}/.test(code), 'Saree3 is not the bolt: the star-like spark is back or the bolt is gone');
+    // … in light colours (option D): the orb is gradients.saree3, not the old dark navy
+    expect(/gradients\.saree3\[0\]/.test(code) && !/colors\.navy/.test(code), 'Saree3’s orb is not the light turquoise → blue (gradients.saree3)');
     const loop = code.indexOf('Animated.loop(');
     const guard = code.lastIndexOf('if (reduce) return', loop);
     expect(loop > 0 && guard > 0 && guard > code.lastIndexOf('useEffect(', loop), 'the mood motion starts without checking reduce motion first');
