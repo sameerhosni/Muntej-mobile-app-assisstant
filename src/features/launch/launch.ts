@@ -66,8 +66,8 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   hindi_language: { href: '/settings', spot: 'settings.language' },
   // 23 Oct: each one's place is a TourTarget, so "Show me" runs Saree3's walkthrough right on it
   from_saree3: { href: '/', spot: 'home.from' },
-  // the watched list left Home (owner, 19 Nov): late and blocked tasks are in Tasks
-  team_risks: { href: '/38-tasks' },
+  // the watched list left Home (owner, 19 Nov): late work is in Tasks, opened on the "Late" filter
+  team_risks: { href: '/38-tasks?filter=late' as Href },
   email_tasks: { href: '/55-tool?tool=gmail' as Href },
   whatsapp: { href: '/55-tool?tool=whatsapp' as Href, spot: 'sources.whatsapp' },
   meet: { href: '/55-tool?tool=meet' as Href, spot: 'sources.google' },

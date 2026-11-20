@@ -171,10 +171,11 @@ function spark(cx: number, cy: number, r: number) {
   return `M${cx} ${cy - r} L${cx + k} ${cy - k} L${cx + r} ${cy} L${cx + k} ${cy + k} L${cx} ${cy + r} L${cx - k} ${cy + k} L${cx - r} ${cy} L${cx - k} ${cy - k} Z`;
 }
 
-/** the status sign on the ring (top end corner): a shape for each status, so colour is never the only cue */
+/** the status sign on the ring (bottom end corner, so the floating button's count badge at the top never covers it):
+ *  a shape for each status, so colour is never the only cue */
 function Sign({ tone, color }: { tone: MuntiTone; color: string }) {
   const cx = 80;
-  const cy = 20;
+  const cy = 80;
   const w = colors.onDark;
   const line = { stroke: w, strokeWidth: 3.4, strokeLinecap: 'round' as const, fill: 'none' };
   let mark;

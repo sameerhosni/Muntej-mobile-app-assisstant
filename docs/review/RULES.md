@@ -658,4 +658,7 @@ Last updated: 2026-11-09.
 - **Check:** a new Home block holds only things that wait on the reader (decide, answer, approve). Saree3's own work (watching, following up) lives in Tasks, the Saree3 page or the summary, never as a list on Home.
 ### R155 · Saree3 looks formal: the Muntej mark, calm motion, status never by colour alone
 - **Why:** 19 Nov, owner: "Change Saree3 to be more formal to fit with big clients" (picked option 2: the mark, no face). The cartoon robot hopped, waved, cried and threw confetti on every screen.
-- **Check:** `Munti.tsx` draws only the orb, spark, ring and status sign; no face, arms, tears or confetti; the only motion is a slow breathe or one glow, and none with reduce motion. Each status has its own sign as well as its colour.
+- **Check:** `Munti.tsx` draws only the orb, spark, ring and status sign; no face, arms, tears or confetti; the only motion is a slow breathe or one glow, and none with reduce motion. Each status has its own sign as well as its colour. Nothing drawn on top of the mark (like the floating button's count badge) may cover the sign. QA: «Saree3 is the formal Muntej mark».
+### R156 · Moving something off a screen updates everything that still points at it
+- **Why:** 20 Nov, reviewer, on R154: «اللي عيني عليه عنك» left Home, but What's new still said "Risks and achievements on Home", "Show me" opened Tasks with nothing lit, and Customize Home still said "the risks I'm watching".
+- **Check:** in the same commit, update the `features` row text (a migration), its `FEATURE_PLACES` link and spot, and every Customize or settings label that names it. A QA check opens the same link "Show me" uses.

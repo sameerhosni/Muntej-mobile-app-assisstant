@@ -271,6 +271,20 @@ async function code() {
     expect(!bad.length, `refreshing follows the query in: ${bad.join(', ')}`);
     return `${files.length} screens checked`;
   });
+  // owner, 19 Nov: "more formal to fit with big clients" → Saree3 is the Muntej mark (R155): no face, arms, tears or
+  // confetti, no bouncing; calm motion that stops under reduce motion; each status has its own shape, not colour alone
+  await check('code', 'Saree3 is the formal Muntej mark (no robot, calm motion, a shape per status)', async () => {
+    const code = readFileSync(join(ROOT, 'src', 'features', 'munti', 'Munti.tsx'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const robot = ['Eyes', 'Arm', 'CONFETTI', 'Ellipse', 'spring('].filter((w) => code.includes(w));
+    expect(!robot.length, `the robot is back in Munti.tsx: ${robot.join(', ')}`);
+    const loop = code.indexOf('Animated.loop(');
+    const guard = code.lastIndexOf('if (reduce) return', loop);
+    expect(loop > 0 && guard > 0 && guard > code.lastIndexOf('useEffect(', loop), 'the mood motion starts without checking reduce motion first');
+    const sign = code.slice(code.indexOf('function Sign('));
+    const missing = ['gold', 'green', 'amber', 'red', 'purple'].filter((c) => !sign.includes(`case '${c}'`));
+    expect(!missing.length && /default:/.test(sign), `the status sign has no own shape for: ${missing.join(', ') || 'default (grey)'}`);
+    return 'mark, calm motion, 6 status shapes';
+  });
   await check('code', 'Edge functions type-check (deno)', async () => {
     const fns = readdirSync(join(ROOT, 'supabase', 'functions')).filter((d) => existsSync(join(ROOT, 'supabase', 'functions', d, 'index.ts')));
     const r = run('npx', ['-y', 'deno', 'check', '--node-modules-dir=none', ...fns.map((f) => `${f}/index.ts`)], { cwd: join(ROOT, 'supabase', 'functions'), timeout: 900_000 });
@@ -1401,9 +1415,10 @@ async function screens() {
         expect(!/اللي عيني عليه عنك/.test(body), 'Home still shows «اللي عيني عليه عنك»');
         expect(!body.includes(`QA watched late ${tag}`), 'the late task is listed on Home');
         await page.screenshot({ path: join(OUT, 'flow_home_no_watch.png') });
-        await page.goto(`http://localhost:8099/38-tasks?ids=${late.id}`, { waitUntil: 'domcontentloaded' });
+        // the same link What's new's "Show me" opens (FEATURE_PLACES.team_risks)
+        await page.goto('http://localhost:8099/38-tasks?filter=late', { waitUntil: 'domcontentloaded' });
         await page.getByText(`QA watched late ${tag}`).first().waitFor({ timeout: 20_000 });
-        return 'not on Home, still in Tasks';
+        return 'not on Home, still in Tasks → Late';
       } finally {
         await sql(`delete from public.tasks where id = '${late.id}'`);
       }
