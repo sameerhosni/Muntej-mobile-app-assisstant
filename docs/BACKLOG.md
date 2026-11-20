@@ -145,6 +145,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-20 · In testing: Saree3 is a lightning bolt on a light turquoise orb (Muntej Test update 1.0.0)
 - 2026-11-20 · In testing: Saree3 is the Muntej mark; Home drops «اللي عيني عليه عنك»; closed-tasks list from the data; faster QA (server: muntej-chat · Muntej Test update 1.0.0)
 - 2026-11-12 · In testing: Apple review status docs (no app change)
 - 2026-11-12 · In testing: Sign in or start free; every sign-in failure shows its cause with a ref and reaches our log; background audio off (Apple 11 Nov); read now you can follow; one «يحتاجك» number (server: client-error, connect, intake, sync-sources, team-import · Muntej Test update 1.0.0)
