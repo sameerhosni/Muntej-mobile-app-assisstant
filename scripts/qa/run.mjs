@@ -1413,7 +1413,9 @@ async function screens() {
         await page.waitForTimeout(2500);
         const body = await page.evaluate(() => document.body.innerText);
         expect(!/اللي عيني عليه عنك/.test(body), 'Home still shows «اللي عيني عليه عنك»');
-        expect(!body.includes(`QA watched late ${tag}`), 'the late task is listed on Home');
+        // the removed list's own line («متأخرة: <title>», radarStrings `late`); Saree3's one-line status in the header may
+        // still name the most urgent task, which is not the list (QA, 20 Nov)
+        expect(!new RegExp(`متأخرة:\\s*\\u2068?QA watched late ${tag}`).test(body), 'the late task is listed on Home as «متأخرة: …»');
         await page.screenshot({ path: join(OUT, 'flow_home_no_watch.png') });
         // the same link What's new's "Show me" opens (FEATURE_PLACES.team_risks)
         await page.goto('http://localhost:8099/38-tasks?filter=late', { waitUntil: 'domcontentloaded' });
