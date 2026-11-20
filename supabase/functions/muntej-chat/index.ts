@@ -1087,10 +1087,13 @@ serve(async (req) => {
           ? ar0 ? `ما فيه مهام مقفلة لـ${full(named)}` : `No closed tasks for ${full(named)}`
           : ar0 ? 'ما فيه مهام مقفلة لك' : 'No closed tasks for you';
         filledClosed = true;
-      } else if (!closed.slice(0, 15).every((t) => parsed.reply.includes(t.title))) {
-        // the list always comes from the data: the model's own list once named 2 old tasks and left out the newest
-        // (QA, 20 Nov), so anything short of every shown task is replaced, and its partial list is dropped
-        const modelListed = closed.some((t) => parsed.reply.includes(t.title));
+      } else {
+        // the list always comes from the data (R110): the model's own list once named 2 old tasks and left out the newest
+        // (QA, 20 Nov), and its context holds other people's rows too. Its text stays only as a one-line intro with no
+        // task names and no list lines
+        const intro = parsed.reply.trim();
+        const modelListed =
+          intro.includes('\n') || /(^|\n)\s*([•\-*]|\d+[.)])\s/.test(intro) || allTasks.some((t) => t.title.length > 3 && intro.includes(t.title));
         const when = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString(ar0 ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' }) : '');
         const word = (s: string) => (ar0 ? ({ done: 'خلصت', cancelled: 'ملغاة' } as Record<string, string>)[s] ?? s : s);
         const shown = closed.slice(0, 15);
@@ -1099,7 +1102,7 @@ serve(async (req) => {
         const lines = shown.map((t) => `• ${t.title} · ${word(t.status)}${!named && t.owner_id !== profileId && ownerName(t.owner_id) ? ` · ${ownerName(t.owner_id)}` : ''}${t.closed_at ?? t.updated_at ? ` · ${when(t.closed_at ?? t.updated_at)}` : ''}`);
         const rest = closed.slice(15);
         const restCancelled = rest.some((t) => t.status === 'cancelled');
-        const head = modelListed ? '' : parsed.reply.trim().replace(/[:：]\s*$/, '');
+        const head = modelListed ? '' : intro.replace(/[:：]\s*$/, '');
         parsed.reply = [
           head || (ar0 ? 'هذي مهامك المقفلة' : 'Your closed tasks'),
           ...lines,

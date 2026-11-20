@@ -484,6 +484,7 @@ Last updated: 2026-11-09.
 ### R110 · A chat answer that promises a list shows the list from the data
 - **Why:** 10 Nov, QA: «عطني كل مهامي حتى القديمة والمقفلة» was answered «هذي كل المهام اللي تخصك بما فيها القديمة والمقفلة:» and nothing after it.
 - **Check:** questions whose answer is a list (closed / old tasks, and any new kind) get the rows filled in by the server from the context, never left to the model alone.
+- **Also (20 Nov, QA):** the model's own list named 2 old tasks and left out the newest. Once the trigger fires, the server's list replaces the model's every time; the model's text is kept only as a one-line intro with no task names (its context holds other people's rows).
 
 ### R111 · A server rewrite of a chat reply never weakens a guard, and fires only on its own wording
 - **Why:** 10 Nov, reviewer: the closed-tasks list made the false-"done" guard skip the reply (its titles looked like proof), and its trigger fired on "on hold" («hold» ⊃ «old»), «خلصت المهام كلها», "how many tasks are done".
