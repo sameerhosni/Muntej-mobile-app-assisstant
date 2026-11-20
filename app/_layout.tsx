@@ -52,6 +52,7 @@ const MORE_SCREENS = [
   '61-build-team',
   '62-team-review',
   '63-setup-chat',
+  '64-shortcuts',
   'ai-consent',
   'new-task',
 ];

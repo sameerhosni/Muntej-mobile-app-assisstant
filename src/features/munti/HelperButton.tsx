@@ -50,6 +50,8 @@ import { JOBS_NS } from '@/features/saree3/strings';
 import { openSupport } from '@/features/support/intercom';
 import { SUPPORT_NS } from '@/features/support/strings';
 import { IDEAS_NS } from '@/features/ideas/strings';
+import { shortcutsOpen, useShortcuts, useShortcutsOpen } from '@/features/launcher/shortcuts';
+import { SpeedDial, type Anchor } from '@/features/launcher/SpeedDial';
 
 /** "I need more time" on a task someone gave you: a decision for them (checkin_reply need_time) */
 async function askMoreTime(taskId: string) {
@@ -248,6 +250,11 @@ export function HelperButton() {
 
   // 'auto' = popped up by himself (closes itself), 'tap' = opened by the user; 'value' = an auto pop-up about value
   const [open, setOpen] = useState<false | 'auto' | 'tap'>(false);
+  // your shortcuts open from him when you chose "From Saree3" in Settings (owner, 20 Nov)
+  const shortcuts = useShortcuts();
+  const dialOpen = useShortcutsOpen();
+  const fabRef = useRef<View>(null);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [popKind, setPopKind] = useState<'perf' | 'value'>('perf');
   const active = s.enabled && !s.hidden;
 
@@ -336,6 +343,7 @@ export function HelperButton() {
       onPanResponderGrant: () => {
         setDragging(true);
         setOpen(false);
+        shortcutsOpen.set(false);
       },
       onPanResponderMove: (_e, g) => {
         pan.setValue({ x: g.dx, y: g.dy });
@@ -445,6 +453,14 @@ export function HelperButton() {
 
   const tap = () => {
     if (toast) return munti.dismiss();
+    // "From Saree3": a tap opens your shortcuts above him ("Ask Saree3" in there opens his quick asks)
+    if (shortcuts.style === 'saree3' && showFab && !open) {
+      if (dialOpen) return shortcutsOpen.set(false);
+      return fabRef.current?.measureInWindow((x, y, w) => {
+        setAnchor({ x, y, size: w });
+        shortcutsOpen.set(true);
+      });
+    }
     setOpen((o) => (o ? false : 'tap'));
   };
   const hide = () => {
@@ -766,8 +782,11 @@ export function HelperButton() {
         </View>
       )}
 
+      {showFab && dialOpen && shortcuts.style === 'saree3' && anchor && !dragging && <SpeedDial anchor={anchor} onAsk={() => setOpen('tap')} />}
+
       {showFab && (
         <Animated.View
+          ref={fabRef}
           {...responder.panHandlers}
           style={{
             position: 'absolute',

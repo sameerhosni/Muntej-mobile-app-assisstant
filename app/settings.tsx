@@ -43,6 +43,7 @@ import { munti, useMunti } from '@/features/munti/store';
 import { MUNTI_NS } from '@/features/munti/tips';
 import { SupportRow } from '@/features/support/SupportRow';
 import { HomeSectionsRow } from '@/features/prefs/HomeSectionsRow';
+import { ShortcutsSetting } from '@/features/launcher/ShortcutsSetting';
 import { IdeasRow } from '@/features/ideas/IdeasRow';
 import { NS as ALERTS_NS } from '@/features/alerts/strings';
 import { ReachMe } from '@/features/alerts/ReachMe';
@@ -351,6 +352,9 @@ export default function SettingsScreen() {
           <Toggle value={muntiState.enabled} onValueChange={munti.setEnabled} accessibilityLabel={tm('settingTitle')} />
         </View>
       </Card>
+
+      {/* your shortcuts: side panel on Home or from Saree3 (owner, 20 Nov); not for the system console seat */}
+      {me?.role !== 'super_admin' && <ShortcutsSetting />}
 
       {/* AI permission (Apple 5.1.2): what goes to OpenAI, on or off at any time */}
       {ai.asked && <AiSettingCard />}

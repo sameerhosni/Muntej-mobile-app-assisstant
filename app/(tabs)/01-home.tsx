@@ -5,7 +5,7 @@
 //      matters most, the busiest teams, and the full dashboard (screen 56)
 //   2. needs you, one card: decisions (Approve), work to approve, tasks from your tools, tasks given to you, answers
 //   3. Saree3, one card: what he's working on, what he did since your last visit, risks, what's new
-//   4. this week's wins · 5. shortcuts: Your week, Team, Your tools, More
+//   4. this week's wins · then your shortcuts open from a side tab or from Saree3 (owner, 20 Nov; no row on Home)
 // The mic in the tab bar captures tasks; the Tasks tab lists them; value numbers live in "Your week".
 import { TourTarget } from '@/features/walkthrough/TourTarget';
 import { FromSaree3, TeamWins } from '@/features/home/TeamRadar';
@@ -13,16 +13,15 @@ import { useWalkthrough } from '@/features/walkthrough/useWalkthrough';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { Inbox, LayoutGrid, Mic, Receipt, Users } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppText, Avatar, BrandChip, Hero } from '@/components/ui';
 import { colors, spacing } from '@/theme/tokens';
 import { useDirection } from '@/lib/i18n';
-import { useScreenT } from '@/lib/i18n/register';
 import { useMyProfile } from '@/lib/api';
 import { AlertsBell } from '@/features/alerts/AlertsBell';
 import { useProto } from '@/features/prototype/store';
-import { NeedsYou, SareeLine, Shortcuts } from '@/features/home/SimpleHome';
+import { NeedsYou, SareeLine } from '@/features/home/SimpleHome';
+import { QuickPanel } from '@/features/launcher/QuickPanel';
 import { GlanceCard } from '@/features/home/GlanceCard';
 import { JourneyCard } from '@/features/ladder/Journey';
 import { useTasks } from '@/lib/api';
@@ -32,10 +31,7 @@ import { BiometricOffer } from '@/features/auth/BiometricOffer';
 import { JobsStrip } from '@/features/saree3/JobsStrip';
 import { MyRequests } from '@/features/home/MyRequests';
 import { Spotlight } from '@/features/launch/Spotlight';
-import { NS } from '@/features/home/strings';
 import { GettingStarted } from '@/features/onboarding/GettingStarted';
-import { NS as INCOMING_NS } from '@/features/incoming/strings';
-import { MORE_NS } from '@/features/more/strings';
 import { useHomeSection } from '@/features/prefs/appPrefs';
 import { HomeSectionsRow } from '@/features/prefs/HomeSectionsRow';
 import { FeatureCards } from '@/features/prefs/featureCards';
@@ -48,16 +44,14 @@ function greetingKey(date = new Date()) {
 const HOME_STEPS = [
   { target: 'mic', key: 'homeMic', demo: 'say' as const },
   { target: 'home.needs', key: 'homeNeeds' },
-  { target: 'home.more', key: 'homeMore' },
+  // the shortcut row left Home for your shortcuts (side panel or Saree3, owner 20 Nov): the tab is lit instead
+  { target: 'home.panel', key: 'homePanel' },
 ];
 
 export default function ManagerHome() {
   const { t } = useTranslation();
   // first visit: Saree3 lights up the mic (with a live demo), what needs you, and the shortcuts
   useWalkthrough('home', HOME_STEPS);
-  const { t: th } = useScreenT(NS);
-  const { t: ti } = useScreenT(INCOMING_NS);
-  const { t: tm } = useScreenT(MORE_NS);
   // the sections the person chose to see (Customize Home)
   const show = useHomeSection();
   const { lang } = useDirection();
@@ -159,33 +153,14 @@ export default function ManagerHome() {
           {/* the features the person added to Home (Customize Home) */}
           <FeatureCards on={show} />
 
-          {/* 6. everything else, one tap away */}
-          {show('shortcuts') && (
-          <TourTarget id="home.more">
-            <Shortcuts
-              items={[
-                { key: 'week', label: th('sc_week'), Icon: Receipt, href: '/32-receipt', bg: 'greenTint', fg: colors.green },
-                { key: 'team', label: th('sc_team'), Icon: Users, href: '/39-team', bg: 'primaryTint', fg: colors.primary },
-                {
-                  key: 'incoming',
-                  label: ti('shortcut'),
-                  Icon: Inbox,
-                  href: '/42-incoming',
-                  bg: 'primaryTint',
-                  fg: colors.primary,
-                  feature: 'incoming',
-                },
-                // Objectives, Autopilot, Roadmap… live in "Everything Muntej does" (Autopilot is also the "Muntej is on it" card)
-                { key: 'more', label: tm('shortcut'), Icon: LayoutGrid, href: '/44-more', bg: 'chip', fg: colors.textSoft },
-              ]}
-            />
-          </TourTarget>
-          )}
+          {/* everything else: your shortcuts, from the side panel or Saree3 (owner, 20 Nov: "many icons in home page …
+              like android user experience … open only selected one"); the old shortcut row is gone */}
 
           {/* choose which sections show here */}
           <HomeSectionsRow />
         </View>
       </ScrollView>
+      <QuickPanel />
     </View>
   );
 }

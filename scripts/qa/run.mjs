@@ -1504,6 +1504,42 @@ async function screens() {
         await sql(`delete from public.tasks where id = '${late.id}'`);
       }
     });
+    // owner, 20 Nov: "many icons in home page … like android user experience … open only selected one", then "Both
+    // options in saree3 settings and the side bar one to be closed and opened easily" (R158): no shortcut row on Home;
+    // one tap on the side tab opens your shortcuts, the same tab closes them; "From Saree3" in Settings → no tab
+    await check('flows', 'Your shortcuts: one tap opens the side panel, one tap closes it; From Saree3 hides the tab', async () => {
+      const off = (box) => !box || box.x + box.width <= 1 || box.x >= 389;
+      await sql(`update public.app_prefs set saree3 = coalesce(saree3, '{}'::jsonb) - 'launcher' - 'shortcuts' where profile_id = '${QA_BOSS}'`);
+      try {
+        await page.goto('http://localhost:8099/01-home', { waitUntil: 'domcontentloaded' });
+        await page.getByText('من سريع').first().waitFor({ timeout: 20_000 });
+        const tab = page.getByRole('button', { name: 'اختصاراتك', exact: true });
+        await tab.waitFor({ timeout: 20_000 });
+        const edit = page.getByRole('button', { name: 'اختر اختصاراتك' });
+        expect(off(await edit.boundingBox()), 'the panel is open before the tab was tapped');
+        await tab.click();
+        await page.waitForTimeout(700);
+        expect(!off(await edit.boundingBox()), 'one tap on the tab did not open the panel');
+        expect(await page.getByRole('link', { name: 'كل شي' }).first().isVisible(), '«كل شي» is not in the panel');
+        await page.screenshot({ path: join(OUT, 'flow_shortcuts_open.png') });
+        await page.getByRole('button', { name: 'سكّر الاختصارات' }).last().click();
+        await page.waitForTimeout(700);
+        expect(off(await edit.boundingBox()), 'one tap on the tab did not close the panel');
+        // Settings → From Saree3: the tab leaves Home
+        await page.goto('http://localhost:8099/settings', { waitUntil: 'domcontentloaded' });
+        await page.getByRole('radio', { name: 'من سريع', exact: true }).click({ timeout: 20_000 });
+        await page.waitForTimeout(1500);
+        await page.goto('http://localhost:8099/01-home', { waitUntil: 'domcontentloaded' });
+        await page.getByText('من سريع').first().waitFor({ timeout: 20_000 });
+        await page.waitForTimeout(1500);
+        expect(!(await tab.count()), 'the side tab still shows with «From Saree3» chosen');
+        const [{ launcher }] = await sql(`select saree3->>'launcher' as launcher from public.app_prefs where profile_id = '${QA_BOSS}'`);
+        expect(launcher === 'saree3', `the choice was not saved (${launcher})`);
+        return 'tab opens and closes; From Saree3 saved, tab gone';
+      } finally {
+        await sql(`update public.app_prefs set saree3 = coalesce(saree3, '{}'::jsonb) - 'launcher' - 'shortcuts' where profile_id = '${QA_BOSS}'`);
+      }
+    });
   } catch (e) {
     bad('screens', 'Screen run', e?.message ?? e);
   } finally {

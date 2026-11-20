@@ -32,7 +32,8 @@ export function useFamiliar() {
       const newDay = !days.includes(d);
       const newKey = !used.includes(key);
       if (!newDay && !newKey) return;
-      save.mutate({ saree3: { days: newDay ? [...days, d].slice(-14) : days, used: newKey ? [...used, key] : used } });
+      // keep the rest of saree3 (your shortcuts and how they open, 20 Nov)
+      save.mutate({ saree3: { ...s, days: newDay ? [...days, d].slice(-14) : days, used: newKey ? [...used, key] : used } });
     },
     [prefs.data, days, used, save, scale],
   );

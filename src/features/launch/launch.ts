@@ -72,6 +72,8 @@ export const FEATURE_PLACES: Record<string, { href?: Href; spot?: string }> = {
   whatsapp: { href: '/55-tool?tool=whatsapp' as Href, spot: 'sources.whatsapp' },
   meet: { href: '/55-tool?tool=meet' as Href, spot: 'sources.google' },
   more_tools: { href: '/42-incoming', spot: 'email.tools' },
+  // the side tab on Home (20 Nov); featureUsed('shortcuts') when the list is changed (screen 64)
+  shortcuts: { href: '/', spot: 'home.panel' },
 };
 
 /** "later" asks again after this long, at most twice */

@@ -16,6 +16,8 @@ const en = {
   homeNeedsBody: 'Late, blocked or waiting for your decision shows up here. Everything else I follow up.',
   homeMoreTitle: 'Everything else',
   homeMoreBody: 'Your week, your team and tasks from email are one tap away.',
+  homePanelTitle: 'Your shortcuts',
+  homePanelBody: 'Tap this tab: the places you use most open from the side. Tap again to close. Choose them in Settings → Saree3.',
   // Tasks
   tasksRowTitle: 'Done? One tap',
   tasksRowBody: 'Tap the circle when a task is done. I tell whoever is waiting.',
@@ -67,6 +69,8 @@ const ar: typeof en = {
   homeNeedsBody: 'المتأخر والواقف واللي ينتظر قرارك يطلع هنا. والباقي أنا أتابعه.',
   homeMoreTitle: 'كل شي ثاني',
   homeMoreBody: 'أسبوعك، فريقك، ومهام الإيميل على بعد ضغطة.',
+  homePanelTitle: 'اختصاراتك',
+  homePanelBody: 'اضغط هذا اللسان: الأماكن اللي تستخدمها كثير تطلع من الجنب، واضغطه مرة ثانية يتسكّر. تختارها من الإعدادات ← سريع.',
   tasksRowTitle: 'خلصت؟ ضغطة وحدة',
   tasksRowBody: 'اضغط الدائرة لما تخلص المهمة، وأنا أبلّغ اللي ينتظرها.',
   tasksSearchTitle: 'لقّ أي شي',

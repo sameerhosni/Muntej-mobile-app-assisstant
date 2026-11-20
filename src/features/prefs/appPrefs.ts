@@ -11,13 +11,15 @@ const untyped = supabase as any;
 
 export type HomeSection = 'glance' | 'journey' | 'needs' | 'saree3' | 'wins' | 'shortcuts' | 'whatsnew';
 /** Home's sections in the order they appear (the customize screen lists them like this) */
-export const HOME_SECTIONS: HomeSection[] = ['glance', 'journey', 'needs', 'saree3', 'wins', 'whatsnew', 'shortcuts'];
+// (no 'shortcuts': the row left Home for your shortcuts, a side tab or Saree3, owner 20 Nov — screen 64)
+export const HOME_SECTIONS: HomeSection[] = ['glance', 'journey', 'needs', 'saree3', 'wins', 'whatsnew'];
 
 export type AppPrefs = {
   /** core sections switched off (false) and feature cards switched on (f_<key>: true) */
   home: Record<string, boolean>;
   whats_new_seen_at: string | null;
-  saree3: { days?: string[]; used?: string[] };
+  /** launcher: how your shortcuts open (side panel or Saree3); shortcuts: the places you picked, in order (20 Nov) */
+  saree3: { days?: string[]; used?: string[]; launcher?: 'panel' | 'saree3'; shortcuts?: string[] };
 };
 const EMPTY: AppPrefs = { home: {}, whats_new_seen_at: null, saree3: {} };
 

@@ -21,6 +21,9 @@ export const colors = {
   onDarkMuted: 'rgba(255,255,255,0.80)',
   glass: 'rgba(255,255,255,0.16)',
   glassBorder: 'rgba(255,255,255,0.28)',
+  // behind an open panel or speed dial, and the side panel itself (Android-like, 20 Nov)
+  scrim: 'rgba(11,26,51,0.40)',
+  panel: 'rgba(36,46,68,0.94)',
 
   // brand (manager = blue)
   primary: '#1F6FEB',
