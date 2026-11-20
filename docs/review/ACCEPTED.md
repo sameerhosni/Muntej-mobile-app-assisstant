@@ -39,3 +39,4 @@ Line format: ``- `<commit>` · <date> · ACCEPT · <what was reviewed>``
 - `8ac4287` · 2026-11-20 · ACCEPT · QA only: the Home check looks for the removed list's own «متأخرة: <task>» line (Saree3's header status may name the most urgent task); still fails on the old code. 1 pass: 0 findings.
 - `2e0e50c` · 2026-11-20 · ACCEPT · QA faster (owner: "Loooooong time for testing"): areas already green on unchanged code are reused (24 h; unexplained files and any server deploy reuse nothing); one second try of just the failed AI or browser areas; tsc, deno and the web app start with the run. 2 passes: 7 → 0 findings; R80 updated.
 - `c825498` · 2026-11-20 · ACCEPT · Saree3's symbol is a lightning bolt (owner picked option 8 of 9), drawn as a path; QA guards it. 1 pass: 0 findings; rule R157.
+- `2edc1c9` · 2026-11-20 · ACCEPT · Saree3's orb in light colours (owner picked D: turquoise → blue, white bolt), gradients.saree3 token; QA guards it. 1 pass: 0 findings; R157 text.
