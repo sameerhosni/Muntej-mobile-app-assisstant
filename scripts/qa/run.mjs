@@ -78,8 +78,12 @@ const changedFiles = since
 const changedAreas = areasFor(changedFiles);
 // a QA check added or edited (any line of it, the working tree too) runs its whole area, with the checks that set up and
 // undo its data (reviewer, 11 Nov, R146)
-if (since)
-  for (const f of changedFiles.filter((x) => /^scripts\/qa\/.*\.mjs$/.test(x) && existsSync(join(ROOT, x)))) {
+if (since) for (const a of qaScriptAreas(since, changedFiles)) changedAreas.add(a);
+/** the areas whose QA checks changed since `base` (a changed line inside a check selects its area; one outside every
+ *  check, a helper or setup, selects every area that file has) */
+function qaScriptAreas(base, files) {
+  const out = new Set();
+  for (const f of files.filter((x) => /^scripts\/qa\/.*\.mjs$/.test(x) && existsSync(join(ROOT, x)))) {
     const lines = readFileSync(join(ROOT, f), 'utf8').split('\n');
     // each check's span: from its `check('area'` line until its braces close (reviewer, 11 Nov). A changed line inside
     // a span selects that area; one outside every span (a helper, a shared list, setup) selects every area the file has
@@ -99,17 +103,57 @@ if (since)
       spans.push({ area: m[1], from: i, to: lines.length - 1 });
     });
     const fileAreas = [...new Set(spans.map((s) => s.area))];
-    const diff = git('diff', '-U0', since, '--', f);
+    const diff = git('diff', '-U0', base, '--', f);
     const touched = diff ? [...diff.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)].flatMap((m) => Array.from({ length: Math.max(1, Number(m[2] ?? 1)) }, (_, k) => Number(m[1]) - 1 + k)) : lines.map((_, i) => i);
     for (const n of touched) {
       const inside = spans.filter((s) => n >= s.from && n <= s.to);
-      for (const a of inside.length ? inside.map((s) => s.area) : fileAreas) changedAreas.add(a);
+      for (const a of inside.length ? inside.map((s) => s.area) : fileAreas) out.add(a);
     }
   }
+  return out;
+}
 // exact names; one ending in * matches by its start
 const isCore = (name) => CORE.some((c) => (c.endsWith('*') ? name.startsWith(c.slice(0, -1)) : name === c));
-const runs = (area, name) => full || !since || isCore(name) || changedAreas.has(area);
+
+// ─── what already passed (owner, 20 Nov: "saving … as QA complete, then … testing only new things and related
+// updates"): every area that came out all green is saved with its commit in qa-out/green.json. A later run skips that
+// area while it is still green: under 24 h old, it covered what this run needs (all its checks, or only its core ones),
+// and nothing of the area changed since that commit (its files, its QA checks; for `code`, nothing at all). So a run
+// after a failure repeats only the failed areas, and --live reuses what the test release already proved. Always run:
+// the reset and sign-ins (every other check stands on them) and the live wires (WhatsApp number, email). --fresh: no reuse
+const GREEN = join(OUT, 'green.json');
+const state = (() => {
+  try {
+    return JSON.parse(readFileSync(GREEN, 'utf8'));
+  } catch {
+    return { areas: {}, streak: {} };
+  }
+})();
+state.areas ??= {};
+state.streak ??= {};
+const second = args.includes('--second');
+const HEAD = git('rev-parse', 'HEAD').trim();
+const NOT_CODE = (f) => f.startsWith('docs/') || f.startsWith('qa-out/') || f.startsWith('scripts/release/');
+// the working tree as it is (uncommitted and new files included) against a commit
+const filesSince = (base) =>
+  [...new Set([...git('diff', '--name-only', base).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((f) => f.trim()).filter(Boolean))].filter((f) => !NOT_CODE(f));
+const clean = !filesSince('HEAD').length;
+const ALWAYS = ['Reset the test company', 'Test sign-in (one-time link)', 'Sign in with the test link', 'Muntej’s WhatsApp number is alive at Meta', 'Email can reach people*'];
+const isAlways = (name) => ALWAYS.some((c) => (c.endsWith('*') ? name.startsWith(c.slice(0, -1)) : name === c));
+const need = (area) => (full || !since || changedAreas.has(area) ? 'all' : 'core');
+const reused = new Map();
+if (!args.includes('--fresh') && !only)
+  for (const [area, rec] of Object.entries(state.areas)) {
+    if (!rec?.commit || Date.now() - Date.parse(rec.at) > 24 * 3600_000) continue;
+    if (rec.level !== 'all' && need(area) === 'all') continue;
+    if (git('cat-file', '-t', rec.commit).trim() !== 'commit') continue;
+    const files = filesSince(rec.commit);
+    if (area === 'code' ? files.length : areasFor(files).has(area) || qaScriptAreas(rec.commit, files).has(area)) continue;
+    reused.set(area, rec);
+  }
+const runs = (area, name) => isAlways(name) || (!reused.has(area) && (full || !since || isCore(name) || changedAreas.has(area)));
 const skipped = [];
+const reusedChecks = [];
 const secondTry = [];
 
 // checks the AI judges (inbox: each reads its own fresh message and the suggestions it returns), and network blips:
@@ -121,7 +165,7 @@ const RETRY_AREAS = new Set(['inbox']);
 // idea POST hung after its OPTIONS; the gateway log had no POST at all)
 const blip = (m) => /fetch failed|Failed to fetch|net::ERR_|ECONNRESET|socket hang up|no answer from the network|\b(502|503|504|52[0-4])\b/i.test(m);
 async function check(area, name, fn) {
-  if (!runs(area, name)) return void skipped.push({ area, name });
+  if (!runs(area, name)) return void (reused.has(area) ? reusedChecks.push({ area, name }) : skipped.push({ area, name }));
   const t0 = Date.now();
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
@@ -241,11 +285,25 @@ function run(cmd, argv, opts = {}) {
   const r = spawnSync(cmd, argv, { cwd: ROOT, shell: true, encoding: 'utf8', env: { ...process.env, NODE_OPTIONS: '--use-system-ca' }, ...opts });
   return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
+/** the same, in the background: tsc and deno start with the run and work while the server checks wait on the AI */
+function runAsync(cmd, argv, opts = {}) {
+  return new Promise((resolve) => {
+    const p = spawn(cmd, argv, { cwd: ROOT, shell: true, env: { ...process.env, NODE_OPTIONS: '--use-system-ca' }, ...opts });
+    let out = '';
+    p.stdout.on('data', (d) => (out += d));
+    p.stderr.on('data', (d) => (out += d));
+    const timer = opts.timeout ? setTimeout(() => p.kill(), opts.timeout) : null;
+    p.on('close', (code) => (clearTimeout(timer), resolve({ code, out })));
+    p.on('error', (e) => (clearTimeout(timer), resolve({ code: 1, out: String(e) })));
+  });
+}
+const DENO_ARGS = () => ['-y', 'deno', 'check', '--node-modules-dir=none', ...readdirSync(join(ROOT, 'supabase', 'functions')).filter((d) => existsSync(join(ROOT, 'supabase', 'functions', d, 'index.ts'))).map((f) => `${f}/index.ts`)];
+const early = {};
 
 // ─── 1. code ──────────────────────────────────────────────────────────────────
 async function code() {
   await check('code', 'App type-check (tsc)', async () => {
-    const r = run('npx', ['tsc', '--noEmit']);
+    const r = await (early.tsc ?? runAsync('npx', ['tsc', '--noEmit']));
     expect(r.code === 0, r.out.split('\n').filter((l) => /error TS/.test(l)).slice(0, 8).join('\n') || r.out.slice(-500));
     return 'no errors';
   });
@@ -286,10 +344,10 @@ async function code() {
     return 'mark, calm motion, 6 status shapes';
   });
   await check('code', 'Edge functions type-check (deno)', async () => {
-    const fns = readdirSync(join(ROOT, 'supabase', 'functions')).filter((d) => existsSync(join(ROOT, 'supabase', 'functions', d, 'index.ts')));
-    const r = run('npx', ['-y', 'deno', 'check', '--node-modules-dir=none', ...fns.map((f) => `${f}/index.ts`)], { cwd: join(ROOT, 'supabase', 'functions'), timeout: 900_000 });
+    const argv = DENO_ARGS();
+    const r = await (early.deno ?? runAsync('npx', argv, { cwd: join(ROOT, 'supabase', 'functions'), timeout: 900_000 }));
     expect(r.code === 0, r.out.split('\n').filter((l) => /ERROR|error:/.test(l)).slice(0, 8).join('\n') || r.out.slice(-500));
-    return `${fns.length} functions`;
+    return `${argv.length - 4} functions`;
   });
 }
 
@@ -806,32 +864,45 @@ function freePort(port) {
   return pids.size;
 }
 
-async function screens() {
-  let browser;
+/** the web app starts with the run (owner, 20 Nov: QA too long): it builds while the server checks run, and its
+ *  bundle is asked for once it answers, so the first screen doesn't wait for the build */
+function startWeb() {
   freePort(8099);
-  const server = spawn('npx', ['expo', 'start', '--web', '--port', '8099', '--offline'], {
+  const web = { log: '', exited: null, t0: Date.now() };
+  web.proc = spawn('npx', ['expo', 'start', '--web', '--port', '8099', '--offline'], {
     cwd: ROOT,
     shell: true,
     env: { ...process.env, NODE_OPTIONS: '--use-system-ca', BROWSER: 'none', CI: '1' },
   });
-  let log = '';
-  server.stdout.on('data', (d) => (log += d));
-  server.stderr.on('data', (d) => (log += d));
-  let exited = null;
-  server.on('exit', (c) => (exited = c));
-  try {
-    // wait for the web build to answer
-    const t0 = Date.now();
+  web.proc.stdout.on('data', (d) => (web.log += d));
+  web.proc.stderr.on('data', (d) => (web.log += d));
+  web.proc.on('exit', (c) => (web.exited = c));
+  web.ready = (async () => {
     for (;;) {
       try {
         const r = await fetch('http://localhost:8099');
-        if (r.ok) break;
+        if (r.ok) {
+          // warm the bundle in the background (a failed warm-up changes nothing: the browser asks again)
+          const src = (await r.text()).match(/<script[^>]+src="([^"]+)"/)?.[1];
+          if (src) fetch(new URL(src, 'http://localhost:8099')).then((b) => b.arrayBuffer()).catch(() => {});
+          return true;
+        }
       } catch {
         // not up yet
       }
-      if (Date.now() - t0 > 240_000) throw new Error(`web app didn't start:\n${log.slice(-800)}`);
+      if (web.exited !== null || Date.now() - web.t0 > 240_000) return false;
       await new Promise((r) => setTimeout(r, 2000));
     }
+  })();
+  return web;
+}
+
+async function screens() {
+  let browser;
+  const web = early.web ?? startWeb();
+  const server = web.proc;
+  try {
+    if (!(await web.ready)) throw new Error(`web app didn't start:\n${web.log.slice(-800)}`);
     const { chromium } = await import('playwright');
     browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, locale: 'ar' });
@@ -861,7 +932,7 @@ async function screens() {
       await page.goto(`http://localhost:8099/join?t=${token}`, { waitUntil: 'domcontentloaded', timeout: 180_000 });
       await page.waitForFunction(() => !location.pathname.startsWith('/join'), null, { timeout: 180_000 }).catch(async (e) => {
         const body = await page.evaluate(() => document.body.innerText).catch(() => '');
-        throw new Error(`${e.message} · web app ${exited === null ? 'still running' : 'exited ' + exited} · page: ${body.slice(0, 200)} · log: ${log.slice(-600)}`);
+        throw new Error(`${e.message} · web app ${web.exited === null ? 'still running' : 'exited ' + web.exited} · page: ${body.slice(0, 200)} · log: ${web.log.slice(-600)}`);
       });
       await page.waitForTimeout(4000);
       return page.url();
@@ -1436,7 +1507,14 @@ async function screens() {
 
 // ─── run ──────────────────────────────────────────────────────────────────────
 expect(TOKEN, 'SUPABASE_ACCESS_TOKEN is not set (the same user env var db-apply uses)');
-if (want('code')) await code();
+// the slow builds start now and work while the server checks wait on the AI; their checks read them at the end
+const UI_AREAS = ['screens', 'flows', 'hindi'];
+const uiNeeded = !noUi && (want('ui') || want('screens')) && !UI_AREAS.every((a) => reused.has(a));
+if (uiNeeded) early.web = startWeb();
+if (want('code') && !reused.has('code')) {
+  early.tsc = runAsync('npx', ['tsc', '--noEmit']);
+  early.deno = runAsync('npx', DENO_ARGS(), { cwd: join(ROOT, 'supabase', 'functions'), timeout: 900_000 });
+}
 if (want('server') || want('ui') || want('screens') || want('cases') || want('invites') || want('tasks')) await server();
 if (JWT && (want('server') || want('cases') || want('tasks'))) {
   await taskCases({ check, expect, fn, sql, jwt: JWT, jwtFor, rpc, insert, get, ids: { QA_ACCOUNT, QA_BOSS } });
@@ -1467,10 +1545,32 @@ if (JWT && (want('server') || want('cases'))) {
   }).catch((e) => (bad('cases', 'Real cases', e?.message ?? e), []));
   writeFileSync(join(OUT, 'chat-transcript.md'), transcript.join('\n\n'));
 }
-if (!noUi && (want('ui') || want('screens'))) await screens();
+if (want('code')) await code();
+if (uiNeeded) await screens();
+else if (early.web) spawnSync('taskkill', ['/pid', String(early.web.proc.pid), '/T', '/F'], { shell: true });
 
 const failed = results.filter((r) => !r.pass && !WARN_ONLY.has(r.area));
 const warned = results.filter((r) => !r.pass && WARN_ONLY.has(r.area));
+
+// save what came out green (see «what already passed»): only from a clean tree (the commit is the code) and a whole run
+// (not --only; a runner that crashed part-way saves nothing, its later checks never ran)
+const crashed = results.some((r) => !r.pass && ['Screen run', 'Real cases'].includes(r.name));
+const ranAreas = [...new Set(results.map((r) => r.area))].filter((a) => !reused.has(a));
+const failedAreas = [...new Set(failed.map((r) => r.area))];
+if (clean && !only && !crashed) {
+  for (const a of ranAreas) {
+    if (results.filter((r) => r.area === a).every((r) => r.pass)) {
+      // an area that was all green before at "all" keeps "all" when this run only needed its core (same commit)
+      const before = state.areas[a];
+      const level = need(a) === 'all' || (before?.level === 'all' && before.commit === HEAD) ? 'all' : 'core';
+      state.areas[a] = { commit: HEAD, at: new Date().toISOString(), level };
+    } else delete state.areas[a];
+  }
+}
+// a second try that passed (ship.mjs): the area needed it once more in a row; a first try that passed starts it over
+for (const a of ranAreas) if (!failedAreas.includes(a)) state.streak[a] = second ? (state.streak[a] ?? 0) + 1 : 0;
+state.last = { commit: HEAD, at: new Date().toISOString(), failedAreas, second };
+writeFileSync(GREEN, JSON.stringify(state, null, 2) + '\n');
 const lines = [
   `# Muntej QA — ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
   '',
@@ -1481,6 +1581,10 @@ const lines = [
   full || !since
     ? 'Full run: every check.'
     : `Core + changed (${[...changedAreas].join(', ') || 'no area'}) since the last test release · ${skipped.length} other checks left out (run them with --full).`,
+  ...(reused.size
+    ? ['', `♻️ Already green, nothing changed since (${reusedChecks.length} checks not run again): ${[...reused].map(([a, r]) => `${a} @${r.commit.slice(0, 7)}`).join(' · ')}. Run with --fresh to repeat them.`]
+    : []),
+  ...(second ? ['', `🔁 Second try: only the areas that failed (${[...ranAreas].join(', ')}).`] : []),
   ...(secondTry.length ? ['', `⚠️ ${secondTry.length} passed only on the second try: ${secondTry.join(' · ')}`] : []),
   ...(skipped.length
     ? ['', '<details><summary>Left out this run</summary>', '', ...[...new Set(skipped.map((s) => s.area))].map((a) => `- **${a}**: ${skipped.filter((s) => s.area === a).map((s) => s.name).join(' · ')}`), '', '</details>']

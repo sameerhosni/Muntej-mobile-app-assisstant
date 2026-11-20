@@ -9,7 +9,8 @@
 // TEST releases everything since the last test (git tag `testing`, else `shipped`):
 //   1. the work must be committed (nothing half-done goes out)
 //   2. QA robot (scripts/qa/run.mjs) must be all green: the core checks + every area this release changed
-//      (scripts/qa/core.mjs); --live runs every check (--full) on exactly the tested code
+//      (scripts/qa/core.mjs); --live runs every check (--full) on exactly the tested code. An area already green on
+//      unchanged code is reused, and a failed AI or browser area gets one second try of just that area (owner, 20 Nov)
 //   3. new supabase/migrations are applied (scripts/db-apply.ps1)
 //   4. edge functions whose code changed are type-checked and deployed (a change in _shared deploys every function
 //      that imports it). There is one server for everyone: a new feature waits behind features.testing (only testers
@@ -51,6 +52,25 @@ function run(cmd, argv, opts = {}) {
   return { code: r.status ?? 1, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 const git = (...a) => run('git', a, { quiet: true }).out.trim();
+/** QA, with one second try (owner, 20 Nov: "Loooooong time for testing"): when only AI-judged or browser areas failed,
+ *  QA runs once more, and since every area that came out green is reused (qa-out/green.json), that second run repeats
+ *  just the failed areas, a few minutes instead of the whole run. Never for `code` (a type error is not luck), and never
+ *  for an area that already needed a second try twice in a row (a third time is a real "sometimes wrong", not luck) */
+function qa(argv, failMsg) {
+  if (run('node', ['scripts/qa/run.mjs', ...argv]).code === 0) return;
+  let s = null;
+  try {
+    s = JSON.parse(readFileSync(join(ROOT, 'qa-out', 'green.json'), 'utf8'));
+  } catch {
+    // no saved state: no second try
+  }
+  const failedAreas = s?.last?.failedAreas ?? [];
+  const tooOften = failedAreas.filter((a) => (s?.streak?.[a] ?? 0) >= 2);
+  if (!failedAreas.length || failedAreas.includes('code') || tooOften.length)
+    fail(`${failMsg}${tooOften.length ? ` (${tooOften.join(', ')} needed a second try twice in a row already: fix it, it's not luck)` : ''}`);
+  say(`QA second try: only ${failedAreas.join(', ')}`);
+  if (run('node', ['scripts/qa/run.mjs', ...argv, '--second']).code !== 0) fail(failMsg);
+}
 async function sql(query) {
   const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
     method: 'POST',
@@ -101,9 +121,11 @@ async function goLive() {
     .map((f) => f.trim())
     .filter((f) => f && !f.startsWith('docs/review/') && f !== 'docs/BACKLOG.md' && !f.startsWith('scripts/release/'));
   if (after.length) fail(`HEAD moved past the tested release (${after.slice(0, 5).join(', ')}${after.length > 5 ? ', …' : ''}). Ship a new test release first.`);
-  // test releases run the core checks + what changed; going live runs every check once (owner, 11 Nov)
-  say('QA robot (full run)');
-  if (run('node', ['scripts/qa/run.mjs', '--full']).code !== 0) fail('QA failed, see qa-out/report.md. Nothing went live.');
+  // test releases run the core checks + what changed; going live runs every check once (owner, 11 Nov), except the
+  // areas that already passed all their checks on this same code within 24 h (owner, 20 Nov: test only new things);
+  // the reset, sign-ins, WhatsApp number and email always run again
+  say('QA robot (full run, reusing what is already green)');
+  qa(['--full'], 'QA failed, see qa-out/report.md. Nothing went live.');
 
   if (t.group) {
     say('App update → store app (production), the same one that was tested');
@@ -166,7 +188,7 @@ async function test() {
 
   // ─── 2. QA ──────────────────────────────────────────────────────────────────
   say('QA robot');
-  if (run('node', ['scripts/qa/run.mjs']).code !== 0) fail('QA failed, see qa-out/report.md');
+  qa([], 'QA failed, see qa-out/report.md');
   stillSame('the database changes');
 
   // ─── 3. database ────────────────────────────────────────────────────────────
@@ -209,6 +231,24 @@ async function test() {
       const d = run('npx', ['supabase', 'functions', 'deploy', fn, '--project-ref', REF, '--use-api', '--yes'], { quiet: true });
       if (d.code !== 0 || !d.out.includes('Deployed Functions')) fail(`Deploying ${fn} failed:\n${d.out.slice(-800)}`);
       console.log(`  ✓ ${fn}`);
+    }
+  }
+
+  // QA ran against the server as it was; what was just deployed (database, functions) hasn't been checked live yet, so
+  // its areas are no longer "already green" for the next run or --live
+  {
+    const deployed = changed.filter((f) => f.startsWith('supabase/'));
+    if (deployed.length) {
+      const { areasFor } = await import('./qa/core.mjs');
+      const areas = areasFor(deployed);
+      const file = join(ROOT, 'qa-out', 'green.json');
+      try {
+        const s = JSON.parse(readFileSync(file, 'utf8'));
+        for (const a of areas) delete s.areas?.[a];
+        writeFileSync(file, JSON.stringify(s, null, 2) + '\n');
+      } catch {
+        // nothing saved: nothing to forget
+      }
     }
   }
 
