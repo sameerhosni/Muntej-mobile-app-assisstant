@@ -4,8 +4,8 @@
 // about the value Muntej gave you this week (value.ts) with "Show me" → the weekly receipt (screen 32).
 // On a Home screen he also gives a weekly recap (first open each Sunday) and cheers milestones (10+ follow-ups
 // handled for you, 5+ on time in a row) — each once a week.
-// His face AND colour follow that status (performance.ts): on fire = gold star eyes, good = green smile,
-// watch out = amber worried, behind = red sad, overloaded = purple dizzy, nothing = grey sleepy. Every status names
+// His ring colour AND its sign follow that status (performance.ts): on fire = gold ★, good = green ✓, watch out =
+// amber !, behind = red ↓, overloaded = purple ≡, nothing = grey –. Every status names
 // the tasks behind it and says how to cheer him up; when it changes he says so ("You turned me green! 💚").
 // Tap → the same bubble again (+ "Show me"). Long-press → hidden until the app restarts.
 // He is called Saree3 / سريع on screen; the "Ask Saree3" label next to him opens the chat.

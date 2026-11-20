@@ -1,5 +1,5 @@
 // Munti — Saree3's look: the Muntej mark (owner, 19 Nov 2026, option 2: "more formal to fit big clients"). A blue orb
-// with a white spark and no face, inside a ring. Pure SVG + React Native Animated (works in Expo Go and on web).
+// with a white lightning bolt (سريع = fast; 20 Nov: the spark looked like a star) and no face, inside a ring. Pure SVG + React Native Animated (works in Expo Go and on web).
 // `tone` is the status: the ring takes its colour AND a small sign sits on the ring (★ great, ✓ good, ! watch out,
 // ↓ behind, ≡ overloaded, – quiet), so status never rests on colour alone. brand = no status (chat, tour…).
 // Calm motion only: a slow breathing while he talks or thinks, one short glow to celebrate, dimmed while asleep.
@@ -155,9 +155,9 @@ export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, label, 
           </Defs>
           {/* the ring: status colour (thicker when there is a status, so it reads at 28 px) */}
           <Circle cx={50} cy={50} r={42} fill="none" stroke={ring} strokeWidth={tone === 'brand' ? 5 : 8} opacity={tone === 'brand' ? 0.45 : 1} />
-          {/* the orb and the Muntej spark */}
+          {/* the orb and Saree3's bolt (سريع = fast; owner, 20 Nov: the spark "seems like star", picked option 8) */}
           <Circle cx={50} cy={50} r={33} fill={`url(#${id})`} />
-          <Path d={spark(50, 50, 19)} fill={colors.onDark} />
+          <Path d={BOLT} fill={colors.onDark} stroke={colors.onDark} strokeWidth={2} strokeLinejoin="round" />
           {tone !== 'brand' && <Sign tone={tone} color={ring} />}
         </Svg>
       </Animated.View>
@@ -165,11 +165,8 @@ export function Munti({ mood: wanted = 'idle', size = 'md', settleAfter, label, 
   );
 }
 
-/** four-point spark centred on (cx, cy) */
-function spark(cx: number, cy: number, r: number) {
-  const k = r * 0.28;
-  return `M${cx} ${cy - r} L${cx + k} ${cy - k} L${cx + r} ${cy} L${cx + k} ${cy + k} L${cx} ${cy + r} L${cx - k} ${cy + k} L${cx - r} ${cy} L${cx - k} ${cy - k} Z`;
-}
+/** Saree3's lightning bolt inside the orb (r 33): a drawn shape, so it never flips in RTL or changes with the font */
+const BOLT = 'M55 30 L39 53 H50 L45 70 L62 45 H51 Z';
 
 /** the status sign on the ring (bottom end corner, so the floating button's count badge at the top never covers it):
  *  a shape for each status, so colour is never the only cue */
