@@ -543,16 +543,34 @@ async function server() {
       const optRows = (await tap(opts.id)).flatMap((m) => m.interactive?.action?.sections ?? []).flatMap((s) => s.rows);
       const cancelRow = optRows.find((r) => r.title.startsWith('🛑'));
       expect(cancelRow, `no cancel in the options: ${optRows.map((r) => r.title).join(' | ')}`);
-      const afterCancel = await tap(cancelRow.id);
-      const [{ status }] = await sql(`select status from public.tasks where id = '${late3.id}'`);
-      expect(status === 'cancelled', `the task is ${status}, not cancelled`);
-      expect(/ألغيت/.test(texts(afterCancel)) && /(4 من \d|خلصت كلها)/.test(texts(afterCancel)), `no «ألغيت» then the next card: ${texts(afterCancel).slice(-200)}`);
+      // with the login last opened in ANOTHER company (one login, two seats: reviewer, 21 Nov): it still cancels as this seat
+      const [{ user_id: bossUser }] = await sql(`select user_id from public.profiles where id = '${QA_BOSS}'`);
+      const [session] = await sql(`select account_id, updated_at from public.account_sessions where user_id = '${bossUser}'`);
+      const DEMO = 'c0000000-0000-4000-b000-000000000001';
+      const [twin] = await sql(`insert into public.profiles (account_id, full_name, role, status, user_id) values ('${DEMO}', 'QA boss other seat ${tag}', 'manager', 'active', '${bossUser}') returning id`);
+      await sql(`insert into public.account_sessions (user_id, account_id, updated_at) values ('${bossUser}', '${DEMO}', now()) on conflict (user_id) do update set account_id = excluded.account_id, updated_at = now()`);
+      try {
+        const afterCancel = await tap(cancelRow.id);
+        const [{ status }] = await sql(`select status from public.tasks where id = '${late3.id}'`);
+        expect(status === 'cancelled', `the task is ${status}, not cancelled: ${texts(afterCancel).slice(0, 160)}`);
+        expect(/ألغيت/.test(texts(afterCancel)) && /(4 من \d|خلصت كلها)/.test(texts(afterCancel)), `no «ألغيت» then the next card: ${texts(afterCancel).slice(-200)}`);
+        // «↩️ رجّعها» under the result (R160): the task is back as it was
+        const back = buttonsOf(afterCancel).find((b) => b.title.startsWith('↩️'));
+        expect(back, `no «↩️ رجّعها» after the cancel: ${buttonsOf(afterCancel).map((b) => b.title).join(' | ')}`);
+        await tap(back.id);
+        const [{ status: s2 }] = await sql(`select status from public.tasks where id = '${late3.id}'`);
+        expect(s2 === 'in_progress', `after «رجّعها» the task is ${s2}, not back in progress`);
+      } finally {
+        if (session) await sql(`update public.account_sessions set account_id = '${session.account_id}', updated_at = '${session.updated_at}' where user_id = '${bossUser}'`);
+        else await sql(`delete from public.account_sessions where user_id = '${bossUser}'`);
+        await sql(`delete from public.profiles where id = '${twin.id}'`);
+      }
       // (found by its key: the alert's text is translated, so the English title isn't in it)
       const [{ n }] = await sql(`select count(*)::int n from public.alerts where task_id = '${late2.id}' and profile_id = '${FA}' and kind = 'task_comment' and dedupe_key like 'brief:${late2.id}:%'`);
       expect(n === 1, `${n} reminders reached the doer (one expected)`);
       const again = await tap(`bc:${first.id.split(':')[1]}:1`);
       expect(!buttonsOf(again).some((b) => b.title.startsWith('🔔')), 'the card still offers a second reminder today');
-      return `${rows.length} row(s); date moved, Undo, next card; one reminder; cancelled from Options`;
+      return `${rows.length} row(s); date moved, Undo, next card; one reminder; cancelled from Options (other company open) and brought back`;
     } finally {
       await sql(`delete from public.alerts where task_id in ('${late.id}', '${late2.id}', '${late3.id}')`);
       await sql(`delete from public.tasks where id in ('${late.id}', '${late2.id}', '${late3.id}')`);

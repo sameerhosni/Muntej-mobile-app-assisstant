@@ -1131,15 +1131,19 @@ async function handle(m: WaMessage, dry = false) {
     await say(line);
   }
 
-  /** cancel (xc) or keep (xk) a task as them; an old button checks the task again and says only what really happened (R133) */
-  async function cancelOrKeep(verb: 'xc' | 'xk', taskId: string) {
-    const db = userDb(await userToken(admin, me.user_id));
+  /** cancel (xc) or keep (xk) a task as them; an old button checks the task again and says only what really happened (R133).
+   *  A cancel runs as THIS seat (cancel_task_as), never the company the login last opened in the app (reviewer, 21 Nov);
+   *  `undo` adds «↩️ رجّعها» under the result (R160: the result, an Undo, then the next card) */
+  async function cancelOrKeep(verb: 'xc' | 'xk', taskId: string, undo = false) {
     const { data: task } = await admin.from('tasks').select('title, status, translations').eq('id', taskId).maybeSingle();
     if (!task) return void (await say(ar ? 'ما لقيت هالمهمة 🤔' : 'I couldn’t find that task 🤔'));
     const title = titleIn(task as never, ar ? 'ar' : lang);
     if (task.status === 'cancelled') return void (await say(ar ? `«${title}» ملغاة من قبل 👍` : `"${title}" is already cancelled 👍`));
     if (task.status === 'done') return void (await say(ar ? `«${title}» خلصت أصلاً ✅ ما فيه شي ينلغي` : `"${title}" is already done ✅ nothing to cancel`));
-    const { data: kept, error } = await db.rpc(verb === 'xc' ? 'cancel_task' : 'keep_task', { p_task: taskId });
+    const { data: kept, error } =
+      verb === 'xc'
+        ? await admin.rpc('cancel_task_as', { p_task: taskId, p_actor: me.id })
+        : await userDb(await userToken(admin, me.user_id)).rpc('keep_task', { p_task: taskId });
     if (error) {
       console.error('whatsapp cancel ask', verb, error.message);
       return void (await say(
@@ -1147,6 +1151,11 @@ async function handle(m: WaMessage, dry = false) {
           ? ar ? 'القرار فيها لللي عطاها أو مديره 🙏' : 'Only whoever gave it (or their manager) can decide 🙏'
           : ar ? 'ما قدرت أكمّلها الحين 😕 جرّب من التطبيق' : 'I couldn’t do it right now 😕 try in the app',
       ));
+    }
+    if (verb === 'xc' && undo) {
+      return void (await waButtons(from, rtl(ar ? `تم ✕ ألغيت «${title}» ووقفت متابعتها، وبلّغته.` : `Done ✕ "${title}" is cancelled and follow-ups stopped; they're told.`), [
+        { id: `c:${await pend(admin, me.id, { brief_restore: taskId })}`, title: ar ? '↩️ رجّعها' : '↩️ Bring it back' },
+      ]));
     }
     await say(
       verb === 'xc'
@@ -1178,9 +1187,18 @@ async function handle(m: WaMessage, dry = false) {
       }
       if (action.brief_cancel) {
         // «🛑 ألغها» in a brief card's options: cancel as them, then the next card (owner, 21 Nov)
-        await cancelOrKeep('xc', action.brief_cancel as string);
+        await cancelOrKeep('xc', action.brief_cancel as string, true);
         if (next) await briefCard(next.key, next.i);
         return;
+      }
+      if (action.brief_restore) {
+        // «↩️ رجّعها» under a cancel from a brief card: back as it was, as this seat
+        const { data: back, error } = await admin.rpc('restore_task_as', { p_task: action.brief_restore, p_actor: me.id });
+        if (error) {
+          console.error('whatsapp brief restore', error.message);
+          return void (await say(/Only the person/.test(error.message) ? (ar ? 'ما يرجّعها إلا اللي عطاها أو مديره 🙏' : 'Only whoever gave it (or their manager) can bring it back 🙏') : ar ? 'ما قدرت أرجّعها الحين 😕 جرّب من التطبيق' : 'I couldn’t bring it back right now 😕 try in the app'));
+        }
+        return void (await say(back === 'done' ? (ar ? 'خلصت أصلاً ✅' : 'It’s already done ✅') : ar ? 'رجّعتها ↩️ ورجعت متابعتها' : 'Brought it back ↩️ and its follow-ups are on again'));
       }
       if (action.brief_options) {
         const o = action.brief_options as { key: string; i: number; title: string; task_id: string };
