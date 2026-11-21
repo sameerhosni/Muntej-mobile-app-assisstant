@@ -1131,6 +1131,32 @@ async function handle(m: WaMessage, dry = false) {
     await say(line);
   }
 
+  /** cancel (xc) or keep (xk) a task as them; an old button checks the task again and says only what really happened (R133) */
+  async function cancelOrKeep(verb: 'xc' | 'xk', taskId: string) {
+    const db = userDb(await userToken(admin, me.user_id));
+    const { data: task } = await admin.from('tasks').select('title, status, translations').eq('id', taskId).maybeSingle();
+    if (!task) return void (await say(ar ? 'ما لقيت هالمهمة 🤔' : 'I couldn’t find that task 🤔'));
+    const title = titleIn(task as never, ar ? 'ar' : lang);
+    if (task.status === 'cancelled') return void (await say(ar ? `«${title}» ملغاة من قبل 👍` : `"${title}" is already cancelled 👍`));
+    if (task.status === 'done') return void (await say(ar ? `«${title}» خلصت أصلاً ✅ ما فيه شي ينلغي` : `"${title}" is already done ✅ nothing to cancel`));
+    const { data: kept, error } = await db.rpc(verb === 'xc' ? 'cancel_task' : 'keep_task', { p_task: taskId });
+    if (error) {
+      console.error('whatsapp cancel ask', verb, error.message);
+      return void (await say(
+        /Only the person/.test(error.message)
+          ? ar ? 'القرار فيها لللي عطاها أو مديره 🙏' : 'Only whoever gave it (or their manager) can decide 🙏'
+          : ar ? 'ما قدرت أكمّلها الحين 😕 جرّب من التطبيق' : 'I couldn’t do it right now 😕 try in the app',
+      ));
+    }
+    await say(
+      verb === 'xc'
+        ? ar ? `تم ✕ ألغيت «${title}» ووقفت متابعتها، وبلّغته. تقدر ترجّعها من التطبيق.` : `Done ✕ "${title}" is cancelled and follow-ups stopped; they're told. You can bring it back in the app.`
+        : Number(kept ?? 0) > 0
+          ? ar ? `تمام 👍 «${title}» باقية، وقلت له يكمّل عليها.` : `OK 👍 "${title}" stays; I told them to carry on.`
+          : ar ? `هالطلب انحسم من قبل 👍 «${title}» باقية.` : `That request was already settled 👍 "${title}" stays.`,
+    );
+  }
+
   async function onTap(id: string) {
     const [verb, ...rest] = id.split(':');
     if (verb === 'x') return void (await say(ar ? 'تمام 👍 ما غيّرت شي' : 'OK 👍 nothing changed'));
@@ -1150,6 +1176,12 @@ async function handle(m: WaMessage, dry = false) {
         if (next) await briefCard(next.key, next.i);
         return;
       }
+      if (action.brief_cancel) {
+        // «🛑 ألغها» in a brief card's options: cancel as them, then the next card (owner, 21 Nov)
+        await cancelOrKeep('xc', action.brief_cancel as string);
+        if (next) await briefCard(next.key, next.i);
+        return;
+      }
       if (action.brief_options) {
         const o = action.brief_options as { key: string; i: number; title: string; task_id: string };
         // pinned to this task (never another with a similar title), then the next card (reviewer, 20 Nov)
@@ -1158,6 +1190,7 @@ async function handle(m: WaMessage, dry = false) {
           { id: await ask(ar ? `غيّر موعد «${o.title}»` : `Change the due date of "${o.title}"`), title: ar ? '📅 موعد ثاني' : '📅 Another date' },
           { id: await ask(ar ? `حوّل «${o.title}» لشخص ثاني` : `Give "${o.title}" to someone else`), title: ar ? '👤 لشخص ثاني' : '👤 Someone else' },
           { id: await ask(ar ? `«${o.title}» خلصت` : `"${o.title}" is done`), title: ar ? '✅ خلصت' : '✅ It’s done' },
+          { id: `c:${await pend(admin, me.id, { brief_cancel: o.task_id, next: { key: o.key, i: o.i + 1 } })}`, title: ar ? '🛑 ألغها' : '🛑 Cancel it' },
           { id: `bc:${o.key}:${o.i + 1}`, title: ar ? '➡️ التالية' : '➡️ Next one' },
         ]));
       }
@@ -1212,30 +1245,7 @@ async function handle(m: WaMessage, dry = false) {
     if (verb === 'dd' && rest[0] && rest[1]) return void (await setAnswer(rest[0], 'due', { due: new Date(Number(rest[1]) * 1000).toISOString() }));
     if (verb === 'h') return void (await checkin(rest[0], rest[1]));
     // [ألغها] / [خلّها] under «X يقول … ما عاد لها داعي — تلغيها؟», as them (owner, 10 Nov; reviewer: settled right there)
-    if ((verb === 'xc' || verb === 'xk') && rest[0]) {
-      const db = userDb(await userToken(admin, me.user_id));
-      const { data: task } = await admin.from('tasks').select('title, status').eq('id', rest[0]).maybeSingle();
-      if (!task) return void (await say(ar ? 'ما لقيت هالمهمة 🤔' : 'I couldn’t find that task 🤔'));
-      // an old button: check the task again, and say only what really happened (reviewer, 10 Nov, R133)
-      if (task.status === 'cancelled') return void (await say(ar ? `«${task.title}» ملغاة من قبل 👍` : `"${task.title}" is already cancelled 👍`));
-      if (task.status === 'done') return void (await say(ar ? `«${task.title}» خلصت أصلاً ✅ ما فيه شي ينلغي` : `"${task.title}" is already done ✅ nothing to cancel`));
-      const { data: kept, error } = await db.rpc(verb === 'xc' ? 'cancel_task' : 'keep_task', { p_task: rest[0] });
-      if (error) {
-        console.error('whatsapp cancel ask', verb, error.message);
-        return void (await say(
-          /Only the person/.test(error.message)
-            ? ar ? 'القرار فيها لللي عطاها أو مديره 🙏' : 'Only whoever gave it (or their manager) can decide 🙏'
-            : ar ? 'ما قدرت أكمّلها الحين 😕 جرّب من التطبيق' : 'I couldn’t do it right now 😕 try in the app',
-        ));
-      }
-      return void (await say(
-        verb === 'xc'
-          ? ar ? `تم ✕ ألغيت «${task.title}» ووقفت متابعتها، وبلّغته. تقدر ترجّعها من التطبيق.` : `Done ✕ "${task.title}" is cancelled and follow-ups stopped; they're told. You can bring it back in the app.`
-          : Number(kept ?? 0) > 0
-            ? ar ? `تمام 👍 «${task.title}» باقية، وقلت له يكمّل عليها.` : `OK 👍 "${task.title}" stays; I told them to carry on.`
-            : ar ? `هالطلب انحسم من قبل 👍 «${task.title}» باقية.` : `That request was already settled 👍 "${task.title}" stays.`,
-      ));
-    }
+    if ((verb === 'xc' || verb === 'xk') && rest[0]) return void (await cancelOrKeep(verb, rest[0]));
     if (verb === 'ok' || verb === 'no') return void (await suggestion(verb, rest[0], Number(rest[1])));
     // a found task's other choices (owner, 11 Nov: "I need to have multiple actions on it")
     if (rest[0] && ['tg', 'tw', 'tn', 'tx', 'td', 'tt', 'tu', 'tv', 'tf', 'tz'].includes(verb)) {
