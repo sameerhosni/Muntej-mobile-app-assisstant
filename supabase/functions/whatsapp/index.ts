@@ -35,7 +35,7 @@ import {
   type WaButton,
   type WaRow,
 } from '../_shared/wa.ts';
-import { choicesOnFor, needsYouList, waitingLine, foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolButtons, toolCardsFor, toolListButtons, toolListIntro, toolListRows, waProfileFor, whenText, type Pick, type WaCard } from '../_shared/wa-actions.ts';
+import { choicesOnFor, needsYouList, waitingLine, foundItemIds, lateTeamLines, MAX_LIST, needsYouCards, parsePick, sendCards, toolButtons, toolCardsFor, toolListButtons, toolListIntro, toolListRows, waProfileFor, whenText, shortTitle, type Pick, type WaCard } from '../_shared/wa-actions.ts';
 import { quickDates, readWhen } from '../_shared/when.ts';
 
 /** "what is it?" about the last thing Muntej sent (whole message; Arabic without \b, R112) */
@@ -283,6 +283,22 @@ async function signedByMeta(raw: string, header: string | null): Promise<boolean
 
 type Me = { id: string; user_id: string; account_id: string; locale: string | null; full_name: string };
 type ChatMsg = { id: string; content: string; action: string; payload: Record<string, unknown> | null };
+
+/** one row of Saree3's team brief (muntej-chat buildBrief): the server's own words and numbers */
+type BriefRowWa = {
+  key: string;
+  status: string;
+  person_name: string | null;
+  task_id: string | null;
+  task_title: string | null;
+  metric: string;
+  auto: { kind: 'reminded' | 'checked_in'; at: string; now: boolean } | null;
+  action: { kind: 'owner' | 'due'; task_id: string; owner_id: string | null; to_name: string | null; due_at: string | null } | null;
+  manage?: boolean;
+};
+/** the rows that get a card: something to decide on */
+const BRIEF_PROBLEMS = ['late', 'blocked', 'overloaded', 'at_risk', 'unassigned'];
+const briefItem = (r: BriefRowWa) => ({ key: r.key, kind: r.action!.kind, task_id: r.action!.task_id, owner_id: r.action!.owner_id, due_at: r.action!.due_at });
 
 /** a thanks or a one-word OK: answered at once, so no steps */
 const SAYS_THANKS = /^(تم|تمام|شكرا|شكراً|مشكور|يعطيك العافية|اوكي|أوكي|ok|okay|thanks|thank you|👍|🙏|✅)[\s!.؟?]*$/i;
@@ -722,29 +738,33 @@ async function handle(m: WaMessage, dry = false) {
       );
       no();
     } else if (p.brief) {
-      const rows = (p.brief.rows ?? []) as any[];
-      lines.push('', ...rows.slice(0, 10).map((r) => `• ${[r.person_name, r.task_title && `«${r.task_title}»`, r.metric].filter(Boolean).join(' · ')}${r.note ? `\n   ${r.note}` : ''}`));
-      const fixes = rows.filter((r) => r.action);
-      // what "Do all" will do, one line per fix
-      if (fixes.length)
-        lines.push(
-          '',
-          ar ? '⚡ اقتراحي:' : '⚡ My fixes:',
-          ...fixes.map((r) =>
-            r.action.kind === 'owner'
-              ? `• «${r.task_title}» ← ${ar ? 'حوّلها لـ' : 'move to'} ${r.action.to_name ?? '…'}`
-              : `• «${r.task_title}» ← ${ar ? 'موعدها' : 'due'} ${r.action.due_at ? whenText(r.action.due_at, ar) : '…'}`,
-          ),
-        );
-      if (fixes.length)
-        await act(ar ? `⚡ سوّها كلها (${fixes.length})` : `⚡ Do all (${fixes.length})`, {
-          chat: {
-            apply_brief: {
-              source_id: bot.id,
-              items: fixes.map((r) => ({ key: r.key, kind: r.action.kind, task_id: r.action.task_id, owner_id: r.action.owner_id, due_at: r.action.due_at })),
-            },
-          },
-        });
+      // owner, 21 Nov: "I didn't understand anything and why only one action" (option 1): one short line per task, built
+      // from the data (the server's numbers, no model words), what I already did, then «📋 شوف المهام»: tap one and its
+      // card comes with its own buttons, then the next one (R160)
+      const rows = (p.brief.rows ?? []) as BriefRowWa[];
+      const problems = rows.filter((r) => r.task_id && r.task_title && BRIEF_PROBLEMS.includes(r.status)).slice(0, 9);
+      const fine = rows.filter((r) => !BRIEF_PROBLEMS.includes(r.status)).length;
+      lines.push('', ...problems.map((r) => `• ${r.task_title} · ${[r.person_name ?? (ar ? 'ما لها أحد' : 'nobody'), r.metric].filter(Boolean).join(' · ')}`));
+      if (fine) lines.push(ar ? `✅ ${fine} ماشين تمام` : `✅ ${fine} on track`);
+      const reminded = problems.filter((r) => r.auto?.now).length;
+      if (reminded) lines.push('', ar ? `🔔 ذكّرت ${reminded} منهم الحين، مرة باليوم بس` : `🔔 I reminded ${reminded} of them just now (once a day at most)`);
+      if (problems.length) {
+        lines.push('', ar ? '👇 اضغط «شوف المهام»: كل مهمة بتفاصيلها وأزرارها، وبعدها اللي بعدها.' : '👇 Tap «See the tasks»: each one with its details and buttons, then the next.');
+        const key = await pend(admin, me.id, { brief_cards: { source_id: bot.id, rows: problems } });
+        const rowsWa: WaRow[] = problems.map((r, i) => ({
+          id: `bc:${key}:${i}`,
+          title: shortTitle({ title: r.task_title! }, 24),
+          description: [r.person_name, r.metric].filter(Boolean).join(' · ').slice(0, 72) || undefined,
+        }));
+        const fixes = problems.filter((r) => r.action);
+        if (fixes.length > 1)
+          rowsWa.push({
+            id: `c:${await pend(admin, me.id, { chat: { apply_brief: { source_id: bot.id, items: fixes.map(briefItem) } } })}`,
+            title: ar ? `⚡ اقتراحاتي كلها (${fixes.length})` : `⚡ All my fixes (${fixes.length})`,
+            description: ar ? 'كل التأجيل والتحويل اللي في البطاقات، مرة وحدة' : 'Every new date and move from the cards, at once',
+          });
+        list = { button: ar ? `📋 شوف المهام (${problems.length})` : `📋 See the tasks (${problems.length})`, rows: rowsWa };
+      }
     } else if (p.bulk_done?.log_id || p.bulk_done?.log_ids?.length) {
       await act(ar ? '↩️ تراجع' : '↩️ Undo', p.bulk_done.log_ids?.length ? { chat: { undo_log_ids: p.bulk_done.log_ids } } : { chat: { undo_log_id: p.bulk_done.log_id } });
     } else if (Array.isArray(p.created_list) && p.created_list.length) {
@@ -766,6 +786,89 @@ async function handle(m: WaMessage, dry = false) {
     else await waText(from, body);
   }
 
+  /** one task of the brief: «2 من 4», what it is, what I did, my suggestion, and its own 3 buttons */
+  async function briefCard(key: string, i: number) {
+    const b = (await pending(admin, me.id, key))?.brief_cards as { source_id: string; rows: BriefRowWa[] } | undefined;
+    if (!b) return void (await say(ar ? 'هالقائمة قديمة شوي ⌛ اسألني «وش المتأخر؟» من جديد' : 'That list is a bit old ⌛ Ask me "what’s late?" again'));
+    const total = b.rows.length;
+    if (i >= total) return void (await say(ar ? `خلصت كلها ✅ (${total} من ${total}). أنا أتابع الباقي.` : `That’s all of them ✅ (${total} of ${total}). I’ll keep following up.`));
+    const r = b.rows[i];
+    // the task as it is NOW: an old card never acts on a task that moved on (R133)
+    const { data: t } = await admin.from('tasks').select('title, status, due_at, owner_id').eq('id', r.task_id!).maybeSingle();
+    const open = !!t && ['assigned', 'in_progress', 'blocked', 'returned', 'submitted'].includes(t.status as string);
+    const step = ar ? `${i + 1} من ${total}` : `${i + 1} of ${total}`;
+    const nextBtn: WaButton = { id: `bc:${key}:${i + 1}`, title: i + 1 < total ? (ar ? `➡️ التالية` : '➡️ Next one') : ar ? '✅ خلصت' : '✅ Finished' };
+    if (!t || !open) {
+      const why = !t ? (ar ? 'ما عادت موجودة' : 'is gone') : t.status === 'done' ? (ar ? 'خلصت ✅' : 'is done ✅') : ar ? 'ملغاة' : 'is cancelled';
+      return void (await waButtons(from, rtl(`${step}\n📝 *${t?.title ?? r.task_title}* ${why}`), [nextBtn]));
+    }
+    const lines = [
+      step,
+      `📝 *${t.title}*`,
+      `👤 ${r.person_name ?? (ar ? 'ما لها أحد' : 'Nobody yet')}${r.metric ? ` · ${r.metric}` : ''}`,
+      ...(t.due_at ? [`⏰ ${ar ? 'موعدها' : 'Due'} ${whenText(t.due_at as string, ar)}`] : []),
+      ...(r.auto
+        ? [`🔔 ${r.auto.kind === 'checked_in' ? (ar ? 'سألته وش موقفها' : 'I asked what’s blocking it') : ar ? 'ذكّرته' : 'I reminded them'} ${whenText(r.auto.at, ar).split(' · ')[1] ?? ''}`]
+        : []),
+      ...(r.action
+        ? [
+            `💡 ${ar ? 'اقتراحي' : 'My suggestion'}: ${
+              r.action.kind === 'owner'
+                ? `${ar ? 'حوّلها لـ' : 'give it to '}${r.action.to_name ?? '…'}${ar ? '، وقته فاضي' : ', who has time'}`
+                : `${ar ? 'موعد جديد' : 'a new date,'} ${r.action.due_at ? whenText(r.action.due_at, ar) : '…'}`
+            }`,
+          ]
+        : []),
+    ];
+    const buttons: WaButton[] = [];
+    const after = { key, i: i + 1 };
+    if (r.action && r.manage) {
+      const day = r.action.due_at
+        ? new Intl.DateTimeFormat(ar ? 'ar-SA-u-ca-gregory' : 'en-GB', { weekday: 'long', timeZone: 'Asia/Riyadh' }).format(new Date(r.action.due_at))
+        : '';
+      const label = r.action.kind === 'owner' ? `👤 ${ar ? 'لـ' : 'To '}${r.action.to_name ?? '…'}` : ar ? `⏰ أجّلها ل${day.replace(/^ال/, 'ل')}` : `⏰ Move to ${day}`; // «للاثنين»
+      buttons.push({ id: `c:${await pend(admin, me.id, { chat: { apply_brief: { source_id: b.source_id, items: [briefItem(r)] } }, next: after })}`, title: label.slice(0, 20) });
+    }
+    // remind only when I haven't today (a second reminder a minute later is noise)
+    if (r.manage && t.owner_id && !r.auto) buttons.push({ id: `c:${await pend(admin, me.id, { remind: { task_id: r.task_id }, next: after })}`, title: ar ? '🔔 ذكّره الحين' : '🔔 Remind now' });
+    if (r.manage) buttons.push({ id: `c:${await pend(admin, me.id, { brief_options: { key, i, title: t.title } })}`, title: ar ? '⋯ خيارات' : '⋯ Options' });
+    if (buttons.length < 3) buttons.push(nextBtn);
+    await waButtons(from, rtl(lines.join('\n')), buttons.slice(0, 3));
+  }
+
+  /** «🔔 ذكّره الحين» on a brief card: the same reminder the brief sends, once a day per task, logged */
+  async function remindFromBrief(a: { task_id: string }) {
+    const { data: t } = await admin.from('tasks').select('id, title, owner_id, assigner_id, status').eq('id', a.task_id).maybeSingle();
+    if (!t?.owner_id || !['assigned', 'in_progress', 'blocked', 'returned'].includes(t.status as string))
+      return void (await say(ar ? 'هالمهمة ما تحتاج تذكير الحين 👍' : 'That task doesn’t need a reminder now 👍'));
+    // (the button is only made on rows the reader manages: the brief checked that, as them)
+    const dayKey = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+    const { error: dup } = await admin.from('autopilot_marks').insert({ key: `brief:${t.id}:${dayKey}`, task_id: t.id, profile_id: t.owner_id });
+    if (dup) return void (await say(ar ? `ذكّرته اليوم من قبل 👍 أكلّمه مرة ثانية بكرة لو ما رد.` : `I already reminded them today 👍 I’ll try again tomorrow if they don’t answer.`));
+    const { data: mine } = await admin.from('profiles').select('full_name, full_name_ar').eq('id', me.id).maybeSingle();
+    const meName = ((ar && mine?.full_name_ar) || mine?.full_name || '').split(' ')[0];
+    await admin.from('followups').insert({
+      task_id: t.id,
+      recipient_id: t.owner_id,
+      scheduled_at: new Date().toISOString(),
+      channel: 'push',
+      status: 'scheduled',
+      message: `${(mine?.full_name ?? '').split(' ')[0]} asked about "${t.title}". Where is it now? If you need more time or help, reply and I'll sort it.`,
+      message_ar: `${(mine?.full_name_ar || mine?.full_name || '').split(' ')[0]} سأل عن «${t.title}». وين وصلت؟ لو تحتاج وقت أو مساعدة رد علي وأنا أتصرف.`,
+    });
+    await admin.from('activity_log').insert({
+      actor_type: 'muntej',
+      subject_id: t.owner_id,
+      task_id: t.id,
+      action: 'reminded',
+      summary: `Reminded the owner about "${t.title}" (${mine?.full_name ?? ''} tapped Remind on WhatsApp)`,
+      summary_ar: `ذكّر صاحب «${t.title}» (${meName} ضغط ذكّره في الواتساب)`,
+      reason: 'Remind button on the team brief',
+      undoable: false,
+    });
+    await say(ar ? `🔔 ذكّرته الحين بـ«${t.title}»، وأبلغك لما يرد.` : `🔔 Reminded them about "${t.title}" just now; I’ll tell you when they answer.`);
+  }
+
   async function onTap(id: string) {
     const [verb, ...rest] = id.split(':');
     if (verb === 'x') return void (await say(ar ? 'تمام 👍 ما غيّرت شي' : 'OK 👍 nothing changed'));
@@ -773,7 +876,28 @@ async function handle(m: WaMessage, dry = false) {
       const action = await pending(admin, me.id, rest[0]);
       if (!action) return void (await say(ar ? 'هالزر قديم شوي ⌛ قل لي وش تبي من جديد' : 'That button is a bit old ⌛ Tell me again what you need'));
       await admin.from('wa_pending').delete().eq('key', rest[0]);
-      if (action.chat) return void (await chat(action.chat as Record<string, unknown>));
+      // a button on a brief card: do it, say what happened (with Undo), then the next card (owner, 21 Nov)
+      const next = action.next as { key: string; i: number } | undefined;
+      if (action.chat) {
+        await chat(action.chat as Record<string, unknown>);
+        if (next) await briefCard(next.key, next.i);
+        return;
+      }
+      if (action.remind) {
+        await remindFromBrief(action.remind as { task_id: string });
+        if (next) await briefCard(next.key, next.i);
+        return;
+      }
+      if (action.brief_options) {
+        const o = action.brief_options as { key: string; i: number; title: string };
+        const ask = async (msg: string) => `c:${await pend(admin, me.id, { chat: { message: msg } })}`;
+        return void (await waList(from, rtl(`📝 *${o.title}*\n${ar ? 'وش تبي تسوي فيها؟' : 'What should I do with it?'}`), ar ? 'اختر' : 'Choose', [
+          { id: await ask(ar ? `غيّر موعد «${o.title}»` : `Change the due date of "${o.title}"`), title: ar ? '📅 موعد ثاني' : '📅 Another date' },
+          { id: await ask(ar ? `حوّل «${o.title}» لشخص ثاني` : `Give "${o.title}" to someone else`), title: ar ? '👤 لشخص ثاني' : '👤 Someone else' },
+          { id: await ask(ar ? `«${o.title}» خلصت` : `"${o.title}" is done`), title: ar ? '✅ خلصت' : '✅ It’s done' },
+          { id: `bc:${o.key}:${o.i + 1}`, title: ar ? '➡️ التالية' : '➡️ Next one' },
+        ]));
+      }
       if (action.team_apply) {
         // confirm a team drawn from the chat, as them (same as Confirm on Review your team)
         const token = await userToken(admin, me.user_id);
@@ -812,6 +936,8 @@ async function handle(m: WaMessage, dry = false) {
       await admin.from('wa_pending').upsert({ key: `cm:${me.id}`, profile_id: me.id, body: { task_id: rest[0] }, created_at: new Date().toISOString() });
       return void (await say(ar ? 'اكتب ردك ✍️ أو سجّله صوت، وأوصله له على طول' : 'Type your answer ✍️ or say it, and I’ll pass it on right away'));
     }
+    // a task tapped in «📋 شوف المهام» under Saree3's team brief (owner, 21 Nov, option 1)
+    if (verb === 'bc' && rest[0]) return void (await briefCard(rest[0], Number(rest[1] ?? 0)));
     // a task tapped in the tools list, or «شوف الباقي» (owner, 10 Nov, option 2)
     if (verb === 'tc' && rest[0]) return void (await toolRow(rest[0], Number(rest[1] ?? 0)));
     if (verb === 'tl') return void (await toolPage(Number(rest[0] ?? 0)));

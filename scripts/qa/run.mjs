@@ -487,6 +487,37 @@ async function server() {
       expect(need.test(texts(msgs)), `unexpected reply: ${texts(msgs).slice(0, 200)}`);
       return `${msgs.length} message(s)`;
     });
+  // owner, 21 Nov, on «وش المتأخر» in WhatsApp: "I didn't understand anything and why only one action" (option 1, R160):
+  // the lines come from the data (Arabic, «متأخرة N»; no model English), «📋 شوف المهام» lists the tasks, a tap gives
+  // that task's card «1 من N» with its own buttons, and the walk goes on to the next one
+  await check('whatsapp', 'Late tasks on WhatsApp: Arabic lines from the data, a list, a card per task with its own buttons, then the next', async () => {
+    const tag = Date.now().toString(36);
+    const FA = 'a0000000-0000-4000-b000-000000000011';
+    const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief late ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '5 days') returning id`);
+    const tap = async (id) => (await fn('whatsapp', { simulate: { from: QA_PHONE, tap: id } }, null, { 'x-cron-secret': secret })).sent ?? [];
+    try {
+      const msgs = await wa('وش المتأخر عند الفريق؟');
+      const all = texts(msgs);
+      expect(!/\bdays? late\b|\bon track\b|\boverloaded\b|\bblocked\b/i.test(all), `English inside the Arabic answer: ${all.slice(0, 200)}`);
+      const list = msgs.find((m) => m.interactive?.type === 'list');
+      expect(list, `no «شوف المهام» list: ${all.slice(0, 200)}`);
+      expect(/متأخرة/.test(list.interactive.body.text), `no «متأخرة …» on the lines: ${list.interactive.body.text.slice(0, 200)}`);
+      const rows = list.interactive.action.sections.flatMap((s) => s.rows);
+      expect(rows.length <= 10 && rows.every((r) => r.title.length <= 24), `list too long or a row over 24: ${rows.map((r) => r.title).join(' | ')}`);
+      const first = rows.find((r) => r.id.startsWith('bc:'));
+      expect(first, 'no task rows in the list');
+      const card = (await tap(first.id)).find((m) => m.interactive?.type === 'button');
+      const body = card?.interactive.body.text ?? '';
+      const btns = card?.interactive.action.buttons ?? [];
+      expect(/1 من \d/.test(body), `the card has no «1 من N»: ${body.slice(0, 160)}`);
+      expect(btns.length >= 2 && btns.every((b) => b.reply.title.length <= 20) && new Set(btns.map((b) => b.reply.id)).size === btns.length, `card buttons: ${btns.map((b) => b.reply.title).join(' | ')}`);
+      const next = await tap(first.id.replace(/:\d+$/, ':1'));
+      expect(next.length, 'no next card after the first');
+      return `${rows.length} row(s); card «${btns.map((b) => b.reply.title).join(' · ')}»; next ok`;
+    } finally {
+      await sql(`delete from public.tasks where id = '${late.id}'`);
+    }
+  });
   await check('whatsapp', 'Sign in with WhatsApp (key flow)', async () => {
     const s = await fn('phone-auth', { action: 'wa_start' });
     const before = await fn('phone-auth', { action: 'wa_poll', token: s.nonce });

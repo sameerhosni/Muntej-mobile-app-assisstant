@@ -1923,6 +1923,24 @@ serve(async (req) => {
       return mine.filter(late).sort((a, b) => Date.parse(a.due_at!) - Date.parse(b.due_at!))[0] ?? mine.find((t) => t.status === 'blocked');
     };
 
+    // the number on each row comes from the data, in the reader's language (owner, 21 Nov: «5 days late» inside Arabic,
+    // "I didn't understand anything"; R160): never the model's words
+    const arDays = (d: number) => (d === 1 ? 'يوم' : d === 2 ? 'يومين' : d <= 10 ? `${d} أيام` : `${d} يوم`);
+    const metricOf = (status: string, t: TaskRow | null, pid: string | null, model: string) => {
+      if (t?.due_at && late(t) && ['late', 'at_risk', 'blocked'].includes(status)) {
+        const d = Math.max(1, Math.floor((now.getTime() - Date.parse(t.due_at)) / DAY));
+        return ar ? `متأخرة ${arDays(d)}` : `${d} day${d === 1 ? '' : 's'} late`;
+      }
+      if (status === 'blocked') return ar ? 'موقوفة' : 'Blocked';
+      if (status === 'overloaded' && pid) {
+        const cap = Number(byId.get(pid)?.weekly_capacity_hours ?? 40);
+        const h = Math.round(queueHoursOf(pid));
+        return ar ? `عليه ${h} ساعة من ${cap}` : `${h}h of ${cap}h`;
+      }
+      if (status === 'unassigned') return ar ? 'ما لها أحد' : 'Nobody on it';
+      // anything else (on track, a star): the model's words only when they're in the reader's language
+      return ar && /[A-Za-z]{2,}/.test(model) ? '' : model;
+    };
     const rows: BriefOut['rows'] = [];
     const used = new Set<string>();
     for (const r of raw.rows.slice(0, 6)) {
@@ -1942,7 +1960,7 @@ serve(async (req) => {
         person_name: fn(pid),
         task_id: task?.id ?? null,
         task_title: task?.title ?? null,
-        metric: r.metric,
+        metric: metricOf(r.status, task, pid, r.metric),
         note,
         auto: null,
         action: null,
@@ -1966,6 +1984,8 @@ serve(async (req) => {
     for (const row of rows) {
       const t = row.task_id ? taskById.get(row.task_id)! : null;
       if (!t || t.owner_id === profileId || !canManage(t)) continue;
+      // WhatsApp offers «remind» and the fix only on rows the reader may act on
+      row.manage = true;
       if (!['late', 'blocked', 'overloaded', 'at_risk', 'unassigned'].includes(row.status)) continue;
 
       // the safe part, by Muntej itself
@@ -2542,6 +2562,8 @@ type BriefOut = {
     /** what Muntej did by itself (now = in this answer, else earlier today) */
     auto: { kind: 'reminded' | 'checked_in'; at: string; now: boolean } | null;
     action: BriefAction | null;
+    /** the reader manages this task (may remind / move it) */
+    manage?: boolean;
   }[];
 };
 type BriefApplyItem = { key: string; kind: 'owner' | 'due'; task_id: string; owner_id?: string | null; due_at?: string | null };
