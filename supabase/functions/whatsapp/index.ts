@@ -709,6 +709,8 @@ async function handle(m: WaMessage, dry = false) {
     const p = (bot.payload ?? {}) as Record<string, any>;
     const lines: string[] = [bot.content];
     const buttons: WaButton[] = [];
+    // a team brief: its first task card follows the message (owner, 21 Nov)
+    let firstCard: string | null = null;
     let list: { button: string; rows: WaRow[] } | null = null;
     const act = async (title: string, body: Record<string, unknown>) => buttons.push({ id: `c:${await pend(admin, me.id, body)}`, title });
     const no = () => buttons.push({ id: 'x:', title: ar ? '✖️ لا، خلّها' : '✖️ No, leave it' });
@@ -782,6 +784,7 @@ async function handle(m: WaMessage, dry = false) {
       const b = await briefList((p.brief.rows ?? []) as BriefRowWa[], bot.id);
       lines.push(...b.lines);
       if (b.list) list = b.list;
+      firstCard = b.key;
     } else if (p.bulk_done?.log_id || p.bulk_done?.log_ids?.length) {
       await act(ar ? '↩️ تراجع' : '↩️ Undo', p.bulk_done.log_ids?.length ? { chat: { undo_log_ids: p.bulk_done.log_ids } } : { chat: { undo_log_id: p.bulk_done.log_id } });
     } else if (Array.isArray(p.created_list) && p.created_list.length) {
@@ -801,6 +804,7 @@ async function handle(m: WaMessage, dry = false) {
     if (list) await waList(from, body, list.button, list.rows);
     else if (buttons.length) await waButtons(from, body, buttons);
     else await waText(from, body);
+    if (firstCard) await briefCard(firstCard, 0);
   }
 
   /** «مهمة وحدة / مهمتين / 3 مهام / 11 مهمة» and the like (R55) */
@@ -814,28 +818,37 @@ async function handle(m: WaMessage, dry = false) {
   }
 
   /** the brief's lines (one per task, the server's words) and «📋 شوف المهام»: shared by Saree3's answer and «المتأخر» */
-  async function briefList(rows: BriefRowWa[], sourceId: string): Promise<{ lines: string[]; list: { button: string; rows: WaRow[] } | null }> {
+  async function briefList(rows: BriefRowWa[], sourceId: string): Promise<{ lines: string[]; list: { button: string; rows: WaRow[] } | null; key: string | null }> {
     const withTask = rows.filter((r) => r.task_id && r.task_title && BRIEF_PROBLEMS.includes(r.status));
     const problems = withTask.slice(0, 9);
     // a person with no task to point at (overloaded, blocked): a line, no card (reviewer, 20 Nov)
     const peopleOnly = rows.filter((r) => !r.task_id && r.person_name && BRIEF_PROBLEMS.includes(r.status));
     const fine = rows.filter((r) => !BRIEF_PROBLEMS.includes(r.status)).length;
-    const line = (r: BriefRowWa) =>
-      ar
-        ? `• ${quoted(shortTitle({ title: r.task_title! }, 40))} عند ${r.person_name ?? 'ما أحد'}${r.metric ? `، ${r.metric}` : ''}`
-        : `• ${quoted(shortTitle({ title: r.task_title! }, 40))} with ${r.person_name ?? 'nobody'}${r.metric ? `, ${r.metric}` : ''}`;
-    const lines = ['', ...problems.map(line), ...peopleOnly.map((r) => `• ${r.person_name}${r.metric ? (ar ? `، ${r.metric}` : `, ${r.metric}`) : ''}`)];
+    // one line per PERSON, not per task: the tasks themselves are in the cards and the list, never twice (owner, 21 Nov:
+    // "Duplicate the view with no actions")
+    const byPerson = new Map<string, number>();
+    for (const r of withTask) byPerson.set(r.person_name ?? (ar ? 'ما لها أحد' : 'nobody'), (byPerson.get(r.person_name ?? (ar ? 'ما لها أحد' : 'nobody')) ?? 0) + 1);
+    const lines = [
+      '',
+      ...[...byPerson].sort((a, b) => b[1] - a[1]).map(([who, n]) => (ar ? `• ${who}: ${arCountOf(n, 'مهمة وحدة', 'مهمتين', 'مهام', 'مهمة')}` : `• ${who}: ${n}`)),
+      ...peopleOnly.map((r) => `• ${r.person_name}${r.metric ? (ar ? `، ${r.metric}` : `, ${r.metric}`) : ''}`),
+    ];
     if (withTask.length > problems.length) {
       const more = withTask.length - problems.length;
-      lines.push(ar ? `+${arCountOf(more, 'وحدة ثانية', 'ثنتين ثانيات', 'غيرها', 'غيرها')} في منتج ← المهام ← متأخرة` : `+${more} more in Muntej → Tasks → Late`);
+      lines.push(ar ? `(أول ${problems.length} هنا، و${arCountOf(more, 'وحدة ثانية', 'ثنتين ثانيات', 'غيرها', 'غيرها')} في منتج ← المهام ← متأخرة)` : `(the first ${problems.length} here; ${more} more in Muntej → Tasks → Late)`);
     }
     if (fine) lines.push(ar ? `✅ ${arCountOf(fine, 'واحد ماشي تمام', 'اثنين ماشين تمام', 'ماشين تمام', 'ماشين تمام')}` : `✅ ${fine} on track`);
     const reminded = problems.filter((r) => r.auto?.now).length;
     const earlier = problems.filter((r) => r.auto && !r.auto.now).length;
     if (reminded) lines.push('', ar ? `🔔 ذكّرت ${arCountOf(reminded, 'واحد', 'اثنين', 'منهم', 'منهم')} الحين، مرة باليوم بس` : `🔔 I reminded ${reminded} of them just now (once a day at most)`);
     else if (earlier) lines.push('', ar ? `🔔 ذكّرت ${arCountOf(earlier, 'واحد', 'اثنين', 'منهم', 'منهم')} اليوم` : `🔔 I already reminded ${earlier} of them today`);
-    if (!problems.length) return { lines, list: null };
-    lines.push('', ar ? '👇 اضغط «شوف المهام»: كل مهمة بتفاصيلها وأزرارها، وبعدها اللي بعدها.' : '👇 Tap «See the tasks»: each one with its details and buttons, then the next.');
+    if (!problems.length) return { lines, list: null, key: null };
+    lines.push(
+      '',
+      ar
+        ? '👇 أول مهمة جاتك تحت بأزرارها، و«➡️ التالية» تمشيك عليها كلها.\nتبي وحدة معيّنة؟ اضغط «شوف المهام» واختر.'
+        : '👇 The first task is below with its buttons; «➡️ Next» walks you through them all.\nWant a specific one? Tap «See the tasks» and pick.',
+    );
     const key = await pend(admin, me.id, { brief_cards: { source_id: sourceId, rows: problems } });
     const rowsWa: WaRow[] = problems.map((r, i) => ({
       id: `bc:${key}:${i}`,
@@ -849,7 +862,7 @@ async function handle(m: WaMessage, dry = false) {
         title: ar ? `⚡ اقتراحاتي كلها (${fixes.length})` : `⚡ All my fixes (${fixes.length})`,
         description: ar ? 'كل التأجيل والتحويل اللي في البطاقات، مرة وحدة' : 'Every new date and move from the cards, at once',
       });
-    return { lines, list: { button: ar ? `📋 شوف المهام (${problems.length})` : `📋 See the tasks (${problems.length})`, rows: rowsWa } };
+    return { lines, list: { button: ar ? `📋 شوف المهام (${problems.length})` : `📋 See the tasks (${problems.length})`, rows: rowsWa }, key };
   }
 
   /** the people this reader can see late work for, as Saree3's own brief does: everyone below them at any depth
@@ -944,6 +957,8 @@ async function handle(m: WaMessage, dry = false) {
     const body = rtl([head, ...b.lines].join('\n').trim());
     if (b.list) await waList(from, body, b.list.button, b.list.rows);
     else await waText(from, body);
+    // the first task right away, with its buttons: act without opening the list (owner, 21 Nov)
+    if (b.key) await briefCard(b.key, 0);
   }
 
   /** one task of the brief: «2 من 4», what it is NOW, what I did, my suggestion, and its own 3 buttons */

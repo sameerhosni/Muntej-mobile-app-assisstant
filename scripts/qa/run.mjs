@@ -503,7 +503,12 @@ async function server() {
       const msgs = await wa('اعطيني كل المتاخر');
       const all = texts(msgs);
       expect(!/أفكر|سريع على الخط|شوي بس/.test(all), `"thinking…" lines before the answer: ${all.slice(0, 160)}`);
-      expect(msgs.length === 1, `${msgs.length} messages; one answer with its list expected`);
+      // the answer (a short summary + the list) and right after it the first task's card with its buttons (owner, 21 Nov:
+      // "Duplicate the view with no actions, how can I control tasks here?")
+      expect(msgs.length === 2, `${msgs.length} messages; the summary + the first card expected`);
+      const firstCard = msgs[1]?.interactive;
+      expect(firstCard?.type === 'button' && /1 من \d/.test(firstCard.body.text) && firstCard.action.buttons.length >= 2, `no first card with buttons right after the answer: ${texts(msgs.slice(1)).slice(0, 160)}`);
+      expect(!/QA brief late/.test(msgs[0].interactive?.body?.text ?? ''), 'the summary lists the tasks again (they are in the cards and the list)');
       expect(!/\bdays? late\b|\bon track\b|\boverloaded\b|\bblocked\b/i.test(all), `English inside the Arabic answer: ${all.slice(0, 200)}`);
       const list = msgs.find((m) => m.interactive?.type === 'list');
       expect(list, `no «شوف المهام» list: ${all.slice(0, 200)}`);
