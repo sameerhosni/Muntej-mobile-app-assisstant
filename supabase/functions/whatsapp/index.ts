@@ -826,11 +826,30 @@ async function handle(m: WaMessage, dry = false) {
     const fine = rows.filter((r) => !BRIEF_PROBLEMS.includes(r.status)).length;
     // one line per PERSON, not per task: the tasks themselves are in the cards and the list, never twice (owner, 21 Nov:
     // "Duplicate the view with no actions")
-    const byPerson = new Map<string, number>();
-    for (const r of withTask) byPerson.set(r.person_name ?? (ar ? 'ما لها أحد' : 'nobody'), (byPerson.get(r.person_name ?? (ar ? 'ما لها أحد' : 'nobody')) ?? 0) + 1);
+    // grouped by the person (their id, never the first name: two Mohameds stay apart), with what kind each is
+    // («مهمتين متأخرة، وحدة موقوفة») — reviewer, 21 Nov
+    const KIND: Record<string, [string, string]> = {
+      late: ['متأخرة', 'late'],
+      blocked: ['موقوفة', 'blocked'],
+      overloaded: ['زحمة عليه', 'on a full plate'],
+      at_risk: ['ممكن تتأخر', 'at risk'],
+      unassigned: ['ما لها أحد', 'unassigned'],
+    };
+    const groups = new Map<string, { who: string; kinds: Map<string, number>; n: number }>();
+    for (const r of withTask) {
+      const id = r.owner_id ?? `name:${r.person_name ?? '-'}`;
+      const g = groups.get(id) ?? { who: r.person_name ?? (ar ? 'ما لها أحد' : 'nobody'), kinds: new Map(), n: 0 };
+      g.kinds.set(r.status, (g.kinds.get(r.status) ?? 0) + 1);
+      g.n++;
+      groups.set(id, g);
+    }
+    const kindsText = (k: Map<string, number>) =>
+      [...k]
+        .map(([s, n]) => (ar ? `${arCountOf(n, 'مهمة وحدة', 'مهمتين', 'مهام', 'مهمة')} ${KIND[s]?.[0] ?? ''}` : `${n} ${KIND[s]?.[1] ?? ''}`).trim())
+        .join(ar ? '، ' : ', ');
     const lines = [
       '',
-      ...[...byPerson].sort((a, b) => b[1] - a[1]).map(([who, n]) => (ar ? `• ${who}: ${arCountOf(n, 'مهمة وحدة', 'مهمتين', 'مهام', 'مهمة')}` : `• ${who}: ${n}`)),
+      ...[...groups.values()].sort((a, b) => b.n - a.n).map((g) => `• ${g.who}: ${kindsText(g.kinds)}`),
       ...peopleOnly.map((r) => `• ${r.person_name}${r.metric ? (ar ? `، ${r.metric}` : `, ${r.metric}`) : ''}`),
     ];
     if (withTask.length > problems.length) {
@@ -1095,7 +1114,7 @@ async function handle(m: WaMessage, dry = false) {
     let line: string;
     if (sent && sent.pushed + sent.whatsapped > 0) line = ar ? `🔔 ذكّرته الحين بـ${q}.` : `🔔 Reminded them about ${q} just now.`;
     else if (sent?.held) line = ar ? `🔔 جهّزت التذكير بـ${q}، يوصله أول ما يخلص وقت الهدوء عنده.` : `🔔 The reminder about ${q} goes out as soon as their quiet hours end.`;
-    else if (sent?.off) line = ar ? `سجّلت سؤالك عن ${q} في المهمة 📝 بس هو طافي هالتنبيهات عنده، فما وصله إشعار.` : `I put your question on ${q} 📝 but they turned these alerts off, so no notification went out.`;
+    else if (sent?.off) line = ar ? `حطيت سؤالك عن ${q} في تنبيهاته 🔔 بس هو طافي هالإشعارات عنده، فما وصله شي.` : `Your question about ${q} is in their alerts 🔔 but they turned these notifications off, so nothing reached them.`;
     else {
       const { data: row } = await admin.from('alerts').select('delivered_at').eq('id', alert.id).maybeSingle();
       const [{ data: tok }, { data: ph }] = await Promise.all([
@@ -1107,7 +1126,7 @@ async function handle(m: WaMessage, dry = false) {
         ? ar ? `🔔 ذكّرته الحين بـ${q}.` : `🔔 Reminded them about ${q} just now.`
         : reachable
           ? ar ? `🔔 التذكير بـ${q} في طريقه، يوصله خلال دقيقة.` : `🔔 The reminder about ${q} is on its way, within a minute.`
-          : ar ? `سجّلت سؤالك عن ${q} في المهمة 📝 بس ما عنده التطبيق ولا الواتساب مربوط، فكلّمه مباشرة.` : `I put your question on ${q} 📝 but they have no app or WhatsApp linked, so talk to them directly.`;
+          : ar ? `حطيت سؤالك عن ${q} في تنبيهاته 🔔 بس ما عنده التطبيق ولا الواتساب مربوط، فكلّمه مباشرة.` : `Your question about ${q} is in their alerts 🔔 but they have no app or WhatsApp linked, so talk to them directly.`;
     }
     await say(line);
   }
