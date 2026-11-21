@@ -535,7 +535,8 @@ async function server() {
       const remind = buttonsOf(after).find((b) => b.title.startsWith('🔔'));
       expect(remind, `no remind button on the second card: ${buttonsOf(after).map((b) => b.title).join(' | ')}`);
       await tap(remind.id);
-      const [{ n }] = await sql(`select count(*)::int n from public.alerts where task_id = '${late2.id}' and profile_id = '${FA}' and kind = 'task_comment' and title_ar like '%QA brief remind ${tag}%'`);
+      // (found by its key: the alert's text is translated, so the English title isn't in it)
+      const [{ n }] = await sql(`select count(*)::int n from public.alerts where task_id = '${late2.id}' and profile_id = '${FA}' and kind = 'task_comment' and dedupe_key like 'brief:${late2.id}:%'`);
       expect(n === 1, `${n} reminders reached the doer (one expected)`);
       const again = await tap(`bc:${first.id.split(':')[1]}:1`);
       expect(!buttonsOf(again).some((b) => b.title.startsWith('🔔')), 'the card still offers a second reminder today');
