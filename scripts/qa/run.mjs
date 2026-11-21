@@ -493,8 +493,11 @@ async function server() {
   await check('whatsapp', 'Late tasks on WhatsApp: Arabic lines from the data, a list, a card per task with its own buttons, then the next', async () => {
     const tag = Date.now().toString(36);
     const FA = 'a0000000-0000-4000-b000-000000000011';
-    const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief late ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '5 days') returning id`);
+    // two late tasks, the oldest of all (first on the list): one to move, one to remind
+    const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief late ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '30 days') returning id`);
+    const [late2] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief remind ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '29 days') returning id`);
     const tap = async (id) => (await fn('whatsapp', { simulate: { from: QA_PHONE, tap: id } }, null, { 'x-cron-secret': secret })).sent ?? [];
+    const buttonsOf = (msgs) => msgs.flatMap((m) => m.interactive?.action?.buttons ?? []).map((b) => b.reply);
     try {
       // (owner, 21 Nov: "A lot of discussion with no quick action": the answer comes straight, no "thinking…" lines)
       const msgs = await wa('اعطيني كل المتاخر');
@@ -507,19 +510,49 @@ async function server() {
       expect(/متأخرة/.test(list.interactive.body.text), `no «متأخرة …» on the lines: ${list.interactive.body.text.slice(0, 200)}`);
       const rows = list.interactive.action.sections.flatMap((s) => s.rows);
       expect(rows.length <= 10 && rows.every((r) => r.title.length <= 24), `list too long or a row over 24: ${rows.map((r) => r.title).join(' | ')}`);
-      const first = rows.find((r) => r.id.startsWith('bc:'));
-      expect(first, 'no task rows in the list');
+      const first = rows.find((r) => r.id.startsWith('bc:') && r.title.startsWith('QA brief late'));
+      expect(first, `my late task is not first on the list: ${rows.map((r) => r.title).join(' | ')}`);
       const card = (await tap(first.id)).find((m) => m.interactive?.type === 'button');
       const body = card?.interactive.body.text ?? '';
       const btns = card?.interactive.action.buttons ?? [];
       expect(/1 من \d/.test(body), `the card has no «1 من N»: ${body.slice(0, 160)}`);
       expect(btns.length >= 2 && btns.every((b) => b.reply.title.length <= 20) && new Set(btns.map((b) => b.reply.id)).size === btns.length, `card buttons: ${btns.map((b) => b.reply.title).join(' | ')}`);
-      const next = await tap(first.id.replace(/:\d+$/, ':1'));
-      expect(next.length, 'no next card after the first');
-      return `${rows.length} row(s); card «${btns.map((b) => b.reply.title).join(' · ')}»; next ok`;
+      // the new-date button: the date really moves, the result comes with Undo, then «2 من N»
+      const move = btns.find((b) => b.reply.title.startsWith('⏰'));
+      expect(move, `no new-date button: ${btns.map((b) => b.reply.title).join(' | ')}`);
+      const after = await tap(move.reply.id);
+      const [{ due }] = await sql(`select due_at > now() as due from public.tasks where id = '${late.id}'`);
+      expect(due, 'the date did not move');
+      expect(buttonsOf(after).some((b) => /تراجع/.test(b.title)), `no Undo after the change: ${texts(after).slice(0, 160)}`);
+      expect(/2 من \d/.test(texts(after)), `no next card («2 من N») after the change: ${texts(after).slice(-160)}`);
+      // the next card is the other task: remind once, and a second tap says it's done today (judged in the database)
+      const remind = buttonsOf(after).find((b) => b.title.startsWith('🔔'));
+      expect(remind, `no remind button on the second card: ${buttonsOf(after).map((b) => b.title).join(' | ')}`);
+      await tap(remind.id);
+      const [{ n }] = await sql(`select count(*)::int n from public.alerts where task_id = '${late2.id}' and profile_id = '${FA}' and kind = 'task_comment' and title_ar like '%QA brief remind ${tag}%'`);
+      expect(n === 1, `${n} reminders reached the doer (one expected)`);
+      const again = await tap(`bc:${first.id.split(':')[1]}:1`);
+      expect(!buttonsOf(again).some((b) => b.title.startsWith('🔔')), 'the card still offers a second reminder today');
+      return `${rows.length} row(s); date moved, Undo, next card; one reminder`;
     } finally {
-      await sql(`delete from public.tasks where id = '${late.id}'`);
+      await sql(`delete from public.alerts where task_id in ('${late.id}', '${late2.id}')`);
+      await sql(`delete from public.tasks where id in ('${late.id}', '${late2.id}')`);
     }
+  });
+  // nearby messages that are NOT asks to see: they still reach Saree3 (reviewer, 20 Nov, R161)
+  await check('whatsapp', 'Messages near «المتأخر» / «الأدوات» that ask something else still reach Saree3', async () => {
+    for (const q of ['ليش المهمة متأخرة؟', 'انا متأخر شوي على الاجتماع', 'وش أحسن طريقة أرد على الإيميل؟']) {
+      const msgs = await wa(q);
+      const shortcut = msgs.some((m) => m.interactive?.type === 'list' && m.interactive.action.sections.some((s) => s.rows.some((r) => /^(bc|tc):/.test(r.id))));
+      expect(!shortcut, `«${q}» opened a list instead of reaching Saree3`);
+    }
+    return '3 messages reached Saree3';
+  });
+  // Saree3's own brief (the AI path): its numbers are the server's, in Arabic (R160)
+  await check('whatsapp', 'Saree3’s team brief on WhatsApp has the server’s Arabic numbers, no model English', async () => {
+    const all = texts(await wa('كيف وضع الفريق اليوم؟'));
+    expect(!/\bdays? late\b|\bon track\b|\boverloaded\b|\bh\s*\/\s*\d+h\b/i.test(all), `English inside the Arabic brief: ${all.slice(0, 200)}`);
+    return all.slice(0, 80);
   });
   // owner, 21 Nov: «شوف المهام ف الادوات» → "ما عندي مهمة باسم الأدوات…" ("Why it doesn't know the tools", R161):
   // asking to see the tools' tasks opens their list straight away, no AI round

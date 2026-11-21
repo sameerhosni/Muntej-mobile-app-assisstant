@@ -1926,20 +1926,22 @@ serve(async (req) => {
     // the number on each row comes from the data, in the reader's language (owner, 21 Nov: «5 days late» inside Arabic,
     // "I didn't understand anything"; R160): never the model's words
     const arDays = (d: number) => (d === 1 ? 'يوم' : d === 2 ? 'يومين' : d <= 10 ? `${d} أيام` : `${d} يوم`);
+    // Hindi readers get Hindi (the app's BriefCard shows this as it is — reviewer, 20 Nov)
+    const hi = parsed.language === 'hi';
     const metricOf = (status: string, t: TaskRow | null, pid: string | null, model: string) => {
       if (t?.due_at && late(t) && ['late', 'at_risk', 'blocked'].includes(status)) {
         const d = Math.max(1, Math.floor((now.getTime() - Date.parse(t.due_at)) / DAY));
-        return ar ? `متأخرة ${arDays(d)}` : `${d} day${d === 1 ? '' : 's'} late`;
+        return ar ? `متأخرة ${arDays(d)}` : hi ? `${d} दिन देर` : `${d} day${d === 1 ? '' : 's'} late`;
       }
-      if (status === 'blocked') return ar ? 'موقوفة' : 'Blocked';
+      if (status === 'blocked') return ar ? 'موقوفة' : hi ? 'रुका हुआ' : 'Blocked';
       if (status === 'overloaded' && pid) {
         const cap = Number(byId.get(pid)?.weekly_capacity_hours ?? 40);
         const h = Math.round(queueHoursOf(pid));
-        return ar ? `عليه ${h} ساعة من ${cap}` : `${h}h of ${cap}h`;
+        return ar ? `عليه ${h} ساعة من ${cap}` : hi ? `${cap} में से ${h} घंटे` : `${h}h of ${cap}h`;
       }
-      if (status === 'unassigned') return ar ? 'ما لها أحد' : 'Nobody on it';
+      if (status === 'unassigned') return ar ? 'ما لها أحد' : hi ? 'किसी के पास नहीं' : 'Nobody on it';
       // anything else (on track, a star): the model's words only when they're in the reader's language
-      return ar && /[A-Za-z]{2,}/.test(model) ? '' : model;
+      return (ar || hi) && /[A-Za-z]{2,}/.test(model) ? '' : model;
     };
     const rows: BriefOut['rows'] = [];
     const used = new Set<string>();
