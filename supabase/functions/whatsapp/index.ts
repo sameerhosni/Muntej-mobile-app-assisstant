@@ -969,7 +969,9 @@ async function handle(m: WaMessage, dry = false) {
     if (i >= total) return void (await say(ar ? `خلصت كلها ✅ (${total} من ${total}). أنا أتابع الباقي.` : `That’s all of them ✅ (${total} of ${total}). I’ll keep following up.`));
     const r = b.rows[i];
     // the task as it is NOW: an old card never shows or acts on what moved on (R133)
-    const { data: t } = await admin.from('tasks').select('title, status, due_at, owner_id').eq('id', r.task_id!).maybeSingle();
+    const { data: t0 } = await admin.from('tasks').select('title, translations, status, due_at, owner_id').eq('id', r.task_id!).maybeSingle();
+    // the title in the reader's language, as on the list (QA, 21 Nov: the list said it in Arabic, the card in English)
+    const t = t0 ? { ...t0, title: titleIn(t0 as never, ar ? 'ar' : lang) } : null;
     const step = ar ? `${i + 1} من ${total}` : `${i + 1} of ${total}`;
     const nextBtn: WaButton = { id: `bc:${key}:${i + 1}`, title: i + 1 < total ? (ar ? `➡️ التالية` : '➡️ Next one') : ar ? '✅ خلصت' : '✅ Finished' };
     if (!t || ['done', 'cancelled'].includes(t.status as string)) {

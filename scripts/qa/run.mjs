@@ -494,8 +494,9 @@ async function server() {
     const tag = Date.now().toString(36);
     const FA = 'a0000000-0000-4000-b000-000000000011';
     // two late tasks, the oldest of all (first on the list): one to move, one to remind
-    const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief late ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '30 days') returning id`);
-    const [late2] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief remind ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '29 days') returning id`);
+    // (older than anything else, so they are cards 1 and 2; titles may show translated, so they're found by position)
+    const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief late ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '500 days') returning id`);
+    const [late2] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief remind ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '499 days') returning id`);
     const tap = async (id) => (await fn('whatsapp', { simulate: { from: QA_PHONE, tap: id } }, null, { 'x-cron-secret': secret })).sent ?? [];
     const buttonsOf = (msgs) => msgs.flatMap((m) => m.interactive?.action?.buttons ?? []).map((b) => b.reply);
     try {
@@ -515,8 +516,8 @@ async function server() {
       expect(/متأخرة/.test(list.interactive.body.text), `no «متأخرة …» on the lines: ${list.interactive.body.text.slice(0, 200)}`);
       const rows = list.interactive.action.sections.flatMap((s) => s.rows);
       expect(rows.length <= 10 && rows.every((r) => r.title.length <= 24), `list too long or a row over 24: ${rows.map((r) => r.title).join(' | ')}`);
-      const first = rows.find((r) => r.id.startsWith('bc:') && r.title.startsWith('QA brief late'));
-      expect(first, `my late task is not first on the list: ${rows.map((r) => r.title).join(' | ')}`);
+      const first = rows.find((r) => r.id.startsWith('bc:'));
+      expect(first && /500/.test(first.description ?? ''), `my 500-days-late task is not first on the list: ${rows.map((r) => `${r.title} (${r.description})`).join(' | ')}`);
       const card = (await tap(first.id)).find((m) => m.interactive?.type === 'button');
       const body = card?.interactive.body.text ?? '';
       const btns = card?.interactive.action.buttons ?? [];
