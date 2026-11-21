@@ -1962,6 +1962,9 @@ serve(async (req) => {
         person_name: fn(pid),
         task_id: task?.id ?? null,
         task_title: task?.title ?? null,
+        // WhatsApp's cards check these again before they act (R133)
+        owner_id: task?.owner_id ?? null,
+        due_at: task?.due_at ?? null,
         metric: metricOf(r.status, task, pid, r.metric),
         note,
         auto: null,
@@ -2559,6 +2562,8 @@ type BriefOut = {
     person_name: string | null;
     task_id: string | null;
     task_title: string | null;
+    owner_id?: string | null;
+    due_at?: string | null;
     metric: string;
     note: string;
     /** what Muntej did by itself (now = in this answer, else earlier today) */

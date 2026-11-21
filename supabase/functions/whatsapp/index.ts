@@ -292,6 +292,9 @@ type BriefRowWa = {
   person_name: string | null;
   task_id: string | null;
   task_title: string | null;
+  /** the task's owner and due date when the list was made: a card is "changed" only when these moved (R133) */
+  owner_id?: string | null;
+  due_at?: string | null;
   metric: string;
   auto: { kind: 'reminded' | 'checked_in'; at: string; now: boolean } | null;
   action: { kind: 'owner' | 'due'; task_id: string; owner_id: string | null; to_name: string | null; due_at: string | null } | null;
@@ -801,9 +804,14 @@ async function handle(m: WaMessage, dry = false) {
   }
 
   /** «مهمة وحدة / مهمتين / 3 مهام / 11 مهمة» and the like (R55) */
-  const arCountOf = (n: number, one: string, two: string, few: string, many: string) => (n === 1 ? one : n === 2 ? two : n <= 10 ? `${n} ${few}` : `${n} ${many}`);
+  // (function declarations, not const arrows: they're used by code that runs before these lines — reviewer, R137)
+  function arCountOf(n: number, one: string, two: string, few: string, many: string) {
+    return n === 1 ? one : n === 2 ? two : n <= 10 ? `${n} ${few}` : `${n} ${many}`;
+  }
   /** a title inside a sentence keeps its own direction and its «» (R53) */
-  const quoted = (title: string) => (ar ? `«⁨${title}⁩»` : `"⁨${title}⁩"`);
+  function quoted(title: string) {
+    return ar ? `«⁨${title}⁩»` : `"⁨${title}⁩"`;
+  }
 
   /** the brief's lines (one per task, the server's words) and «📋 شوف المهام»: shared by Saree3's answer and «المتأخر» */
   async function briefList(rows: BriefRowWa[], sourceId: string): Promise<{ lines: string[]; list: { button: string; rows: WaRow[] } | null }> {
@@ -920,6 +928,8 @@ async function handle(m: WaMessage, dry = false) {
         person_name: x.owner_id === me.id ? (ar ? 'أنت' : 'you') : p ? nameOf(p) : null,
         task_id: x.id,
         task_title: titleIn(x as never, ar ? 'ar' : 'en'),
+        owner_id: x.owner_id,
+        due_at: x.due_at,
         metric: ar ? `متأخرة ${arDays(d)}` : `${d} day${d === 1 ? '' : 's'} late`,
         auto: did.has(x.id) ? { kind: 'reminded', at: did.get(x.id)!, now: false } : null,
         action: { kind: 'due', task_id: x.id, owner_id: null, to_name: null, due_at: newDue },
@@ -972,8 +982,12 @@ async function handle(m: WaMessage, dry = false) {
       const hit = ((mk ?? []) as { key: string; created_at: string }[]).find((x) => /^(chase|blocked|step|brief):/.test(x.key));
       if (hit) r.auto = { kind: 'reminded', at: hit.created_at, now: false };
     }
-    // moved since the list (new owner, new date, sent for review): show it as it is, no stale number or suggestion
-    const changed = t.status === 'submitted' || !lateNow || who !== r.person_name;
+    // moved since the list (new owner, new date, sent for review): show it as it is, no stale number or suggestion.
+    // Compared by id and date, never by name (reviewer, 20 Nov); rows from before this field: by the late state
+    const sameDue = (a?: string | null, b?: string | null) => (!a && !b) || (!!a && !!b && Date.parse(a) === Date.parse(b));
+    const changed =
+      t.status === 'submitted' ||
+      (r.owner_id !== undefined ? r.owner_id !== ownerNow || !sameDue(r.due_at, t.due_at as string | null) : r.status === 'late' && !lateNow);
     const lines = [
       step,
       `📝 *${t.title}*`,
@@ -1057,15 +1071,28 @@ async function handle(m: WaMessage, dry = false) {
       reason: 'Remind button on the team brief',
       undoable: false,
     });
+    // say only what really happened (reviewer, 20 Nov): reached, held for quiet hours, turned off by them, sent by the
+    // every-minute job, on its way, or no way to reach them at all
     const sent = await deliverPending(admin, { only: [alert.id as string] }).catch(() => null);
-    const reached = !!sent && sent.pushed + sent.whatsapped > 0;
-    await say(
-      reached
-        ? ar ? `🔔 ذكّرته الحين بـ${quoted(t.title as string)}.` : `🔔 Reminded them about ${quoted(t.title as string)} just now.`
-        : sent && sent.held
-          ? ar ? `🔔 جهّزت التذكير بـ${quoted(t.title as string)}، يوصله أول ما يخلص وقت الهدوء.` : `🔔 The reminder about ${quoted(t.title as string)} goes out as soon as their quiet hours end.`
-          : ar ? `ما قدرت أوصله 😕 ما عنده التطبيق ولا الواتساب مربوط. كلّمه مباشرة عن ${quoted(t.title as string)}.` : `I couldn’t reach them 😕 no app or WhatsApp linked. Talk to them directly about ${quoted(t.title as string)}.`,
-    );
+    const q = quoted(t.title as string);
+    let line: string;
+    if (sent && sent.pushed + sent.whatsapped > 0) line = ar ? `🔔 ذكّرته الحين بـ${q}.` : `🔔 Reminded them about ${q} just now.`;
+    else if (sent?.held) line = ar ? `🔔 جهّزت التذكير بـ${q}، يوصله أول ما يخلص وقت الهدوء عنده.` : `🔔 The reminder about ${q} goes out as soon as their quiet hours end.`;
+    else if (sent?.off) line = ar ? `سجّلت سؤالك عن ${q} في المهمة 📝 بس هو طافي هالتنبيهات عنده، فما وصله إشعار.` : `I put your question on ${q} 📝 but they turned these alerts off, so no notification went out.`;
+    else {
+      const { data: row } = await admin.from('alerts').select('delivered_at').eq('id', alert.id).maybeSingle();
+      const [{ data: tok }, { data: ph }] = await Promise.all([
+        admin.from('push_tokens').select('token').eq('profile_id', t.owner_id).limit(1),
+        admin.from('profiles').select('phone').eq('id', t.owner_id).maybeSingle(),
+      ]);
+      const reachable = !!tok?.length || !!ph?.phone;
+      line = row?.delivered_at
+        ? ar ? `🔔 ذكّرته الحين بـ${q}.` : `🔔 Reminded them about ${q} just now.`
+        : reachable
+          ? ar ? `🔔 التذكير بـ${q} في طريقه، يوصله خلال دقيقة.` : `🔔 The reminder about ${q} is on its way, within a minute.`
+          : ar ? `سجّلت سؤالك عن ${q} في المهمة 📝 بس ما عنده التطبيق ولا الواتساب مربوط، فكلّمه مباشرة.` : `I put your question on ${q} 📝 but they have no app or WhatsApp linked, so talk to them directly.`;
+    }
+    await say(line);
   }
 
   async function onTap(id: string) {
