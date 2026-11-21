@@ -2,5 +2,6 @@
   "message": "Cancel a task in one tap: ✕ on each task, «تلغيها؟» then «رجّعها» for 6 seconds; ask the giver to cancel («اطلب إلغاءها»); Found tasks in full before you decide; one «يحتاجك» with filters and one number; asks you can't give go to your manager; «لما تخلصها» on the task page; Meet reads meetings you attended; no stray spinner on iPhone; faster QA; Sign in or start free; every sign-in failure shows its cause with a ref and reaches our log; background audio off (Apple 11 Nov); read now you can follow; one «يحتاجك» number; Apple review status docs (no app change); Saree3 is the Muntej mark; Home drops «اللي عيني عليه عنك»; closed-tasks list from the data; faster QA; Saree3 is a lightning bolt on a light turquoise orb; Your shortcuts: side tab or from Saree3, chosen in Settings; Home drops the shortcut row; WhatsApp late tasks: summary, a card per task with its own buttons, then the next; «المتأخر» and «الأدوات» answer straight away; WhatsApp late tasks: «🛑 ألغها» in a card's options, with «↩️ رجّعها»",
   "group": "1602ed3b-1c6c-435b-b3d0-c8f74292f7f7",
   "at": "2026-11-21T15:31:43.875Z",
-  "commit": "bb8fe0fe0ad66ee97d38b71f87a843cba6296a07"
+  "commit": "bb8fe0fe0ad66ee97d38b71f87a843cba6296a07",
+  "live_at": "2026-11-21T18:37:57.241Z"
 }
