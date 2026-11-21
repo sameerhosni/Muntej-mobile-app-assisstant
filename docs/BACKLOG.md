@@ -145,6 +145,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-21 · In testing: WhatsApp late tasks: «🛑 ألغها» in a card's options, with «↩️ رجّعها» (server: whatsapp)
 - 2026-11-21 · In testing: WhatsApp late tasks: summary, a card per task with its own buttons, then the next; «المتأخر» and «الأدوات» answer straight away (server: muntej-chat, whatsapp)
 - 2026-11-20 · In testing: Your shortcuts: side tab or from Saree3, chosen in Settings; Home drops the shortcut row (Muntej Test update 1.0.0)
 - 2026-11-20 · In testing: Saree3 is a lightning bolt on a light turquoise orb (Muntej Test update 1.0.0)
