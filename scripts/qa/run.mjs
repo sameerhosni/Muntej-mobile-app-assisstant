@@ -521,6 +521,16 @@ async function server() {
       await sql(`delete from public.tasks where id = '${late.id}'`);
     }
   });
+  // owner, 21 Nov: «شوف المهام ف الادوات» → "ما عندي مهمة باسم الأدوات…" ("Why it doesn't know the tools", R161):
+  // asking to see the tools' tasks opens their list straight away, no AI round
+  await check('whatsapp', 'Asking for the tasks in your tools opens their list, no question back', async () => {
+    const msgs = await wa('شوف المهام ف الادوات');
+    const all = texts(msgs);
+    expect(!/أفكر|سريع على الخط|ما عندي مهمة باسم|وش المطلوب/.test(all), `thinking lines or a question back: ${all.slice(0, 160)}`);
+    const list = msgs.some((m) => m.interactive?.type === 'list' && m.interactive.action.sections.some((s) => s.rows.some((r) => r.id.startsWith('tc:'))));
+    expect(list || /ما فيه شي ينتظرك من أدواتك/.test(all), `no tools list: ${all.slice(0, 160)}`);
+    return list ? 'the tools list' : 'nothing waiting (said so)';
+  });
   await check('whatsapp', 'Sign in with WhatsApp (key flow)', async () => {
     const s = await fn('phone-auth', { action: 'wa_start' });
     const before = await fn('phone-auth', { action: 'wa_poll', token: s.nonce });

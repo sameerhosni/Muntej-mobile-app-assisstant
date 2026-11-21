@@ -310,6 +310,8 @@ function workingDaysAhead17(t: number, days: number): number {
 }
 /** «اعطيني كل المتأخر», «وش المتأخر؟», «المتأخر عند محمد»: a short ask to SEE late work (not to change it) */
 const SAYS_LATE = /^(?!.*(أجل|اجل|أجّل|حول|حوّل|غير|غيّر|قفل|سكر|ذكر|ذكّر|move|change|remind|postpone))(.{0,25})(المتأخر|المتاخر|متأخر|متاخر|المتأخرة|المتاخره|المتاخرة|late|overdue)(.{0,25})$/i;
+/** «شوف المهام ف الادوات», «وش في أدواتي؟», «مهام الإيميل»: a short ask to SEE what was found in your tools */
+const SAYS_TOOLS = /^(?!.*(اربط|ربط|افصل|وقف|شغل|connect|disconnect))(?=.{0,45}$).*(الأدوات|الادوات|أدواتي|ادواتي|أدواتك|ادواتك|الإيميل|الايميل|إيميلي|ايميلي|الشات|الاجتماعات|tools|email|inbox)/i;
 /** the rows that get a card: something to decide on */
 const BRIEF_PROBLEMS = ['late', 'blocked', 'overloaded', 'at_risk', 'unassigned'];
 const briefItem = (r: BriefRowWa) => ({ key: r.key, kind: r.action!.kind, task_id: r.action!.task_id, owner_id: r.action!.owner_id, due_at: r.action!.due_at });
@@ -645,6 +647,13 @@ async function handle(m: WaMessage, dry = false) {
   // late work: straight from the data, with its list and cards, and no "thinking…" lines first (owner, 21 Nov: "A lot
   // of discussion with no quick action"); forwarded messages still go to the tasks-for-your-OK path
   if (!(m.context?.forwarded || m.context?.frequently_forwarded) && SAYS_LATE.test(text.trim())) return void (await lateBrief(text));
+  // the tasks found in your tools: the same list as «لقيت مهام في أدواتك», each with its card and buttons (owner, 21 Nov:
+  // "Why it doesn't know the tools" — «شوف المهام ف الادوات» went to the AI, which asked what "الأدوات" is)
+  if (!(m.context?.forwarded || m.context?.frequently_forwarded) && SAYS_TOOLS.test(text.trim())) {
+    const tools = (await needsYouCards(admin, me.id, ar)).filter((c) => c.kind === 'tool' && c.ref);
+    if (!tools.length) return void (await say(ar ? 'ما فيه شي ينتظرك من أدواتك 👌 أول ما ألقى مهمة في إيميلك أو الشات أو الاجتماعات أجيبها لك هنا.' : 'Nothing from your tools is waiting 👌 As soon as I find a task in your email, chats or meetings, I’ll bring it here.'));
+    return void (await sendToolList(tools));
+  }
   // what Muntej is doing, in the chat itself (owner, 9 Nov: "Need more than typing in the chat itself, something like
   // Claude in simple way"; he picked option 2): read it, then the step, before the work starts
   if (!dry && !SAYS_THANKS.test(text)) await say(workingSteps(text, ar, !!(m.context?.forwarded || m.context?.frequently_forwarded)));
