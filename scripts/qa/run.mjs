@@ -496,8 +496,11 @@ async function server() {
     const [late] = await sql(`insert into public.tasks (title, owner_id, assigner_id, status, due_at) values ('QA brief late ${tag}', '${FA}', '${QA_BOSS}', 'in_progress', now() - interval '5 days') returning id`);
     const tap = async (id) => (await fn('whatsapp', { simulate: { from: QA_PHONE, tap: id } }, null, { 'x-cron-secret': secret })).sent ?? [];
     try {
-      const msgs = await wa('وش المتأخر عند الفريق؟');
+      // (owner, 21 Nov: "A lot of discussion with no quick action": the answer comes straight, no "thinking…" lines)
+      const msgs = await wa('اعطيني كل المتاخر');
       const all = texts(msgs);
+      expect(!/أفكر|سريع على الخط|شوي بس/.test(all), `"thinking…" lines before the answer: ${all.slice(0, 160)}`);
+      expect(msgs.length === 1, `${msgs.length} messages; one answer with its list expected`);
       expect(!/\bdays? late\b|\bon track\b|\boverloaded\b|\bblocked\b/i.test(all), `English inside the Arabic answer: ${all.slice(0, 200)}`);
       const list = msgs.find((m) => m.interactive?.type === 'list');
       expect(list, `no «شوف المهام» list: ${all.slice(0, 200)}`);

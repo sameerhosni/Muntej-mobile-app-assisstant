@@ -296,6 +296,20 @@ type BriefRowWa = {
   action: { kind: 'owner' | 'due'; task_id: string; owner_id: string | null; to_name: string | null; due_at: string | null } | null;
   manage?: boolean;
 };
+/** 17:00 Riyadh, `days` working days (Sun–Thu) after t (as muntej-chat's brief suggests) */
+function workingDaysAhead17(t: number, days: number): number {
+  const R = 3 * 3_600_000;
+  const day = (x: number) => new Date(x + R).getUTCDay();
+  let m = t;
+  for (let i = 0; i < days; ) {
+    m += 86_400_000;
+    if (day(m) !== 5 && day(m) !== 6) i++;
+  }
+  const d = new Date(m + R);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 17) - R;
+}
+/** «اعطيني كل المتأخر», «وش المتأخر؟», «المتأخر عند محمد»: a short ask to SEE late work (not to change it) */
+const SAYS_LATE = /^(?!.*(أجل|اجل|أجّل|حول|حوّل|غير|غيّر|قفل|سكر|ذكر|ذكّر|move|change|remind|postpone))(.{0,25})(المتأخر|المتاخر|متأخر|متاخر|المتأخرة|المتاخره|المتاخرة|late|overdue)(.{0,25})$/i;
 /** the rows that get a card: something to decide on */
 const BRIEF_PROBLEMS = ['late', 'blocked', 'overloaded', 'at_risk', 'unassigned'];
 const briefItem = (r: BriefRowWa) => ({ key: r.key, kind: r.action!.kind, task_id: r.action!.task_id, owner_id: r.action!.owner_id, due_at: r.action!.due_at });
@@ -628,6 +642,9 @@ async function handle(m: WaMessage, dry = false) {
     }
   }
   if (SAYS_HELP.test(text)) return void (await say(helpText(ar)));
+  // late work: straight from the data, with its list and cards, and no "thinking…" lines first (owner, 21 Nov: "A lot
+  // of discussion with no quick action"); forwarded messages still go to the tasks-for-your-OK path
+  if (!(m.context?.forwarded || m.context?.frequently_forwarded) && SAYS_LATE.test(text.trim())) return void (await lateBrief(text));
   // what Muntej is doing, in the chat itself (owner, 9 Nov: "Need more than typing in the chat itself, something like
   // Claude in simple way"; he picked option 2): read it, then the step, before the work starts
   if (!dry && !SAYS_THANKS.test(text)) await say(workingSteps(text, ar, !!(m.context?.forwarded || m.context?.frequently_forwarded)));
@@ -741,30 +758,9 @@ async function handle(m: WaMessage, dry = false) {
       // owner, 21 Nov: "I didn't understand anything and why only one action" (option 1): one short line per task, built
       // from the data (the server's numbers, no model words), what I already did, then «📋 شوف المهام»: tap one and its
       // card comes with its own buttons, then the next one (R160)
-      const rows = (p.brief.rows ?? []) as BriefRowWa[];
-      const problems = rows.filter((r) => r.task_id && r.task_title && BRIEF_PROBLEMS.includes(r.status)).slice(0, 9);
-      const fine = rows.filter((r) => !BRIEF_PROBLEMS.includes(r.status)).length;
-      lines.push('', ...problems.map((r) => `• ${r.task_title} · ${[r.person_name ?? (ar ? 'ما لها أحد' : 'nobody'), r.metric].filter(Boolean).join(' · ')}`));
-      if (fine) lines.push(ar ? `✅ ${fine} ماشين تمام` : `✅ ${fine} on track`);
-      const reminded = problems.filter((r) => r.auto?.now).length;
-      if (reminded) lines.push('', ar ? `🔔 ذكّرت ${reminded} منهم الحين، مرة باليوم بس` : `🔔 I reminded ${reminded} of them just now (once a day at most)`);
-      if (problems.length) {
-        lines.push('', ar ? '👇 اضغط «شوف المهام»: كل مهمة بتفاصيلها وأزرارها، وبعدها اللي بعدها.' : '👇 Tap «See the tasks»: each one with its details and buttons, then the next.');
-        const key = await pend(admin, me.id, { brief_cards: { source_id: bot.id, rows: problems } });
-        const rowsWa: WaRow[] = problems.map((r, i) => ({
-          id: `bc:${key}:${i}`,
-          title: shortTitle({ title: r.task_title! }, 24),
-          description: [r.person_name, r.metric].filter(Boolean).join(' · ').slice(0, 72) || undefined,
-        }));
-        const fixes = problems.filter((r) => r.action);
-        if (fixes.length > 1)
-          rowsWa.push({
-            id: `c:${await pend(admin, me.id, { chat: { apply_brief: { source_id: bot.id, items: fixes.map(briefItem) } } })}`,
-            title: ar ? `⚡ اقتراحاتي كلها (${fixes.length})` : `⚡ All my fixes (${fixes.length})`,
-            description: ar ? 'كل التأجيل والتحويل اللي في البطاقات، مرة وحدة' : 'Every new date and move from the cards, at once',
-          });
-        list = { button: ar ? `📋 شوف المهام (${problems.length})` : `📋 See the tasks (${problems.length})`, rows: rowsWa };
-      }
+      const b = await briefList((p.brief.rows ?? []) as BriefRowWa[], bot.id);
+      lines.push(...b.lines);
+      if (b.list) list = b.list;
     } else if (p.bulk_done?.log_id || p.bulk_done?.log_ids?.length) {
       await act(ar ? '↩️ تراجع' : '↩️ Undo', p.bulk_done.log_ids?.length ? { chat: { undo_log_ids: p.bulk_done.log_ids } } : { chat: { undo_log_id: p.bulk_done.log_id } });
     } else if (Array.isArray(p.created_list) && p.created_list.length) {
@@ -783,6 +779,102 @@ async function handle(m: WaMessage, dry = false) {
     const body = rtl(lines.join('\n').trim());
     if (list) await waList(from, body, list.button, list.rows);
     else if (buttons.length) await waButtons(from, body, buttons);
+    else await waText(from, body);
+  }
+
+  /** the brief's lines (one per task, the server's words) and «📋 شوف المهام»: shared by Saree3's answer and «المتأخر» */
+  async function briefList(rows: BriefRowWa[], sourceId: string): Promise<{ lines: string[]; list: { button: string; rows: WaRow[] } | null }> {
+    const problems = rows.filter((r) => r.task_id && r.task_title && BRIEF_PROBLEMS.includes(r.status)).slice(0, 9);
+    const fine = rows.filter((r) => !BRIEF_PROBLEMS.includes(r.status)).length;
+    const lines = ['', ...problems.map((r) => `• ${r.task_title} · ${[r.person_name ?? (ar ? 'ما لها أحد' : 'nobody'), r.metric].filter(Boolean).join(' · ')}`)];
+    if (rows.filter((r) => r.task_id && BRIEF_PROBLEMS.includes(r.status)).length > problems.length)
+      lines.push(ar ? `+${rows.length - problems.length} غيرها في منتج ← المهام ← متأخرة` : `+${rows.length - problems.length} more in Muntej → Tasks → Late`);
+    if (fine) lines.push(ar ? `✅ ${fine} ماشين تمام` : `✅ ${fine} on track`);
+    const reminded = problems.filter((r) => r.auto?.now).length;
+    const earlier = problems.filter((r) => r.auto && !r.auto.now).length;
+    if (reminded) lines.push('', ar ? `🔔 ذكّرت ${reminded} منهم الحين، مرة باليوم بس` : `🔔 I reminded ${reminded} of them just now (once a day at most)`);
+    else if (earlier) lines.push('', ar ? `🔔 ذكّرت ${earlier} منهم اليوم` : `🔔 I already reminded ${earlier} of them today`);
+    if (!problems.length) return { lines, list: null };
+    lines.push('', ar ? '👇 اضغط «شوف المهام»: كل مهمة بتفاصيلها وأزرارها، وبعدها اللي بعدها.' : '👇 Tap «See the tasks»: each one with its details and buttons, then the next.');
+    const key = await pend(admin, me.id, { brief_cards: { source_id: sourceId, rows: problems } });
+    const rowsWa: WaRow[] = problems.map((r, i) => ({
+      id: `bc:${key}:${i}`,
+      title: shortTitle({ title: r.task_title! }, 24),
+      description: [r.person_name, r.metric].filter(Boolean).join(' · ').slice(0, 72) || undefined,
+    }));
+    const fixes = problems.filter((r) => r.action && r.manage);
+    if (fixes.length > 1)
+      rowsWa.push({
+        id: `c:${await pend(admin, me.id, { chat: { apply_brief: { source_id: sourceId, items: fixes.map(briefItem) } } })}`,
+        title: ar ? `⚡ اقتراحاتي كلها (${fixes.length})` : `⚡ All my fixes (${fixes.length})`,
+        description: ar ? 'كل التأجيل والتحويل اللي في البطاقات، مرة وحدة' : 'Every new date and move from the cards, at once',
+      });
+    return { lines, list: { button: ar ? `📋 شوف المهام (${problems.length})` : `📋 See the tasks (${problems.length})`, rows: rowsWa } };
+  }
+
+  /** «اعطيني كل المتأخر» / «وش المتأخر؟»: straight from the data, no AI round and no question back (owner, 21 Nov:
+   *  "A lot of discussion with no quick action"). The late tasks you gave or your team owns (a teammate's name narrows
+   *  it), then your own; the same list and cards as the brief */
+  async function lateBrief(msg: string) {
+    const OPEN_ = ['assigned', 'in_progress', 'blocked', 'returned'];
+    const { data: reports } = await admin.from('profiles').select('id').eq('manager_id', me.id).eq('status', 'active');
+    const below = new Set((reports ?? []).map((x) => x.id as string));
+    const { data: late } = await admin
+      .from('tasks')
+      .select('id, title, translations, due_at, owner_id, assigner_id, status')
+      .in('status', OPEN_)
+      .lt('due_at', new Date().toISOString())
+      .or(`assigner_id.eq.${me.id},owner_id.eq.${me.id}${below.size ? `,owner_id.in.(${[...below].join(',')})` : ''}`)
+      .order('due_at')
+      .limit(40);
+    const tasks = (late ?? []) as { id: string; title: string; translations: Record<string, { title?: string }> | null; due_at: string; owner_id: string | null; assigner_id: string | null; status: string }[];
+    const ownerIds = [...new Set(tasks.map((x) => x.owner_id).filter((x): x is string => !!x))];
+    const { data: ppl } = ownerIds.length ? await admin.from('profiles').select('id, full_name, full_name_ar').in('id', ownerIds) : { data: [] };
+    const people = new Map(((ppl ?? []) as { id: string; full_name: string; full_name_ar: string | null }[]).map((x) => [x.id, x]));
+    // a name in the message narrows it to that person («المتأخر عند محمد»)
+    const words = new Set(msg.replace(/[؟?،,.!:]/g, ' ').split(/\s+/).map((w) => w.replace(/^(عند|لـ|ل)/, '').toLowerCase()));
+    const named = [...people.values()].filter((p) => [p.full_name, p.full_name_ar].some((n) => !!n && words.has(n.split(' ')[0].toLowerCase())));
+    const pick = named.length === 1 ? tasks.filter((x) => x.owner_id === named[0].id) : tasks;
+    const others = pick.filter((x) => x.owner_id !== me.id);
+    const mine = pick.filter((x) => x.owner_id === me.id);
+    const ordered = [...others, ...mine];
+    if (!ordered.length)
+      return void (await say(named.length === 1 ? (ar ? `ما عند ${(named[0].full_name_ar || named[0].full_name).split(' ')[0]} شي متأخر 👌` : `Nothing late for ${named[0].full_name.split(' ')[0]} 👌`) : ar ? 'ما فيه شي متأخر 👌 كل شي ماشي.' : 'Nothing is late 👌 all on track.'));
+    // what I already did today on them
+    const dayStart = new Date(Date.now() + 3 * 3_600_000);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const { data: marks } = await admin
+      .from('autopilot_marks')
+      .select('key, task_id, created_at')
+      .in('task_id', ordered.map((x) => x.id))
+      .gte('created_at', new Date(dayStart.getTime() - 3 * 3_600_000).toISOString());
+    const did = new Map<string, string>();
+    for (const m of (marks ?? []) as { key: string; task_id: string; created_at: string }[]) if (/^(chase|blocked|step|brief):/.test(m.key) && !did.has(m.task_id)) did.set(m.task_id, m.created_at);
+    const newDue = new Date(workingDaysAhead17(Date.now(), 2)).toISOString();
+    const arDays = (d: number) => (d === 1 ? 'يوم' : d === 2 ? 'يومين' : d <= 10 ? `${d} أيام` : `${d} يوم`);
+    const rows: BriefRowWa[] = ordered.map((x) => {
+      const d = Math.max(1, Math.floor((Date.now() - Date.parse(x.due_at)) / 86_400_000));
+      const p = x.owner_id ? people.get(x.owner_id) : undefined;
+      const manage = x.owner_id !== me.id && (x.assigner_id === me.id || (!!x.owner_id && below.has(x.owner_id)));
+      return {
+        key: `late:${x.id}`,
+        status: 'late',
+        person_name: x.owner_id === me.id ? (ar ? 'أنت' : 'you') : p ? ((ar && p.full_name_ar) || p.full_name).split(' ')[0] : null,
+        task_id: x.id,
+        task_title: titleIn(x as never, ar ? 'ar' : 'en'),
+        metric: ar ? `متأخرة ${arDays(d)}` : `${d} day${d === 1 ? '' : 's'} late`,
+        auto: did.has(x.id) ? { kind: 'reminded', at: did.get(x.id)!, now: false } : null,
+        action: { kind: 'due', task_id: x.id, owner_id: null, to_name: null, due_at: newDue },
+        manage,
+      };
+    });
+    const who = named.length === 1 ? ((ar && named[0].full_name_ar) || named[0].full_name).split(' ')[0] : null;
+    const head = ar
+      ? `⏰ ${ordered.length === 1 ? 'فيه مهمة وحدة متأخرة' : `فيه ${ordered.length} مهام متأخرة`}${who ? ` عند ${who}` : ''}`
+      : `⏰ ${ordered.length} late task${ordered.length === 1 ? '' : 's'}${who ? ` for ${who}` : ''}`;
+    const b = await briefList(rows, 'wa-late');
+    const body = rtl([head, ...b.lines].join('\n').trim());
+    if (b.list) await waList(from, body, b.list.button, b.list.rows);
     else await waText(from, body);
   }
 
@@ -822,6 +914,11 @@ async function handle(m: WaMessage, dry = false) {
     ];
     const buttons: WaButton[] = [];
     const after = { key, i: i + 1 };
+    // your own late task: the usual check-in buttons
+    if (t.owner_id === me.id) {
+      buttons.push({ id: `h:done:${r.task_id}`, title: ar ? '✅ خلصت' : '✅ Done' }, { id: `h:need_time:${r.task_id}`, title: ar ? '⏳ أبي وقت' : '⏳ Need time' }, nextBtn);
+      return void (await waButtons(from, rtl(lines.filter((l) => !l.startsWith('💡')).join('\n')), buttons));
+    }
     if (r.action && r.manage) {
       const day = r.action.due_at
         ? new Intl.DateTimeFormat(ar ? 'ar-SA-u-ca-gregory' : 'en-GB', { weekday: 'long', timeZone: 'Asia/Riyadh' }).format(new Date(r.action.due_at))
