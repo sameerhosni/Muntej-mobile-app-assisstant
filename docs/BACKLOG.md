@@ -3,7 +3,7 @@
 Everything started or promised that is **not finished yet**. Pick items from here to run later; when something is
 done, move it to "Done" at the bottom with the date. Anything left unfinished in a session gets added here.
 
-Last updated: 2026-11-20
+Last updated: 2026-11-21
 
 **Kept up to date automatically:** every `npm run ship` adds its release to Done with the date; Claude adds anything left unfinished (and moves finished items to Done) before each release.
 
@@ -145,6 +145,7 @@ Build: `scripts/build-android.ps1` (needs an Expo token in the Terminal).
 
 (move finished items here with the date)
 
+- 2026-11-21 · In testing: WhatsApp late tasks: summary, a card per task with its own buttons, then the next; «المتأخر» and «الأدوات» answer straight away (server: muntej-chat, whatsapp)
 - 2026-11-20 · In testing: Your shortcuts: side tab or from Saree3, chosen in Settings; Home drops the shortcut row (Muntej Test update 1.0.0)
 - 2026-11-20 · In testing: Saree3 is a lightning bolt on a light turquoise orb (Muntej Test update 1.0.0)
 - 2026-11-20 · In testing: Saree3 is the Muntej mark; Home drops «اللي عيني عليه عنك»; closed-tasks list from the data; faster QA (server: muntej-chat · Muntej Test update 1.0.0)
